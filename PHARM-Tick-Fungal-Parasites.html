@@ -1,0 +1,1653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {
+  "title": "Tick-Borne, Fungal & Parasitic Pharmacotherapy Interactive Exam",
+  "questions": [
+    {
+      "id": "1",
+      "group": 1,
+      "stem": "A 7-year-old recent immigrant presents with abdominal pain and vomiting; his mother saved a ~6 cm reddish-brown worm from his emesis, and imaging shows small-bowel obstruction. This is classic ascariasis. Which drug class is first-line?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Tetracyclines (doxycycline)"
+        },
+        {
+          "letter": "B",
+          "text": "Nitroimidazoles (metronidazole/tinidazole)"
+        },
+        {
+          "letter": "C",
+          "text": "Macrolides (azithromycin)"
+        },
+        {
+          "letter": "D",
+          "text": "Benzimidazoles (albendazole/mebendazole)"
+        },
+        {
+          "letter": "E",
+          "text": "Echinocandins (caspofungin)"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Roundworm (Ascaris) is treated with a benzimidazole such as albendazole or mebendazole.",
+      "objective": "TFP 3",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "2",
+      "group": 2,
+      "stem": "A 38-year-old woman with newly diagnosed diabetes has vulvar itching, burning, and a thick, white, curd-like vaginal discharge with vulvar erythema. Which oral agent is appropriate for uncomplicated vaginal candidiasis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "B",
+          "text": "Albendazole"
+        },
+        {
+          "letter": "C",
+          "text": "Amphotericin B"
+        },
+        {
+          "letter": "D",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "E",
+          "text": "Fluconazole"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Uncomplicated vaginal candidiasis can be treated with a single oral dose of fluconazole (or topical azoles).",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "3",
+      "group": 3,
+      "stem": "A patient is prescribed doxycycline for a tick-borne illness. Which of the following adverse effects should be included in counseling?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Disulfiram-like reaction after drinking alcohol"
+        },
+        {
+          "letter": "B",
+          "text": "Cinchonism with tinnitus and vertigo"
+        },
+        {
+          "letter": "C",
+          "text": "Rebound nasal congestion"
+        },
+        {
+          "letter": "D",
+          "text": "Photosensitivity and esophageal irritation"
+        },
+        {
+          "letter": "E",
+          "text": "Iris darkening and eyelash growth"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Doxycycline causes photosensitivity, GI/esophageal irritation (take upright with water), hepatotoxicity, and pseudotumor cerebri; absorption is reduced by calcium, magnesium, aluminum, and iron.",
+      "objective": "TFP 1",
+      "section": "Tick-Borne Disease"
+    },
+    {
+      "id": "4",
+      "group": 4,
+      "stem": "A clinician selects nystatin oral suspension for oropharyngeal candidiasis. Which property explains why it is used topically (swish) rather than systemically?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "It chelates cations, blocking its absorption"
+        },
+        {
+          "letter": "B",
+          "text": "It is not absorbed orally and is toxic parenterally"
+        },
+        {
+          "letter": "C",
+          "text": "It is renally cleared and needs careful dose adjustment"
+        },
+        {
+          "letter": "D",
+          "text": "It is a potent CYP3A4 inhibitor systemically"
+        },
+        {
+          "letter": "E",
+          "text": "It penetrates the CSF and causes seizures"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Nystatin is not absorbed from the GI tract and is toxic if given parenterally, so it is used topically (swish-and-spit/swallow) for mucocutaneous candidiasis.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "5",
+      "group": 5,
+      "stem": "A 6-year-old has perianal itching worse at night, and a household member saw the child scratching frequently. Enterobiasis (pinworm) is diagnosed. Which of the following is appropriate first-line therapy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Doxycycline for 10 days"
+        },
+        {
+          "letter": "B",
+          "text": "Fluconazole single dose"
+        },
+        {
+          "letter": "C",
+          "text": "Praziquantel single dose"
+        },
+        {
+          "letter": "D",
+          "text": "Albendazole, repeated in 2 weeks"
+        },
+        {
+          "letter": "E",
+          "text": "Oral metronidazole for seven days"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Pinworm is treated with a benzimidazole (albendazole or mebendazole) or pyrantel pamoate, repeated in 2 weeks; the whole household is usually treated.",
+      "objective": "TFP 3",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "6",
+      "group": 6,
+      "stem": "A 34-year-old backpacker has 10 days of foul-smelling, greasy diarrhea, bloating, and flatulence after drinking from a stream; stool testing confirms Giardia. Beyond rehydration, which of the following is an appropriate antimicrobial for symptomatic disease?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "B",
+          "text": "Fluconazole"
+        },
+        {
+          "letter": "C",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "D",
+          "text": "Chloroquine"
+        },
+        {
+          "letter": "E",
+          "text": "Praziquantel"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Symptomatic giardiasis is treated with metronidazole, tinidazole, or nitazoxanide, along with supportive fluid/electrolyte care.",
+      "objective": "TFP 3",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "7",
+      "group": 7,
+      "stem": "A 42-year-old woman returns from camping in Tennessee with high fever, severe headache, and a rash that began on her wrists and ankles and spread centrally; the spots do not blanch. She recalls a tick bite. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Trichomoniasis"
+        },
+        {
+          "letter": "B",
+          "text": "Rocky Mountain spotted fever"
+        },
+        {
+          "letter": "C",
+          "text": "Giardiasis"
+        },
+        {
+          "letter": "D",
+          "text": "Coccidioidomycosis"
+        },
+        {
+          "letter": "E",
+          "text": "Lyme disease with erythema migrans"
+        }
+      ],
+      "answer": "B",
+      "explanation": "A non-blanching petechial rash beginning at the wrists/ankles and spreading centrally (with later palm/sole involvement) after a tick bite is classic for RMSF (Rickettsia rickettsii).",
+      "objective": "TFP 1",
+      "section": "Tick-Borne Disease"
+    },
+    {
+      "id": "7a",
+      "group": 7,
+      "stem": "Which of the following is the treatment of choice for this condition, including in pregnant patients?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Amoxicillin"
+        },
+        {
+          "letter": "B",
+          "text": "Fluconazole"
+        },
+        {
+          "letter": "C",
+          "text": "Praziquantel"
+        },
+        {
+          "letter": "D",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "E",
+          "text": "Metronidazole"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Doxycycline is the treatment of choice for RMSF for all patients, including pregnant women, and should be started empirically without waiting for confirmatory testing.",
+      "objective": "TFP 1",
+      "section": "Tick-Borne Disease"
+    },
+    {
+      "id": "8",
+      "group": 8,
+      "stem": "A patient receiving flucytosine as part of antifungal therapy requires close monitoring. Which toxicities are the basis for its black box warning?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Photosensitivity and skin necrosis"
+        },
+        {
+          "letter": "B",
+          "text": "Peripheral neuropathy and seizures"
+        },
+        {
+          "letter": "C",
+          "text": "Renal, hematologic, and hepatic toxicity"
+        },
+        {
+          "letter": "D",
+          "text": "QT prolongation and torsades"
+        },
+        {
+          "letter": "E",
+          "text": "Tendon rupture and cartilage damage risk"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Flucytosine carries a black box warning for renal, hematologic (bone marrow suppression), and hepatic toxicity, requiring dose adjustment and monitoring.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "9",
+      "group": 9,
+      "stem": "A 26-year-old woman with HIV and a CD4 count below 100 has three months of progressively worsening headache and lethargy. CSF studies are positive on India ink stain and cryptococcal antigen. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Trichomoniasis"
+        },
+        {
+          "letter": "B",
+          "text": "Giardiasis"
+        },
+        {
+          "letter": "C",
+          "text": "Coccidioidomycosis"
+        },
+        {
+          "letter": "D",
+          "text": "Cryptococcosis"
+        },
+        {
+          "letter": "E",
+          "text": "Histoplasmosis"
+        }
+      ],
+      "answer": "D",
+      "explanation": "A chronic meningitis in an HIV patient with CD4 <100, positive India ink stain, and cryptococcal antigen is cryptococcosis.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "9a",
+      "group": 9,
+      "stem": "Which combination is used for induction treatment of this condition?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Fluconazole plus metronidazole"
+        },
+        {
+          "letter": "B",
+          "text": "Amphotericin B plus flucytosine"
+        },
+        {
+          "letter": "C",
+          "text": "Nystatin plus doxycycline"
+        },
+        {
+          "letter": "D",
+          "text": "Itraconazole plus albendazole"
+        },
+        {
+          "letter": "E",
+          "text": "Praziquantel plus ivermectin"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Cryptococcal meningitis is treated with induction amphotericin B plus flucytosine; fluconazole is used for consolidation/maintenance and prophylaxis.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "10",
+      "group": 10,
+      "stem": "A 32-year-old field scientist returns from a tropical malaria-endemic region with fever, chills, headache, and a blood smear showing Plasmodium falciparum. Which of the following is generally the most effective treatment option?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Oral doxycycline monotherapy for a week"
+        },
+        {
+          "letter": "B",
+          "text": "Oral albendazole"
+        },
+        {
+          "letter": "C",
+          "text": "Oral metronidazole"
+        },
+        {
+          "letter": "D",
+          "text": "Artemisinin-based combination therapy"
+        },
+        {
+          "letter": "E",
+          "text": "Oral fluconazole"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Artemisinin-based combination therapies (e.g., artemether-lumefantrine) are the most effective option for P. falciparum and are combined to prevent resistance.",
+      "objective": "TFP 3",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "10a",
+      "group": 10,
+      "stem": "Which species is emphasized as the most dangerous, potentially fatal cause of malaria?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Plasmodium ovale"
+        },
+        {
+          "letter": "B",
+          "text": "Plasmodium malariae"
+        },
+        {
+          "letter": "C",
+          "text": "Plasmodium knowlesi"
+        },
+        {
+          "letter": "D",
+          "text": "Plasmodium vivax"
+        },
+        {
+          "letter": "E",
+          "text": "Plasmodium falciparum"
+        }
+      ],
+      "answer": "E",
+      "explanation": "P. falciparum is the most dangerous species, capable of rapidly fulminant, fatal disease; malaria is transmitted by the female Anopheles mosquito.",
+      "objective": "TFP 3",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "11",
+      "group": 11,
+      "stem": "A 38-year-old gardener from Tennessee has ulcerated, crusted skin plaques with raised borders, plus fatigue, weight loss, and low-grade fever. Blastomycosis is diagnosed. Which of the following is appropriate treatment for moderate disease?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "B",
+          "text": "Pyrantel pamoate"
+        },
+        {
+          "letter": "C",
+          "text": "Ivermectin"
+        },
+        {
+          "letter": "D",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "E",
+          "text": "Itraconazole"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Itraconazole is used for blastomycosis (amphotericin B is added for severe disease), similar to other endemic molds.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "12",
+      "group": 12,
+      "stem": "A patient treated with quinine for resistant malaria develops nausea, tinnitus, and vertigo that resolve when the drug is stopped. What is this reversible syndrome called?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Mazzotti reaction"
+        },
+        {
+          "letter": "B",
+          "text": "Serotonin syndrome"
+        },
+        {
+          "letter": "C",
+          "text": "Red man syndrome"
+        },
+        {
+          "letter": "D",
+          "text": "Cinchonism"
+        },
+        {
+          "letter": "E",
+          "text": "Rhinitis medicamentosa"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Quinine causes cinchonism, a reversible syndrome of nausea/vomiting, tinnitus, and vertigo that resolves on discontinuation.",
+      "objective": "TFP 3",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "13",
+      "group": 13,
+      "stem": "A traveler is diagnosed with schistosomiasis, and another patient has a tapeworm (cestode) infection. Which single agent is the treatment of choice for both of these conditions?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Ivermectin"
+        },
+        {
+          "letter": "B",
+          "text": "Praziquantel"
+        },
+        {
+          "letter": "C",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "D",
+          "text": "Chloroquine"
+        },
+        {
+          "letter": "E",
+          "text": "Albendazole"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Praziquantel is the treatment of choice for all forms of schistosomiasis (flukes) and cestode (tapeworm) infections; it is contraindicated in pregnancy/nursing.",
+      "objective": "TFP 3",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "14",
+      "group": 14,
+      "stem": "A patient about to start an azole antifungal is also taking a statin. Which interaction is the basis for the recommendation to hold the statin?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Azoles and statins together cause hemolysis"
+        },
+        {
+          "letter": "B",
+          "text": "Azoles inactivate statins, raising cholesterol"
+        },
+        {
+          "letter": "C",
+          "text": "Azoles reduce statin absorption, causing treatment failure"
+        },
+        {
+          "letter": "D",
+          "text": "Azoles increase statin levels, risking rhabdomyolysis"
+        },
+        {
+          "letter": "E",
+          "text": "Azoles and statins together cause tendon rupture"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Azoles inhibit CYP450, raising statin levels and the risk of rhabdomyolysis; azoles are also hepatotoxic and can prolong the QT interval.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "15",
+      "group": 15,
+      "stem": "A patient is treated with ivermectin for strongyloidiasis. Which adverse reaction, resulting from the death of parasites, should be anticipated?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Cinchonism with tinnitus and vertigo"
+        },
+        {
+          "letter": "B",
+          "text": "Fever, headache, hypotension (Mazzotti reaction)"
+        },
+        {
+          "letter": "C",
+          "text": "Disulfiram-like reaction with any alcohol"
+        },
+        {
+          "letter": "D",
+          "text": "Achilles tendon rupture with corticosteroids"
+        },
+        {
+          "letter": "E",
+          "text": "Cholestatic jaundice with prolonged use"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Ivermectin can cause a Mazzotti-like reaction (fever, headache, dizziness, hypotension) from parasite killing; it is used for strongyloidiasis and scabies and is avoided in pregnancy.",
+      "objective": "TFP 3",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "16",
+      "group": 16,
+      "stem": "A pregnant patient is diagnosed with an intestinal helminth infection. Which consideration is most important when choosing therapy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Anthelmintics all cause a disulfiram-like reaction"
+        },
+        {
+          "letter": "B",
+          "text": "Benzimidazoles and ivermectin are unsafe in pregnancy"
+        },
+        {
+          "letter": "C",
+          "text": "Anthelmintics require G6PD testing before all use"
+        },
+        {
+          "letter": "D",
+          "text": "All anthelmintics are completely safe to use in pregnancy"
+        },
+        {
+          "letter": "E",
+          "text": "Anthelmintics must be separated from iron by 4 hours"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Benzimidazoles (albendazole/mebendazole), ivermectin, and praziquantel are generally contraindicated or used with caution in pregnancy; timing of therapy and drug choice must account for this.",
+      "objective": "TFP 4",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "17",
+      "group": 17,
+      "stem": "A 50-year-old man from a tick-endemic area has fever, headache, and myalgias. Labs show leukopenia, thrombocytopenia, and elevated transaminases. A tick-borne illness is suspected. Which of the following is the treatment of choice?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Chloroquine"
+        },
+        {
+          "letter": "B",
+          "text": "Fluconazole"
+        },
+        {
+          "letter": "C",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "D",
+          "text": "Nystatin"
+        },
+        {
+          "letter": "E",
+          "text": "Mebendazole"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Anaplasmosis and ehrlichiosis present with leukopenia, thrombocytopenia, and elevated transaminases; doxycycline is the treatment of choice (rifampin if doxycycline cannot be used).",
+      "objective": "TFP 1",
+      "section": "Tick-Borne Disease"
+    },
+    {
+      "id": "18",
+      "group": 18,
+      "stem": "A traveler is going to a region where Plasmodium vivax is common and wants prophylaxis that also acts against dormant liver forms. After confirming a normal G6PD level, which agent fits this need?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "B",
+          "text": "Fluconazole"
+        },
+        {
+          "letter": "C",
+          "text": "Nystatin"
+        },
+        {
+          "letter": "D",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "E",
+          "text": "Primaquine"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Primaquine (and tafenoquine) act against dormant hepatic forms of P. vivax/ovale to prevent relapse and require G6PD testing before use.",
+      "objective": "TFP 3",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "19",
+      "group": 19,
+      "stem": "A 28-year-old woman has vaginal itching, dysuria, and a frothy, greenish-yellow discharge; wet mount shows motile trichomonads. Which of the following is the drug of choice?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Albendazole"
+        },
+        {
+          "letter": "B",
+          "text": "Fluconazole"
+        },
+        {
+          "letter": "C",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "D",
+          "text": "Nystatin"
+        },
+        {
+          "letter": "E",
+          "text": "Doxycycline"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Metronidazole is the drug of choice for Trichomonas vaginalis (also for giardiasis, amebiasis, and bacterial vaginosis).",
+      "objective": "TFP 3",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "19a",
+      "group": 19,
+      "stem": "Which counseling point about this drug is most important?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Use sunscreen daily to prevent phototoxic skin burns"
+        },
+        {
+          "letter": "B",
+          "text": "Expect harmless red discoloration of urine"
+        },
+        {
+          "letter": "C",
+          "text": "Take it with iron to improve absorption"
+        },
+        {
+          "letter": "D",
+          "text": "Avoid alcohol to prevent a disulfiram-like reaction"
+        },
+        {
+          "letter": "E",
+          "text": "Stop the drug if tendon pain develops"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Metronidazole causes a disulfiram-like reaction with alcohol; patients must avoid alcohol during and shortly after therapy. It can also prolong the QT interval.",
+      "objective": "TFP 3",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "20",
+      "group": 20,
+      "stem": "A patient on chronic proton pump inhibitor therapy is started on oral itraconazole. Why might this combination reduce antifungal efficacy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "PPIs block itraconazole entry into fungal cells"
+        },
+        {
+          "letter": "B",
+          "text": "PPIs directly inactivate itraconazole in blood"
+        },
+        {
+          "letter": "C",
+          "text": "PPIs speed renal clearance of itraconazole"
+        },
+        {
+          "letter": "D",
+          "text": "Itraconazole binds the PPI and is excreted"
+        },
+        {
+          "letter": "E",
+          "text": "Itraconazole needs an acidic gut to be absorbed"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Oral itraconazole requires an acidic environment and food for absorption; PPIs raise gastric pH and impair its absorption. Itraconazole can also cause a triad of hypertension, hypokalemia, and edema.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "21",
+      "group": 21,
+      "stem": "A 30-year-old man who hikes frequently presents with fever, headache, myalgias, and an expanding erythematous rash with central clearing (a bull's-eye lesion) on his thigh that developed a week after a wooded-area hike. Which of the following is the most appropriate treatment?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Fluconazole"
+        },
+        {
+          "letter": "B",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "C",
+          "text": "Amphotericin B"
+        },
+        {
+          "letter": "D",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "E",
+          "text": "Albendazole"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Erythema migrans (bull's-eye rash) after tick exposure is early Lyme disease (Borrelia burgdorferi); doxycycline is first-line, and treatment is on clinical grounds without waiting for serology.",
+      "objective": "TFP 1",
+      "section": "Tick-Borne Disease"
+    },
+    {
+      "id": "21a",
+      "group": 21,
+      "stem": "The patient asks whether serologic testing is needed before starting therapy. What is the best response?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "A fungal culture is required before treating"
+        },
+        {
+          "letter": "B",
+          "text": "Blood cultures must be positive before treating"
+        },
+        {
+          "letter": "C",
+          "text": "Wait for confirmatory serology before any therapy"
+        },
+        {
+          "letter": "D",
+          "text": "Treat clinically; early serology is often negative"
+        },
+        {
+          "letter": "E",
+          "text": "Treatment should be delayed until IgG appears"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Early Lyme disease is a clinical diagnosis in an endemic area; serology is frequently negative at presentation, so treatment should not wait for it.",
+      "objective": "TFP 1",
+      "section": "Tick-Borne Disease"
+    },
+    {
+      "id": "21b",
+      "group": 21,
+      "stem": "If this patient were pregnant, which alternative agent would be most appropriate?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Ivermectin"
+        },
+        {
+          "letter": "B",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "C",
+          "text": "Ciprofloxacin"
+        },
+        {
+          "letter": "D",
+          "text": "Itraconazole"
+        },
+        {
+          "letter": "E",
+          "text": "Amoxicillin"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Amoxicillin is the preferred alternative for Lyme disease in pregnancy, when doxycycline is generally avoided.",
+      "objective": "TFP 1",
+      "section": "Tick-Borne Disease"
+    },
+    {
+      "id": "22",
+      "group": 22,
+      "stem": "A 40-year-old construction worker in Arizona has several weeks of cough, pleuritic chest pain, fatigue, arthralgias, and low-grade fever, with a chest x-ray showing an upper lobe infiltrate and hilar adenopathy. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Cryptococcosis"
+        },
+        {
+          "letter": "B",
+          "text": "Histoplasmosis"
+        },
+        {
+          "letter": "C",
+          "text": "Coccidioidomycosis"
+        },
+        {
+          "letter": "D",
+          "text": "Blastomycosis"
+        },
+        {
+          "letter": "E",
+          "text": "Candidemia"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Pulmonary disease with arthralgias in a patient from the desert Southwest (Arizona/California) exposed to dust is classic for coccidioidomycosis ('Valley fever').",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "22a",
+      "group": 22,
+      "stem": "For symptomatic pulmonary disease from this organism, which agent is the preferred oral azole?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Flucytosine"
+        },
+        {
+          "letter": "B",
+          "text": "Albendazole"
+        },
+        {
+          "letter": "C",
+          "text": "Fluconazole"
+        },
+        {
+          "letter": "D",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "E",
+          "text": "Nystatin"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Fluconazole is a preferred agent for coccidioidomycosis; amphotericin B is added first for severe disease.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "23",
+      "group": 23,
+      "stem": "A 44-year-old man on immunosuppressive therapy develops fever, cough, headache, and pleuritic chest pain two weeks after exploring caves in Ohio. Chest imaging shows infiltrates with mediastinal adenopathy. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Oral candidiasis"
+        },
+        {
+          "letter": "B",
+          "text": "Cryptococcosis"
+        },
+        {
+          "letter": "C",
+          "text": "Histoplasmosis"
+        },
+        {
+          "letter": "D",
+          "text": "Blastomycosis"
+        },
+        {
+          "letter": "E",
+          "text": "Coccidioidomycosis"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Cave exposure (bat/bird droppings) in the Ohio/Mississippi River valleys with pulmonary infiltrates and mediastinal adenopathy is classic for histoplasmosis.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "23a",
+      "group": 23,
+      "stem": "For moderate pulmonary disease from this fungus, which oral agent is preferred?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Praziquantel"
+        },
+        {
+          "letter": "B",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "C",
+          "text": "Itraconazole"
+        },
+        {
+          "letter": "D",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "E",
+          "text": "Nystatin"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Itraconazole is the preferred oral agent for moderate histoplasmosis; amphotericin B (often followed by itraconazole) is used for severe disease.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "24",
+      "group": 24,
+      "stem": "A patient with severe systemic fungal infection is started on amphotericin B. Which of the following is a well-recognized dose-limiting adverse effect requiring monitoring?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Rebound congestion"
+        },
+        {
+          "letter": "B",
+          "text": "Tendon rupture"
+        },
+        {
+          "letter": "C",
+          "text": "Photosensitivity"
+        },
+        {
+          "letter": "D",
+          "text": "QT shortening"
+        },
+        {
+          "letter": "E",
+          "text": "Nephrotoxicity"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Amphotericin B causes nephrotoxicity and electrolyte wasting (K+, Mg2+); saline hydration before and after infusion reduces renal injury, and premedication reduces infusion-related fever/chills.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "24a",
+      "group": 24,
+      "stem": "Which intervention best reduces this agent's infusion-related fever and chills?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Withholding all intravenous fluids"
+        },
+        {
+          "letter": "B",
+          "text": "Adding a calcium infusion to the line"
+        },
+        {
+          "letter": "C",
+          "text": "A rapid intravenous push over one minute"
+        },
+        {
+          "letter": "D",
+          "text": "Premedication with an antipyretic or corticosteroid"
+        },
+        {
+          "letter": "E",
+          "text": "Concurrent nephrotoxic NSAID therapy during infusion"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Premedication with an antipyretic and/or corticosteroid, along with slower infusion, reduces the fever/chills/hypotension associated with amphotericin B.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "25",
+      "group": 25,
+      "stem": "A 54-year-old man with diabetes has white, creamy patches on his tongue and buccal mucosa that scrape off to reveal erythema, causing mild discomfort. For this mild oropharyngeal infection, which topical therapy is appropriate?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Clotrimazole troches"
+        },
+        {
+          "letter": "B",
+          "text": "Topical mupirocin"
+        },
+        {
+          "letter": "C",
+          "text": "Systemic amphotericin B"
+        },
+        {
+          "letter": "D",
+          "text": "Oral doxycycline"
+        },
+        {
+          "letter": "E",
+          "text": "Oral metronidazole"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Mild oral candidiasis (thrush) is treated topically with clotrimazole troches, miconazole buccal tablets, or nystatin suspension; fluconazole is used for moderate-severe or esophageal disease.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "25a",
+      "group": 25,
+      "stem": "If this patient instead had esophageal involvement with odynophagia, which agent is preferred?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Topical miconazole gel"
+        },
+        {
+          "letter": "B",
+          "text": "Oral doxycycline"
+        },
+        {
+          "letter": "C",
+          "text": "Clotrimazole troches"
+        },
+        {
+          "letter": "D",
+          "text": "Fluconazole"
+        },
+        {
+          "letter": "E",
+          "text": "Nystatin swish-and-spit"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Esophageal candidiasis requires systemic therapy with fluconazole (higher dose, longer course), not topical agents.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    },
+    {
+      "id": "26",
+      "group": 26,
+      "stem": "A patient with Plasmodium vivax malaria needs an agent to eradicate the dormant liver forms and prevent relapse. Which test must be checked before prescribing this agent because of hemolysis risk?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Serum lipase (pancreatitis)"
+        },
+        {
+          "letter": "B",
+          "text": "TSH (thyroid function)"
+        },
+        {
+          "letter": "C",
+          "text": "INR (warfarin sensitivity)"
+        },
+        {
+          "letter": "D",
+          "text": "Ferritin (iron stores)"
+        },
+        {
+          "letter": "E",
+          "text": "G6PD level (primaquine)"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Primaquine prevents relapse of P. vivax/ovale by eliminating dormant liver forms but can cause severe hemolysis in G6PD deficiency, so G6PD status must be checked first.",
+      "objective": "TFP 3",
+      "section": "Parasitic Disease"
+    },
+    {
+      "id": "27",
+      "group": 27,
+      "stem": "A hospitalized patient with a central venous catheter has Candida isolated from blood cultures. Which class is generally preferred as initial therapy because it is well tolerated?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Aminoglycosides"
+        },
+        {
+          "letter": "B",
+          "text": "Echinocandins"
+        },
+        {
+          "letter": "C",
+          "text": "Benzimidazoles"
+        },
+        {
+          "letter": "D",
+          "text": "Nitroimidazoles"
+        },
+        {
+          "letter": "E",
+          "text": "Tetracyclines"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Echinocandins (caspofungin, micafungin, anidulafungin) are typically preferred initial therapy for candidemia and are better tolerated than azoles or amphotericin B; catheter removal is also considered.",
+      "objective": "TFP 2",
+      "section": "Fungal Disease"
+    }
+  ]
+};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

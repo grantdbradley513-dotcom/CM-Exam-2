@@ -1,0 +1,1529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {
+  "title": "Oncology Pharmacotherapy Interactive Exam",
+  "questions": [
+    {
+      "id": "1",
+      "group": 1,
+      "stem": "A premenopausal woman with ER-positive breast cancer is started on tamoxifen. Which serious adverse effect should be discussed because tamoxifen acts as an estrogen agonist in the uterus?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Pulmonary fibrosis"
+        },
+        {
+          "letter": "B",
+          "text": "Endometrial cancer"
+        },
+        {
+          "letter": "C",
+          "text": "Hemorrhagic cystitis"
+        },
+        {
+          "letter": "D",
+          "text": "Peripheral neuropathy"
+        },
+        {
+          "letter": "E",
+          "text": "Nephrotoxicity"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Tamoxifen (a SERM) acts as an estrogen agonist on the endometrium, increasing the risk of endometrial hyperplasia/cancer and thromboembolic events; report abnormal vaginal bleeding.",
+      "objective": "Onc 1",
+      "section": "Hormonal Therapy"
+    },
+    {
+      "id": "2",
+      "group": 2,
+      "stem": "A patient with stage III colon cancer is treated with FOLFOX (folinic acid, 5-fluorouracil, and oxaliplatin). What is the role of the folinic acid (leucovorin) in this regimen?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "It stimulates neutrophil recovery"
+        },
+        {
+          "letter": "B",
+          "text": "It prevents hemorrhagic cystitis"
+        },
+        {
+          "letter": "C",
+          "text": "It reverses anthracycline cardiotoxicity"
+        },
+        {
+          "letter": "D",
+          "text": "It prevents cisplatin nephrotoxicity"
+        },
+        {
+          "letter": "E",
+          "text": "It increases the efficacy of 5-fluorouracil"
+        }
+      ],
+      "answer": "E",
+      "explanation": "In FOLFOX, folinic acid (leucovorin) acts as a modulating agent that enhances the efficacy of 5-FU (a different role than its rescue function with methotrexate).",
+      "objective": "Onc 3",
+      "section": "Chemotherapy Principles"
+    },
+    {
+      "id": "3",
+      "group": 3,
+      "stem": "During chemotherapy administration, a clinician is careful with a drug described as a 'vesicant.' What does this term mean?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "A drug that targets a specific tumor protein"
+        },
+        {
+          "letter": "B",
+          "text": "A drug that stimulates the immune system"
+        },
+        {
+          "letter": "C",
+          "text": "A drug that suppresses all of the bone marrow cell lines"
+        },
+        {
+          "letter": "D",
+          "text": "A drug that causes blistering if it leaks into tissue"
+        },
+        {
+          "letter": "E",
+          "text": "A drug given only after definitive surgery"
+        }
+      ],
+      "answer": "D",
+      "explanation": "A vesicant causes blistering and tissue damage if it extravasates from the vein, which is especially problematic in small vessels.",
+      "objective": "Onc 1",
+      "section": "Chemotherapy Principles"
+    },
+    {
+      "id": "4",
+      "group": 4,
+      "stem": "A patient with a large breast tumor receives chemotherapy BEFORE surgery to shrink the tumor. Which term describes this approach?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Neoadjuvant chemotherapy"
+        },
+        {
+          "letter": "B",
+          "text": "Adjuvant chemotherapy"
+        },
+        {
+          "letter": "C",
+          "text": "Maintenance chemotherapy"
+        },
+        {
+          "letter": "D",
+          "text": "Palliative chemotherapy"
+        },
+        {
+          "letter": "E",
+          "text": "Consolidation chemotherapy"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Neoadjuvant chemotherapy is given before definitive therapy (surgery/radiation) to reduce tumor burden; adjuvant therapy is given after surgery to eliminate micrometastases.",
+      "objective": "Onc 3",
+      "section": "Chemotherapy Principles"
+    },
+    {
+      "id": "5",
+      "group": 5,
+      "stem": "A patient receiving cyclophosphamide as part of a lymphoma regimen is counseled on preventing a characteristic bladder toxicity. Which intervention is most important?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Premedicate with an antihistamine"
+        },
+        {
+          "letter": "B",
+          "text": "Take a daily calcium supplement"
+        },
+        {
+          "letter": "C",
+          "text": "Maintain aggressive hydration"
+        },
+        {
+          "letter": "D",
+          "text": "Check G6PD before each dose"
+        },
+        {
+          "letter": "E",
+          "text": "Avoid all sun exposure"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Cyclophosphamide (an alkylating agent) can cause hemorrhagic cystitis; adequate hydration is key to prevention. Bone marrow suppression is its dose-limiting toxicity.",
+      "objective": "Onc 1",
+      "section": "Cytotoxic Agents & Toxicities"
+    },
+    {
+      "id": "6",
+      "group": 6,
+      "stem": "A patient is receiving docetaxel, a microtubule inhibitor. Before infusion, premedication with dexamethasone and diphenhydramine is given. What is the main purpose of this premedication?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "To prevent nephrotoxicity"
+        },
+        {
+          "letter": "B",
+          "text": "To prevent hemorrhagic cystitis"
+        },
+        {
+          "letter": "C",
+          "text": "To prevent cardiotoxicity"
+        },
+        {
+          "letter": "D",
+          "text": "To prevent tumor lysis syndrome and gout"
+        },
+        {
+          "letter": "E",
+          "text": "To prevent hypersensitivity reactions"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Taxanes cause hypersensitivity reactions requiring premedication with a corticosteroid and antihistamine; their dose-limiting toxicity is neutropenia (managed with filgrastim).",
+      "objective": "Onc 1",
+      "section": "Cytotoxic Agents & Toxicities"
+    },
+    {
+      "id": "6a",
+      "group": 6,
+      "stem": "This agent's dose-limiting toxicity is neutropenia. Which supportive agent helps reverse it?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Filgrastim"
+        },
+        {
+          "letter": "B",
+          "text": "Allopurinol"
+        },
+        {
+          "letter": "C",
+          "text": "Ondansetron"
+        },
+        {
+          "letter": "D",
+          "text": "Mesna"
+        },
+        {
+          "letter": "E",
+          "text": "Leucovorin"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Filgrastim (G-CSF) stimulates neutrophil recovery; taxane therapy is held if the count drops below ~1,500 cells/mm3.",
+      "objective": "Onc 2",
+      "section": "Cytotoxic Agents & Toxicities"
+    },
+    {
+      "id": "7",
+      "group": 7,
+      "stem": "A pediatric patient with acute lymphoblastic leukemia requires therapy directed into the subarachnoid space to prevent leukemic meningitis. Which type of chemotherapy accomplishes this?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Intrathecal chemotherapy"
+        },
+        {
+          "letter": "B",
+          "text": "Oral maintenance chemotherapy"
+        },
+        {
+          "letter": "C",
+          "text": "Intravesical chemotherapy"
+        },
+        {
+          "letter": "D",
+          "text": "Inhaled chemotherapy"
+        },
+        {
+          "letter": "E",
+          "text": "Topical chemotherapy"
+        }
+      ],
+      "answer": "A",
+      "explanation": "All patients with ALL receive intrathecal chemotherapy (e.g., methotrexate, cytarabine) to prevent CNS/leukemic meningitis.",
+      "objective": "Onc 3",
+      "section": "Chemotherapy Principles"
+    },
+    {
+      "id": "8",
+      "group": 8,
+      "stem": "A patient with metastatic colorectal cancer is on bevacizumab, an anti-VEGF monoclonal antibody, and needs major surgery. Which consideration is most important?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "It impairs wound healing and must be held around surgery"
+        },
+        {
+          "letter": "B",
+          "text": "It causes irreversible cardiomyopathy within days"
+        },
+        {
+          "letter": "C",
+          "text": "It causes a disulfiram-like reaction when drinking alcohol"
+        },
+        {
+          "letter": "D",
+          "text": "It requires G6PD testing before every dose"
+        },
+        {
+          "letter": "E",
+          "text": "It must be separated from oral iron by 2 hours"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Bevacizumab inhibits VEGF/angiogenesis and impairs wound healing; it must not be given within ~28 days before or after major surgery. Other risks include GI perforation and venous thromboembolism.",
+      "objective": "Onc 1",
+      "section": "Targeted Therapy"
+    },
+    {
+      "id": "9",
+      "group": 9,
+      "stem": "A woman with HER2-positive breast cancer is treated with trastuzumab. Which toxicity requires monitoring, especially when this drug is combined with an anthracycline?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Peripheral neuropathy"
+        },
+        {
+          "letter": "B",
+          "text": "Cardiomyopathy"
+        },
+        {
+          "letter": "C",
+          "text": "Nephrotoxicity"
+        },
+        {
+          "letter": "D",
+          "text": "Hemorrhagic cystitis"
+        },
+        {
+          "letter": "E",
+          "text": "Endometrial cancer"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Trastuzumab (anti-HER2 monoclonal antibody) can cause cardiomyopathy, and this risk increases when combined with anthracyclines; cardiac function is monitored, including for up to 2 years after treatment.",
+      "objective": "Onc 1",
+      "section": "Targeted Therapy"
+    },
+    {
+      "id": "10",
+      "group": 10,
+      "stem": "A patient with high-grade B-cell non-Hodgkin lymphoma is treated with R-CHOP. After the rituximab infusion, laboratory studies show hyperuricemia, hyperkalemia, hyperphosphatemia, and hypocalcemia. Which complication does this represent?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Tumor lysis syndrome"
+        },
+        {
+          "letter": "B",
+          "text": "Hand-foot syndrome"
+        },
+        {
+          "letter": "C",
+          "text": "Serotonin syndrome"
+        },
+        {
+          "letter": "D",
+          "text": "Hemorrhagic cystitis"
+        },
+        {
+          "letter": "E",
+          "text": "Cardiomyopathy"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Rapid tumor cell breakdown causes tumor lysis syndrome (hyperuricemia, hyperkalemia, hyperphosphatemia, hypocalcemia), notably after rituximab in bulky lymphoma/leukemia.",
+      "objective": "Onc 1",
+      "section": "Immunotherapy"
+    },
+    {
+      "id": "10a",
+      "group": 10,
+      "stem": "Which premedication is given before this monoclonal antibody to reduce infusion reactions?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Oral calcium and vitamin D supplements"
+        },
+        {
+          "letter": "B",
+          "text": "Folic acid and B12"
+        },
+        {
+          "letter": "C",
+          "text": "Iron and vitamin C"
+        },
+        {
+          "letter": "D",
+          "text": "Diphenhydramine and acetaminophen"
+        },
+        {
+          "letter": "E",
+          "text": "Potassium and magnesium"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Rituximab can cause serious infusion reactions (hypotension, bronchospasm, angioedema); premedication with diphenhydramine and acetaminophen (and slow infusion) is used.",
+      "objective": "Onc 2",
+      "section": "Immunotherapy"
+    },
+    {
+      "id": "11",
+      "group": 11,
+      "stem": "A patient with high-grade non-Hodgkin lymphoma is treated with R-CHOP. The 'R' component adds which type of therapy to the CHOP backbone?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "A topoisomerase inhibitor"
+        },
+        {
+          "letter": "B",
+          "text": "A monoclonal antibody (immunotherapy)"
+        },
+        {
+          "letter": "C",
+          "text": "A platinum-based heavy-metal alkylator"
+        },
+        {
+          "letter": "D",
+          "text": "An aromatase inhibitor"
+        },
+        {
+          "letter": "E",
+          "text": "An intrathecal antimetabolite"
+        }
+      ],
+      "answer": "B",
+      "explanation": "The 'R' in R-CHOP is rituximab, a monoclonal antibody (immunotherapy) added to cyclophosphamide, doxorubicin, vincristine, and prednisone.",
+      "objective": "Onc 3",
+      "section": "Chemotherapy Principles"
+    },
+    {
+      "id": "12",
+      "group": 12,
+      "stem": "A patient with metastatic NSCLC on pembrolizumab, an immune checkpoint inhibitor, returns with new pericarditis, hypothyroidism, and worsening renal function. Which mechanism explains these varied toxicities?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Estrogen-agonist stimulation of tissues"
+        },
+        {
+          "letter": "B",
+          "text": "Direct nephrotoxic damage from platinum"
+        },
+        {
+          "letter": "C",
+          "text": "Anthracycline-induced free-radical injury"
+        },
+        {
+          "letter": "D",
+          "text": "Alkylating-agent bladder mucosal injury"
+        },
+        {
+          "letter": "E",
+          "text": "Unchecked autoimmune attack on normal tissues"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Checkpoint inhibitors (e.g., pembrolizumab, a PD-1 inhibitor) release immune regulation, causing immune-related adverse events across many organs (endocrine, cardiac, GI, renal, pulmonary, skin); severe cases are treated with corticosteroids.",
+      "objective": "Onc 1",
+      "section": "Immunotherapy"
+    },
+    {
+      "id": "12a",
+      "group": 12,
+      "stem": "Which treatment is used for severe immune-related adverse events from this class?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Mesna"
+        },
+        {
+          "letter": "B",
+          "text": "Filgrastim"
+        },
+        {
+          "letter": "C",
+          "text": "Allopurinol"
+        },
+        {
+          "letter": "D",
+          "text": "Leucovorin"
+        },
+        {
+          "letter": "E",
+          "text": "Corticosteroids"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Severe immune-related adverse events are treated promptly with corticosteroids to suppress the autoimmune response.",
+      "objective": "Onc 2",
+      "section": "Immunotherapy"
+    },
+    {
+      "id": "13",
+      "group": 13,
+      "stem": "A patient receiving high-dose methotrexate requires an agent to 'rescue' normal cells and reverse its toxicity. Which agent is used?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Ondansetron"
+        },
+        {
+          "letter": "B",
+          "text": "Mesna"
+        },
+        {
+          "letter": "C",
+          "text": "Dexrazoxane"
+        },
+        {
+          "letter": "D",
+          "text": "Leucovorin"
+        },
+        {
+          "letter": "E",
+          "text": "Filgrastim"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Leucovorin (folinic acid) is the rescue agent for methotrexate; monitoring includes CBC, CMP, and methotrexate levels.",
+      "objective": "Onc 1",
+      "section": "Chemotherapy Principles"
+    },
+    {
+      "id": "13a",
+      "group": 13,
+      "stem": "Which co-administered drug most increases methotrexate toxicity and should be used cautiously?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Loop diuretics"
+        },
+        {
+          "letter": "B",
+          "text": "Inhaled corticosteroids"
+        },
+        {
+          "letter": "C",
+          "text": "Topical emollients"
+        },
+        {
+          "letter": "D",
+          "text": "NSAIDs"
+        },
+        {
+          "letter": "E",
+          "text": "Bulk laxatives"
+        }
+      ],
+      "answer": "D",
+      "explanation": "NSAIDs, salicylates, PPIs, and sulfonamides increase methotrexate toxicity; methotrexate is also contraindicated in pregnancy.",
+      "objective": "Onc 1",
+      "section": "Chemotherapy Principles"
+    },
+    {
+      "id": "14",
+      "group": 14,
+      "stem": "A 75-year-old man with metastatic prostate cancer is started on leuprolide. In the first weeks of therapy, which effect should be anticipated?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Transient tumor flare from a hormone surge"
+        },
+        {
+          "letter": "B",
+          "text": "Immediate and irreversible cardiomyopathy"
+        },
+        {
+          "letter": "C",
+          "text": "Rapid tumor lysis with hyperkalemia"
+        },
+        {
+          "letter": "D",
+          "text": "Acute hemorrhagic cystitis"
+        },
+        {
+          "letter": "E",
+          "text": "Severe hand-foot desquamation"
+        }
+      ],
+      "answer": "A",
+      "explanation": "GnRH agonists such as leuprolide initially stimulate the pituitary, causing a temporary surge and possible tumor flare before hormone levels fall; other effects include hot flashes and reduced bone density.",
+      "objective": "Onc 1",
+      "section": "Hormonal Therapy"
+    },
+    {
+      "id": "14a",
+      "group": 14,
+      "stem": "Because of reduced bone mineral density with this therapy, what supplementation should be started?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Folic acid and vitamin B12"
+        },
+        {
+          "letter": "B",
+          "text": "Potassium and magnesium"
+        },
+        {
+          "letter": "C",
+          "text": "Calcium and vitamin D"
+        },
+        {
+          "letter": "D",
+          "text": "Iron and vitamin C supplements"
+        },
+        {
+          "letter": "E",
+          "text": "Zinc and selenium tablets"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Patients on androgen-deprivation therapy should receive calcium and vitamin D to help prevent osteoporosis and fractures.",
+      "objective": "Onc 1",
+      "section": "Hormonal Therapy"
+    },
+    {
+      "id": "15",
+      "group": 15,
+      "stem": "A patient with symptomatic chronic lymphocytic leukemia is to begin targeted therapy. Which monoclonal antibody is used as first-line treatment for symptomatic disease?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Trastuzumab"
+        },
+        {
+          "letter": "B",
+          "text": "Bevacizumab"
+        },
+        {
+          "letter": "C",
+          "text": "Cetuximab"
+        },
+        {
+          "letter": "D",
+          "text": "Ipilimumab"
+        },
+        {
+          "letter": "E",
+          "text": "Rituximab"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Rituximab (anti-CD20) is used as first-line targeted therapy for symptomatic CLL; CLL also carries increased risk of autoimmune hemolytic anemia and ITP.",
+      "objective": "Onc 1",
+      "section": "Immunotherapy"
+    },
+    {
+      "id": "16",
+      "group": 16,
+      "stem": "A pharmacology discussion contrasts cell-cycle-specific and cell-cycle-nonspecific agents. Which of the following is a classic cell-cycle-NONSPECIFIC drug class?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Alkylating agents"
+        },
+        {
+          "letter": "B",
+          "text": "Taxanes"
+        },
+        {
+          "letter": "C",
+          "text": "Topoisomerase inhibitors"
+        },
+        {
+          "letter": "D",
+          "text": "Vinca alkaloids"
+        },
+        {
+          "letter": "E",
+          "text": "Antimetabolites"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Alkylating agents are cell-cycle nonspecific (active against dividing and slow-growing cells), whereas antimetabolites, taxanes, and vinca alkaloids are cell-cycle specific.",
+      "objective": "Onc 3",
+      "section": "Chemotherapy Principles"
+    },
+    {
+      "id": "17",
+      "group": 17,
+      "stem": "A 45-year-old woman being treated for breast cancer develops progressive dyspnea, fatigue, and lower-extremity edema; an echocardiogram shows a reduced left ventricular ejection fraction. Which chemotherapy agent in her regimen is the most likely cause?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "5-Fluorouracil"
+        },
+        {
+          "letter": "B",
+          "text": "Cyclophosphamide"
+        },
+        {
+          "letter": "C",
+          "text": "Tamoxifen"
+        },
+        {
+          "letter": "D",
+          "text": "Epirubicin"
+        },
+        {
+          "letter": "E",
+          "text": "Docetaxel"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Anthracyclines/anti-tumor antibiotics such as epirubicin and doxorubicin cause dose-dependent, often irreversible cardiotoxicity; LVEF is monitored with ECHO before, during, and after therapy.",
+      "objective": "Onc 1",
+      "section": "Cytotoxic Agents & Toxicities"
+    },
+    {
+      "id": "17a",
+      "group": 17,
+      "stem": "Which monitoring is most important during treatment with this class of agent?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Serial echocardiograms to assess LVEF"
+        },
+        {
+          "letter": "B",
+          "text": "Frequent bone density scanning"
+        },
+        {
+          "letter": "C",
+          "text": "Routine pulmonary function spirometry"
+        },
+        {
+          "letter": "D",
+          "text": "Weekly visual acuity testing"
+        },
+        {
+          "letter": "E",
+          "text": "Serum G6PD activity monitoring"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Because anthracyclines cause cardiotoxicity, serial ECHO/LVEF assessment is essential; the toxicity can be irreversible.",
+      "objective": "Onc 2",
+      "section": "Cytotoxic Agents & Toxicities"
+    },
+    {
+      "id": "18",
+      "group": 18,
+      "stem": "A 65-year-old woman with small cell lung cancer is starting cisplatin. Which set of adverse effects is most characteristic of this heavy-metal agent?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Hemorrhagic cystitis and secondary leukemia"
+        },
+        {
+          "letter": "B",
+          "text": "Nephrotoxicity, severe nausea, and neuropathy"
+        },
+        {
+          "letter": "C",
+          "text": "Irreversible cardiomyopathy and heart failure"
+        },
+        {
+          "letter": "D",
+          "text": "Endometrial cancer and thromboembolism"
+        },
+        {
+          "letter": "E",
+          "text": "Hand-foot syndrome and mucositis"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Cisplatin causes dose-related nephrotoxicity (requiring aggressive hydration), severe nausea/vomiting (requiring pre-medication), and peripheral neuropathy.",
+      "objective": "Onc 1",
+      "section": "Cytotoxic Agents & Toxicities"
+    },
+    {
+      "id": "18a",
+      "group": 18,
+      "stem": "Which class of antiemetic is most appropriate to give before and after this agent to prevent its severe nausea and vomiting?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Bulk-forming laxatives"
+        },
+        {
+          "letter": "B",
+          "text": "5-HT3 antagonists (e.g., ondansetron)"
+        },
+        {
+          "letter": "C",
+          "text": "First-generation sedating antihistamines"
+        },
+        {
+          "letter": "D",
+          "text": "Proton pump inhibitors"
+        },
+        {
+          "letter": "E",
+          "text": "Topical anesthetic agents"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Cisplatin is highly emetogenic; 5-HT3 antagonists such as ondansetron are given prophylactically on treatment days and for 2-3 days afterward.",
+      "objective": "Onc 1",
+      "section": "Cytotoxic Agents & Toxicities"
+    },
+    {
+      "id": "19",
+      "group": 19,
+      "stem": "A patient with advanced, incurable cancer receives chemotherapy intended to relieve symptoms and improve quality of life rather than to cure. Which term describes this intent?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Palliative chemotherapy"
+        },
+        {
+          "letter": "B",
+          "text": "Curative chemotherapy"
+        },
+        {
+          "letter": "C",
+          "text": "Neoadjuvant chemotherapy"
+        },
+        {
+          "letter": "D",
+          "text": "Induction chemotherapy"
+        },
+        {
+          "letter": "E",
+          "text": "Adjuvant chemotherapy"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Palliative chemotherapy aims to alleviate symptoms and improve quality of life when cure is not expected.",
+      "objective": "Onc 3",
+      "section": "Chemotherapy Principles"
+    },
+    {
+      "id": "20",
+      "group": 20,
+      "stem": "A patient with lung cancer treated with cisplatin plus etoposide returns with pancytopenia. Which agent is most responsible for the severe myelosuppression?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Dexamethasone"
+        },
+        {
+          "letter": "B",
+          "text": "Ondansetron"
+        },
+        {
+          "letter": "C",
+          "text": "Etoposide"
+        },
+        {
+          "letter": "D",
+          "text": "Leucovorin"
+        },
+        {
+          "letter": "E",
+          "text": "Filgrastim"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Etoposide, a topoisomerase inhibitor, characteristically causes severe myelosuppression.",
+      "objective": "Onc 1",
+      "section": "Cytotoxic Agents & Toxicities"
+    },
+    {
+      "id": "21",
+      "group": 21,
+      "stem": "A 55-year-old man has fatigue and splenomegaly, with a very high WBC count and a left-shifted myeloid series. Cytogenetics reveal the Philadelphia chromosome producing the BCR-ABL fusion protein. Which malignancy is this?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Non-Hodgkin lymphoma"
+        },
+        {
+          "letter": "B",
+          "text": "Acute lymphoblastic leukemia"
+        },
+        {
+          "letter": "C",
+          "text": "Chronic myelogenous leukemia"
+        },
+        {
+          "letter": "D",
+          "text": "Chronic lymphocytic leukemia"
+        },
+        {
+          "letter": "E",
+          "text": "Multiple myeloma"
+        }
+      ],
+      "answer": "C",
+      "explanation": "The Philadelphia chromosome and BCR-ABL fusion are the hallmark of chronic myelogenous leukemia.",
+      "objective": "Onc 3",
+      "section": "Targeted Therapy"
+    },
+    {
+      "id": "21a",
+      "group": 21,
+      "stem": "Which class of targeted therapy is first-line for this malignancy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Anthracycline (e.g., doxorubicin)"
+        },
+        {
+          "letter": "B",
+          "text": "Aromatase inhibitor (e.g., anastrozole)"
+        },
+        {
+          "letter": "C",
+          "text": "Tyrosine kinase inhibitor (e.g., imatinib)"
+        },
+        {
+          "letter": "D",
+          "text": "Alkylating agent (e.g., cyclophosphamide)"
+        },
+        {
+          "letter": "E",
+          "text": "Platinum agent (e.g., cisplatin)"
+        }
+      ],
+      "answer": "C",
+      "explanation": "A BCR-ABL tyrosine kinase inhibitor such as imatinib is first-line targeted therapy for CML; adverse effects include edema and tumor lysis syndrome.",
+      "objective": "Onc 3",
+      "section": "Targeted Therapy"
+    },
+    {
+      "id": "22",
+      "group": 22,
+      "stem": "A patient on 5-fluorouracil for colon cancer develops tingling, pain, redness, and desquamation of the palms and soles. Which toxicity does this describe?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Hand-foot syndrome"
+        },
+        {
+          "letter": "B",
+          "text": "Hemorrhagic cystitis with hematuria"
+        },
+        {
+          "letter": "C",
+          "text": "Cardiomyopathy"
+        },
+        {
+          "letter": "D",
+          "text": "Peripheral neuropathy"
+        },
+        {
+          "letter": "E",
+          "text": "Tumor lysis syndrome"
+        }
+      ],
+      "answer": "A",
+      "explanation": "5-FU classically causes hand-foot syndrome (palmar-plantar erythrodysesthesia), along with severe GI toxicity and delayed myelosuppression (9-14 days).",
+      "objective": "Onc 1",
+      "section": "Cytotoxic Agents & Toxicities"
+    },
+    {
+      "id": "23",
+      "group": 23,
+      "stem": "A patient on cyclophosphamide is also taking allopurinol. Which concern arises from this combination?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Increased cyclophosphamide toxicity"
+        },
+        {
+          "letter": "B",
+          "text": "Reduced cyclophosphamide absorption"
+        },
+        {
+          "letter": "C",
+          "text": "Accelerated renal clearance of the drug"
+        },
+        {
+          "letter": "D",
+          "text": "Disulfiram-like reaction with alcohol"
+        },
+        {
+          "letter": "E",
+          "text": "Direct inactivation of cyclophosphamide"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Allopurinol increases the toxicity of alkylating agents such as cyclophosphamide (e.g., greater bone marrow suppression).",
+      "objective": "Onc 1",
+      "section": "Cytotoxic Agents & Toxicities"
+    },
+    {
+      "id": "24",
+      "group": 24,
+      "stem": "A regimen containing methotrexate is being considered for a patient who is in the first trimester of pregnancy. Which statement is correct?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Methotrexate is safest during the first trimester"
+        },
+        {
+          "letter": "B",
+          "text": "Methotrexate protects the fetus from toxicity"
+        },
+        {
+          "letter": "C",
+          "text": "Methotrexate requires only dose reduction here"
+        },
+        {
+          "letter": "D",
+          "text": "Methotrexate is preferred over all alternatives"
+        },
+        {
+          "letter": "E",
+          "text": "Methotrexate is contraindicated in pregnancy"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Methotrexate is a folic acid antagonist that is teratogenic and contraindicated in pregnancy.",
+      "objective": "Onc 1",
+      "section": "Cytotoxic Agents & Toxicities"
+    },
+    {
+      "id": "25",
+      "group": 25,
+      "stem": "A postmenopausal woman with ER-positive breast cancer is started on anastrozole, which blocks aromatase and lowers estrogen. Which adverse effect is most characteristic of this class?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Osteoporosis and arthralgias"
+        },
+        {
+          "letter": "B",
+          "text": "Endometrial cancer"
+        },
+        {
+          "letter": "C",
+          "text": "Hemorrhagic cystitis"
+        },
+        {
+          "letter": "D",
+          "text": "Tumor lysis syndrome"
+        },
+        {
+          "letter": "E",
+          "text": "Cardiomyopathy"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Aromatase inhibitors (anastrozole) reduce estrogen and characteristically cause osteoporosis and arthralgias in postmenopausal women.",
+      "objective": "Onc 1",
+      "section": "Hormonal Therapy"
+    }
+  ]
+};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

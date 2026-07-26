@@ -1,0 +1,1374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {
+  "title": "HIV & Antiviral Pharmacotherapy Interactive Exam",
+  "questions": [
+    {
+      "id": "1",
+      "group": 1,
+      "stem": "A patient with influenza is prescribed baloxavir marboxil within 48 hours of symptom onset. Which counseling point about this endonuclease inhibitor is correct?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "It is only effective after 5 days of symptoms"
+        },
+        {
+          "letter": "B",
+          "text": "It must be given as a 5-day inhaled course"
+        },
+        {
+          "letter": "C",
+          "text": "It only treats influenza A and never influenza B"
+        },
+        {
+          "letter": "D",
+          "text": "It requires G6PD testing before every dose"
+        },
+        {
+          "letter": "E",
+          "text": "Avoid taking it with dairy or cation products"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Baloxavir (an endonuclease inhibitor active against influenza A and B) should not be co-administered with dairy or polyvalent cations (calcium, iron, magnesium) because of chelation; it is a single oral dose given within 48 hours.",
+      "objective": "HIV 4",
+      "section": "Respiratory Antivirals"
+    },
+    {
+      "id": "2",
+      "group": 2,
+      "stem": "A patient on atazanavir develops scleral icterus and jaundice, but liver transaminases are normal and bilirubin is predominantly indirect. What is the most appropriate interpretation?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Acute hepatitis caused by drug-induced liver injury"
+        },
+        {
+          "letter": "B",
+          "text": "Benign indirect hyperbilirubinemia from atazanavir"
+        },
+        {
+          "letter": "C",
+          "text": "Hemolysis from abacavir hypersensitivity"
+        },
+        {
+          "letter": "D",
+          "text": "Lactic acidosis from mitochondrial toxicity"
+        },
+        {
+          "letter": "E",
+          "text": "Biliary obstruction requiring urgent surgery"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Atazanavir characteristically causes indirect (unconjugated) hyperbilirubinemia and jaundice without other LFT abnormalities; it is benign.",
+      "objective": "HIV 1",
+      "section": "Protease Inhibitors"
+    },
+    {
+      "id": "3",
+      "group": 3,
+      "stem": "A patient on an NRTI-containing regimen develops fatigue, nausea, and an elevated lactate. Which class-associated adverse effect is of concern?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "QT prolongation and torsades"
+        },
+        {
+          "letter": "B",
+          "text": "Indirect hyperbilirubinemia and jaundice"
+        },
+        {
+          "letter": "C",
+          "text": "Severe cutaneous drug reaction"
+        },
+        {
+          "letter": "D",
+          "text": "Lactic acidosis with hepatic steatosis"
+        },
+        {
+          "letter": "E",
+          "text": "Hyperglycemia and dyslipidemia"
+        }
+      ],
+      "answer": "D",
+      "explanation": "NRTIs carry a black box risk of potentially fatal lactic acidosis and hepatomegaly with steatosis.",
+      "objective": "HIV 1",
+      "section": "NRTIs & Backbone"
+    },
+    {
+      "id": "4",
+      "group": 4,
+      "stem": "A patient at high risk of acquiring HIV asks about pre-exposure prophylaxis. Which combination is used for PrEP?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Darunavir/cobicistat"
+        },
+        {
+          "letter": "B",
+          "text": "Dolutegravir monotherapy"
+        },
+        {
+          "letter": "C",
+          "text": "Emtricitabine/tenofovir"
+        },
+        {
+          "letter": "D",
+          "text": "Ribavirin/oseltamivir"
+        },
+        {
+          "letter": "E",
+          "text": "Efavirenz/nevirapine"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Emtricitabine/tenofovir (as TDF or TAF, e.g., Truvada or Descovy) is used for HIV pre-exposure prophylaxis.",
+      "objective": "HIV 3",
+      "section": "NRTIs & Backbone"
+    },
+    {
+      "id": "5",
+      "group": 5,
+      "stem": "Two nucleoside reverse transcriptase inhibitors form the 'backbone' of most initial ART regimens. At which step of the HIV life cycle do NRTIs act?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Cleavage of the viral polyprotein"
+        },
+        {
+          "letter": "B",
+          "text": "Reverse transcription (formation of viral DNA)"
+        },
+        {
+          "letter": "C",
+          "text": "Release of new virions from the cell"
+        },
+        {
+          "letter": "D",
+          "text": "Attachment of virus to the CD4 receptor"
+        },
+        {
+          "letter": "E",
+          "text": "Integration of the viral DNA into the host genome"
+        }
+      ],
+      "answer": "B",
+      "explanation": "NRTIs inhibit HIV reverse transcriptase, preventing formation/elongation of viral DNA; two NRTIs form the backbone of most regimens.",
+      "objective": "HIV 1",
+      "section": "NRTIs & Backbone"
+    },
+    {
+      "id": "6",
+      "group": 6,
+      "stem": "A student asks why amantadine is not recommended for treating seasonal influenza in the United States. What is the best explanation?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "It is teratogenic and carries a black box warning"
+        },
+        {
+          "letter": "B",
+          "text": "Widespread resistance and it covers only influenza A"
+        },
+        {
+          "letter": "C",
+          "text": "It requires intravenous administration in a hospital"
+        },
+        {
+          "letter": "D",
+          "text": "It has been withdrawn for causing hemolytic anemia"
+        },
+        {
+          "letter": "E",
+          "text": "It is effective only against influenza B strains"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Adamantanes (amantadine, rimantadine) treat only influenza A and are not recommended in the US due to high levels of resistance; amantadine is also used as an antiparkinsonian agent.",
+      "objective": "HIV 4",
+      "section": "Respiratory Antivirals"
+    },
+    {
+      "id": "7",
+      "group": 7,
+      "stem": "An 18-month-old with a positive influenza test and symptom onset this morning needs antiviral therapy. Which oral neuraminidase inhibitor is most appropriate?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Zanamivir"
+        },
+        {
+          "letter": "B",
+          "text": "Ribavirin"
+        },
+        {
+          "letter": "C",
+          "text": "Amantadine"
+        },
+        {
+          "letter": "D",
+          "text": "Oseltamivir"
+        },
+        {
+          "letter": "E",
+          "text": "Remdesivir"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Oseltamivir is an oral neuraminidase inhibitor effective against influenza A and B and appropriate for young children; it blocks release of new virions from infected cells.",
+      "objective": "HIV 4",
+      "section": "Respiratory Antivirals"
+    },
+    {
+      "id": "7a",
+      "group": 7,
+      "stem": "Which neuraminidase inhibitor is inhaled and therefore best avoided in patients with reactive airway disease?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Peramivir"
+        },
+        {
+          "letter": "B",
+          "text": "Remdesivir"
+        },
+        {
+          "letter": "C",
+          "text": "Zanamivir"
+        },
+        {
+          "letter": "D",
+          "text": "Oseltamivir"
+        },
+        {
+          "letter": "E",
+          "text": "Baloxavir"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Zanamivir is inhaled and can cause bronchospasm/respiratory irritation, so it is avoided in asthma/COPD; peramivir is IV and oseltamivir is oral.",
+      "objective": "HIV 4",
+      "section": "Respiratory Antivirals"
+    },
+    {
+      "id": "8",
+      "group": 8,
+      "stem": "Which set of metabolic adverse effects is most characteristic of the protease inhibitor class?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Hyperglycemia and dyslipidemia"
+        },
+        {
+          "letter": "B",
+          "text": "Hyperkalemia and hyperphosphatemia"
+        },
+        {
+          "letter": "C",
+          "text": "Hypoglycemia and hypolipidemia"
+        },
+        {
+          "letter": "D",
+          "text": "Hypophosphatemia and glycosuria"
+        },
+        {
+          "letter": "E",
+          "text": "Hemolytic anemia and neutropenia"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Protease inhibitors are associated with hyperglycemia/diabetes, hypertriglyceridemia, hypercholesterolemia, and fat redistribution.",
+      "objective": "HIV 1",
+      "section": "Protease Inhibitors"
+    },
+    {
+      "id": "9",
+      "group": 9,
+      "stem": "Which laboratory test is the primary marker used to confirm that a patient's antiretroviral therapy is working?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Prothrombin time"
+        },
+        {
+          "letter": "B",
+          "text": "Thyroid-stimulating hormone"
+        },
+        {
+          "letter": "C",
+          "text": "HIV viral load"
+        },
+        {
+          "letter": "D",
+          "text": "Serum ferritin"
+        },
+        {
+          "letter": "E",
+          "text": "Serum lipase"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Viral load is the primary monitoring parameter; the goal is an undetectable level. CD4 count, CBC, CMP, and lipid profile are also monitored.",
+      "objective": "HIV 2",
+      "section": "ART Principles & Monitoring"
+    },
+    {
+      "id": "10",
+      "group": 10,
+      "stem": "A patient coinfected with HIV and chronic hepatitis B is on a tenofovir/emtricitabine-containing regimen. Which counseling point is most important?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Do not abruptly stop ART; it can flare hepatitis B"
+        },
+        {
+          "letter": "B",
+          "text": "Stop ART immediately if any nausea or fatigue develops"
+        },
+        {
+          "letter": "C",
+          "text": "Add ribavirin routinely to every ART regimen"
+        },
+        {
+          "letter": "D",
+          "text": "Double the dose during any acute febrile illness"
+        },
+        {
+          "letter": "E",
+          "text": "Avoid all routine vaccinations while on therapy"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Some ART agents (tenofovir, emtricitabine, lamivudine) also treat hepatitis B; abruptly stopping them in a coinfected patient can cause a hepatitis B flare and fulminant hepatic failure.",
+      "objective": "HIV 3",
+      "section": "ART Principles & Monitoring"
+    },
+    {
+      "id": "11",
+      "group": 11,
+      "stem": "A virologically suppressed patient who dislikes daily pills is interested in a long-acting injectable regimen. Which combination provides this option after an oral lead-in?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Darunavir plus cobicistat"
+        },
+        {
+          "letter": "B",
+          "text": "Cabotegravir plus rilpivirine"
+        },
+        {
+          "letter": "C",
+          "text": "Tenofovir plus ribavirin"
+        },
+        {
+          "letter": "D",
+          "text": "Bictegravir plus lamivudine"
+        },
+        {
+          "letter": "E",
+          "text": "Oseltamivir plus zanamivir"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Cabotegravir (INSTI) plus rilpivirine (NNRTI) is the first long-acting injectable regimen, given every 4-8 weeks after an oral lead-in to check tolerability.",
+      "objective": "HIV 3",
+      "section": "ART Principles & Monitoring"
+    },
+    {
+      "id": "12",
+      "group": 12,
+      "stem": "A patient's resistance testing shows the M184V mutation. This mutation confers high-level resistance to which agents?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Dolutegravir and bictegravir"
+        },
+        {
+          "letter": "B",
+          "text": "Lamivudine and emtricitabine"
+        },
+        {
+          "letter": "C",
+          "text": "Efavirenz and rilpivirine"
+        },
+        {
+          "letter": "D",
+          "text": "Enfuvirtide and maraviroc"
+        },
+        {
+          "letter": "E",
+          "text": "Darunavir and atazanavir"
+        }
+      ],
+      "answer": "B",
+      "explanation": "M184V causes high-level resistance to lamivudine and emtricitabine (and low-level to abacavir) but reduces viral fitness; K65R is linked to tenofovir and K103N to efavirenz.",
+      "objective": "HIV 3",
+      "section": "ART Principles & Monitoring"
+    },
+    {
+      "id": "13",
+      "group": 13,
+      "stem": "A 32-year-old man is newly diagnosed with HIV on routine screening. He is asymptomatic with a CD4 count of 450 cells/mm3 and viral load of 75,000 copies/mL, and genotype shows no resistance. According to current guidelines, when should antiretroviral therapy be started?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Only once the CD4 count falls below 200"
+        },
+        {
+          "letter": "B",
+          "text": "Immediately, regardless of CD4 count"
+        },
+        {
+          "letter": "C",
+          "text": "Only after an AIDS-defining illness occurs"
+        },
+        {
+          "letter": "D",
+          "text": "Only once the CD4 count falls below 350"
+        },
+        {
+          "letter": "E",
+          "text": "Only if the viral load exceeds 100,000"
+        }
+      ],
+      "answer": "B",
+      "explanation": "ART should be started as soon as possible after diagnosis regardless of CD4 count, and continued indefinitely to prevent viral rebound.",
+      "objective": "HIV 3",
+      "section": "ART Principles & Monitoring"
+    },
+    {
+      "id": "14",
+      "group": 14,
+      "stem": "A patient is started on dolutegravir, an integrase strand transfer inhibitor. What is the mechanism of action of this class?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Blocks fusion of the virus with the cell"
+        },
+        {
+          "letter": "B",
+          "text": "Blocks the CCR5 coreceptor on the cell"
+        },
+        {
+          "letter": "C",
+          "text": "Blocks the protease that matures viral proteins"
+        },
+        {
+          "letter": "D",
+          "text": "Blocks reverse transcriptase noncompetitively"
+        },
+        {
+          "letter": "E",
+          "text": "Blocks integration of proviral DNA into host DNA"
+        }
+      ],
+      "answer": "E",
+      "explanation": "INSTIs (e.g., dolutegravir, bictegravir) inhibit insertion of proviral DNA into the host genome; they are generally well tolerated, with nausea/diarrhea most common.",
+      "objective": "HIV 1",
+      "section": "Integrase Inhibitors"
+    },
+    {
+      "id": "14a",
+      "group": 14,
+      "stem": "Which co-administered product reduces absorption of this class through chelation and should be separated in timing?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Topical emollients for dry skin"
+        },
+        {
+          "letter": "B",
+          "text": "Oral rehydration solutions"
+        },
+        {
+          "letter": "C",
+          "text": "Acetaminophen taken for fever"
+        },
+        {
+          "letter": "D",
+          "text": "Antacids and cation-containing supplements"
+        },
+        {
+          "letter": "E",
+          "text": "Inhaled corticosteroids taken daily for asthma"
+        }
+      ],
+      "answer": "D",
+      "explanation": "INSTIs have decreased absorption when taken with antacids and polyvalent cations (iron, calcium, multivitamins) due to chelation; dosing should be separated.",
+      "objective": "HIV 1",
+      "section": "Integrase Inhibitors"
+    },
+    {
+      "id": "15",
+      "group": 15,
+      "stem": "Before initiating ART in a newly diagnosed patient, which baseline test helps ensure the chosen regimen will be effective against the patient's virus?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "HIV genotype resistance testing"
+        },
+        {
+          "letter": "B",
+          "text": "Serum G6PD activity"
+        },
+        {
+          "letter": "C",
+          "text": "Pulmonary function testing"
+        },
+        {
+          "letter": "D",
+          "text": "A 24-hour urine protein collection"
+        },
+        {
+          "letter": "E",
+          "text": "Echocardiography"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Baseline HIV genotype (drug resistance) testing guides regimen selection; other baseline checks include hepatitis B status, pregnancy, and HLA-B*5701 if abacavir is planned.",
+      "objective": "HIV 3",
+      "section": "ART Principles & Monitoring"
+    },
+    {
+      "id": "16",
+      "group": 16,
+      "stem": "A young woman may receive ribavirin. Which black box warnings must be discussed before starting this agent?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Hepatic steatosis and lactic acidosis"
+        },
+        {
+          "letter": "B",
+          "text": "Nephrotoxicity and ototoxicity"
+        },
+        {
+          "letter": "C",
+          "text": "Hemolytic anemia and teratogenicity"
+        },
+        {
+          "letter": "D",
+          "text": "QT prolongation and torsades"
+        },
+        {
+          "letter": "E",
+          "text": "Tendon rupture and neuropathy"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Ribavirin carries black box warnings for hemolytic anemia and teratogenicity; it is used for severe RSV in select children and (historically) chronic hepatitis C.",
+      "objective": "HIV 4",
+      "section": "Respiratory Antivirals"
+    },
+    {
+      "id": "17",
+      "group": 17,
+      "stem": "A patient on ART who was previously undetectable now has a viral load over 1,000 copies/mL despite reporting consistent adherence. What is the most appropriate next step?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Double every drug in the current regimen"
+        },
+        {
+          "letter": "B",
+          "text": "Add ribavirin to the current regimen"
+        },
+        {
+          "letter": "C",
+          "text": "Repeat HLA-B*5701 testing"
+        },
+        {
+          "letter": "D",
+          "text": "Immediately stop all antiretroviral therapy"
+        },
+        {
+          "letter": "E",
+          "text": "Obtain resistance (genotype) testing"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Loss of virologic suppression raises concern for treatment failure/resistance; resistance testing should be obtained to guide the next regimen.",
+      "objective": "HIV 3",
+      "section": "ART Principles & Monitoring"
+    },
+    {
+      "id": "18",
+      "group": 18,
+      "stem": "A hospitalized patient with COVID-19 is treated with remdesivir. Which statement about this agent is correct?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "It is a protease inhibitor boosted by ritonavir"
+        },
+        {
+          "letter": "B",
+          "text": "It is an inhaled agent used only for RSV"
+        },
+        {
+          "letter": "C",
+          "text": "It is an oral neuraminidase inhibitor for influenza"
+        },
+        {
+          "letter": "D",
+          "text": "It is an integrase inhibitor used in ART"
+        },
+        {
+          "letter": "E",
+          "text": "It is an IV RNA polymerase inhibitor for SARS-CoV-2"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Remdesivir is an intravenous adenosine analog that inhibits SARS-CoV-2 RNA polymerase, disrupting viral replication in hospitalized COVID-19 patients.",
+      "objective": "HIV 4",
+      "section": "Respiratory Antivirals"
+    },
+    {
+      "id": "19",
+      "group": 19,
+      "stem": "A treatment-naive patient with HIV is starting therapy. Which of the following is a recommended initial regimen for most people with HIV and the most commonly prescribed single-tablet option?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Zidovudine monotherapy without a booster"
+        },
+        {
+          "letter": "B",
+          "text": "Two protease inhibitors without any NRTI"
+        },
+        {
+          "letter": "C",
+          "text": "Bictegravir/emtricitabine/tenofovir alafenamide"
+        },
+        {
+          "letter": "D",
+          "text": "Efavirenz monotherapy without a backbone"
+        },
+        {
+          "letter": "E",
+          "text": "Atazanavir plus darunavir plus emtricitabine"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Bictegravir/emtricitabine/tenofovir alafenamide (Biktarvy) is a recommended, well-tolerated, single-tablet INSTI-based initial regimen and the most commonly prescribed.",
+      "objective": "HIV 3",
+      "section": "Integrase Inhibitors"
+    },
+    {
+      "id": "20",
+      "group": 20,
+      "stem": "A patient starting antiretroviral therapy asks what the main goal of treatment is. Which of the following best describes the primary goal of ART?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Achieve sustained virologic suppression"
+        },
+        {
+          "letter": "B",
+          "text": "Normalize the CD4 count within one week"
+        },
+        {
+          "letter": "C",
+          "text": "Completely eradicate HIV from the body"
+        },
+        {
+          "letter": "D",
+          "text": "Stop therapy once symptoms resolve"
+        },
+        {
+          "letter": "E",
+          "text": "Prevent all future resistance mutations"
+        }
+      ],
+      "answer": "A",
+      "explanation": "The goal of ART is durable, maximal suppression of viral replication (undetectable viral load); current therapy does not eradicate the virus.",
+      "objective": "HIV 3",
+      "section": "ART Principles & Monitoring"
+    },
+    {
+      "id": "21",
+      "group": 21,
+      "stem": "A patient on tenofovir disoproxil fumarate develops proteinuria, glycosuria with normal serum glucose, and hypophosphatemia. Which toxicity does this represent?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Abacavir hypersensitivity reaction"
+        },
+        {
+          "letter": "B",
+          "text": "Protease-inhibitor-associated diabetes"
+        },
+        {
+          "letter": "C",
+          "text": "Immune reconstitution inflammatory syndrome (IRIS)"
+        },
+        {
+          "letter": "D",
+          "text": "Ribavirin-induced hemolytic anemia"
+        },
+        {
+          "letter": "E",
+          "text": "Proximal renal tubular dysfunction (Fanconi)"
+        }
+      ],
+      "answer": "E",
+      "explanation": "TDF can cause proximal renal tubular dysfunction (Fanconi syndrome) with proteinuria, glycosuria, hypophosphatemia, and renal insufficiency; management is to stop tenofovir and change the regimen.",
+      "objective": "HIV 1",
+      "section": "NRTIs & Backbone"
+    },
+    {
+      "id": "22",
+      "group": 22,
+      "stem": "Before starting a regimen containing abacavir, which test must be checked to reduce the risk of a serious hypersensitivity reaction?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Glucose-6-phosphate dehydrogenase level"
+        },
+        {
+          "letter": "B",
+          "text": "Serum uric acid level"
+        },
+        {
+          "letter": "C",
+          "text": "Baseline echocardiogram"
+        },
+        {
+          "letter": "D",
+          "text": "Thyroid-stimulating hormone level"
+        },
+        {
+          "letter": "E",
+          "text": "HLA-B*5701 status"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Abacavir hypersensitivity is associated with HLA-B*5701; this allele must be checked before use, and abacavir avoided if positive.",
+      "objective": "HIV 1",
+      "section": "NRTIs & Backbone"
+    },
+    {
+      "id": "23",
+      "group": 23,
+      "stem": "A patient on efavirenz, a non-nucleoside reverse transcriptase inhibitor, develops a diffuse rash. Which severe adverse reaction is associated with this class and warrants vigilance?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Indirect hyperbilirubinemia"
+        },
+        {
+          "letter": "B",
+          "text": "Fanconi syndrome"
+        },
+        {
+          "letter": "C",
+          "text": "Stevens-Johnson syndrome"
+        },
+        {
+          "letter": "D",
+          "text": "Hemolytic anemia"
+        },
+        {
+          "letter": "E",
+          "text": "Peripheral neuropathy"
+        }
+      ],
+      "answer": "C",
+      "explanation": "NNRTIs commonly cause rash and CNS effects (efavirenz), and can cause severe hypersensitivity including Stevens-Johnson syndrome/toxic epidermal necrolysis; they are extensively CYP450 metabolized with many interactions.",
+      "objective": "HIV 1",
+      "section": "NRTIs & Backbone"
+    },
+    {
+      "id": "24",
+      "group": 24,
+      "stem": "A regimen includes low-dose cobicistat, which has no antiviral activity of its own. What is its role?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Neutralizes the risk of lactic acidosis"
+        },
+        {
+          "letter": "B",
+          "text": "Directly inhibits the HIV integrase enzyme"
+        },
+        {
+          "letter": "C",
+          "text": "Prevents abacavir hypersensitivity reactions"
+        },
+        {
+          "letter": "D",
+          "text": "Boosts levels of the partner drug via CYP3A inhibition"
+        },
+        {
+          "letter": "E",
+          "text": "Provides an additional nucleoside backbone agent to the regimen"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Cobicistat and ritonavir are pharmacokinetic 'boosters': potent CYP3A inhibitors that raise levels of a partner drug (e.g., a protease inhibitor or elvitegravir), allowing longer dosing intervals.",
+      "objective": "HIV 1",
+      "section": "PK Enhancers"
+    },
+    {
+      "id": "25",
+      "group": 25,
+      "stem": "A patient is started on a protease inhibitor such as darunavir. Which statement about this class is correct?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "It blocks viral attachment to the CD4 receptor"
+        },
+        {
+          "letter": "B",
+          "text": "It blocks protease, yielding noninfectious virions"
+        },
+        {
+          "letter": "C",
+          "text": "It blocks neuraminidase, trapping new virions"
+        },
+        {
+          "letter": "D",
+          "text": "It blocks reverse transcriptase competitively"
+        },
+        {
+          "letter": "E",
+          "text": "It blocks integrase, preventing proviral DNA integration"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Protease inhibitors block the viral protease that cleaves the polyprotein, preventing maturation and yielding noninfectious virions; they should be taken with food and have a high genetic barrier to resistance.",
+      "objective": "HIV 1",
+      "section": "Protease Inhibitors"
+    },
+    {
+      "id": "25a",
+      "group": 25,
+      "stem": "Because this class potently inhibits CYP3A4, which co-administered drug poses a serious interaction risk?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Simvastatin, with a risk of rhabdomyolysis"
+        },
+        {
+          "letter": "B",
+          "text": "Amoxicillin, with a raised INR"
+        },
+        {
+          "letter": "C",
+          "text": "Acetaminophen, with a risk of failure"
+        },
+        {
+          "letter": "D",
+          "text": "Loratadine, with excess sedation"
+        },
+        {
+          "letter": "E",
+          "text": "Oral iron, from chelation binding"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Protease inhibitors are potent CYP3A4 inhibitors; they can raise levels of simvastatin/lovastatin (rhabdomyolysis), midazolam (sedation), and fentanyl (respiratory depression), among others.",
+      "objective": "HIV 1",
+      "section": "Protease Inhibitors"
+    }
+  ]
+};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

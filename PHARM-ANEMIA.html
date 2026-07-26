@@ -1,0 +1,1250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {
+  "title": "Anemia Pharmacotherapy Interactive Exam",
+  "questions": [
+    {
+      "id": "1",
+      "group": 1,
+      "stem": "A patient on low-dose methotrexate for rheumatoid arthritis is also given a daily supplement to reduce methotrexate toxicity. Which supplement is this?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Ascorbic acid"
+        },
+        {
+          "letter": "B",
+          "text": "Erythropoietin"
+        },
+        {
+          "letter": "C",
+          "text": "Folic acid"
+        },
+        {
+          "letter": "D",
+          "text": "Ferrous sulfate"
+        },
+        {
+          "letter": "E",
+          "text": "Cyanocobalamin"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Daily folic acid (typically 1 mg) is given to patients on low-dose methotrexate for RA or psoriasis to reduce adverse effects.",
+      "objective": "Anemia 1",
+      "section": "Folate Deficiency"
+    },
+    {
+      "id": "2",
+      "group": 2,
+      "stem": "A woman at 30 weeks gestation has symptomatic iron deficiency anemia and needs relatively rapid repletion before delivery. Which route of iron is preferred in this setting?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Intramuscular cyanocobalamin"
+        },
+        {
+          "letter": "B",
+          "text": "Intravenous iron"
+        },
+        {
+          "letter": "C",
+          "text": "Oral ferrous sulfate alone"
+        },
+        {
+          "letter": "D",
+          "text": "Oral folic acid alone"
+        },
+        {
+          "letter": "E",
+          "text": "Subcutaneous epoetin alfa"
+        }
+      ],
+      "answer": "B",
+      "explanation": "IV iron is preferred in the late second/third trimester when faster repletion is needed and oral iron is insufficient or poorly tolerated.",
+      "objective": "Anemia 2",
+      "section": "Iron Deficiency & Iron Therapy"
+    },
+    {
+      "id": "3",
+      "group": 3,
+      "stem": "A 34-year-old woman with heavy menstrual periods has fatigue, pica (chewing ice), pale conjunctivae, and spooning of the nails. Labs show a microcytic anemia with low ferritin. She has no GI intolerance and can take oral medication. Which of the following is the most appropriate first-line therapy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Intravenous iron sucrose"
+        },
+        {
+          "letter": "B",
+          "text": "Oral folic acid"
+        },
+        {
+          "letter": "C",
+          "text": "Intramuscular cyanocobalamin"
+        },
+        {
+          "letter": "D",
+          "text": "Oral ferrous sulfate"
+        },
+        {
+          "letter": "E",
+          "text": "Subcutaneous darbepoetin"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Oral iron salts (ferrous sulfate) are the first-line, inexpensive, effective treatment for iron deficiency anemia when tolerated.",
+      "objective": "Anemia 1",
+      "section": "Iron Deficiency & Iron Therapy"
+    },
+    {
+      "id": "3a",
+      "group": 3,
+      "stem": "Which counseling point maximizes absorption of this therapy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Take it together with milk, an antacid, or coffee"
+        },
+        {
+          "letter": "B",
+          "text": "Always take it with a calcium supplement"
+        },
+        {
+          "letter": "C",
+          "text": "Take it with coffee to reduce nausea"
+        },
+        {
+          "letter": "D",
+          "text": "Take it right after a high-dairy meal"
+        },
+        {
+          "letter": "E",
+          "text": "Take on an empty stomach, optionally with vitamin C"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Oral iron is best absorbed on an empty stomach; ascorbic acid (vitamin C) may enhance absorption, while dairy, calcium, antacids, PPIs, coffee, and tea reduce it.",
+      "objective": "Anemia 1",
+      "section": "Iron Deficiency & Iron Therapy"
+    },
+    {
+      "id": "3b",
+      "group": 3,
+      "stem": "The patient should be reassured about which expected, benign adverse effect?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Orange discoloration of body fluids"
+        },
+        {
+          "letter": "B",
+          "text": "Permanent gray staining of the teeth"
+        },
+        {
+          "letter": "C",
+          "text": "Bright red blood streaking the stool"
+        },
+        {
+          "letter": "D",
+          "text": "Dark/black discoloration of the stool"
+        },
+        {
+          "letter": "E",
+          "text": "Blue-gray discoloration of the skin"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Oral iron commonly causes harmless black stools; importantly, fecal occult blood testing remains negative unless there is true GI bleeding.",
+      "objective": "Anemia 1",
+      "section": "Iron Deficiency & Iron Therapy"
+    },
+    {
+      "id": "4",
+      "group": 4,
+      "stem": "A woman starting ferrous sulfate for iron deficiency also takes levothyroxine each morning. What is the most appropriate instruction to prevent a drug interaction?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Double the levothyroxine dose while on iron"
+        },
+        {
+          "letter": "B",
+          "text": "Separate iron from levothyroxine by about 4 hours"
+        },
+        {
+          "letter": "C",
+          "text": "Stop the levothyroxine while on iron"
+        },
+        {
+          "letter": "D",
+          "text": "Take both medications together each morning"
+        },
+        {
+          "letter": "E",
+          "text": "Crush both tablets and take with milk"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Iron binds levothyroxine and reduces its absorption; they should be separated by about 4 hours (and iron separated from fluoroquinolones/tetracyclines/antacids by ~2 hours).",
+      "objective": "Anemia 1",
+      "section": "Iron Deficiency & Iron Therapy"
+    },
+    {
+      "id": "5",
+      "group": 5,
+      "stem": "A 28-year-old woman planning pregnancy asks about supplements. Aside from treating deficiency, folic acid is recommended for several groups. Which of the following patients most clearly warrants folic acid supplementation?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "A man with well-controlled hypertension"
+        },
+        {
+          "letter": "B",
+          "text": "A patient with mild seasonal allergies"
+        },
+        {
+          "letter": "C",
+          "text": "A woman planning conception"
+        },
+        {
+          "letter": "D",
+          "text": "A patient with hypothyroidism"
+        },
+        {
+          "letter": "E",
+          "text": "A patient with iron overload"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Folic acid is recommended for all women planning pregnancy (starting before conception), and for patients on methotrexate, with significant alcohol use, or with chronic hemolysis (e.g., sickle cell).",
+      "objective": "Anemia 1",
+      "section": "Folate Deficiency"
+    },
+    {
+      "id": "6",
+      "group": 6,
+      "stem": "A 42-year-old woman with Crohn disease and iron deficiency anemia has tried oral iron but has worsening GI symptoms and poor absorption. Which of the following is the most appropriate next step?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Erythropoiesis-stimulating agent therapy"
+        },
+        {
+          "letter": "B",
+          "text": "Intravenous iron"
+        },
+        {
+          "letter": "C",
+          "text": "A higher daily dose of oral ferrous sulfate"
+        },
+        {
+          "letter": "D",
+          "text": "Oral folic acid supplementation"
+        },
+        {
+          "letter": "E",
+          "text": "Intramuscular vitamin B12"
+        }
+      ],
+      "answer": "B",
+      "explanation": "IV iron is indicated when oral iron is not tolerated, when there is malabsorption/IBD, when rapid repletion is needed, or in later pregnancy.",
+      "objective": "Anemia 1",
+      "section": "Iron Deficiency & Iron Therapy"
+    },
+    {
+      "id": "6a",
+      "group": 6,
+      "stem": "Which IV iron formulation carries the highest risk of hypersensitivity/anaphylaxis and has classically warranted a test dose?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Ferrous fumarate"
+        },
+        {
+          "letter": "B",
+          "text": "Iron sucrose"
+        },
+        {
+          "letter": "C",
+          "text": "Iron dextran"
+        },
+        {
+          "letter": "D",
+          "text": "Cyanocobalamin"
+        },
+        {
+          "letter": "E",
+          "text": "Ferrous gluconate"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Iron dextran carries the highest hypersensitivity/anaphylaxis risk and historically required a test dose; newer formulations have much lower risk.",
+      "objective": "Anemia 1",
+      "section": "Iron Deficiency & Iron Therapy"
+    },
+    {
+      "id": "7",
+      "group": 7,
+      "stem": "A 56-year-old man has a macrocytic anemia and progressive numbness of the fingers and toes with memory difficulty. Serum B12 is low with elevated methylmalonic acid. Because of significant neurologic symptoms, which treatment approach is most appropriate initially?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Intravenous cyanocobalamin"
+        },
+        {
+          "letter": "B",
+          "text": "Oral ferrous sulfate"
+        },
+        {
+          "letter": "C",
+          "text": "Oral folic acid"
+        },
+        {
+          "letter": "D",
+          "text": "Subcutaneous darbepoetin"
+        },
+        {
+          "letter": "E",
+          "text": "Intramuscular cyanocobalamin"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Patients with significant neurologic symptoms from B12 deficiency should be treated initially with IM cyanocobalamin; B12 is not given IV (it is largely excreted in urine).",
+      "objective": "Anemia 1",
+      "section": "B12 Deficiency"
+    },
+    {
+      "id": "7a",
+      "group": 7,
+      "stem": "His deficiency is due to pernicious anemia. What does this imply about the duration of therapy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "No treatment is needed if diet improves"
+        },
+        {
+          "letter": "B",
+          "text": "Therapy can stop once the anemia resolves"
+        },
+        {
+          "letter": "C",
+          "text": "A single injection is curative"
+        },
+        {
+          "letter": "D",
+          "text": "Lifelong supplementation is required"
+        },
+        {
+          "letter": "E",
+          "text": "Only a 2-week course is needed"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Pernicious anemia is not reversible, so lifelong B12 supplementation (oral or IM) is required.",
+      "objective": "Anemia 1",
+      "section": "B12 Deficiency"
+    },
+    {
+      "id": "8",
+      "group": 8,
+      "stem": "A patient on oral iron is prescribed a course of an antibiotic. Iron can bind several drugs and reduce their absorption. Which of the following is most affected and should be separated from iron dosing?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Amoxicillin"
+        },
+        {
+          "letter": "B",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "C",
+          "text": "Azithromycin"
+        },
+        {
+          "letter": "D",
+          "text": "Clindamycin"
+        },
+        {
+          "letter": "E",
+          "text": "Doxycycline"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Iron chelates tetracyclines (doxycycline), fluoroquinolones, bisphosphonates, and levothyroxine, reducing their absorption; dosing should be separated by 2-4 hours.",
+      "objective": "Anemia 1",
+      "section": "Iron Deficiency & Iron Therapy"
+    },
+    {
+      "id": "9",
+      "group": 9,
+      "stem": "A mother is prescribed oral iron and has young children at home. Which black box warning is most important to counsel her about?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Iron triggers a disulfiram-like reaction with alcohol"
+        },
+        {
+          "letter": "B",
+          "text": "Iron causes tendon rupture in older adults"
+        },
+        {
+          "letter": "C",
+          "text": "Accidental iron overdose can be fatal in children"
+        },
+        {
+          "letter": "D",
+          "text": "Iron commonly causes anaphylaxis when taken orally"
+        },
+        {
+          "letter": "E",
+          "text": "Iron causes permanent kidney failure in adults"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Acute iron toxicity is a leading cause of fatal poisoning in toddlers; iron must be stored in child-resistant containers out of children's reach.",
+      "objective": "Anemia 1",
+      "section": "Iron Deficiency & Iron Therapy"
+    },
+    {
+      "id": "10",
+      "group": 10,
+      "stem": "After starting oral iron for iron deficiency anemia, which early laboratory change confirms an appropriate response within the first week?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Immediate normalization of ferritin"
+        },
+        {
+          "letter": "B",
+          "text": "Rising reticulocyte count"
+        },
+        {
+          "letter": "C",
+          "text": "Falling reticulocyte count"
+        },
+        {
+          "letter": "D",
+          "text": "Sudden rise in serum B12"
+        },
+        {
+          "letter": "E",
+          "text": "Rapid drop in the MCV overnight"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Reticulocytosis begins within 4-5 days of effective iron therapy, and hemoglobin rises over the following weeks; iron is typically continued about 6 months to replete stores.",
+      "objective": "Anemia 1",
+      "section": "Iron Deficiency & Iron Therapy"
+    },
+    {
+      "id": "11",
+      "group": 11,
+      "stem": "A 60-year-old man with chronic kidney disease has symptomatic anemia after iron stores have been assessed and repleted. Which class of medication is used to treat anemia of CKD?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Erythropoiesis-stimulating agents"
+        },
+        {
+          "letter": "B",
+          "text": "Loop diuretics"
+        },
+        {
+          "letter": "C",
+          "text": "Leukotriene receptor antagonists"
+        },
+        {
+          "letter": "D",
+          "text": "Oral tetracyclines"
+        },
+        {
+          "letter": "E",
+          "text": "Proton pump inhibitors"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Erythropoiesis-stimulating agents (epoetin alfa, darbepoetin) treat anemia of CKD after iron status is optimized.",
+      "objective": "Anemia 1",
+      "section": "Anemia of CKD (ESAs)"
+    },
+    {
+      "id": "11a",
+      "group": 11,
+      "stem": "Which black box concern guides how high the hemoglobin target should be with this therapy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Higher hemoglobin triggers hemolysis"
+        },
+        {
+          "letter": "B",
+          "text": "Higher hemoglobin causes hepatic failure"
+        },
+        {
+          "letter": "C",
+          "text": "Higher hemoglobin causes irreversible deafness"
+        },
+        {
+          "letter": "D",
+          "text": "Higher hemoglobin raises stroke, MI, and clot risk"
+        },
+        {
+          "letter": "E",
+          "text": "Higher hemoglobin causes tendon rupture"
+        }
+      ],
+      "answer": "D",
+      "explanation": "ESAs carry a black box warning; targeting Hgb at or above ~10-11.5 g/dL (and especially higher) is associated with increased mortality, stroke, MI, and venous thromboembolism, so they are avoided when Hgb is >=10.",
+      "objective": "Anemia 1",
+      "section": "Anemia of CKD (ESAs)"
+    },
+    {
+      "id": "11b",
+      "group": 11,
+      "stem": "In which patient should ESA therapy generally be avoided?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "A patient with controlled hypertension"
+        },
+        {
+          "letter": "B",
+          "text": "A patient on hemodialysis"
+        },
+        {
+          "letter": "C",
+          "text": "A patient with low erythropoietin levels"
+        },
+        {
+          "letter": "D",
+          "text": "A patient with iron deficiency corrected"
+        },
+        {
+          "letter": "E",
+          "text": "A patient with active malignancy"
+        }
+      ],
+      "answer": "E",
+      "explanation": "ESAs are avoided in patients with active or recent malignancy because they may promote tumor progression/recurrence; they may also cause or worsen hypertension.",
+      "objective": "Anemia 1",
+      "section": "Anemia of CKD (ESAs)"
+    },
+    {
+      "id": "12",
+      "group": 12,
+      "stem": "A patient with macrocytic anemia is about to be started on folic acid. Why is it essential to also check for vitamin B12 deficiency before treating?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Folate triggers hemolysis in G6PD deficiency"
+        },
+        {
+          "letter": "B",
+          "text": "Folate causes irreversible tendon damage"
+        },
+        {
+          "letter": "C",
+          "text": "Folate raises the INR dangerously"
+        },
+        {
+          "letter": "D",
+          "text": "Folate can correct the anemia but not the neuropathy"
+        },
+        {
+          "letter": "E",
+          "text": "Folate directly worsens iron absorption in the gut"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Starting folic acid before excluding B12 deficiency can correct the anemia while allowing B12-related neurologic damage to progress and become permanent; always check both.",
+      "objective": "Anemia 1",
+      "section": "B12 Deficiency"
+    },
+    {
+      "id": "13",
+      "group": 13,
+      "stem": "A 24-year-old man with sickle cell anemia has frequent vaso-occlusive pain crises and several hospitalizations this year. Which disease-modifying medication is the mainstay to reduce these crises?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Ferrous sulfate"
+        },
+        {
+          "letter": "B",
+          "text": "Folic acid"
+        },
+        {
+          "letter": "C",
+          "text": "Hydroxyurea"
+        },
+        {
+          "letter": "D",
+          "text": "Cyanocobalamin"
+        },
+        {
+          "letter": "E",
+          "text": "Epoetin alfa"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Hydroxyurea is the most established disease-modifying therapy for sickle cell anemia, reducing vaso-occlusive crises and transfusion needs.",
+      "objective": "Anemia 1",
+      "section": "Sickle Cell / Hydroxyurea"
+    },
+    {
+      "id": "13a",
+      "group": 13,
+      "stem": "What is the primary mechanism by which this drug reduces vaso-occlusive crises?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "It stimulates gastric iron absorption"
+        },
+        {
+          "letter": "B",
+          "text": "It increases fetal hemoglobin"
+        },
+        {
+          "letter": "C",
+          "text": "It chelates excess serum iron"
+        },
+        {
+          "letter": "D",
+          "text": "It supplies exogenous erythropoietin"
+        },
+        {
+          "letter": "E",
+          "text": "It replaces vitamin B12 stores"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Hydroxyurea increases fetal hemoglobin (HbF), reducing HbS polymerization and sickling; it also reduces RBC-endothelial adhesion and inhibits ribonucleotide reductase.",
+      "objective": "Anemia 1",
+      "section": "Sickle Cell / Hydroxyurea"
+    },
+    {
+      "id": "13b",
+      "group": 13,
+      "stem": "Which laboratory parameter must be monitored regularly because of this drug's dose-limiting toxicity?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "INR for anticoagulation effect"
+        },
+        {
+          "letter": "B",
+          "text": "Serum potassium level for hyperkalemia risk"
+        },
+        {
+          "letter": "C",
+          "text": "Complete blood count for myelosuppression"
+        },
+        {
+          "letter": "D",
+          "text": "Serum lipase for pancreatitis"
+        },
+        {
+          "letter": "E",
+          "text": "Thyroid-stimulating hormone level"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Hydroxyurea causes myelosuppression (neutropenia, thrombocytopenia), so regular CBC monitoring is required; expect a rise in MCV (macrocytosis).",
+      "objective": "Anemia 1",
+      "section": "Sickle Cell / Hydroxyurea"
+    },
+    {
+      "id": "14",
+      "group": 14,
+      "stem": "A clinician is distinguishing folate deficiency from B12 deficiency in a patient with macrocytic anemia. Which feature favors folate deficiency rather than B12 deficiency?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Positive intrinsic factor antibodies"
+        },
+        {
+          "letter": "B",
+          "text": "Association with terminal ileal disease"
+        },
+        {
+          "letter": "C",
+          "text": "Absence of neurologic symptoms"
+        },
+        {
+          "letter": "D",
+          "text": "Prominent peripheral neuropathy"
+        },
+        {
+          "letter": "E",
+          "text": "Elevated methylmalonic acid level"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Unlike B12 deficiency, folate deficiency is generally NOT associated with neurologic symptoms, which is a key distinguishing point.",
+      "objective": "Anemia 1",
+      "section": "Folate Deficiency"
+    },
+    {
+      "id": "15",
+      "group": 15,
+      "stem": "A 26-year-old woman with sickle cell anemia on hydroxyurea plans to conceive. Which counseling point is most appropriate?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "It is safe to continue throughout pregnancy"
+        },
+        {
+          "letter": "B",
+          "text": "It should be taken only during pregnancy"
+        },
+        {
+          "letter": "C",
+          "text": "Use contraception; it can cause fetal toxicity"
+        },
+        {
+          "letter": "D",
+          "text": "It improves fertility and should be increased"
+        },
+        {
+          "letter": "E",
+          "text": "It requires no special reproductive counseling"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Hydroxyurea can cause fetal toxicity; women should use contraception during therapy, and it is typically discontinued about 3 months before attempted conception.",
+      "objective": "Anemia 2",
+      "section": "Sickle Cell / Hydroxyurea"
+    },
+    {
+      "id": "16",
+      "group": 16,
+      "stem": "A patient with iron deficiency anemia started on oral ferrous sulfate 6 weeks ago has not improved. Which of the following is the LEAST likely explanation for the lack of response?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "A coexisting untreated B12 deficiency"
+        },
+        {
+          "letter": "B",
+          "text": "Excellent adherence with no ongoing blood loss"
+        },
+        {
+          "letter": "C",
+          "text": "Ongoing gastrointestinal blood loss"
+        },
+        {
+          "letter": "D",
+          "text": "Underlying malabsorption such as celiac disease"
+        },
+        {
+          "letter": "E",
+          "text": "Nonadherence to the oral iron regimen"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Common reasons for nonresponse are nonadherence, ongoing blood loss, malabsorption, or a second cause of anemia; good adherence without blood loss would not explain a failure to respond.",
+      "objective": "Anemia 1",
+      "section": "Iron Deficiency & Iron Therapy"
+    }
+  ]
+};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
