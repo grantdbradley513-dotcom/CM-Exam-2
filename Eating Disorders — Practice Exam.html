@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Eating Disorders — Practice Exam", "questions": [{"id": "1", "group": 1, "stem": "A malnourished patient with anorexia nervosa is admitted and started on nutritional rehabilitation. Which complication of malnutrition is most likely to be irreversible even with successful refeeding?", "options": [{"letter": "A", "text": "Hypercarotenemia with yellowing of the skin"}, {"letter": "B", "text": "Lanugo over the trunk and extremities"}, {"letter": "C", "text": "Loss of bone mineral density"}, {"letter": "D", "text": "Peripheral edema developing during refeeding"}, {"letter": "E", "text": "Leukopenia on the complete blood count"}], "answer": "C", "explanation": "Most malnutrition effects reverse with refeeding, but loss of bone mineral density is often irreversible.", "objective": "Objective 6", "section": "Medical Complications & Exam Findings"}, {"id": "2", "group": 2, "stem": "A primary care clinician wants to use a brief validated tool to screen for any eating disorder in a young adult patient. Which of the following screening instruments is most appropriate?", "options": [{"letter": "A", "text": "SCOFF questionnaire"}, {"letter": "B", "text": "GAD-7"}, {"letter": "C", "text": "PHQ-9"}, {"letter": "D", "text": "AUDIT-C"}, {"letter": "E", "text": "CAGE questionnaire"}], "answer": "A", "explanation": "The SCOFF is a brief tool that screens for any eating disorder; two or more 'yes' answers is a positive screen.", "objective": "Objective 8", "section": "Screening Tools"}, {"id": "3", "group": 3, "stem": "A severely underweight patient with anorexia nervosa also has comorbid depression, and the team considers antidepressant options. Which class should be used with particular caution in this underweight patient because of hypotension and cardiac arrhythmia risk?", "options": [{"letter": "A", "text": "Mirtazapine, a noradrenergic agent"}, {"letter": "B", "text": "Tricyclic antidepressants"}, {"letter": "C", "text": "Selective serotonin reuptake inhibitors"}, {"letter": "D", "text": "Bupropion, an aminoketone antidepressant"}, {"letter": "E", "text": "Serotonin-norepinephrine reuptake inhibitors"}], "answer": "B", "explanation": "TCAs should be used with caution in underweight anorexia patients because of hypotension, cardiac arrhythmia, and dehydration risk.", "objective": "Objective 1", "section": "Anorexia Nervosa"}, {"id": "4", "group": 4, "stem": "An 11-year-old boy has lost weight and fallen off his growth curve because he eats only a narrow range of foods, avoiding many because of their texture and smell. He is not concerned about his weight or body shape and has no fear of gaining weight. There is no evidence of a medical cause. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Anorexia nervosa, restricting type"}, {"letter": "B", "text": "Bulimia nervosa, purging type"}, {"letter": "C", "text": "A primary specific phobia related to food"}, {"letter": "D", "text": "Avoidant/restrictive food intake disorder"}, {"letter": "E", "text": "Binge-eating disorder of childhood"}], "answer": "D", "explanation": "Restricted intake driven by sensory features with weight loss but no body-image disturbance or fear of weight gain is ARFID.", "objective": "Objective 5", "section": "ARFID & Differentiation"}, {"id": "5", "group": 5, "stem": "Two patients both binge and purge weekly. One maintains a normal body weight, and the other is significantly underweight with fear of weight gain. Which single feature is most important in distinguishing anorexia nervosa from bulimia nervosa?", "options": [{"letter": "A", "text": "The presence of recurrent binge-eating episodes"}, {"letter": "B", "text": "Body weight — low in anorexia, normal in bulimia"}, {"letter": "C", "text": "The presence of inappropriate compensatory behaviors"}, {"letter": "D", "text": "The undue influence of body shape on self-evaluation"}, {"letter": "E", "text": "The occurrence of purging-related electrolyte disturbances"}], "answer": "B", "explanation": "Both may binge and purge; the key distinction is body weight — anorexia is significantly low, bulimia is normal or overweight.", "objective": "Objective 3", "section": "AN vs BN Differentiation"}, {"id": "6", "group": 6, "stem": "A patient with bulimia nervosa who purges by vomiting several times daily presents with weakness. Which laboratory pattern is most characteristic of her purging behavior?", "options": [{"letter": "A", "text": "Hypernatremia with respiratory alkalosis"}, {"letter": "B", "text": "Hypokalemia with metabolic alkalosis"}, {"letter": "C", "text": "Hypoglycemia with ketoacidosis"}, {"letter": "D", "text": "Hyperkalemia with metabolic acidosis"}, {"letter": "E", "text": "Hypercalcemia with metabolic acidosis"}], "answer": "B", "explanation": "Recurrent vomiting classically causes hypokalemia and metabolic alkalosis; electrolytes should be checked even in normal-weight patients.", "objective": "Objective 6", "section": "Medical Complications & Exam Findings"}, {"id": "7", "group": 7, "stem": "A 34-year-old man with obesity describes recurring episodes in which he eats large amounts of food rapidly, alone, until uncomfortably full, even when not hungry. He feels disgusted and guilty afterward. These episodes occur about twice a week and have gone on for six months. He does not vomit, use laxatives, fast, or over-exercise to compensate. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Anorexia nervosa, binge/purge type"}, {"letter": "B", "text": "Avoidant/restrictive food intake disorder"}, {"letter": "C", "text": "Bulimia nervosa"}, {"letter": "D", "text": "Night eating syndrome"}, {"letter": "E", "text": "Binge-eating disorder"}], "answer": "E", "explanation": "Recurrent binges with loss of control and marked distress but no regular compensatory behaviors define binge-eating disorder.", "objective": "Objective 4", "section": "Binge-Eating Disorder"}, {"id": "7A", "group": 7, "stem": "Which single feature most clearly separates this diagnosis from the other recurrent binge-related eating disorder?", "options": [{"letter": "A", "text": "The presence of distress about the eating behavior"}, {"letter": "B", "text": "The maintenance of a body weight in the overweight range"}, {"letter": "C", "text": "The presence of a loss of control during binges"}, {"letter": "D", "text": "The tendency to eat alone because of embarrassment"}, {"letter": "E", "text": "The absence of regular compensatory behaviors"}], "answer": "E", "explanation": "The defining difference is that binge-eating disorder has no regular compensatory behaviors, whereas bulimia nervosa does.", "objective": "Objective 5", "section": "ARFID & Differentiation"}, {"id": "7B", "group": 7, "stem": "In addition to CBT, which medication is FDA-approved to reduce binge episodes in this diagnosis?", "options": [{"letter": "A", "text": "Diazepam"}, {"letter": "B", "text": "Lisdexamfetamine"}, {"letter": "C", "text": "Fluoxetine only"}, {"letter": "D", "text": "Olanzapine"}, {"letter": "E", "text": "Naltrexone monotherapy"}], "answer": "B", "explanation": "Lisdexamfetamine is FDA-approved for moderate-to-severe binge-eating disorder; SSRIs may also reduce binges, and CBT is first-line psychotherapy.", "objective": "Objective 4", "section": "Binge-Eating Disorder"}, {"id": "8", "group": 8, "stem": "A severely underweight 18-year-old with anorexia nervosa is examined. Which combination of findings is most characteristic of her starvation physiology?", "options": [{"letter": "A", "text": "Bradycardia, hypotension, hypothermia, and lanugo"}, {"letter": "B", "text": "Scleral icterus, spider angiomata, and palmar erythema"}, {"letter": "C", "text": "Bounding pulses, warm skin, and a wide pulse pressure"}, {"letter": "D", "text": "Exophthalmos, lid lag, and a palpable diffuse goiter"}, {"letter": "E", "text": "Tachycardia, hypertension, fever, and diaphoresis"}], "answer": "A", "explanation": "Starvation in anorexia produces bradycardia, hypotension, hypothermia, and lanugo (fine downy hair).", "objective": "Objective 6", "section": "Medical Complications & Exam Findings"}, {"id": "9", "group": 9, "stem": "A 19-year-old woman is brought in by her mother, who is worried about her weight. The patient restricts her intake to a few 'safe' foods, exercises for two hours daily, and expresses intense fear of gaining weight. She sees herself as 'too big' despite being visibly emaciated. Her BMI is 16.5, and exam reveals fine downy hair on her back, cool extremities, and a heart rate of 48/min. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Avoidant/restrictive food intake disorder"}, {"letter": "B", "text": "Anorexia nervosa"}, {"letter": "C", "text": "Major depressive disorder"}, {"letter": "D", "text": "Binge-eating disorder"}, {"letter": "E", "text": "Bulimia nervosa"}], "answer": "B", "explanation": "Energy restriction leading to significantly low body weight, intense fear of weight gain, and body-image disturbance define anorexia nervosa; lanugo and bradycardia support starvation physiology.", "objective": "Objective 1", "section": "Anorexia Nervosa"}, {"id": "9A", "group": 9, "stem": "Which of the following is the most appropriate initial goal of treatment for this patient?", "options": [{"letter": "A", "text": "Restore weight and normalize eating first"}, {"letter": "B", "text": "Begin an SSRI as the primary initial intervention"}, {"letter": "C", "text": "Focus first on insight-oriented psychotherapy about childhood"}, {"letter": "D", "text": "Initiate lisdexamfetamine to reduce food preoccupation"}, {"letter": "E", "text": "Start a tricyclic antidepressant to stimulate her appetite"}], "answer": "A", "explanation": "The initial aim is weight restoration and normalized eating; distorted cognitions and perfectionism are addressed afterward. Medications have little proven benefit in AN.", "objective": "Objective 1", "section": "Anorexia Nervosa"}, {"id": "9B", "group": 9, "stem": "This patient is 16 years old and still living at home. Which psychotherapy has the most support for adolescents with this diagnosis?", "options": [{"letter": "A", "text": "Family-based therapy"}, {"letter": "B", "text": "Motivational interviewing alone"}, {"letter": "C", "text": "Long-term psychoanalysis"}, {"letter": "D", "text": "Dialectical behavior therapy"}, {"letter": "E", "text": "Interpersonal therapy"}], "answer": "A", "explanation": "Family-based therapy (FBT) is the most supported treatment for adolescents with anorexia nervosa.", "objective": "Objective 10", "section": "Adolescent Treatment"}, {"id": "10", "group": 10, "stem": "A 20-year-old woman reports both binge eating and self-induced vomiting several times a week for the past four months. On exam she is significantly underweight with a BMI of 16, and she has an intense fear of gaining weight. Which of the following is the correct diagnosis?", "options": [{"letter": "A", "text": "Both anorexia nervosa and bulimia nervosa"}, {"letter": "B", "text": "Binge-eating disorder"}, {"letter": "C", "text": "Bulimia nervosa"}, {"letter": "D", "text": "Avoidant/restrictive food intake disorder"}, {"letter": "E", "text": "Anorexia nervosa, binge-eating/purging type"}], "answer": "E", "explanation": "When a patient meets anorexia criteria (low weight, fear of gain) and also binges/purges, anorexia nervosa takes precedence and the binge/purge subtype is assigned; the diagnoses are mutually exclusive.", "objective": "Objective 3", "section": "AN vs BN Differentiation"}, {"id": "11", "group": 11, "stem": "When counseling a family about why their daughter developed an eating disorder, which model best describes the currently accepted etiology?", "options": [{"letter": "A", "text": "A dietary vitamin deficiency causing appetite dysregulation"}, {"letter": "B", "text": "A single genetic mutation with complete penetrance"}, {"letter": "C", "text": "A biological predisposition activated by psychosocial triggers"}, {"letter": "D", "text": "An acquired infection of the appetite centers of the hypothalamus"}, {"letter": "E", "text": "Purely a consequence of media exposure with no biological basis"}], "answer": "C", "explanation": "Eating disorders follow a biopsychosocial model: a genetic/biological predisposition is activated by sociocultural and psychosocial triggers.", "objective": "Objective 9", "section": "Etiology"}, {"id": "12", "group": 12, "stem": "At the initial assessment of a patient with a newly suspected eating disorder, which of the following is most important to screen for given its strong association with these disorders?", "options": [{"letter": "A", "text": "A family history of essential hypertension"}, {"letter": "B", "text": "A history of occupational asbestos exposure"}, {"letter": "C", "text": "Recent international travel history"}, {"letter": "D", "text": "Environmental and seasonal allergies"}, {"letter": "E", "text": "Depression and a history of sexual trauma"}], "answer": "E", "explanation": "Depression and history of sexual trauma should be assessed at initial evaluation, along with family history of eating disorders.", "objective": "Objective 7", "section": "Comorbidity Screening"}, {"id": "13", "group": 13, "stem": "A normal-weight 24-year-old woman with a suspected eating disorder is examined. Which of the following physical findings most strongly suggests recurrent self-induced vomiting?", "options": [{"letter": "A", "text": "Exophthalmos, lid lag, and a fine resting tremor"}, {"letter": "B", "text": "Fine lanugo hair with hypercarotenemia of the palms"}, {"letter": "C", "text": "Digital clubbing with cyanosis of the nail beds"}, {"letter": "D", "text": "Dental enamel erosion, parotid swelling, and knuckle calluses"}, {"letter": "E", "text": "A malar facial rash with painless oral ulcers"}], "answer": "D", "explanation": "Dental enamel erosion, parotid (salivary) gland swelling, and Russell's sign (knuckle calluses) point to recurrent self-induced vomiting.", "objective": "Objective 6", "section": "Medical Complications & Exam Findings"}, {"id": "14", "group": 14, "stem": "A 22-year-old woman of normal weight reports episodes at least twice weekly over the past four months in which she eats a very large amount of food in under an hour and feels unable to stop, then makes herself vomit afterward. She is ashamed and says her self-worth depends heavily on her body shape. Exam shows calluses on the dorsum of her hand and eroded dental enamel. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Major depressive disorder with atypical features"}, {"letter": "B", "text": "Bulimia nervosa"}, {"letter": "C", "text": "Avoidant/restrictive food intake disorder"}, {"letter": "D", "text": "Binge-eating disorder"}, {"letter": "E", "text": "Anorexia nervosa, binge/purge type"}], "answer": "B", "explanation": "Recurrent binge eating with compensatory purging at least weekly for three months, self-evaluation tied to shape/weight, and normal weight is bulimia nervosa. Russell's sign and enamel erosion support purging.", "objective": "Objective 2", "section": "Bulimia Nervosa"}, {"id": "14A", "group": 14, "stem": "Which of the following is the first-line psychotherapy for this diagnosis?", "options": [{"letter": "A", "text": "Psychodynamic therapy"}, {"letter": "B", "text": "Habit-reversal training"}, {"letter": "C", "text": "Supportive psychotherapy alone"}, {"letter": "D", "text": "Cognitive behavioral therapy"}, {"letter": "E", "text": "Family-based therapy"}], "answer": "D", "explanation": "CBT is first-line for bulimia nervosa, using self-monitoring and cognitive restructuring to break the binge-purge cycle.", "objective": "Objective 2", "section": "Bulimia Nervosa"}, {"id": "14B", "group": 14, "stem": "If medication is added, which agent is FDA-approved for this diagnosis?", "options": [{"letter": "A", "text": "Amitriptyline"}, {"letter": "B", "text": "Fluoxetine"}, {"letter": "C", "text": "Bupropion"}, {"letter": "D", "text": "Lisdexamfetamine"}, {"letter": "E", "text": "Lithium"}], "answer": "B", "explanation": "Fluoxetine is the only SSRI FDA-approved for bulimia nervosa, often at higher doses; bupropion is contraindicated due to seizure risk.", "objective": "Objective 2", "section": "Bulimia Nervosa"}, {"id": "15", "group": 15, "stem": "A student asks why anorexia nervosa is considered one of the most dangerous psychiatric illnesses. Which statement best reflects its prognosis?", "options": [{"letter": "A", "text": "It virtually never recurs once weight has been restored"}, {"letter": "B", "text": "It carries the lowest mortality of any psychiatric disorder"}, {"letter": "C", "text": "Death occurs almost exclusively from secondary infection"}, {"letter": "D", "text": "It has high mortality from medical complications or suicide"}, {"letter": "E", "text": "It is essentially always self-limited and rarely serious"}], "answer": "D", "explanation": "Anorexia nervosa has a high mortality (roughly 5% per decade, up to 5–18%), with death from medical complications or suicide.", "objective": "Objective 1", "section": "Anorexia Nervosa"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

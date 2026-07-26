@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Dissociative Disorders — Practice Exam", "questions": [{"id": "1", "group": 1, "stem": "A 27-year-old graduate student describes recurrent episodes in anxiety-provoking social situations in which she feels as though she is 'standing back' and watching herself talk, calm and detached from her own body. She remains fully oriented and knows these experiences are not real. She has a history of childhood exposure to parental violence. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Brief psychotic disorder with stressor"}, {"letter": "B", "text": "Dissociative identity disorder"}, {"letter": "C", "text": "Temporal lobe (focal) seizures"}, {"letter": "D", "text": "Panic disorder with situational attacks"}, {"letter": "E", "text": "Depersonalization/derealization disorder"}], "answer": "E", "explanation": "Recurrent detachment from the self ('watching herself') with intact reality testing and orientation is depersonalization/derealization disorder.", "objective": "Objective 4", "section": "Depersonalization/Derealization"}, {"id": "1A", "group": 1, "stem": "Which clinical feature is most important in distinguishing this diagnosis from a psychotic disorder?", "options": [{"letter": "A", "text": "The episodic nature of symptoms"}, {"letter": "B", "text": "A family history of trauma"}, {"letter": "C", "text": "Onset in early adulthood"}, {"letter": "D", "text": "The presence of auditory hallucinations"}, {"letter": "E", "text": "Reality testing remains intact"}], "answer": "E", "explanation": "In depersonalization/derealization disorder reality testing stays intact during episodes, which separates it from psychotic disorders.", "objective": "Objective 4", "section": "Depersonalization/Derealization"}, {"id": "1B", "group": 1, "stem": "If pharmacologic treatment is pursued for this often-refractory condition, which medication class is most likely to be tried first?", "options": [{"letter": "A", "text": "A typical antipsychotic"}, {"letter": "B", "text": "An SSRI"}, {"letter": "C", "text": "A tricyclic antidepressant"}, {"letter": "D", "text": "A long-acting benzodiazepine"}, {"letter": "E", "text": "A stimulant"}], "answer": "B", "explanation": "The condition is generally refractory, but SSRIs (e.g., fluoxetine) may help; psychotherapy is also used.", "objective": "Objective 4", "section": "Depersonalization/Derealization"}, {"id": "2", "group": 2, "stem": "A 29-year-old patient with an established diagnosis of dissociative identity disorder is seen for a routine follow-up visit. In addition to monitoring the primary condition, which of the following comorbid problems is most important to screen for at this and every visit given its strong association with this disorder?", "options": [{"letter": "A", "text": "Environmental and seasonal allergies"}, {"letter": "B", "text": "Recurrent migraine headache with aura"}, {"letter": "C", "text": "Iron deficiency anemia from blood loss"}, {"letter": "D", "text": "Poorly controlled essential hypertension"}, {"letter": "E", "text": "Suicidality and self-injurious behavior"}], "answer": "E", "explanation": "Dissociation is an independent risk factor for multiple suicide attempts, and self-injury is common in DID, so suicidality must be assessed at every visit.", "objective": "Objective 6", "section": "Trauma-Informed Care & Safety"}, {"id": "3", "group": 3, "stem": "A survivor of a violent assault is unable to recall any events from the several hours surrounding the attack but has normal memory for her life before and after that period. Which type of dissociative amnesia does this pattern represent?", "options": [{"letter": "A", "text": "Localized"}, {"letter": "B", "text": "Generalized"}, {"letter": "C", "text": "Continuous"}, {"letter": "D", "text": "Selective"}, {"letter": "E", "text": "Systematized"}], "answer": "A", "explanation": "Localized amnesia is the inability to recall events during a specific circumscribed period and is the most common type.", "objective": "Objective 3", "section": "Dissociative Amnesia"}, {"id": "4", "group": 4, "stem": "A 20-year-old man reports a brief episode of feeling detached and 'in a fog,' as if watching the world through glass, that occurred shortly after recreational cannabis use and resolved on its own. He has no other psychiatric symptoms and the experience has not recurred. Transient symptoms like these are most commonly associated with which of the following?", "options": [{"letter": "A", "text": "An underlying chronic personality disorder"}, {"letter": "B", "text": "An undiagnosed primary mood disorder"}, {"letter": "C", "text": "Malingering of symptoms for secondary gain"}, {"letter": "D", "text": "Recreational drugs, migraine, or seizures"}, {"letter": "E", "text": "The earliest presentation of schizophrenia"}], "answer": "D", "explanation": "Transient depersonalization/derealization is extremely common and frequently associated with recreational drugs, seizure disorders, migraine, and head injury.", "objective": "Objective 4", "section": "Depersonalization/Derealization"}, {"id": "5", "group": 5, "stem": "A 31-year-old woman is brought to clinic by her sister, who reports that the patient sometimes refers to herself in the third person and by different names, and at times seems not to recognize family members. The patient describes frequent gaps in memory for everyday events, hearing internal voices, and finding items she does not remember buying. She has a history of severe, repeated childhood physical and sexual abuse and several past suicide attempts with self-injurious behavior. Reality testing is intact between episodes. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Dissociative amnesia"}, {"letter": "B", "text": "Borderline personality disorder"}, {"letter": "C", "text": "Bipolar I disorder, rapid cycling"}, {"letter": "D", "text": "Dissociative identity disorder"}, {"letter": "E", "text": "Schizophrenia"}], "answer": "D", "explanation": "Two or more distinct identity states with recurrent gaps in recall of everyday events, in a patient with severe early childhood trauma, is characteristic of DID. Intrusive voices and self-references support it.", "objective": "Objective 2", "section": "Dissociative Identity Disorder"}, {"id": "5A", "group": 5, "stem": "Which of the following is the most appropriate first-line treatment approach for this patient?", "options": [{"letter": "A", "text": "No treatment, since the condition resolves on its own"}, {"letter": "B", "text": "High-dose antipsychotic medication as monotherapy"}, {"letter": "C", "text": "Psychotherapy, with medication only for comorbidities"}, {"letter": "D", "text": "Long-term maintenance benzodiazepine therapy alone"}, {"letter": "E", "text": "Electroconvulsive therapy as the initial treatment"}], "answer": "C", "explanation": "First-line treatment is psychotherapy (CBT, hypnosis); pharmacotherapy targets comorbid conditions. ECT is reserved for refractory cases.", "objective": "Objective 2", "section": "Dissociative Identity Disorder"}, {"id": "6", "group": 6, "stem": "A clinician is establishing care with a patient who has dissociative symptoms and a suspected trauma history. Which of the following approaches best reflects trauma-informed care for this patient?", "options": [{"letter": "A", "text": "Avoid asking about any trauma in order to prevent distress"}, {"letter": "B", "text": "Establish safety and trust and screen sensitively for trauma"}, {"letter": "C", "text": "Frame the symptoms as a spiritual rather than a medical problem"}, {"letter": "D", "text": "Confront the patient about likely malingering to test consistency"}, {"letter": "E", "text": "Defer discussion of symptoms until imaging confirms a diagnosis"}], "answer": "B", "explanation": "Trauma-informed care establishes safety and trust, screens sensitively, and treats dissociative symptoms as trauma responses, not manipulation or malingering.", "objective": "Objective 6", "section": "Trauma-Informed Care & Safety"}, {"id": "7", "group": 7, "stem": "A clinician notes that dissociative identity disorder, dissociative amnesia, and depersonalization/derealization disorder share an important clinical thread that should shape every evaluation. Which of the following is that shared feature?", "options": [{"letter": "A", "text": "An onset that occurs exclusively after age 50"}, {"letter": "B", "text": "A strong association with a history of trauma"}, {"letter": "C", "text": "A complete loss of reality testing in all three"}, {"letter": "D", "text": "A characteristic structural abnormality on head CT"}, {"letter": "E", "text": "A predictable response to antipsychotic medication"}], "answer": "B", "explanation": "All three are strongly associated with a trauma history; every case should be screened for trauma and suicidality.", "objective": "Objective 5", "section": "Comparing the Disorders"}, {"id": "8", "group": 8, "stem": "In discussing a patient's symptoms, a clinician describes an unconscious defense mechanism that segregates a group of mental or behavioral processes from the rest of psychic activity, disrupting memory, perception, identity, and consciousness. Which term best describes this process?", "options": [{"letter": "A", "text": "Projection"}, {"letter": "B", "text": "Sublimation"}, {"letter": "C", "text": "Repression"}, {"letter": "D", "text": "Somatization"}, {"letter": "E", "text": "Dissociation"}], "answer": "E", "explanation": "Dissociation is the unconscious segregation of mental/behavioral processes that disrupts memory, perception, identity, and consciousness.", "objective": "Objective 1", "section": "Terminology & Definitions"}, {"id": "9", "group": 9, "stem": "A patient presents with reported identity disruption and memory gaps. The evaluating clinician wants to avoid a common pitfall in caring for patients with dissociative disorders. Which of the following is the most appropriate stance?", "options": [{"letter": "A", "text": "Assume the symptoms are feigned unless proven otherwise"}, {"letter": "B", "text": "Attribute the symptoms to demonic possession, as the family suggests"}, {"letter": "C", "text": "Withhold psychiatric referral until the symptoms fully resolve"}, {"letter": "D", "text": "Recognize the symptoms as genuine trauma responses"}, {"letter": "E", "text": "Diagnose a primary psychotic disorder because voices are reported"}], "answer": "D", "explanation": "Providers should reduce stigma and recognize dissociative symptoms as trauma responses, not manipulation or malingering, and counter cultural framings such as possession.", "objective": "Objective 6", "section": "Trauma-Informed Care & Safety"}, {"id": "10", "group": 10, "stem": "A 38-year-old man is found wandering in a city several hundred miles from his home with no memory of how he got there or of his personal identity. He had apparently traveled purposefully by bus. Once evaluated, no neurologic or substance-related cause is identified. This presentation of purposeful travel with amnesia is best captured by which specifier of dissociative amnesia?", "options": [{"letter": "A", "text": "The selective amnesia type"}, {"letter": "B", "text": "The localized amnesia type"}, {"letter": "C", "text": "The continuous amnesia type"}, {"letter": "D", "text": "The systematized amnesia type"}, {"letter": "E", "text": "With dissociative fugue"}], "answer": "E", "explanation": "Dissociative fugue is the specifier for apparently purposeful travel or bewildered wandering associated with amnesia.", "objective": "Objective 3", "section": "Dissociative Amnesia"}, {"id": "11", "group": 11, "stem": "A 45-year-old male combat veteran and former boxer presents perplexed by an inability to recall the events of the past 12 years. He has a family history of being beaten as a child. His intellectual function is intact, and a CT of the head and routine laboratory studies are normal. He is distressed by the contradiction between his memory and his current circumstances. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Malingering"}, {"letter": "B", "text": "Dissociative amnesia"}, {"letter": "C", "text": "Alcoholic blackout"}, {"letter": "D", "text": "Transient global amnesia"}, {"letter": "E", "text": "Major neurocognitive disorder"}], "answer": "B", "explanation": "Inability to recall important autobiographical information after trauma, with intact intellect and a normal neurologic workup excluding organic causes, is dissociative amnesia.", "objective": "Objective 3", "section": "Dissociative Amnesia"}, {"id": "11A", "group": 11, "stem": "The normal head CT in this patient is most useful because it helps distinguish this condition from which of the following?", "options": [{"letter": "A", "text": "An organic (neurologic) cause of amnesia"}, {"letter": "B", "text": "A factitious disorder"}, {"letter": "C", "text": "A somatic symptom disorder"}, {"letter": "D", "text": "A culturally sanctioned practice"}, {"letter": "E", "text": "A primary anxiety disorder"}], "answer": "A", "explanation": "A normal neurologic workup (e.g., normal CT) distinguishes dissociative amnesia from organic causes such as neurocognitive disorder, TBI, or seizures.", "objective": "Objective 3", "section": "Dissociative Amnesia"}, {"id": "11B", "group": 11, "stem": "Which of the following best describes the recommended management of this condition?", "options": [{"letter": "A", "text": "A scheduled benzodiazepine taper over several weeks"}, {"letter": "B", "text": "Electroconvulsive therapy as the initial intervention"}, {"letter": "C", "text": "Long-term maintenance antipsychotic medication"}, {"letter": "D", "text": "Psychiatric referral and psychotherapy, with no proven drug"}, {"letter": "E", "text": "First-line SSRI therapy for the majority of patients"}], "answer": "D", "explanation": "Dissociative amnesia is managed with psychiatric referral, CBT, and hypnosis; there is no known effective pharmacotherapy.", "objective": "Objective 3", "section": "Dissociative Amnesia"}, {"id": "12", "group": 12, "stem": "Three patients are described: one has two or more distinct personality states with memory gaps, one has an inability to recall autobiographical information, and one has persistent detachment from the self with intact reality testing. Which patient's presentation is most consistent with dissociative identity disorder?", "options": [{"letter": "A", "text": "The patient with persistent detachment from the self"}, {"letter": "B", "text": "All three equally"}, {"letter": "C", "text": "None of these presentations"}, {"letter": "D", "text": "The patient with two or more distinct personality states and memory gaps"}, {"letter": "E", "text": "The patient with inability to recall autobiographical information"}], "answer": "D", "explanation": "The core deficit of DID is two or more personality states plus memory gaps; autobiographical amnesia describes dissociative amnesia and detachment describes DPDR.", "objective": "Objective 5", "section": "Comparing the Disorders"}, {"id": "13", "group": 13, "stem": "A patient states, 'It's not that I feel different — it's that the world around me seems unreal and strange, like I'm looking at it from behind glass.' This description of a change in the sense of the surrounding environment is best termed which of the following?", "options": [{"letter": "A", "text": "Illusion"}, {"letter": "B", "text": "Hallucination"}, {"letter": "C", "text": "Depersonalization"}, {"letter": "D", "text": "Delusion"}, {"letter": "E", "text": "Derealization"}], "answer": "E", "explanation": "Derealization is the sense that the environment has changed in an unreal or strange way; depersonalization refers to a change in the self.", "objective": "Objective 1", "section": "Terminology & Definitions"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
