@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Leukocytic Disorders — High-Yield PA School Practice Examination", "questions": [{"id": "1", "group": 1, "stem": "A 48-year-old woman is admitted for an asthma exacerbation and receives high-dose prednisone. The next morning, her WBC count has increased from 8,200/µL to 14,900/µL, with a predominant neutrophilia. She is afebrile, her respiratory symptoms are improving, and the differential shows no significant bandemia. Which explanation best accounts for the change in her WBC count?", "options": [{"letter": "A", "text": "New bacterial pneumonia causing a reactive left shift"}, {"letter": "B", "text": "Acute lymphocytic leukemia"}, {"letter": "C", "text": "Steroid-induced neutrophil demargination"}, {"letter": "D", "text": "Helminth infection"}, {"letter": "E", "text": "Splenic sequestration of neutrophils"}], "answer": "C", "explanation": "Glucocorticoids commonly cause neutrophilia, primarily by demargination of neutrophils from the vascular endothelium. The clinical improvement and absence of fever or a marked left shift make a new bacterial infection less likely.", "objective": "Reactive leukocyte abnormalities — LO 3", "section": "Reactive leukocyte abnormalities"}, {"id": "2", "group": 2, "stem": "An asymptomatic adult has a WBC count of 9,800/µL on a routine CBC. Which interpretation is most accurate?", "options": [{"letter": "A", "text": "Normal adult WBC count"}, {"letter": "B", "text": "Leukocytosis above the adult reference range"}, {"letter": "C", "text": "Leukopenia below the adult reference range"}, {"letter": "D", "text": "Severe neutropenia based on the total count alone"}, {"letter": "E", "text": "Leukemoid reaction caused by extreme neutrophilia"}], "answer": "A", "explanation": "The lecture identifies an adult WBC reference range of approximately 4,500–11,000/µL. A total WBC count alone does not establish neutropenia because the differential and absolute neutrophil count are required.", "objective": "CBC and differential fundamentals — LO 6", "section": "CBC and differential fundamentals"}, {"id": "3", "group": 3, "stem": "A 72-year-old man is evaluated after a routine CBC shows a WBC count of 42,000/µL with an absolute lymphocyte count of 31,000/µL. He reports mild early satiety but no acute illness. Examination shows painless cervical adenopathy and splenomegaly. The peripheral smear shows numerous small, mature-appearing lymphocytes and smudge cells. Which diagnosis is most likely?", "options": [{"letter": "A", "text": "Chronic myelogenous leukemia with a myeloid left shift"}, {"letter": "B", "text": "Chronic lymphocytic leukemia"}, {"letter": "C", "text": "Acute lymphocytic leukemia"}, {"letter": "D", "text": "Infectious mononucleosis with reactive atypical lymphocytes"}, {"letter": "E", "text": "Leukemoid reaction"}], "answer": "B", "explanation": "CLL commonly presents in older adults with incidentally discovered absolute lymphocytosis, small mature lymphocytes, and smudge cells. Painless adenopathy and splenomegaly further support the diagnosis.", "objective": "Leukemias — CLL — LO 5", "section": "Leukemias"}, {"id": "3A", "group": 3, "stem": "Assuming the preceding diagnosis is correct, which test is most important for confirming the clonal lymphocyte population and classifying the disease?", "options": [{"letter": "A", "text": "Bone marrow biopsy as the only acceptable confirmatory test"}, {"letter": "B", "text": "Fluorescence in situ hybridization alone"}, {"letter": "C", "text": "Heterophile antibody testing"}, {"letter": "D", "text": "Peripheral blood flow cytometry with immunophenotyping"}, {"letter": "E", "text": "Serum protein electrophoresis"}], "answer": "D", "explanation": "Flow cytometry uses monoclonal antibodies against cell-surface markers to establish lymphocyte lineage and clonality. In a typical CLL presentation, peripheral blood flow cytometry can confirm the diagnosis without requiring bone marrow biopsy.", "objective": "Flow cytometry and CLL — LO 4", "section": "Flow cytometry and CLL"}, {"id": "3B", "group": 3, "stem": "Cytogenetic testing is obtained for the patient. Which result would be associated with a poorer prognosis in CLL?", "options": [{"letter": "A", "text": "Isolated del(13q), a generally favorable finding"}, {"letter": "B", "text": "Mutated IGHV status"}, {"letter": "C", "text": "BCR-ABL1 t(9;22), characteristic of CML"}, {"letter": "D", "text": "CD20 expression on the clonal B cells"}, {"letter": "E", "text": "del(17p) with a TP53 abnormality"}], "answer": "E", "explanation": "The lecture identifies del(17p) and TP53 abnormalities as adverse prognostic findings in CLL. Del(13q) and mutated IGHV are associated with more favorable prognosis.", "objective": "Leukemias — CLL cytogenetics — LO 5", "section": "Leukemias"}, {"id": "4", "group": 4, "stem": "A 26-year-old woman develops fever, diffuse rash, facial edema, and lymphadenopathy 4 weeks after starting lamotrigine. Her absolute eosinophil count is 1,800/µL. Which diagnosis best explains this leukocyte abnormality and clinical presentation?", "options": [{"letter": "A", "text": "Helminth infection acquired through travel"}, {"letter": "B", "text": "Uncomplicated seasonal allergic rhinitis"}, {"letter": "C", "text": "DRESS syndrome"}, {"letter": "D", "text": "Chronic myelogenous leukemia"}, {"letter": "E", "text": "Eosinophilic granulomatosis with polyangiitis"}], "answer": "C", "explanation": "DRESS typically develops 2–8 weeks after exposure to an implicated medication and presents with fever, rash, facial edema, lymphadenopathy, and eosinophilia. The timing and systemic findings are more specific than uncomplicated atopy.", "objective": "Eosinophilia — LO 3", "section": "Eosinophilia"}, {"id": "5", "group": 5, "stem": "A 61-year-old patient receiving chemotherapy presents with a temperature of 38.6°C (101.5°F) and malaise. The WBC count is 1,200/µL, with 20% segmented neutrophils and 5% bands. What is the patient’s absolute neutrophil count?", "options": [{"letter": "A", "text": "60/µL"}, {"letter": "B", "text": "300/µL"}, {"letter": "C", "text": "600/µL"}, {"letter": "D", "text": "900/µL"}, {"letter": "E", "text": "1,200/µL"}], "answer": "B", "explanation": "ANC equals the total WBC count multiplied by the combined percentage of segmented neutrophils and bands: 1,200 × 0.25 = 300/µL.", "objective": "Neutropenia and ANC — LO 2", "section": "Neutropenia and ANC"}, {"id": "5A", "group": 5, "stem": "How should the ANC calculated in the preceding question be classified?", "options": [{"letter": "A", "text": "Normal neutrophil count"}, {"letter": "B", "text": "Mild neutropenia"}, {"letter": "C", "text": "Moderate neutropenia"}, {"letter": "D", "text": "Leukopenia without neutropenia"}, {"letter": "E", "text": "Severe neutropenia"}], "answer": "E", "explanation": "Severe neutropenia is generally defined as an ANC below 500/µL. An ANC of 300/µL places the patient at substantial risk for bacterial and fungal infection.", "objective": "Neutropenia and ANC — LO 2", "section": "Neutropenia and ANC"}, {"id": "5B", "group": 5, "stem": "Which interpretation of the patient’s fever is most appropriate?", "options": [{"letter": "A", "text": "It is a medical emergency requiring immediate evaluation"}, {"letter": "B", "text": "It can be reassessed at the next scheduled oncology visit"}, {"letter": "C", "text": "It is expected after chemotherapy and requires no further assessment"}, {"letter": "D", "text": "The CBC should be repeated in one week before deciding what to do"}, {"letter": "E", "text": "It is most consistent with isolated viral lymphopenia"}], "answer": "A", "explanation": "Fever in a patient with severe neutropenia is a medical emergency. The markedly reduced ANC limits the patient’s ability to mount an effective response to bacterial and fungal pathogens.", "objective": "Severe neutropenia — LO 1", "section": "Severe neutropenia"}, {"id": "6", "group": 6, "stem": "A 28-year-old woman reports several months of painless left cervical and supraclavicular lymph node enlargement. She has drenching night sweats, generalized pruritus, and unintentional weight loss. Chest imaging shows a mediastinal mass. Which diagnosis is most likely?", "options": [{"letter": "A", "text": "Chronic lymphocytic leukemia"}, {"letter": "B", "text": "Chronic myelogenous leukemia"}, {"letter": "C", "text": "Non-Hodgkin lymphoma"}, {"letter": "D", "text": "Hodgkin lymphoma"}, {"letter": "E", "text": "Infectious mononucleosis"}], "answer": "D", "explanation": "Hodgkin lymphoma often affects young adults and commonly begins in cervical, supraclavicular, or mediastinal nodes. Painless lymphadenopathy with B symptoms and a mediastinal mass is a classic presentation.", "objective": "Lymphomas — Hodgkin lymphoma — LO 5", "section": "Lymphomas"}, {"id": "6A", "group": 6, "stem": "Which diagnostic procedure is most appropriate to establish the diagnosis in this patient?", "options": [{"letter": "A", "text": "Fine-needle aspiration of the node"}, {"letter": "B", "text": "Peripheral blood smear"}, {"letter": "C", "text": "Excisional lymph node biopsy"}, {"letter": "D", "text": "Bone marrow aspiration as the first test"}, {"letter": "E", "text": "Serum protein electrophoresis"}], "answer": "C", "explanation": "Excisional lymph node biopsy is preferred when Hodgkin lymphoma is suspected because it provides sufficient tissue and preserves nodal architecture. Fine-needle aspiration is usually inadequate for definitive diagnosis.", "objective": "Lymphomas — Hodgkin lymphoma diagnosis — LO 5", "section": "Lymphomas"}, {"id": "6B", "group": 6, "stem": "Which pathologic finding would most strongly support the suspected diagnosis?", "options": [{"letter": "A", "text": "Small mature lymphocytes with smudge cells"}, {"letter": "B", "text": "CD15-positive and CD30-positive Reed-Sternberg cells"}, {"letter": "C", "text": "Myeloblasts containing Auer rods"}, {"letter": "D", "text": "Maturing granulocytes with BCR-ABL1"}, {"letter": "E", "text": "Clonal plasma cells producing an M protein"}], "answer": "B", "explanation": "The malignant cell of classical Hodgkin lymphoma is the Reed-Sternberg cell, characteristically associated with CD15 and CD30 expression. The other findings correspond to CLL, AML, CML, and multiple myeloma.", "objective": "Lymphomas — Hodgkin lymphoma pathology — LO 5", "section": "Lymphomas"}, {"id": "7", "group": 7, "stem": "A 20-year-old college student has fever, severe fatigue, sore throat, posterior cervical lymphadenopathy, and splenomegaly. The WBC count is 14,000/µL with 55% lymphocytes. The peripheral smear report notes large atypical lymphocytes with abundant basophilic cytoplasm. Which interpretation is most appropriate?", "options": [{"letter": "A", "text": "Reactive atypical lymphocytosis caused by EBV"}, {"letter": "B", "text": "Neutrophilia caused by a pyogenic bacterial infection"}, {"letter": "C", "text": "Chronic lymphocytic leukemia with smudge cells"}, {"letter": "D", "text": "Absolute monocytosis from chronic bacterial infection"}, {"letter": "E", "text": "Bone marrow failure from aplastic anemia"}], "answer": "A", "explanation": "Infectious mononucleosis is the classic cause of atypical lymphocytosis. The atypical cells are reactive lymphocytes, not monocytes, despite the name “mononucleosis.”", "objective": "Lymphocytosis and atypical lymphocytes — LO 3", "section": "Lymphocytosis and atypical lymphocytes"}, {"id": "8", "group": 8, "stem": "A 55-year-old man is found to have a WBC count of 98,000/µL during evaluation of fatigue and early satiety. Examination reveals marked splenomegaly without significant lymphadenopathy. The peripheral smear shows myelocytes, metamyelocytes, bands, and mature neutrophils, along with increased basophils. Which diagnosis is most likely?", "options": [{"letter": "A", "text": "Acute myelogenous leukemia with predominantly myeloblasts"}, {"letter": "B", "text": "Chronic lymphocytic leukemia with mature lymphocytosis"}, {"letter": "C", "text": "Leukemoid reaction caused by severe infection"}, {"letter": "D", "text": "Non-Hodgkin lymphoma"}, {"letter": "E", "text": "Chronic myelogenous leukemia"}], "answer": "E", "explanation": "CML commonly presents with marked leukocytosis, splenomegaly, basophilia, and granulocytes at multiple stages of maturation. The broad myeloid left shift is more extensive than expected in a typical leukemoid reaction.", "objective": "Leukemias — CML — LO 5", "section": "Leukemias"}, {"id": "8A", "group": 8, "stem": "Which finding would confirm the diagnosis in the preceding patient?", "options": [{"letter": "A", "text": "Deletion of chromosome 13q"}, {"letter": "B", "text": "CD15 and CD30 expression"}, {"letter": "C", "text": "BCR-ABL1 fusion from t(9;22)"}, {"letter": "D", "text": "More than 20% lymphoblasts in bone marrow"}, {"letter": "E", "text": "A monoclonal spike on serum electrophoresis"}], "answer": "C", "explanation": "The Philadelphia chromosome results from t(9;22) and creates the BCR-ABL1 fusion gene. Its presence is diagnostic of CML in the appropriate clinical setting.", "objective": "Leukemias — CML cytogenetics — LO 5", "section": "Leukemias"}, {"id": "8B", "group": 8, "stem": "Which targeted treatment is specifically linked to this molecular abnormality in the lecture?", "options": [{"letter": "A", "text": "Rituximab directed against CD20"}, {"letter": "B", "text": "High-dose glucocorticoid therapy"}, {"letter": "C", "text": "Broad-spectrum antimicrobial therapy alone"}, {"letter": "D", "text": "Imatinib, a tyrosine kinase inhibitor"}, {"letter": "E", "text": "Therapeutic phlebotomy"}], "answer": "D", "explanation": "BCR-ABL1 encodes a constitutively active tyrosine kinase. Imatinib and related tyrosine kinase inhibitors target this abnormal signaling pathway and have markedly improved CML outcomes.", "objective": "Leukemias — CML management — LO 5", "section": "Leukemias"}, {"id": "9", "group": 9, "stem": "A patient has persistent lymphocytosis, and a hematologic malignancy is suspected. Which statement best describes the diagnostic role of flow cytometry?", "options": [{"letter": "A", "text": "It classifies leukocytes only by their size and nuclear shape on a stained peripheral smear"}, {"letter": "B", "text": "Monoclonal antibodies identify cell-surface CD markers and establish lineage, maturity, and clonality"}, {"letter": "C", "text": "It detects chromosomal translocations and deletions without evaluating cell-surface proteins"}, {"letter": "D", "text": "It separates monoclonal and polyclonal serum proteins by their electrophoretic migration"}, {"letter": "E", "text": "It measures circulating HIV RNA to assess viral replication and treatment response"}], "answer": "B", "explanation": "Flow cytometry performs immunophenotyping by using antibodies against cell-surface antigens, commonly designated by CD numbers. This helps identify the leukocyte lineage and stage of maturation and can demonstrate a clonal population.", "objective": "Flow cytometry — LO 4", "section": "Flow cytometry"}, {"id": "10", "group": 10, "stem": "A 67-year-old man is hospitalized with severe bacterial pneumonia. His WBC count is 44,000/µL and consists predominantly of mature neutrophils with some bands; no blasts are identified. The WBC count falls substantially as the infection improves. Which term best describes this hematologic response?", "options": [{"letter": "A", "text": "Leukemoid reaction"}, {"letter": "B", "text": "Chronic myelogenous leukemia"}, {"letter": "C", "text": "Acute myelogenous leukemia"}, {"letter": "D", "text": "Chronic lymphocytic leukemia"}, {"letter": "E", "text": "Lymphopenia"}], "answer": "A", "explanation": "A leukemoid reaction is an extreme, reactive neutrophilic leukocytosis caused by infection and composed mainly of mature, nonclonal neutrophils. Resolution with treatment of the infection supports a reactive process.", "objective": "Leukocytosis and leukemoid reaction — LO 1", "section": "Leukocytosis and leukemoid reaction"}, {"id": "11", "group": 11, "stem": "A 5-year-old child is brought in for progressive fatigue, pallor, easy bruising, fever, and a new limp without a history of trauma. Examination reveals lymphadenopathy and splenomegaly. The CBC shows anemia and thrombocytopenia, and the peripheral smear contains circulating blasts. Which diagnosis is most likely?", "options": [{"letter": "A", "text": "Chronic lymphocytic leukemia"}, {"letter": "B", "text": "Acute myelogenous leukemia"}, {"letter": "C", "text": "Acute lymphocytic leukemia"}, {"letter": "D", "text": "Chronic myelogenous leukemia"}, {"letter": "E", "text": "Hodgkin lymphoma"}], "answer": "C", "explanation": "ALL is the most common leukemia of young children and often presents with findings caused by marrow crowding, including anemia, thrombocytopenia, infection, and bone pain. Lymphadenopathy and splenomegaly are also common.", "objective": "Leukemias — ALL — LO 5", "section": "Leukemias"}, {"id": "11A", "group": 11, "stem": "Which laboratory finding would establish the diagnosis?", "options": [{"letter": "A", "text": "Bone marrow containing fewer than 5% lymphoblasts"}, {"letter": "B", "text": "Peripheral smear showing numerous mature lymphocytes and smudge cells"}, {"letter": "C", "text": "BCR-ABL1 detected in maturing granulocytes"}, {"letter": "D", "text": "Auer rods identified within myeloblasts"}, {"letter": "E", "text": "Bone marrow containing more than 20% lymphoblasts"}], "answer": "E", "explanation": "The lecture defines ALL by proliferation of lymphoblasts, with diagnosis supported by a hypercellular marrow containing more than 20% lymphoblasts. Smudge cells indicate CLL, and Auer rods support AML.", "objective": "Leukemias — ALL diagnosis — LO 5", "section": "Leukemias"}, {"id": "11B", "group": 11, "stem": "After the diagnosis is established, which additional procedure is specifically indicated to evaluate a common site of leukemic spread in children with this disorder?", "options": [{"letter": "A", "text": "Excisional cervical lymph node biopsy"}, {"letter": "B", "text": "Serum protein electrophoresis"}, {"letter": "C", "text": "Urine protein electrophoresis"}, {"letter": "D", "text": "Lumbar puncture"}, {"letter": "E", "text": "Heterophile antibody testing"}], "answer": "D", "explanation": "Children with ALL should undergo lumbar puncture to evaluate for CNS involvement. The lecture notes that leukemic CNS infiltration occurs in a substantial proportion of affected children.", "objective": "Leukemias — ALL evaluation — LO 5", "section": "Leukemias"}, {"id": "12", "group": 12, "stem": "A patient’s CBC shows a WBC count of 7,000/µL with 48% lymphocytes. Using an absolute lymphocytosis threshold of approximately 4,000/µL, how should this result be described?", "options": [{"letter": "A", "text": "Absolute lymphocytosis based on the calculated cell count"}, {"letter": "B", "text": "Relative, but not absolute, lymphocytosis"}, {"letter": "C", "text": "Leukopenia based on the total WBC count"}, {"letter": "D", "text": "Severe lymphopenia with impaired immune function"}, {"letter": "E", "text": "Absolute monocytosis"}], "answer": "B", "explanation": "The absolute lymphocyte count is 7,000 × 0.48 = 3,360/µL, which is below the approximate threshold for absolute lymphocytosis. The percentage is increased, so this is a relative lymphocytosis.", "objective": "CBC and differential terminology — LO 2", "section": "CBC and differential terminology"}, {"id": "13", "group": 13, "stem": "A 68-year-old man presents with fatigue, constipation, and persistent back pain. Laboratory studies show normocytic anemia, elevated creatinine, and hypercalcemia. Imaging demonstrates multiple lytic bone lesions. Which diagnosis best unifies these findings?", "options": [{"letter": "A", "text": "Chronic lymphocytic leukemia"}, {"letter": "B", "text": "Hodgkin lymphoma"}, {"letter": "C", "text": "Acute myelogenous leukemia"}, {"letter": "D", "text": "Multiple myeloma"}, {"letter": "E", "text": "Chronic myelogenous leukemia"}], "answer": "D", "explanation": "The combination of hypercalcemia, renal dysfunction, anemia, and bone lesions is the CRAB pattern of multiple myeloma. The disorder is a clonal plasma-cell malignancy that produces a monoclonal immunoglobulin or component.", "objective": "Plasma cell disorders — multiple myeloma — LO 5", "section": "Plasma cell disorders"}, {"id": "13A", "group": 13, "stem": "Which serum study is most appropriate to demonstrate and characterize the suspected monoclonal protein?", "options": [{"letter": "A", "text": "SPEP with serum immunofixation"}, {"letter": "B", "text": "HIV viral load with CD4 count"}, {"letter": "C", "text": "Peripheral blood flow cytometry for lymphocyte subsets"}, {"letter": "D", "text": "Fluorescence in situ hybridization for BCR-ABL1"}, {"letter": "E", "text": "Heterophile antibody testing for infectious mononucleosis"}], "answer": "A", "explanation": "SPEP identifies and estimates the quantity of an M protein, while serum immunofixation identifies the immunoglobulin type. These tests directly evaluate the monoclonal protein produced in multiple myeloma.", "objective": "Multiple myeloma laboratory diagnosis — LO 5", "section": "Multiple myeloma laboratory diagnosis"}, {"id": "13B", "group": 13, "stem": "The urine dipstick is negative for protein despite strong suspicion for light-chain myeloma. Which explanation and next test are most appropriate?", "options": [{"letter": "A", "text": "The negative dipstick excludes a monoclonal gammopathy; no additional urine testing is needed"}, {"letter": "B", "text": "The dipstick detects all immunoglobulin components; repeat the dipstick on a fresh specimen"}, {"letter": "C", "text": "Dipsticks may miss light chains; obtain UPEP with urine immunofixation"}, {"letter": "D", "text": "The finding indicates CLL; order peripheral blood flow cytometry to demonstrate clonality"}, {"letter": "E", "text": "The finding indicates Hodgkin lymphoma; obtain an excisional lymph node biopsy"}], "answer": "C", "explanation": "Standard urine dipsticks primarily detect albumin and may poorly detect immunoglobulin light chains. UPEP and urine immunofixation can identify Bence Jones proteins and determine whether the light chains are kappa or lambda.", "objective": "Multiple myeloma laboratory diagnosis — LO 5", "section": "Multiple myeloma laboratory diagnosis"}, {"id": "14", "group": 14, "stem": "A 36-year-old patient has persistent unexplained lymphopenia with an absolute lymphocyte count of 700/µL. The patient is not taking chemotherapy or immunosuppressive medication and has no known autoimmune disease. Which additional test is most appropriate?", "options": [{"letter": "A", "text": "Stool ova and parasite examination"}, {"letter": "B", "text": "BCR-ABL1 testing"}, {"letter": "C", "text": "Serum protein electrophoresis"}, {"letter": "D", "text": "Heterophile antibody testing"}, {"letter": "E", "text": "HIV testing"}], "answer": "E", "explanation": "HIV directly depletes CD4-positive T lymphocytes and is an important cause of lymphopenia. The lecture specifically emphasizes considering HIV testing in patients with otherwise unexplained lymphopenia.", "objective": "Lymphopenia and HIV — LO 3", "section": "Lymphopenia and HIV"}, {"id": "15", "group": 15, "stem": "A 69-year-old patient presents with fatigue, recurrent infections, petechiae, and gingival bleeding. The CBC shows anemia and thrombocytopenia, but the total WBC count is only mildly elevated. The peripheral smear contains blasts with needle-like red cytoplasmic inclusions, and there is no significant lymphadenopathy. Which diagnosis is most likely?", "options": [{"letter": "A", "text": "Acute lymphocytic leukemia"}, {"letter": "B", "text": "Acute myelogenous leukemia"}, {"letter": "C", "text": "Chronic lymphocytic leukemia"}, {"letter": "D", "text": "Chronic myelogenous leukemia"}, {"letter": "E", "text": "Non-Hodgkin lymphoma"}], "answer": "B", "explanation": "AML commonly affects older adults and presents with symptoms of marrow failure. Auer rods are characteristic cytoplasmic inclusions in myeloblasts and strongly support AML.", "objective": "Leukemias — AML — LO 5", "section": "Leukemias"}, {"id": "15A", "group": 15, "stem": "Which additional laboratory finding would support AML rather than ALL?", "options": [{"letter": "A", "text": "T-lymphocyte expression of CD3 and CD4"}, {"letter": "B", "text": "Smudge cells among small mature lymphocytes"}, {"letter": "C", "text": "Bence Jones light chains detected in urine"}, {"letter": "D", "text": "Myeloperoxidase-positive blasts"}, {"letter": "E", "text": "B-lymphocyte expression of CD19 and CD20"}], "answer": "D", "explanation": "Myeloperoxidase positivity supports myeloid differentiation and helps distinguish AML from ALL. Lymphoid CD markers support ALL or other lymphoid malignancies.", "objective": "Leukemias — AML versus ALL — LO 5", "section": "Leukemias"}, {"id": "15B", "group": 15, "stem": "Which test is generally required to establish the diagnosis and quantify the abnormal precursor population?", "options": [{"letter": "A", "text": "Bone marrow biopsy showing more than 20% myeloblasts"}, {"letter": "B", "text": "Excisional lymph node biopsy preserving nodal architecture"}, {"letter": "C", "text": "Serum protein electrophoresis with immunofixation"}, {"letter": "D", "text": "HIV viral load with CD4 count"}, {"letter": "E", "text": "Heterophile antibody testing for EBV infection"}], "answer": "A", "explanation": "Acute leukemia is generally confirmed by bone marrow examination. AML is supported by more than 20% myeloblasts in the marrow, together with morphology, flow cytometry, and cytogenetic studies.", "objective": "Leukemias — AML diagnosis — LO 5", "section": "Leukemias"}, {"id": "16", "group": 16, "stem": "A 58-year-old patient has marked leukocytosis, splenomegaly, and a differential showing neutrophilia with increased eosinophils and basophils. Which differential abnormality is particularly concerning for CML in this setting?", "options": [{"letter": "A", "text": "Lymphopenia"}, {"letter": "B", "text": "Monocytopenia"}, {"letter": "C", "text": "Basophilia"}, {"letter": "D", "text": "Eosinopenia"}, {"letter": "E", "text": "Thrombocytopenia"}], "answer": "C", "explanation": "Basophilia is uncommon and nonspecific in isolation, but a significant elevation with marked myeloid leukocytosis and splenomegaly should raise concern for CML.", "objective": "Basophilia and CML — LO 3", "section": "Basophilia and CML"}, {"id": "17", "group": 17, "stem": "A 69-year-old patient develops painless cervical, axillary, and inguinal lymphadenopathy with unintentional weight loss. The involved lymph node groups are noncontiguous, and the CBC is nonspecific. Which diagnosis is most likely?", "options": [{"letter": "A", "text": "Acute lymphocytic leukemia"}, {"letter": "B", "text": "Chronic myelogenous leukemia"}, {"letter": "C", "text": "Infectious mononucleosis"}, {"letter": "D", "text": "Hodgkin lymphoma"}, {"letter": "E", "text": "Non-Hodgkin lymphoma"}], "answer": "E", "explanation": "Non-Hodgkin lymphoma is more common in older adults and may involve multiple noncontiguous lymph node groups. Its spread is generally less orderly and more frequently disseminated than Hodgkin lymphoma.", "objective": "Lymphomas — Non-Hodgkin lymphoma — LO 5", "section": "Lymphomas"}, {"id": "17A", "group": 17, "stem": "Which next step is most appropriate to establish and classify the diagnosis?", "options": [{"letter": "A", "text": "Serial CBC monitoring without obtaining diagnostic tissue"}, {"letter": "B", "text": "Excisional node biopsy with immunophenotyping and cytogenetic analysis"}, {"letter": "C", "text": "Bone marrow aspiration as the only initial diagnostic procedure"}, {"letter": "D", "text": "HIV viral load as the definitive test for the lymphadenopathy"}, {"letter": "E", "text": "Serum protein electrophoresis for an M protein"}], "answer": "B", "explanation": "NHL diagnosis relies on tissue confirmation, and subtype identification is critical. An excised node can be evaluated histologically and with flow cytometry/immunophenotyping and cytogenetic studies.", "objective": "Lymphomas — Non-Hodgkin lymphoma diagnosis — LO 5", "section": "Lymphomas"}, {"id": "18", "group": 18, "stem": "An 82-year-old patient presents with confusion, cough, tachypnea, and new functional decline. The WBC count is 8,800/µL, which is within the reference range. Which interpretation is most appropriate?", "options": [{"letter": "A", "text": "A normal WBC count excludes a clinically important bacterial infection"}, {"letter": "B", "text": "The illness must be viral because the patient has no leukocytosis"}, {"letter": "C", "text": "The presentation is unlikely to be infectious in the absence of bandemia"}, {"letter": "D", "text": "Normal WBC does not exclude serious infection in older adults"}, {"letter": "E", "text": "The CBC confirms constitutional neutropenia"}], "answer": "D", "explanation": "Older adults may mount a less robust leukocytosis because of immunosenescence. Clinical findings remain important, and a normal WBC count does not rule out a serious infection.", "objective": "Clinical interpretation of WBC count — LO 1", "section": "Clinical interpretation of WBC count"}, {"id": "19", "group": 19, "stem": "A 47-year-old patient has several months of low-grade fever, weight loss, and fatigue. Examination reveals a new cardiac murmur. The CBC shows a mild leukocytosis with an absolute monocyte count of 1,600/µL. Which association best fits this leukocyte pattern?", "options": [{"letter": "A", "text": "Chronic bacterial infection"}, {"letter": "B", "text": "Acute viral infection with atypical lymphocytes"}, {"letter": "C", "text": "Helminth infection causing marked eosinophilia"}, {"letter": "D", "text": "Glucocorticoid-induced neutrophil demargination"}, {"letter": "E", "text": "Chemotherapy-associated bone marrow suppression"}], "answer": "A", "explanation": "Monocytosis is fairly nonspecific but is commonly associated with chronic bacterial infections, including tuberculosis, syphilis, and endocarditis. The prolonged systemic symptoms and murmur support that association.", "objective": "Monocytosis — LO 3", "section": "Monocytosis"}, {"id": "20", "group": 20, "stem": "A 34-year-old patient presents with fever, pleuritic chest pain, and productive cough. The WBC count is 18,000/µL with 80% segmented neutrophils and 12% bands. Which interpretation is most appropriate?", "options": [{"letter": "A", "text": "Relative lymphocytosis most consistent with an acute viral infection"}, {"letter": "B", "text": "Eosinophilia suggesting an invasive helminth infection"}, {"letter": "C", "text": "Neutrophilia with a left shift from bacterial infection"}, {"letter": "D", "text": "Severe neutropenia with increased bacterial and fungal risk"}, {"letter": "E", "text": "Chronic lymphocytic leukemia with mature lymphocytes"}], "answer": "C", "explanation": "Bandemia represents a left shift and generally indicates increased marrow release of immature neutrophils during a significant bacterial infection. The clinical presentation is also consistent with a pyogenic process.", "objective": "Neutrophilia and bandemia — LO 1", "section": "Neutrophilia and bandemia"}, {"id": "21", "group": 21, "stem": "A patient with newly diagnosed HIV begins antiretroviral therapy. Which pair of laboratory tests is standard for monitoring the infection and immune status?", "options": [{"letter": "A", "text": "Total WBC count and erythrocyte sedimentation rate"}, {"letter": "B", "text": "HIV viral load and CD4 count"}, {"letter": "C", "text": "Serum and urine protein electrophoresis"}, {"letter": "D", "text": "BCR-ABL1 level and peripheral smear"}, {"letter": "E", "text": "CD15 and CD30 expression"}], "answer": "B", "explanation": "The learning objectives specifically identify HIV viral load and CD4 count as the standard monitoring tests. Viral load assesses circulating HIV RNA, while the CD4 count reflects the status of helper T lymphocytes.", "objective": "HIV laboratory monitoring — LO 5", "section": "HIV laboratory monitoring"}, {"id": "22", "group": 22, "stem": "A healthy Black adult has repeated ANCs of approximately 1,200/µL documented over several years. The patient has no history of recurrent infections, and hemoglobin and platelet counts are normal. After other causes are excluded, which interpretation is most appropriate?", "options": [{"letter": "A", "text": "Medication-related neutropenia from unreported chemotherapy exposure"}, {"letter": "B", "text": "Severe neutropenia requiring emergency evaluation"}, {"letter": "C", "text": "Acute leukemia causing progressive marrow failure"}, {"letter": "D", "text": "Overwhelming sepsis consuming circulating neutrophils"}, {"letter": "E", "text": "Constitutional neutropenia without excess infection risk"}], "answer": "E", "explanation": "Constitutional neutropenia can produce a stable, mildly reduced ANC in otherwise healthy individuals and does not increase infection risk. Reviewing previous CBCs and excluding acquired causes are important.", "objective": "Neutropenia differential diagnosis — LO 3", "section": "Neutropenia differential diagnosis"}, {"id": "23", "group": 23, "stem": "A 24-year-old patient with asthma and allergic rhinitis has recurrent dysphagia and food impaction. The peripheral eosinophil count is normal. Which interpretation is most appropriate?", "options": [{"letter": "A", "text": "A normal blood eosinophil count excludes eosinophilic esophagitis"}, {"letter": "B", "text": "The presentation is most consistent with an intestinal protozoal infection"}, {"letter": "C", "text": "The normal eosinophil count strongly supports chronic myelogenous leukemia"}, {"letter": "D", "text": "Normal blood eosinophils do not exclude tissue eosinophilia"}, {"letter": "E", "text": "The patient has severe neutropenia with bacterial and fungal risk"}], "answer": "D", "explanation": "Eosinophils are primarily tissue-dwelling cells, so peripheral eosinophilia does not reliably predict organ involvement. Eosinophilic esophagitis is diagnosed by characteristic esophageal inflammation and tissue eosinophils on biopsy.", "objective": "Eosinophilia and tissue disease — LO 3", "section": "Eosinophilia and tissue disease"}, {"id": "24", "group": 24, "stem": "An 8-year-old child has repeated paroxysms of coughing followed by an inspiratory whoop. The WBC count is 20,000/µL with marked absolute lymphocytosis. Which interpretation is most appropriate?", "options": [{"letter": "A", "text": "A bacterial infection can produce marked lymphocytosis in pertussis"}, {"letter": "B", "text": "All bacterial infections produce neutrophilia rather than lymphocytosis"}, {"letter": "C", "text": "The CBC pattern is diagnostic of infectious mononucleosis"}, {"letter": "D", "text": "The child most likely has chronic lymphocytic leukemia"}, {"letter": "E", "text": "The pattern indicates helminth infection"}], "answer": "A", "explanation": "Although viral infections are the usual cause of lymphocytosis, pertussis is an emphasized bacterial exception that may cause impressive lymphocytosis. The cough pattern supports Bordetella pertussis infection.", "objective": "Lymphocytosis differential diagnosis — LO 3", "section": "Lymphocytosis differential diagnosis"}, {"id": "25", "group": 25, "stem": "Which approximate WBC differential is expected in a healthy adult?", "options": [{"letter": "A", "text": "Approximately 30% neutrophils, 60% lymphocytes, and 10% other leukocytes"}, {"letter": "B", "text": "Approximately 90% neutrophils, 5% lymphocytes, and 5% other leukocytes"}, {"letter": "C", "text": "Approximately 60% neutrophils, 30% lymphocytes, and 10% other leukocytes"}, {"letter": "D", "text": "Approximately 40% neutrophils, 40% lymphocytes, and 20% other leukocytes"}, {"letter": "E", "text": "Approximately 20% neutrophils, 70% lymphocytes, and 10% other leukocytes"}], "answer": "C", "explanation": "The lecture uses the approximate normal distribution of 60% neutrophils, 30% lymphocytes, and 10% monocytes/eosinophils/basophils.", "objective": "CBC and differential fundamentals — LO 1", "section": "CBC and differential fundamentals"}, {"id": "26", "group": 26, "stem": "Which statement correctly distinguishes acute from chronic leukemia?", "options": [{"letter": "A", "text": "Acute: mature cells and indolent course; chronic: blasts and rapid progression"}, {"letter": "B", "text": "Acute: immature blasts and rapid progression; chronic: more mature cells and an indolent course"}, {"letter": "C", "text": "Acute: always elevated WBC count; chronic: always normal WBC count"}, {"letter": "D", "text": "Acute: lymph node origin; chronic: bone marrow origin"}, {"letter": "E", "text": "Acute: myeloid lineage only; chronic: lymphoid lineage only"}], "answer": "B", "explanation": "Acute leukemias are composed of immature blast forms and tend to present rapidly, whereas chronic leukemias involve more mature cells and usually progress more gradually. Either form may occasionally present with a normal total WBC count.", "objective": "Leukemia classification — LO 5", "section": "Leukemia classification"}, {"id": "27", "group": 27, "stem": "A patient has anemia, thrombocytopenia, and circulating blasts, raising concern for leukemia. Which diagnostic evaluation best reflects the lecture’s approach to establishing and classifying the disease?", "options": [{"letter": "A", "text": "CBC with differential alone"}, {"letter": "B", "text": "Peripheral smear plus heterophile antibody testing"}, {"letter": "C", "text": "Excisional lymph node biopsy with serum protein electrophoresis"}, {"letter": "D", "text": "HIV viral load with CD4 count and no marrow evaluation"}, {"letter": "E", "text": "CBC/differential, smear, bone marrow, flow cytometry, and cytogenetics"}], "answer": "E", "explanation": "Leukemia evaluation integrates the CBC and differential, peripheral smear, bone marrow aspiration/biopsy, immunophenotyping by flow cytometry, and cytogenetic testing. Together these studies establish the diagnosis, lineage, maturity, and clinically important genetic abnormalities. [TABLE 0] [TABLE 1] Name | Date | Time started | Score | / 42          (          %) [TABLE 2] Instructions • This examination contains 42 scored items. Clinical clusters are labeled with the same number followed by A or B. • Select the single best answer for each question. Every item has five choices (A–E). • Assume the preceding item in a clinical cluster was answered correctly. Clustered items remain together. • The answer key and concise rationales begin after the examination.", "objective": "Laboratory diagnosis of leukemia — LO 5", "section": "Laboratory diagnosis of leukemia"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

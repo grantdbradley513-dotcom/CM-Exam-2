@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Transfusion Medicine Practice Exam", "questions": [{"id": "1", "group": 1, "stem": "A patient with septic shock develops disseminated intravascular coagulation with diffuse oozing from line sites. Laboratory studies show a critically low fibrinogen. Which product most specifically replaces the deficient fibrinogen?", "options": [{"letter": "A", "text": "Packed red blood cells"}, {"letter": "B", "text": "Platelet concentrate"}, {"letter": "C", "text": "Cryoprecipitate"}, {"letter": "D", "text": "Recombinant factor IX"}, {"letter": "E", "text": "Albumin"}], "answer": "C", "explanation": "Cryoprecipitate is rich in fibrinogen (as well as factor VIII and von Willebrand factor) and is used when bleeding from low fibrinogen predominates, as in DIC.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "1A", "group": 1, "stem": "Besides fibrinogen, this product is notably concentrated in which of the following?", "options": [{"letter": "A", "text": "Platelets and leukocytes"}, {"letter": "B", "text": "Antithrombin and plasminogen"}, {"letter": "C", "text": "Albumin and immunoglobulin"}, {"letter": "D", "text": "Factor IX and protein C"}, {"letter": "E", "text": "Factor VIII and von Willebrand factor"}], "answer": "E", "explanation": "Cryoprecipitate contains high concentrations of fibrinogen, factor VIII, and von Willebrand factor, so it can also be used in severe von Willebrand disease with bleeding.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "2", "group": 2, "stem": "A stable patient with blood type AB-positive needs a red cell transfusion. Regarding ABO compatibility, red cells of which donor type(s) can this patient safely receive?", "options": [{"letter": "A", "text": "A or B only"}, {"letter": "B", "text": "AB or O only"}, {"letter": "C", "text": "O only"}, {"letter": "D", "text": "A, B, AB, or O"}, {"letter": "E", "text": "AB only"}], "answer": "D", "explanation": "A type AB individual makes neither anti-A nor anti-B, so they are the universal recipient for red cells and can accept any ABO type.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "3", "group": 3, "stem": "An 82-year-old man with heart failure and chronic kidney disease is receiving his second unit of packed RBCs. Partway through the unit he becomes dyspneic and anxious. He is hypertensive, has distended neck veins and bibasilar crackles, and an S3 is heard. Which reaction is most likely?", "options": [{"letter": "A", "text": "Anaphylactic reaction"}, {"letter": "B", "text": "Acute hemolytic transfusion reaction"}, {"letter": "C", "text": "Transfusion-associated circulatory overload"}, {"letter": "D", "text": "Transfusion-related acute lung injury"}, {"letter": "E", "text": "Febrile nonhemolytic transfusion reaction"}], "answer": "C", "explanation": "Dyspnea with hypertension, elevated neck veins, crackles, and an S3 during transfusion in a volume-prone patient indicates hydrostatic pulmonary edema from circulatory overload.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "3A", "group": 3, "stem": "In addition to stopping or slowing the transfusion, what is the most appropriate treatment?", "options": [{"letter": "A", "text": "Broad-spectrum antibiotics"}, {"letter": "B", "text": "Intravenous corticosteroids"}, {"letter": "C", "text": "Plasmapheresis"}, {"letter": "D", "text": "Loop diuretics"}, {"letter": "E", "text": "Epinephrine"}], "answer": "D", "explanation": "This is a volume problem; slowing the rate and giving a loop diuretic offloads the excess volume, and future units can be given slowly.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "4", "group": 4, "stem": "A clinician is evaluating whether a patient's anemia is due to active hemolysis. Which single laboratory finding best supports ongoing hemolysis?", "options": [{"letter": "A", "text": "A high haptoglobin"}, {"letter": "B", "text": "An elevated fibrinogen"}, {"letter": "C", "text": "A low lactate dehydrogenase"}, {"letter": "D", "text": "A low haptoglobin"}, {"letter": "E", "text": "An elevated platelet count"}], "answer": "D", "explanation": "Free hemoglobin binds and consumes haptoglobin, so a low haptoglobin supports hemolysis, along with elevated LDH and indirect bilirubin and a low H/H.", "objective": "Objective 8", "section": "Objective 8"}, {"id": "5", "group": 5, "stem": "An Rh(D)-negative woman with no prior transfusions or pregnancies is inadvertently given one unit of Rh(D)-positive packed RBCs. She has no immediate signs of a reaction during or after the transfusion. Which of the following best describes what has most likely occurred?", "options": [{"letter": "A", "text": "She will form an antibody to the D antigen over the following weeks"}, {"letter": "B", "text": "She already had a naturally occurring antibody to D that caused hemolysis"}, {"letter": "C", "text": "She will have an immediate intravascular hemolytic reaction"}, {"letter": "D", "text": "She will develop anti-A antibodies"}, {"letter": "E", "text": "Nothing will happen and she is at no future risk"}], "answer": "A", "explanation": "The D antigen does not provoke a naturally occurring antibody, so a first exposure causes no acute reaction but sensitizes the recipient, who then makes an alloantibody after exposure.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "5A", "group": 5, "stem": "Given what she has now formed, which future clinical situation poses the greatest risk?", "options": [{"letter": "A", "text": "A future pregnancy with an Rh(D)-positive fetus"}, {"letter": "B", "text": "Receiving O-negative red cells"}, {"letter": "C", "text": "A future pregnancy with an Rh(D)-negative fetus"}, {"letter": "D", "text": "Receiving platelets"}, {"letter": "E", "text": "Receiving intravenous iron"}], "answer": "A", "explanation": "Once sensitized, maternal antibody can cross the placenta and attack an Rh(D)-positive fetus, causing hemolytic disease of the newborn; it also endangers future Rh(D)-positive transfusions.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "6", "group": 6, "stem": "During pretransfusion compatibility testing, a laboratory step is used to detect antibodies that are free in the patient's serum rather than already bound to red cells. Which test serves this purpose?", "options": [{"letter": "A", "text": "Reticulocyte count"}, {"letter": "B", "text": "Indirect antiglobulin (indirect Coombs) test"}, {"letter": "C", "text": "Haptoglobin level"}, {"letter": "D", "text": "Lactate dehydrogenase level"}, {"letter": "E", "text": "Direct antiglobulin (direct Coombs) test"}], "answer": "B", "explanation": "The indirect antiglobulin test detects free antibodies in serum in vitro and is used for compatibility testing and detecting unexpected antibodies.", "objective": "Objective 8", "section": "Objective 8"}, {"id": "7", "group": 7, "stem": "In reviewing the clinically important minor blood group systems, a student notes that several can cause both hemolytic transfusion reactions and hemolytic disease of the newborn. Antibodies to which of the following are typically NOT a cause of hemolytic disease of the newborn?", "options": [{"letter": "A", "text": "Rh"}, {"letter": "B", "text": "Kell"}, {"letter": "C", "text": "Duffy"}, {"letter": "D", "text": "Kidd"}, {"letter": "E", "text": "Lewis"}], "answer": "E", "explanation": "Lewis antibodies can rarely cause transfusion reactions but do not cause hemolytic disease of the newborn, whereas Kell, Kidd, Duffy, and Rh can.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "8", "group": 8, "stem": "A 34-year-old woman is admitted with fatigue. She is hemodynamically stable, has no chest pain, and has no history of cardiac or pulmonary disease. Labs show a hemoglobin of 7.4 g/dL with a low MCV and low ferritin consistent with iron deficiency from heavy menses. She is asymptomatic at rest. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Give fresh frozen plasma"}, {"letter": "B", "text": "Withhold transfusion and start iron repletion"}, {"letter": "C", "text": "Transfuse one unit of packed RBCs"}, {"letter": "D", "text": "Transfuse to a hemoglobin goal of 10 g/dL"}, {"letter": "E", "text": "Transfuse two units of packed RBCs"}], "answer": "B", "explanation": "For a stable patient whose anemia has an easily treatable cause, replacing the deficient nutrient is preferred over transfusion; the general medical trigger is a hemoglobin near 7 g/dL and she is asymptomatic.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "9", "group": 9, "stem": "A 67-year-old man is about one hour into a unit of packed RBCs when his temperature rises from 37.0 to 38.4 C with mild chills. He feels uncomfortable but has no back or flank pain, no hypotension, no urticaria, and no respiratory distress. His vital signs are otherwise stable. Which reaction is most likely?", "options": [{"letter": "A", "text": "Anaphylactic reaction"}, {"letter": "B", "text": "Acute hemolytic transfusion reaction"}, {"letter": "C", "text": "Transfusion-associated circulatory overload"}, {"letter": "D", "text": "Transfusion-related acute lung injury"}, {"letter": "E", "text": "Febrile nonhemolytic transfusion reaction"}], "answer": "E", "explanation": "An isolated low-grade fever with chills and no hemolysis, hypotension, or respiratory findings is the most common reaction and is driven by cytokines from donor leukocytes.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "9A", "group": 9, "stem": "What is the appropriate next step when this fever develops?", "options": [{"letter": "A", "text": "Give epinephrine immediately"}, {"letter": "B", "text": "Stop the transfusion and rule out a hemolytic reaction"}, {"letter": "C", "text": "Start broad-spectrum antibiotics and cultures as the first move"}, {"letter": "D", "text": "Begin aggressive diuresis"}, {"letter": "E", "text": "Continue the transfusion and observe"}], "answer": "B", "explanation": "Even though this reaction is benign, the transfusion is stopped and a hemolytic reaction excluded before attributing the fever to a febrile nonhemolytic cause; acetaminophen then treats it.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "9B", "group": 9, "stem": "Which measure best prevents recurrence of this reaction with future transfusions?", "options": [{"letter": "A", "text": "Selecting only male donors"}, {"letter": "B", "text": "Washing the red cells to remove plasma"}, {"letter": "C", "text": "Using IgA-deficient donor plasma"}, {"letter": "D", "text": "Irradiating the units"}, {"letter": "E", "text": "Using leukoreduced blood products"}], "answer": "E", "explanation": "Because the reaction is caused by donor leukocytes and their cytokines, leukoreduction is the most effective preventive measure.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "10", "group": 10, "stem": "A student is asked to distinguish naturally occurring antibodies from alloantibodies in transfusion. Which of the following antibodies is naturally occurring, present without any prior transfusion or pregnancy?", "options": [{"letter": "A", "text": "Anti-B in a type A person"}, {"letter": "B", "text": "Anti-D in an Rh-negative person"}, {"letter": "C", "text": "Anti-Kell"}, {"letter": "D", "text": "Anti-Kidd"}, {"letter": "E", "text": "Anti-Duffy"}], "answer": "A", "explanation": "ABO antibodies arise naturally, whereas antibodies to D, Kell, Kidd, and Duffy are alloantibodies that require prior exposure through transfusion or pregnancy.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "11", "group": 11, "stem": "A 55-year-old woman develops a new anemia with jaundice a few weeks after starting a new medication. Hemolysis is suspected, and you want to determine whether an immune mechanism is coating her red cells. Which test is most appropriate to confirm an immune-mediated process?", "options": [{"letter": "A", "text": "Peripheral smear alone"}, {"letter": "B", "text": "Serum protein electrophoresis"}, {"letter": "C", "text": "Indirect antiglobulin (indirect Coombs) test"}, {"letter": "D", "text": "Bone marrow biopsy"}, {"letter": "E", "text": "Direct antiglobulin (direct Coombs) test"}], "answer": "E", "explanation": "The direct antiglobulin test detects antibody or complement already bound to the patient's red cells in vivo and is positive in immune-mediated hemolytic anemia.", "objective": "Objective 8", "section": "Objective 8"}, {"id": "11A", "group": 11, "stem": "A positive result on this test specifically detects which of the following?", "options": [{"letter": "A", "text": "Platelet-associated antibodies"}, {"letter": "B", "text": "Free antibodies circulating in the serum"}, {"letter": "C", "text": "Antigens on donor red cells"}, {"letter": "D", "text": "Cold agglutinins in plasma only"}, {"letter": "E", "text": "IgG or complement on the red cells"}], "answer": "E", "explanation": "The direct test identifies red cells already sensitized in vivo with IgG and/or complement (C3b/C3d).", "objective": "Objective 8", "section": "Objective 8"}, {"id": "11B", "group": 11, "stem": "Which medication is a classic cause of this drug-induced immune hemolysis?", "options": [{"letter": "A", "text": "Methyldopa"}, {"letter": "B", "text": "Lisinopril"}, {"letter": "C", "text": "Metformin"}, {"letter": "D", "text": "Atorvastatin"}, {"letter": "E", "text": "Omeprazole"}], "answer": "A", "explanation": "Methyldopa (along with penicillin, quinidine, and cephalosporins) is a classic cause of drug-induced immune-mediated hemolysis.", "objective": "Objective 8", "section": "Objective 8"}, {"id": "12", "group": 12, "stem": "A 60-year-old man receiving induction chemotherapy for leukemia has a platelet count of 7,000/mcL. He is not bleeding and has no planned procedure. What is the most appropriate action?", "options": [{"letter": "A", "text": "Give fresh frozen plasma"}, {"letter": "B", "text": "Give cryoprecipitate"}, {"letter": "C", "text": "Observe without transfusion"}, {"letter": "D", "text": "Transfuse platelets prophylactically"}, {"letter": "E", "text": "Transfuse only if he begins bleeding"}], "answer": "D", "explanation": "For stable, non-bleeding patients, prophylactic platelet transfusion is indicated when the count falls below about 10,000/mcL to prevent spontaneous hemorrhage.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "13", "group": 13, "stem": "A young man with hemophilia A presents with a spontaneous hemarthrosis. Which product is the most appropriate, targeted therapy to correct his specific deficiency?", "options": [{"letter": "A", "text": "Platelet concentrate"}, {"letter": "B", "text": "Packed red blood cells"}, {"letter": "C", "text": "Recombinant factor IX concentrate"}, {"letter": "D", "text": "Recombinant factor VIII concentrate"}, {"letter": "E", "text": "Fresh frozen plasma"}], "answer": "D", "explanation": "Hemophilia A is a factor VIII deficiency, so a factor VIII concentrate provides targeted replacement; factor IX is used for hemophilia B.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "13A", "group": 13, "stem": "What is a key advantage of a recombinant factor concentrate over plasma-derived products?", "options": [{"letter": "A", "text": "It corrects anemia simultaneously"}, {"letter": "B", "text": "It does not require dosing by weight"}, {"letter": "C", "text": "Essentially no infectious risk"}, {"letter": "D", "text": "It also raises the platelet count"}, {"letter": "E", "text": "It supplies all coagulation factors at once"}], "answer": "C", "explanation": "Recombinant factors are manufactured rather than pooled from donors, so they carry no infectious disease transmission risk.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "14", "group": 14, "stem": "A 42-year-old woman receives a red cell transfusion for anemia from heavy vaginal bleeding. Four hours after the transfusion begins she becomes acutely breathless with a dry cough, and her temperature is 38.1 C. She is hypoxic, and a chest radiograph shows bilateral pulmonary infiltrates. She has no prior cardiac disease, her jugular venous pressure is normal, and there is no peripheral edema. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Acute hemolytic transfusion reaction"}, {"letter": "B", "text": "Transfusion-related acute lung injury"}, {"letter": "C", "text": "Transfusion-associated circulatory overload"}, {"letter": "D", "text": "Febrile nonhemolytic transfusion reaction"}, {"letter": "E", "text": "Anaphylactic transfusion reaction"}], "answer": "B", "explanation": "Hypoxia with bilateral infiltrates within six hours of transfusion, without evidence of volume overload, is the classic non-cardiogenic pulmonary edema of this donor-antibody-mediated lung injury.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "14A", "group": 14, "stem": "Which finding would most argue against hydrostatic (cardiogenic) pulmonary edema as the cause of her hypoxia?", "options": [{"letter": "A", "text": "Normal cardiac filling pressures"}, {"letter": "B", "text": "Rapid improvement after diuresis"}, {"letter": "C", "text": "New systolic hypertension with crackles"}, {"letter": "D", "text": "A markedly elevated BNP"}, {"letter": "E", "text": "Elevated jugular venous pressure and an S3 gallop"}], "answer": "A", "explanation": "This lung injury is non-cardiogenic edema with normal filling pressures, whereas hydrostatic overload shows elevated pressures, an S3, a high BNP, and improvement with diuresis.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "14B", "group": 14, "stem": "What is the most appropriate management?", "options": [{"letter": "A", "text": "Supportive oxygen and ventilation"}, {"letter": "B", "text": "Urgent plasmapheresis"}, {"letter": "C", "text": "Intravenous corticosteroids"}, {"letter": "D", "text": "Epinephrine and antihistamines"}, {"letter": "E", "text": "Aggressive diuresis with furosemide"}], "answer": "A", "explanation": "Care is supportive with oxygen and, if needed, ventilation; diuretics are not helpful because this is not volume overload, and most patients recover fully.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "14C", "group": 14, "stem": "Which donor product is most often implicated in this reaction?", "options": [{"letter": "A", "text": "Plasma from a multiparous female donor"}, {"letter": "B", "text": "Packed cells from a first-time male donor"}, {"letter": "C", "text": "Cryoprecipitate"}, {"letter": "D", "text": "Washed red cells"}, {"letter": "E", "text": "Irradiated platelets"}], "answer": "A", "explanation": "The injury is linked to anti-HLA/anti-neutrophil antibodies in donor plasma, most often from multiparous women, prompting male-predominant plasma donor policies.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "15", "group": 15, "stem": "A patient with a platelet count of 38,000/mcL is scheduled for a major surgical procedure. He is not currently bleeding. Which platelet count is the generally recommended minimum to target before major surgery?", "options": [{"letter": "A", "text": "100,000/mcL"}, {"letter": "B", "text": "20,000/mcL"}, {"letter": "C", "text": "50,000/mcL"}, {"letter": "D", "text": "150,000/mcL"}, {"letter": "E", "text": "10,000/mcL"}], "answer": "C", "explanation": "A threshold of about 50,000/mcL is reasonable for major surgery or invasive procedures, whereas neurologic or ocular surgery targets about 100,000/mcL and stable non-bleeding patients about 10,000/mcL.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "16", "group": 16, "stem": "A postoperative patient receiving heparin prophylaxis develops a fall in platelet count to roughly half of baseline on day 6, along with a new lower-extremity deep vein thrombosis. Which condition best explains this picture?", "options": [{"letter": "A", "text": "Thrombotic thrombocytopenic purpura"}, {"letter": "B", "text": "Heparin-induced thrombocytopenia"}, {"letter": "C", "text": "Disseminated intravascular coagulation"}, {"letter": "D", "text": "Dilutional thrombocytopenia"}, {"letter": "E", "text": "Immune thrombocytopenic purpura"}], "answer": "B", "explanation": "A drop in platelets several days into heparin exposure accompanied by new thrombosis is the hallmark of this immune, prothrombotic drug reaction.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "16A", "group": 16, "stem": "What is the appropriate role of platelet transfusion in this patient?", "options": [{"letter": "A", "text": "Transfuse platelets to a goal above 50,000/mcL"}, {"letter": "B", "text": "Transfuse platelets to prevent the thrombosis from extending"}, {"letter": "C", "text": "Transfuse platelets prophylactically at any count below 10,000/mcL"}, {"letter": "D", "text": "Transfuse platelets before removing the central line"}, {"letter": "E", "text": "It is contraindicated except for serious bleeding"}], "answer": "E", "explanation": "Platelet transfusion is generally contraindicated in this prothrombotic disorder because it can worsen thrombosis.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "16B", "group": 16, "stem": "After stopping all heparin, which anticoagulant class is most appropriate?", "options": [{"letter": "A", "text": "Low-molecular-weight heparin"}, {"letter": "B", "text": "Aspirin alone"}, {"letter": "C", "text": "A direct thrombin inhibitor"}, {"letter": "D", "text": "Vitamin K"}, {"letter": "E", "text": "Unfractionated heparin at a lower dose"}], "answer": "C", "explanation": "A direct thrombin inhibitor such as argatroban is used to anticoagulate these patients once heparin is discontinued.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "17", "group": 17, "stem": "A neonate in the intensive care nursery and a patient recovering from an organ transplant both require red cell transfusions. Donor blood is not routinely tested for cytomegalovirus. Which of the following best applies to these two patients?", "options": [{"letter": "A", "text": "They should receive CMV-safe blood"}, {"letter": "B", "text": "They should receive only Rh-negative blood"}, {"letter": "C", "text": "They should avoid leukoreduced products"}, {"letter": "D", "text": "They should be premedicated with corticosteroids"}, {"letter": "E", "text": "They require irradiation solely to prevent CMV"}], "answer": "A", "explanation": "CMV transmission is a particular danger for neonates and severely immunocompromised patients, so CMV-safe (CMV-negative or leukoreduced) units are provided for them.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "18", "group": 18, "stem": "A healthy blood-type O donor has never been transfused or pregnant. Which naturally occurring antibodies are expected in this person's plasma?", "options": [{"letter": "A", "text": "Anti-D"}, {"letter": "B", "text": "Anti-B only"}, {"letter": "C", "text": "No isohemagglutinins"}, {"letter": "D", "text": "Anti-A and anti-B"}, {"letter": "E", "text": "Anti-A only"}], "answer": "D", "explanation": "ABO antibodies are naturally occurring; a type O person forms both anti-A and anti-B without prior antigen exposure, which is why O-negative is the universal red cell donor.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "19", "group": 19, "stem": "Shortly after a transfusion is started, a 29-year-old man develops diffuse urticaria, wheezing, throat tightness, and hypotension. He has had similar severe reactions with prior transfusions. There is no fever, flank pain, or dark urine. Which reaction is most likely?", "options": [{"letter": "A", "text": "Acute hemolytic transfusion reaction"}, {"letter": "B", "text": "Anaphylactic transfusion reaction"}, {"letter": "C", "text": "Febrile nonhemolytic transfusion reaction"}, {"letter": "D", "text": "Delayed hemolytic transfusion reaction"}, {"letter": "E", "text": "Transfusion-associated circulatory overload"}], "answer": "B", "explanation": "Rapid urticaria with bronchospasm and hypotension is an anaphylactic reaction, distinct from a hemolytic reaction (no fever/flank pain) or a mild urticarial reaction (no hypotension).", "objective": "Objective 6", "section": "Objective 6"}, {"id": "19A", "group": 19, "stem": "Which underlying patient factor most classically predisposes to this severe reaction?", "options": [{"letter": "A", "text": "Glucose-6-phosphate dehydrogenase deficiency"}, {"letter": "B", "text": "Prior multiple pregnancies"}, {"letter": "C", "text": "IgA deficiency with anti-IgA antibodies"}, {"letter": "D", "text": "Chronic kidney disease"}, {"letter": "E", "text": "Coronary artery disease"}], "answer": "C", "explanation": "Severe anaphylactic transfusion reactions classically occur in IgA-deficient patients with anti-IgA antibodies reacting to IgA in the transfused product.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "19B", "group": 19, "stem": "How should future red cell transfusions be prepared to prevent this reaction?", "options": [{"letter": "A", "text": "Irradiate the units"}, {"letter": "B", "text": "Use Rh-negative units"}, {"letter": "C", "text": "Transfuse more slowly over four hours"}, {"letter": "D", "text": "Premedicate with acetaminophen only"}, {"letter": "E", "text": "Wash the red cells before transfusion"}], "answer": "E", "explanation": "Removing plasma proteins by washing the red cells prevents the reaction; any plasma products should come from IgA-deficient donors.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "20", "group": 20, "stem": "A patient is to receive a single apheresis platelet unit collected from one donor. Approximately how many pooled random-donor platelet concentrates is this equivalent to?", "options": [{"letter": "A", "text": "One"}, {"letter": "B", "text": "Twenty"}, {"letter": "C", "text": "Ten"}, {"letter": "D", "text": "Two"}, {"letter": "E", "text": "Six"}], "answer": "E", "explanation": "One single-donor apheresis platelet unit is roughly equivalent to six pooled random-donor platelet concentrates and typically raises the count by 20,000-30,000/mcL.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "21", "group": 21, "stem": "A patient asks about the infectious risks of a red cell transfusion. Among the routinely screened transfusion-transmitted infections, which carries the greatest residual per-unit risk?", "options": [{"letter": "A", "text": "HIV"}, {"letter": "B", "text": "Human T-lymphotropic virus"}, {"letter": "C", "text": "Hepatitis C"}, {"letter": "D", "text": "West Nile virus"}, {"letter": "E", "text": "Hepatitis B"}], "answer": "E", "explanation": "Despite screening, hepatitis B carries the highest residual transmission risk (about 1 in 200,000 to 500,000), higher than HIV or hepatitis C (about 1 in 2 million).", "objective": "Objective 6", "section": "Objective 6"}, {"id": "22", "group": 22, "stem": "A 58-year-old woman is scheduled for an elective procedure with a low expected blood loss. Her surgeon does not expect she will need blood but wants the blood bank prepared to provide compatible units quickly if bleeding occurs. Which pretransfusion test is most appropriate to order now?", "options": [{"letter": "A", "text": "Direct antiglobulin test"}, {"letter": "B", "text": "Release of O-negative units"}, {"letter": "C", "text": "Full crossmatch of four units"}, {"letter": "D", "text": "Type and screen"}, {"letter": "E", "text": "Indirect bilirubin and haptoglobin"}], "answer": "D", "explanation": "When blood is unlikely but possible, this test determines ABO/Rh(D) type and screens for alloantibodies without committing specific units, and can be completed in about 10-15 minutes.", "objective": "Objective 7", "section": "Objective 7"}, {"id": "22A", "group": 22, "stem": "The antibody screen portion of this test is designed to detect which of the following?", "options": [{"letter": "A", "text": "Bacterial contamination of the unit"}, {"letter": "B", "text": "Coagulation factor deficiencies"}, {"letter": "C", "text": "Platelet HLA antibodies"}, {"letter": "D", "text": "Antigens on the recipient's red cells only"}, {"letter": "E", "text": "Unexpected alloantibodies in the recipient's serum"}], "answer": "E", "explanation": "The screen uses reagent type O cells to detect atypical or unexpected alloantibodies in the recipient's serum.", "objective": "Objective 7", "section": "Objective 7"}, {"id": "22B", "group": 22, "stem": "The patient begins hemorrhaging intraoperatively. Before a specific unit of blood is released and hung for her, which step is required?", "options": [{"letter": "A", "text": "Crossmatch the specific donor unit"}, {"letter": "B", "text": "Leukoreduction of the unit"}, {"letter": "C", "text": "Irradiation of the unit"}, {"letter": "D", "text": "A bacterial culture of the unit"}, {"letter": "E", "text": "Repeat ABO typing only"}], "answer": "A", "explanation": "Releasing a specific unit requires testing the patient's serum against that donor's cells for compatibility; this crossmatch takes roughly 30-45 minutes when no unexpected antibodies are present.", "objective": "Objective 7", "section": "Objective 7"}, {"id": "22C", "group": 22, "stem": "Her bleeding becomes catastrophic and there is no time to complete compatibility testing. Which product should be released immediately?", "options": [{"letter": "A", "text": "Her ABO-identical units after full crossmatch"}, {"letter": "B", "text": "AB-positive red cells"}, {"letter": "C", "text": "Cryoprecipitate"}, {"letter": "D", "text": "O-negative red cells"}, {"letter": "E", "text": "Fresh frozen plasma only"}], "answer": "D", "explanation": "In an emergency the crossmatch can be skipped and universal O-negative red cells given until type-specific blood is available.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "23", "group": 23, "stem": "A hospital blood supplier filters residual white blood cells out of its cellular products at the time of collection. This leukoreduction step is primarily intended to reduce which of the following?", "options": [{"letter": "A", "text": "Febrile reactions and CMV transmission"}, {"letter": "B", "text": "Transfusion-associated volume overload"}, {"letter": "C", "text": "ABO incompatibility clerical errors"}, {"letter": "D", "text": "Dilutional coagulopathy"}, {"letter": "E", "text": "Citrate-related hypocalcemia"}], "answer": "A", "explanation": "Donor leukocytes drive febrile nonhemolytic reactions, HLA alloimmunization, and CMV transmission; removing them lowers those risks.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "24", "group": 24, "stem": "A 45-year-old woman who was transfused six days ago for surgical blood loss returns with mild jaundice and fatigue. Her hemoglobin has fallen below the post-transfusion value, and her bilirubin is mildly elevated. She was transfused once several years earlier. She has no fever, hypotension, or respiratory symptoms. Which reaction is most likely?", "options": [{"letter": "A", "text": "Febrile nonhemolytic transfusion reaction"}, {"letter": "B", "text": "Transfusion-related acute lung injury"}, {"letter": "C", "text": "Anaphylactic reaction"}, {"letter": "D", "text": "Acute hemolytic transfusion reaction"}, {"letter": "E", "text": "Delayed hemolytic transfusion reaction"}], "answer": "E", "explanation": "A gradual fall in hemoglobin with mild hemolysis three to ten days after transfusion in a previously exposed patient is a delayed hemolytic reaction, milder than an acute ABO-mediated event.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "24A", "group": 24, "stem": "What is the underlying mechanism of this reaction?", "options": [{"letter": "A", "text": "Preformed ABO antibodies causing immediate hemolysis"}, {"letter": "B", "text": "An anamnestic antibody response to a minor RBC antigen"}, {"letter": "C", "text": "Bacterial contamination of the stored unit"}, {"letter": "D", "text": "An IgE-mediated response to donor plasma proteins"}, {"letter": "E", "text": "Donor anti-HLA antibodies attacking recipient neutrophils"}], "answer": "B", "explanation": "Prior sensitization leaves memory that re-activates on re-exposure; the anamnestic rise in alloantibody to a minor antigen slowly hemolyzes the transfused cells.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "25", "group": 25, "stem": "A 60-year-old woman with a hemoglobin of 7.0 g/dL and no active bleeding or hemolysis receives two units of packed RBCs. Assuming an average adult response, what hemoglobin would you expect on the post-transfusion check?", "options": [{"letter": "A", "text": "About 11 g/dL"}, {"letter": "B", "text": "About 7.5 g/dL"}, {"letter": "C", "text": "About 13 g/dL"}, {"letter": "D", "text": "About 9 g/dL"}, {"letter": "E", "text": "No measurable change"}], "answer": "D", "explanation": "Each unit of packed RBCs raises the hemoglobin by roughly 1 g/dL (hematocrit by ~3%) in a stable, non-bleeding adult, so two units raise it by about 2 g/dL.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "26", "group": 26, "stem": "A 74-year-old man with known coronary artery disease is admitted with a slow gastrointestinal bleed. He reports substernal chest pressure at rest, and his ECG shows new T-wave inversions. Hemoglobin is 8.1 g/dL and vital signs are stable. Which of the following is the most appropriate management of his anemia?", "options": [{"letter": "A", "text": "Give fresh frozen plasma"}, {"letter": "B", "text": "Start iron and observe only"}, {"letter": "C", "text": "Withhold transfusion because hemoglobin is above 7 g/dL"}, {"letter": "D", "text": "Transfuse packed RBCs now"}, {"letter": "E", "text": "Withhold transfusion until hemoglobin falls below 7 g/dL"}], "answer": "D", "explanation": "Patients with active cardiac ischemia warrant a higher transfusion trigger (often near 8 g/dL) because anemia can worsen myocardial oxygen supply-demand mismatch.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "27", "group": 27, "stem": "A 70-year-old man on warfarin presents with an intracranial hemorrhage. His INR is 6.2 and he is actively bleeding with a declining neurologic exam. Of the following blood products, which is most appropriate to help correct his coagulopathy?", "options": [{"letter": "A", "text": "Recombinant factor VIII"}, {"letter": "B", "text": "Cryoprecipitate"}, {"letter": "C", "text": "Packed red blood cells"}, {"letter": "D", "text": "Platelet concentrate"}, {"letter": "E", "text": "Fresh frozen plasma"}], "answer": "E", "explanation": "Plasma contains all the coagulation factors and is used to reverse over-anticoagulation from warfarin in a bleeding patient.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "27A", "group": 27, "stem": "This product is useful here because it contains which of the following?", "options": [{"letter": "A", "text": "Red cells to raise oxygen delivery"}, {"letter": "B", "text": "Immunoglobulin only"}, {"letter": "C", "text": "All of the coagulation factors"}, {"letter": "D", "text": "Platelets"}, {"letter": "E", "text": "Concentrated fibrinogen and factor VIII only"}], "answer": "C", "explanation": "Plasma from normal donors contains normal levels of all coagulation factors, which is why it reverses a global anticoagulant effect.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "27B", "group": 27, "stem": "A different patient on warfarin has an INR of 6 but no bleeding and no planned procedure. What is the appropriate role of this product for that patient?", "options": [{"letter": "A", "text": "Give it only if the INR exceeds 10"}, {"letter": "B", "text": "Replace it with cryoprecipitate"}, {"letter": "C", "text": "Not indicated without active bleeding"}, {"letter": "D", "text": "Give it with a platelet transfusion"}, {"letter": "E", "text": "Transfuse it to normalize the INR promptly"}], "answer": "C", "explanation": "Plasma is not indicated to correct an elevated INR without bleeding; conservative measures such as holding warfarin, with or without vitamin K, suffice.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "28", "group": 28, "stem": "A 54-year-old woman receives packed RBCs for symptomatic anemia. About fifteen minutes into the first unit she develops shaking chills, fever, severe flank and back pain, and a sense of impending doom. Her blood pressure falls to 82/50 mm Hg. This is the first transfusion she has ever received. Which type of transfusion reaction is most likely?", "options": [{"letter": "A", "text": "Acute hemolytic transfusion reaction"}, {"letter": "B", "text": "Transfusion-associated circulatory overload"}, {"letter": "C", "text": "Transfusion-related acute lung injury"}, {"letter": "D", "text": "Mild allergic reaction"}, {"letter": "E", "text": "Febrile nonhemolytic transfusion reaction"}], "answer": "A", "explanation": "Fever, rigors, flank pain, and hypotension developing minutes into a transfusion point to acute intravascular hemolysis from preformed recipient antibodies against donor antigens.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "28A", "group": 28, "stem": "What is the single most important immediate action?", "options": [{"letter": "A", "text": "Obtain a chest radiograph before doing anything"}, {"letter": "B", "text": "Slow the transfusion and give acetaminophen"}, {"letter": "C", "text": "Administer furosemide and continue"}, {"letter": "D", "text": "Stop the transfusion and notify the blood bank"}, {"letter": "E", "text": "Give diphenhydramine and continue the unit"}], "answer": "D", "explanation": "Any suspected reaction requires immediately stopping the transfusion and contacting the blood bank; for a hemolytic reaction this is lifesaving and begins the investigation.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "28B", "group": 28, "stem": "Which underlying error is the most common cause of this reaction?", "options": [{"letter": "A", "text": "An anamnestic response to a minor antigen"}, {"letter": "B", "text": "IgA deficiency with anti-IgA antibodies"}, {"letter": "C", "text": "A clerical error producing an ABO-incompatible unit"}, {"letter": "D", "text": "Anti-HLA antibodies in the donor plasma"}, {"letter": "E", "text": "Bacterial contamination of the unit"}], "answer": "C", "explanation": "Most acute hemolytic reactions result from clerical/identification errors that lead to an ABO-incompatible transfusion.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "28C", "group": 28, "stem": "Which laboratory pattern would you most expect to find?", "options": [{"letter": "A", "text": "Isolated prolongation of the aPTT"}, {"letter": "B", "text": "Low haptoglobin, high LDH, positive Coombs"}, {"letter": "C", "text": "High haptoglobin with a negative Coombs test"}, {"letter": "D", "text": "Eosinophilia with an elevated serum IgE"}, {"letter": "E", "text": "Positive bacterial blood cultures"}], "answer": "B", "explanation": "Intravascular hemolysis consumes haptoglobin and releases LDH and indirect bilirubin, with a positive direct antiglobulin (Coombs) test and hemoglobinuria.", "objective": "Objective 8", "section": "Objective 8"}, {"id": "29", "group": 29, "stem": "A 25-year-old woman arrives in the trauma bay exsanguinating from a pelvic fracture. She is hypotensive and unresponsive, and no blood type is on file. There is no time to determine her ABO/Rh type. Which red cell product should be given?", "options": [{"letter": "A", "text": "A-positive packed RBCs"}, {"letter": "B", "text": "Fresh frozen plasma alone"}, {"letter": "C", "text": "Type-specific whole blood after typing"}, {"letter": "D", "text": "O-negative packed RBCs"}, {"letter": "E", "text": "AB-positive packed RBCs"}], "answer": "D", "explanation": "O-negative RBCs lack A, B, and D antigens, making them the universal red cell donor for emergencies; O-negative is preferred in a woman of childbearing age to avoid D alloimmunization.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "30", "group": 30, "stem": "A 19-year-old with a hemoglobinopathy requiring lifelong regular red cell transfusions has developed several alloantibodies to minor RBC antigens, and compatible units are now increasingly hard to locate. Which strategy would have best reduced this problem?", "options": [{"letter": "A", "text": "Using ABO-identical units only"}, {"letter": "B", "text": "Irradiating all units"}, {"letter": "C", "text": "Extended antigen matching from the outset"}, {"letter": "D", "text": "Transfusing only when hemoglobin is below 5 g/dL"}, {"letter": "E", "text": "Premedication with acetaminophen and diphenhydramine"}], "answer": "C", "explanation": "Chronically transfused patients readily form multiple alloantibodies; closely matching extended antigens from the beginning limits alloimmunization and keeps future crossmatching feasible.", "objective": "Objective 4", "section": "Objective 4"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

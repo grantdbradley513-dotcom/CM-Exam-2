@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Serum Tumor Markers Practice Exam", "questions": [{"id": "1", "group": 1, "stem": "A young man with a testicular germ cell tumor that secretes beta-hCG may develop which of the following physical findings related to the hormone?", "options": [{"letter": "A", "text": "Peripheral edema"}, {"letter": "B", "text": "Splenomegaly"}, {"letter": "C", "text": "Gynecomastia"}, {"letter": "D", "text": "Clubbing"}, {"letter": "E", "text": "Jaundice"}], "answer": "C", "explanation": "A beta-hCG-producing testicular tumor can cause gynecomastia because of the hormone's biologic activity.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "2", "group": 2, "stem": "In addition to AFP and beta-hCG, which nonspecific serum marker of cell turnover is included in testicular cancer staging and is also elevated in lymphoma, hemolysis, and myocardial infarction?", "options": [{"letter": "A", "text": "Prostate-specific antigen"}, {"letter": "B", "text": "CA 125"}, {"letter": "C", "text": "Lactate dehydrogenase"}, {"letter": "D", "text": "Carcinoembryonic antigen"}, {"letter": "E", "text": "CA 19-9"}], "answer": "C", "explanation": "LDH is a nonspecific marker of cell damage and turnover; it is part of testicular staging and also rises with lymphoma, hemolysis, hepatitis, and myocardial infarction.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "3", "group": 3, "stem": "A healthy 55-year-old woman at average risk, with no family history of cancer, asks for annual CA 125 and transvaginal ultrasound to screen for ovarian cancer. Based on the evidence, what is the best response?", "options": [{"letter": "A", "text": "Annual screening clearly reduces ovarian cancer mortality"}, {"letter": "B", "text": "CA 125 alone is an excellent screening test"}, {"letter": "C", "text": "Screening is mandatory after age 50"}, {"letter": "D", "text": "A normal CA 125 will reliably exclude ovarian cancer"}, {"letter": "E", "text": "Not recommended; may cause net harm"}], "answer": "E", "explanation": "A large randomized trial (PLCO) showed that CA 125 plus ultrasound screening did not reduce ovarian cancer mortality in average-risk women and caused harm from unnecessary invasive procedures.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "4", "group": 4, "stem": "A man presents with widespread poorly differentiated metastatic carcinoma and no obvious primary site. His serum AFP and beta-hCG are markedly elevated. Which primary source does this most strongly suggest?", "options": [{"letter": "A", "text": "A germ cell tumor"}, {"letter": "B", "text": "Ovarian cancer"}, {"letter": "C", "text": "Pancreatic cancer"}, {"letter": "D", "text": "Prostate cancer"}, {"letter": "E", "text": "Colorectal cancer"}], "answer": "A", "explanation": "In cancer of unknown primary, markedly elevated AFP and beta-hCG in a poorly differentiated tumor point to a germ cell tumor, an important clue because such tumors are highly treatable.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "5", "group": 5, "stem": "A 74-year-old asymptomatic man with no family history asks for PSA screening. According to the 2018 USPSTF recommendation, what is the most appropriate guidance for a man his age?", "options": [{"letter": "A", "text": "Begin screening and biopsy regardless of result"}, {"letter": "B", "text": "Screen only if PSA has never been checked"}, {"letter": "C", "text": "Recommend against PSA screening"}, {"letter": "D", "text": "Screening is mandatory over age 70"}, {"letter": "E", "text": "Strongly recommend annual PSA screening"}], "answer": "C", "explanation": "The USPSTF recommends against PSA-based screening for men age 70 and older (Grade D); for men 55-69 the decision should be individualized.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "6", "group": 6, "stem": "For which of the following patients is periodic ovarian cancer screening with CA 125 and transvaginal ultrasound most appropriate?", "options": [{"letter": "A", "text": "Any woman requesting reassurance"}, {"letter": "B", "text": "An average-risk woman over age 50"}, {"letter": "C", "text": "A woman with BRCA or Lynch syndrome"}, {"letter": "D", "text": "A woman with a single benign ovarian cyst"}, {"letter": "E", "text": "A premenopausal woman with endometriosis"}], "answer": "C", "explanation": "The women who may benefit from ovarian cancer screening are those with a familial ovarian cancer syndrome such as BRCA1/BRCA2 or Lynch syndrome.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "7", "group": 7, "stem": "A healthy, asymptomatic 45-year-old with a normal exam asks you to order a panel of tumor markers just to make sure he does not have cancer. What is the most appropriate initial response?", "options": [{"letter": "A", "text": "Order only CEA and PSA as a compromise"}, {"letter": "B", "text": "Refer him for imaging of every organ"}, {"letter": "C", "text": "Educate him and discourage the testing"}, {"letter": "D", "text": "Order the full panel to reassure him"}, {"letter": "E", "text": "Tell him a normal panel will prove he is cancer-free"}], "answer": "C", "explanation": "Indiscriminate tumor marker testing has a very low positive predictive value; positives cause anxiety and harmful workups while negatives give false reassurance, so patients should be educated and steered away from it.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "8", "group": 8, "stem": "During a lecture it is noted that one malignancy is unique in incorporating serum tumor marker levels directly into its formal staging system. Which cancer is this?", "options": [{"letter": "A", "text": "Pancreatic cancer"}, {"letter": "B", "text": "Prostate cancer"}, {"letter": "C", "text": "Colorectal cancer"}, {"letter": "D", "text": "Ovarian cancer"}, {"letter": "E", "text": "Testicular cancer"}], "answer": "E", "explanation": "Testicular cancer uses the TNMS system, in which serum markers (AFP, beta-hCG, and LDH) are part of staging.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "9", "group": 9, "stem": "A patient being followed with serial CEA levels after colorectal cancer treatment has a mildly elevated value. Which of the following benign factors is a well-known cause of a modestly increased CEA?", "options": [{"letter": "A", "text": "Recent influenza vaccination"}, {"letter": "B", "text": "Regular aerobic exercise"}, {"letter": "C", "text": "Cigarette smoking"}, {"letter": "D", "text": "A high-fiber diet"}, {"letter": "E", "text": "Iron supplementation"}], "answer": "C", "explanation": "CEA is highly nonspecific; smoking, inflammatory bowel disease, pancreatitis, and cholecystitis can all modestly raise it.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "10", "group": 10, "stem": "Two patients with the same type of cancer have tumor marker levels drawn. One is mildly above the reference range and the other is grossly elevated. As a general principle of tumor markers, what does the markedly higher value most suggest?", "options": [{"letter": "A", "text": "More advanced disease, worse prognosis"}, {"letter": "B", "text": "A laboratory error requiring no action"}, {"letter": "C", "text": "A benign rather than malignant process"}, {"letter": "D", "text": "A better response to therapy"}, {"letter": "E", "text": "An early, curable, localized tumor"}], "answer": "A", "explanation": "In general the higher the marker elevation, the more worrisome it is for malignant, advanced-stage disease and a worse prognosis.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "11", "group": 11, "stem": "On a foundational level, what are serum tumor markers and how are they measured in the laboratory?", "options": [{"letter": "A", "text": "Fragments of tumor DNA sequenced from stool"}, {"letter": "B", "text": "Soluble molecules found by monoclonal antibodies"}, {"letter": "C", "text": "Imaging findings quantified by radiologists"}, {"letter": "D", "text": "Enzymes measured only in tissue biopsies"}, {"letter": "E", "text": "Circulating tumor cells counted under the microscope"}], "answer": "B", "explanation": "Tumor markers are soluble molecules associated with certain malignancies that are shed into the blood and detected in the lab using monoclonal antibodies to the marker protein.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "12", "group": 12, "stem": "A 62-year-old man is newly diagnosed with colorectal cancer confirmed by colonoscopic biopsy. He has not yet started any therapy. Which serum tumor marker should be measured now to guide his subsequent care?", "options": [{"letter": "A", "text": "Alpha-fetoprotein (AFP)"}, {"letter": "B", "text": "CA 19-9"}, {"letter": "C", "text": "Prostate-specific antigen (PSA)"}, {"letter": "D", "text": "CA 125"}, {"letter": "E", "text": "Carcinoembryonic antigen (CEA)"}], "answer": "E", "explanation": "Every patient with newly diagnosed colorectal cancer should have this marker drawn before treatment to establish a baseline, as it is the marker most associated with colorectal adenocarcinoma.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "12A", "group": 12, "stem": "What is the primary reason to obtain this baseline value before treatment begins?", "options": [{"letter": "A", "text": "To replace the need for a biopsy"}, {"letter": "B", "text": "To confirm the diagnosis of colorectal cancer"}, {"letter": "C", "text": "To screen his relatives for colorectal cancer"}, {"letter": "D", "text": "To monitor response and detect recurrence"}, {"letter": "E", "text": "To determine the tumor's histologic grade"}], "answer": "D", "explanation": "The baseline lets later values be compared: a fall indicates response, while maintained or rising values indicate nonresponse, progression, or recurrence.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "12B", "group": 12, "stem": "After successful resection the marker normalized, but on serial surveillance testing it is now steadily rising. What does this most likely indicate?", "options": [{"letter": "A", "text": "A normal post-surgical response"}, {"letter": "B", "text": "Tumor recurrence"}, {"letter": "C", "text": "Laboratory contamination"}, {"letter": "D", "text": "A benign cause requiring no follow-up"}, {"letter": "E", "text": "Successful cure of the cancer"}], "answer": "B", "explanation": "The marker should normalize within about 4-6 weeks of complete resection; a rising trend on serial testing suggests recurrence and warrants imaging.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "13", "group": 13, "stem": "A patient without cancer is found to have a mildly elevated AFP. Which of the following is a recognized non-malignant cause of an elevated AFP?", "options": [{"letter": "A", "text": "Benign prostatic hyperplasia"}, {"letter": "B", "text": "Osteoarthritis"}, {"letter": "C", "text": "Endometriosis"}, {"letter": "D", "text": "Chronic liver disease (cirrhosis)"}, {"letter": "E", "text": "Cholecystitis"}], "answer": "D", "explanation": "AFP can be elevated in chronic liver disease of any cause (including cirrhosis) and in pregnancy, independent of malignancy.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "14", "group": 14, "stem": "A 60-year-old man is found to have a markedly elevated serum tumor marker during evaluation of vague symptoms. He and his family assume this confirms cancer. What is the most accurate statement about this result?", "options": [{"letter": "A", "text": "A normal marker would have excluded cancer"}, {"letter": "B", "text": "The elevation excludes any benign cause"}, {"letter": "C", "text": "Biopsy is still required to confirm cancer"}, {"letter": "D", "text": "The elevation confirms malignancy without further testing"}, {"letter": "E", "text": "The marker identifies the exact primary site"}], "answer": "C", "explanation": "An elevated marker may raise suspicion but never confirms cancer; a definitive diagnosis requires tissue.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "15", "group": 15, "stem": "PSA is often described as organ-specific but not cancer-specific. What does this distinction mean in practice?", "options": [{"letter": "A", "text": "It rises with benign prostate conditions too"}, {"letter": "B", "text": "It is produced by many organs but only cancerous ones"}, {"letter": "C", "text": "It is produced by the bladder and kidney as well"}, {"letter": "D", "text": "It is elevated only in metastatic prostate cancer"}, {"letter": "E", "text": "It is specific enough to replace biopsy"}], "answer": "A", "explanation": "PSA is made only by prostatic epithelium (organ-specific) but is elevated by benign processes like BPH and prostatitis as well as cancer, so an elevation is not specific for malignancy.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "16", "group": 16, "stem": "A patient advocacy group proposes using a panel of serum tumor markers to screen the general population for cancer. Which characteristic of tumor markers most fundamentally undermines this proposal?", "options": [{"letter": "A", "text": "Their long half-life in serum"}, {"letter": "B", "text": "Low sensitivity and specificity"}, {"letter": "C", "text": "Excessive cost of the assays"}, {"letter": "D", "text": "The need for a fasting specimen"}, {"letter": "E", "text": "Inability to measure them by monoclonal antibodies"}], "answer": "B", "explanation": "Tumor markers miss many cancers (false negatives) and rise in benign conditions (false positives), so in a low-prevalence screening population their positive predictive value is poor.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "17", "group": 17, "stem": "A 68-year-old woman with painless jaundice and weight loss is found to have a pancreatic head mass. Which serum tumor marker is most associated with pancreatic and biliary tract malignancy and may help estimate prognosis and follow treatment?", "options": [{"letter": "A", "text": "Alpha-fetoprotein (AFP)"}, {"letter": "B", "text": "CA 19-9"}, {"letter": "C", "text": "CA 125"}, {"letter": "D", "text": "Carcinoembryonic antigen (CEA)"}, {"letter": "E", "text": "Beta-hCG"}], "answer": "B", "explanation": "This marker is primarily associated with pancreatic cancer and cholangiocarcinoma; because of low specificity and low positive predictive value it is not used for screening.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "17A", "group": 17, "stem": "Which benign condition could also raise this marker and lower its specificity?", "options": [{"letter": "A", "text": "Migraine headache"}, {"letter": "B", "text": "Osteoarthritis"}, {"letter": "C", "text": "Benign prostatic hyperplasia"}, {"letter": "D", "text": "Cholangitis or gallstones"}, {"letter": "E", "text": "Seasonal allergies"}], "answer": "D", "explanation": "Cirrhosis, gallstones, cholangitis, and pancreatitis can all elevate this marker, which is why it lacks specificity for cancer.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "18", "group": 18, "stem": "A 58-year-old man with cirrhosis from chronic hepatitis C needs surveillance for hepatocellular carcinoma. Which surveillance strategy is currently recommended?", "options": [{"letter": "A", "text": "CEA every 3 months"}, {"letter": "B", "text": "Serial AFP measurement alone"}, {"letter": "C", "text": "Liver ultrasound every 6 months"}, {"letter": "D", "text": "Annual CT of the abdomen only"}, {"letter": "E", "text": "No surveillance is needed"}], "answer": "C", "explanation": "Guidelines recommend liver ultrasound at 6-month intervals (with or without AFP) for high-risk patients such as those with cirrhosis or chronic hepatitis B.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "18A", "group": 18, "stem": "What is the role of AFP by itself in this surveillance?", "options": [{"letter": "A", "text": "It is useless and should never be measured"}, {"letter": "B", "text": "It reliably excludes cancer when normal"}, {"letter": "C", "text": "It is the single best screening test and can replace imaging"}, {"letter": "D", "text": "Not recommended as a sole screening test"}, {"letter": "E", "text": "It confirms hepatocellular carcinoma when elevated"}], "answer": "D", "explanation": "Serial AFP alone is not recommended for HCC screening because even in high-risk patients it has a low positive predictive value; it may be added to ultrasound but does not replace it.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "19", "group": 19, "stem": "A student asks what serum tumor markers are primarily good for in everyday oncology practice. Which of the following best describes their principal clinical utility?", "options": [{"letter": "A", "text": "Determining the exact histologic subtype of a tumor"}, {"letter": "B", "text": "Replacing imaging in all cancer follow-up"}, {"letter": "C", "text": "Monitoring treatment and detecting recurrence"}, {"letter": "D", "text": "Screening asymptomatic people for early cancer"}, {"letter": "E", "text": "Establishing a definitive tissue diagnosis of cancer"}], "answer": "C", "explanation": "The main role of tumor markers is to follow response to therapy and detect relapse after potentially curative treatment in a patient with a known cancer.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "20", "group": 20, "stem": "There is broad agreement that PSA is an excellent tumor marker in one particular setting, even though its use elsewhere is debated. In which situation is PSA least controversial and most clearly useful?", "options": [{"letter": "A", "text": "Screening all asymptomatic men over 70"}, {"letter": "B", "text": "Excluding prostate cancer when normal"}, {"letter": "C", "text": "Detecting recurrence after treatment"}, {"letter": "D", "text": "Screening the general male population annually"}, {"letter": "E", "text": "Confirming a prostate cancer diagnosis without biopsy"}], "answer": "C", "explanation": "PSA was introduced to follow disease and detect recurrence after treatment and is a sensitive marker of recurrent disease; its use for population screening is the controversial part.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "20A", "group": 20, "stem": "Which benign condition commonly raises the PSA and reduces its specificity?", "options": [{"letter": "A", "text": "Iron deficiency anemia"}, {"letter": "B", "text": "Hypothyroidism"}, {"letter": "C", "text": "Osteoarthritis"}, {"letter": "D", "text": "Gallstones"}, {"letter": "E", "text": "Benign prostatic hyperplasia"}], "answer": "E", "explanation": "PSA is organ-specific but not cancer-specific; BPH, prostatitis, and even bicycle riding can raise it.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "20B", "group": 20, "stem": "A man taking which medication for urinary symptoms would be expected to have a falsely lowered PSA?", "options": [{"letter": "A", "text": "Finasteride"}, {"letter": "B", "text": "Metformin"}, {"letter": "C", "text": "Testosterone"}, {"letter": "D", "text": "Amoxicillin"}, {"letter": "E", "text": "Aspirin"}], "answer": "A", "explanation": "5-alpha-reductase inhibitors such as finasteride and dutasteride lower PSA levels, which must be considered when interpreting a value.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "21", "group": 21, "stem": "A 28-year-old man presents with a firm, painless testicular mass. Before orchiectomy, which serum tumor markers should be measured to aid diagnosis, risk-stratify, and provide a baseline for follow-up?", "options": [{"letter": "A", "text": "CA 125 and CA 19-9"}, {"letter": "B", "text": "CA 19-9 and PSA"}, {"letter": "C", "text": "AFP and beta-hCG"}, {"letter": "D", "text": "CA 125 and CEA"}, {"letter": "E", "text": "PSA and CEA"}], "answer": "C", "explanation": "Alpha-fetoprotein and beta-hCG (with LDH) are the germ cell tumor markers; they are elevated in 80-85% of testicular germ cell tumors and are measured before and after orchiectomy.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "21A", "group": 21, "stem": "Orchiectomy histology shows pure seminoma, yet his AFP was clearly elevated preoperatively. What is the best interpretation?", "options": [{"letter": "A", "text": "The AFP result must be a laboratory error"}, {"letter": "B", "text": "AFP elevation rules out germ cell tumor entirely"}, {"letter": "C", "text": "Occult nonseminomatous element is present"}, {"letter": "D", "text": "Pure seminoma commonly secretes AFP"}, {"letter": "E", "text": "The elevated AFP indicates a benign process"}], "answer": "C", "explanation": "Pure seminoma never secretes AFP, so an elevated AFP with seminoma-only histology implies an unidentified nonseminomatous component, and the patient is treated as a mixed germ cell tumor.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "21B", "group": 21, "stem": "Which of these two markers can be elevated in both seminoma and nonseminoma germ cell tumors?", "options": [{"letter": "A", "text": "Beta-hCG"}, {"letter": "B", "text": "CEA"}, {"letter": "C", "text": "CA 125"}, {"letter": "D", "text": "Alpha-fetoprotein"}, {"letter": "E", "text": "CA 19-9"}], "answer": "A", "explanation": "Beta-hCG can be elevated in both seminoma and nonseminoma, whereas AFP is not elevated in pure seminoma.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "21C", "group": 21, "stem": "After orchiectomy both markers normalized. Months later one begins to rise on surveillance. What does this most likely represent?", "options": [{"letter": "A", "text": "An unrelated liver condition"}, {"letter": "B", "text": "Definitive evidence of cure"}, {"letter": "C", "text": "A benign cause needing no action"}, {"letter": "D", "text": "A normal expected rebound"}, {"letter": "E", "text": "The first evidence of recurrence"}], "answer": "E", "explanation": "A confirmed rise in AFP or beta-hCG is frequently the first sign of germ cell tumor recurrence and should prompt reinstitution of therapy.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "22", "group": 22, "stem": "A 63-year-old postmenopausal woman has a palpable adnexal mass on exam and a complex ovarian mass on ultrasound. Which serum tumor marker is most useful as an adjunct in evaluating whether this mass is malignant?", "options": [{"letter": "A", "text": "Prostate-specific antigen (PSA)"}, {"letter": "B", "text": "Carcinoembryonic antigen (CEA)"}, {"letter": "C", "text": "Alpha-fetoprotein (AFP)"}, {"letter": "D", "text": "CA 125"}, {"letter": "E", "text": "CA 19-9"}], "answer": "D", "explanation": "This marker is most associated with ovarian cancer; in a postmenopausal woman with a palpable pelvic mass a markedly elevated level has a high positive predictive value for malignancy.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "22A", "group": 22, "stem": "Why is this marker a more reliable adjunct in this patient than it would be in a premenopausal woman?", "options": [{"letter": "A", "text": "Estrogen directly suppresses the marker"}, {"letter": "B", "text": "Fewer benign causes of elevation"}, {"letter": "C", "text": "Premenopausal women rarely develop ovarian masses"}, {"letter": "D", "text": "The assay only works in older patients"}, {"letter": "E", "text": "The marker is not made after menopause"}], "answer": "B", "explanation": "Premenopausal women have many benign conditions (endometriosis, cysts, PID) that elevate the marker, reducing its usefulness; those confounders are largely absent after menopause.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "22B", "group": 22, "stem": "After surgical debulking and chemotherapy her level normalized, but on follow-up it is now clearly rising. What does this most likely indicate?", "options": [{"letter": "A", "text": "Recurrent disease"}, {"letter": "B", "text": "An expected post-treatment fluctuation"}, {"letter": "C", "text": "Complete cure"}, {"letter": "D", "text": "A new benign ovarian cyst"}, {"letter": "E", "text": "A need to simply repeat the test yearly"}], "answer": "A", "explanation": "Once treated, a rising level during follow-up nearly always indicates recurrence.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "23", "group": 23, "stem": "A man who underwent radical prostatectomy for localized prostate cancer had an undetectable PSA afterward. On serial surveillance his PSA is now detectable and steadily climbing. What does this most likely indicate?", "options": [{"letter": "A", "text": "Recurrent prostate cancer"}, {"letter": "B", "text": "A need to start finasteride"}, {"letter": "C", "text": "A normal post-surgical PSA pattern"}, {"letter": "D", "text": "Cure of the cancer"}, {"letter": "E", "text": "A benign elevation from the surgery"}], "answer": "A", "explanation": "After definitive surgery PSA should be undetectable; a rising PSA on surveillance indicates biochemical recurrence.", "objective": "Objective 1", "section": "Objective 1"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

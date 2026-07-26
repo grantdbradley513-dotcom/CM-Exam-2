@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Anemia — PA School Practice Examination (Diagnostic Interpretation)", "questions": [{"id": "1", "group": 1, "stem": "Two patients have a microcytic anemia. Patient 1 has a low serum iron, low ferritin, high TIBC, and low transferrin saturation. Patient 2 has a low serum iron, high ferritin, low-normal TIBC, and normal saturation. Which interpretation is correct?", "options": [{"letter": "A", "text": "Patient 1 has anemia of chronic inflammation and patient 2 has iron deficiency"}, {"letter": "B", "text": "Both patients have anemia of chronic inflammation"}, {"letter": "C", "text": "Neither pattern reflects a disorder of iron metabolism"}, {"letter": "D", "text": "Patient 1 has iron deficiency and patient 2 has anemia of chronic inflammation"}, {"letter": "E", "text": "Both patients have iron deficiency"}], "answer": "D", "explanation": "Low ferritin with high TIBC and low saturation indicates true iron deficiency, whereas high/normal ferritin with low-normal TIBC and normal saturation reflects sequestration in chronic inflammation.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "2", "group": 2, "stem": "A patient with acute hemolysis has a urine dipstick strongly positive for blood, but microscopy shows no red blood cells. Which explanation is most accurate?", "options": [{"letter": "A", "text": "A urinary tract infection with pyuria produces the positive dipstick"}, {"letter": "B", "text": "Myoglobin released from an unrelated cardiac source produces the reaction"}, {"letter": "C", "text": "The finding by itself establishes an underlying iron deficiency"}, {"letter": "D", "text": "Free hemoglobin from intravascular hemolysis is filtered into the urine"}, {"letter": "E", "text": "The dipstick is falsely positive and has no clinical meaning"}], "answer": "D", "explanation": "A heme-positive dipstick without red cells on microscopy reflects hemoglobinuria from free hemoglobin released during intravascular hemolysis.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "3", "group": 3, "stem": "A 22-year-old woman presents with 3 weeks of fatigue, easy bruising, gum bleeding, and a recent febrile illness. Exam shows scattered petechiae and pallor but no splenomegaly or lymphadenopathy. CBC shows Hgb 8.0 g/dL, WBC 2,100/µL with neutropenia, and platelets 22,000/µL; the reticulocyte count is low. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Aplastic anemia"}, {"letter": "B", "text": "Iron deficiency anemia"}, {"letter": "C", "text": "Anemia of chronic inflammation"}, {"letter": "D", "text": "Autoimmune hemolytic anemia"}, {"letter": "E", "text": "Folate deficiency"}], "answer": "A", "explanation": "Pancytopenia with a low reticulocyte count and no organomegaly points to marrow failure from injury to the pluripotent stem cell.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "3A", "group": 3, "stem": "Which bone marrow finding would be expected in this patient?", "options": [{"letter": "A", "text": "A profoundly hypocellular, 'empty' marrow"}, {"letter": "B", "text": "Marrow fibrosis with tear-drop red cells"}, {"letter": "C", "text": "Megaloblastic erythroid precursors"}, {"letter": "D", "text": "A hypercellular marrow packed with blasts"}, {"letter": "E", "text": "Ringed sideroblasts on the iron stain"}], "answer": "A", "explanation": "The diagnosis is confirmed by a markedly hypocellular marrow with decreased precursors of all cell lines.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "3B", "group": 3, "stem": "Which exposure or association is most consistent with this diagnosis?", "options": [{"letter": "A", "text": "Long-standing, poorly controlled rheumatoid arthritis"}, {"letter": "B", "text": "A recent viral infection, benzene, or a drug such as carbamazepine"}, {"letter": "C", "text": "A recent mycoplasma pneumonia with cold-reactive antibodies"}, {"letter": "D", "text": "Chronic occult gastrointestinal blood loss"}, {"letter": "E", "text": "A strict diet lacking all animal products for several consecutive years"}], "answer": "B", "explanation": "Recognized associations include viral infections, toxins such as benzene, and certain drugs; over half of cases are idiopathic.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "3C", "group": 3, "stem": "Which mechanism best accounts for this patient's pancytopenia?", "options": [{"letter": "A", "text": "Loss of glutathione regeneration from an enzyme defect"}, {"letter": "B", "text": "IgG coating cells and triggering splenic destruction"}, {"letter": "C", "text": "IL-6-mediated iron sequestration lowering serum iron"}, {"letter": "D", "text": "Reduced beta-globin synthesis producing microcytosis"}, {"letter": "E", "text": "Injury to the pluripotent hematopoietic stem cell"}], "answer": "E", "explanation": "Marrow failure results from injury to the pluripotent stem cell, reducing production across all three cell lines.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "4", "group": 4, "stem": "A 64-year-old man with stage 4 chronic kidney disease has a stable normocytic, normochromic anemia with a low reticulocyte count. Iron studies, B12, and folate are normal. Which mechanism best explains his anemia?", "options": [{"letter": "A", "text": "Mechanical fragmentation of red cells in small vessels"}, {"letter": "B", "text": "Reduced erythropoietin production by the failing kidneys"}, {"letter": "C", "text": "Autoantibodies coating the circulating red cells"}, {"letter": "D", "text": "A hemoglobinopathy reducing globin-chain production"}, {"letter": "E", "text": "Impaired DNA synthesis from a vitamin deficiency"}], "answer": "B", "explanation": "As kidney function declines, erythropoietin production falls, producing a hypoproliferative normocytic anemia with a low reticulocyte count.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "5", "group": 5, "stem": "A 46-year-old woman with systemic lupus erythematosus develops fatigue, jaundice, and splenomegaly over several days. Hgb is 8.6 g/dL, the reticulocyte count is elevated, LDH and indirect bilirubin are increased, and haptoglobin is low. The smear shows small, dense red cells lacking central pallor. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "G6PD deficiency"}, {"letter": "B", "text": "Beta thalassemia trait"}, {"letter": "C", "text": "Microangiopathic hemolytic anemia"}, {"letter": "D", "text": "Iron deficiency anemia"}, {"letter": "E", "text": "Warm autoimmune hemolytic anemia"}], "answer": "E", "explanation": "Extravascular hemolysis with spherocytes, jaundice, and splenomegaly in a patient with an autoimmune disease is characteristic of warm (IgG-mediated) autoimmune hemolysis.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "5A", "group": 5, "stem": "Which direct antiglobulin (Coombs) result is most likely in this patient?", "options": [{"letter": "A", "text": "Negative for both IgG and C3"}, {"letter": "B", "text": "Positive for IgG, with or without C3"}, {"letter": "C", "text": "Positive only for hemoglobin A2"}, {"letter": "D", "text": "Negative, because spherocytes indicate a nonimmune process"}, {"letter": "E", "text": "Positive for C3 only, with no IgG in any case"}], "answer": "B", "explanation": "Warm autoimmune hemolysis is usually IgG-mediated; the direct Coombs detects IgG and sometimes complement coating the cells.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "5B", "group": 5, "stem": "Which process produces the spherocytes seen in this disorder?", "options": [{"letter": "A", "text": "Oxidized hemoglobin precipitating and being bitten out"}, {"letter": "B", "text": "Mechanical shearing of red cells in small vessels"}, {"letter": "C", "text": "Defective DNA synthesis delaying nuclear maturation"}, {"letter": "D", "text": "Impaired hemoglobinization preventing central pallor"}, {"letter": "E", "text": "Partial splenic removal of antibody-coated membrane"}], "answer": "E", "explanation": "Splenic macrophages partially remove the membrane of antibody-coated cells, producing dense round spherocytes without central pallor.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "5C", "group": 5, "stem": "What is the mainstay of initial treatment for the warm form of this condition?", "options": [{"letter": "A", "text": "Corticosteroids"}, {"letter": "B", "text": "Immediate splenectomy"}, {"letter": "C", "text": "Therapeutic plasma exchange"}, {"letter": "D", "text": "Cold avoidance alone"}, {"letter": "E", "text": "Oral iron replacement"}], "answer": "A", "explanation": "Corticosteroids (e.g., prednisone 1–2 mg/kg with a slow taper) are first-line for warm autoimmune hemolysis.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "6", "group": 6, "stem": "A 25-year-old woman with lifelong mild microcytosis, normal iron indices, and a normal RDW is confirmed to have beta thalassemia trait. Which hemoglobin electrophoresis result is most consistent with this diagnosis?", "options": [{"letter": "A", "text": "HbA2 below 1% with a normal HbF fraction"}, {"letter": "B", "text": "HbA about 50% with HbA2 entirely absent"}, {"letter": "C", "text": "HbF as the only detectable hemoglobin fraction"}, {"letter": "D", "text": "Normal HbA2 accompanied by a low serum ferritin and an elevated total iron-binding capacity"}, {"letter": "E", "text": "Elevated HbA2 with predominantly HbA and possible mild HbF elevation"}], "answer": "E", "explanation": "In beta thalassemia trait most hemoglobin remains HbA, but HbA2 is increased (roughly 4–6%) and HbF may also be mildly elevated.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "7", "group": 7, "stem": "A 30-year-old man recovering from an atypical pneumonia develops fatigue and bluish, painful fingertips when outdoors in cold weather. Labs show anemia, an elevated reticulocyte count, elevated LDH, and low haptoglobin. The smear shows red-cell clumping (agglutination), and the direct antiglobulin test is positive for complement (C3) but negative for IgG. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Paroxysmal nocturnal hemoglobinuria"}, {"letter": "B", "text": "Warm autoimmune hemolytic anemia"}, {"letter": "C", "text": "Microangiopathic hemolytic anemia"}, {"letter": "D", "text": "G6PD deficiency"}, {"letter": "E", "text": "Cold agglutinin disease"}], "answer": "E", "explanation": "Postinfectious hemolysis with acrocyanosis on cold exposure, red-cell agglutination, and a complement-only positive Coombs is typical of IgM-mediated cold hemolysis.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "7A", "group": 7, "stem": "Which immunoglobulin and mechanism underlie this form of hemolysis?", "options": [{"letter": "A", "text": "IgM fixing complement on the red-cell membrane"}, {"letter": "B", "text": "IgE-mediated mast cell degranulation"}, {"letter": "C", "text": "Non-immune mechanical fragmentation of cells"}, {"letter": "D", "text": "IgG coating cells for splenic removal"}, {"letter": "E", "text": "IgA deposition within the glomerulus"}], "answer": "A", "explanation": "Cold hemolysis is mediated by an IgM antibody that fixes complement to red cells, driving complement-mediated destruction.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "7B", "group": 7, "stem": "Which is the most appropriate management for this postinfectious presentation?", "options": [{"letter": "A", "text": "High-dose corticosteroids continued indefinitely"}, {"letter": "B", "text": "Chronic oral iron supplementation for the anemia"}, {"letter": "C", "text": "Urgent splenectomy to remove the site of destruction"}, {"letter": "D", "text": "Supportive care and cold avoidance, as it is usually self-limited"}, {"letter": "E", "text": "Lifelong systemic anticoagulation to prevent thrombotic complications"}], "answer": "D", "explanation": "Postinfectious cold-mediated hemolysis is typically self-limited; keeping warm and supportive care usually suffice.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "8", "group": 8, "stem": "A 38-year-old man develops abrupt fatigue, jaundice, and dark urine. His hemoglobin has fallen from 14.1 to 9.2 g/dL over 4 days, the MCV is 92 fL, and the reticulocyte count is elevated. Examination shows mild splenomegaly. Which broad mechanism of anemia is most likely?", "options": [{"letter": "A", "text": "Impaired DNA synthesis in precursors"}, {"letter": "B", "text": "Pluripotent stem-cell failure"}, {"letter": "C", "text": "Inadequate iron availability for heme"}, {"letter": "D", "text": "Premature red blood cell destruction"}, {"letter": "E", "text": "Reduced beta-globin chain synthesis"}], "answer": "D", "explanation": "Acute normocytic anemia with jaundice, dark urine, splenomegaly, and reticulocytosis strongly suggests hemolysis from shortened red-cell survival.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "8A", "group": 8, "stem": "Which laboratory pattern would best support this mechanism?", "options": [{"letter": "A", "text": "High ferritin, high TIBC, and low ESR"}, {"letter": "B", "text": "Low serum iron, high TIBC, and low ferritin"}, {"letter": "C", "text": "High LDH, high indirect bilirubin, and low haptoglobin"}, {"letter": "D", "text": "Low methylmalonic acid, high homocysteine, normal haptoglobin"}, {"letter": "E", "text": "Low LDH, low indirect bilirubin, and high haptoglobin"}], "answer": "C", "explanation": "Hemolysis releases intracellular LDH, raises indirect bilirubin from heme breakdown, and consumes haptoglobin as it binds free hemoglobin.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "8B", "group": 8, "stem": "This patient's hematocrit is 27% and the lab reports a reticulocyte count of 8%. Using a normal hematocrit of 45%, what is the corrected reticulocyte percentage?", "options": [{"letter": "A", "text": "About 8.0%"}, {"letter": "B", "text": "About 4.8%"}, {"letter": "C", "text": "About 13.3%"}, {"letter": "D", "text": "About 1.3%"}, {"letter": "E", "text": "About 2.2%"}], "answer": "B", "explanation": "Corrected reticulocyte % = measured % × (patient Hct / normal Hct) = 8 × 27/45 = 4.8%, an appropriately increased marrow response.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "8C", "group": 8, "stem": "After biochemical evidence suggests hemolysis, which test is particularly important to categorize the process?", "options": [{"letter": "A", "text": "The peripheral blood smear"}, {"letter": "B", "text": "The ESR alone"}, {"letter": "C", "text": "The TIBC alone"}, {"letter": "D", "text": "A hemoglobin A1c measurement"}, {"letter": "E", "text": "Serum folate alone"}], "answer": "A", "explanation": "The smear is essential because morphology distinguishes spherocytes, schistocytes, bite cells, and agglutination.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "9", "group": 9, "stem": "While teaching a student, you review reference ranges before interpreting a CBC. Which of the following best represents typical normal adult male values?", "options": [{"letter": "A", "text": "Hemoglobin 13.5–17.5 g/dL, hematocrit 41–53%, MCV 80–100 fL"}, {"letter": "B", "text": "Hemoglobin 18–20 g/dL, hematocrit 55–60%, MCV 105–120 fL"}, {"letter": "C", "text": "Hemoglobin 13.5–17.5 g/dL, hematocrit 41–53%, MCV 110–130 fL"}, {"letter": "D", "text": "Hemoglobin 4–6 g/dL, hematocrit 30–35%, MCV 80–100 fL"}, {"letter": "E", "text": "Hemoglobin 8–10 g/dL, hematocrit 20–25%, MCV 60–70 fL"}], "answer": "A", "explanation": "Normal adult male hemoglobin is about 13.5–17.5 g/dL with hematocrit 41–53%, and the normal MCV is 80–100 fL for both sexes.", "objective": "Objective 5", "section": "Objective 5"}, {"id": "10", "group": 10, "stem": "A patient with new pancytopenia and a profoundly hypocellular marrow is being evaluated for an acquired cause. Which exposure is a recognized association with this marrow-failure state?", "options": [{"letter": "A", "text": "Benzene exposure"}, {"letter": "B", "text": "Long-term metformin therapy"}, {"letter": "C", "text": "Mediterranean ancestry"}, {"letter": "D", "text": "Regular fava bean ingestion"}, {"letter": "E", "text": "Heavy menstrual bleeding"}], "answer": "A", "explanation": "Aplastic anemia is associated with infections, autoimmune disease, certain drugs, and benzene or pesticide exposure, although more than half of cases are idiopathic.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "11", "group": 11, "stem": "Two patients each have a megaloblastic macrocytic anemia. One has numbness, impaired vibratory sense, and gait ataxia; the other has no neurologic findings. Which statement best distinguishes the causes?", "options": [{"letter": "A", "text": "Neither deficiency can produce any neurologic findings"}, {"letter": "B", "text": "Neurologic findings instead indicate an iron deficiency state"}, {"letter": "C", "text": "Neurologic findings point to B12 deficiency, not folate deficiency"}, {"letter": "D", "text": "Neurologic findings point to folate deficiency, not B12"}, {"letter": "E", "text": "Both deficiencies produce essentially identical neurologic disease"}], "answer": "C", "explanation": "Both cause megaloblastic anemia, but only B12 deficiency causes neurologic changes such as paresthesias and loss of vibration/position sense.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "12", "group": 12, "stem": "A patient with new anemia has an elevated LDH and an elevated indirect (unconjugated) bilirubin with normal liver enzymes. In the context of a suspected hemolytic process, these findings are best explained by which mechanism?", "options": [{"letter": "A", "text": "Sequestration of iron within reticuloendothelial macrophages"}, {"letter": "B", "text": "Intracellular LDH release with increased heme breakdown"}, {"letter": "C", "text": "Impaired hepatic conjugation from intrinsic liver disease"}, {"letter": "D", "text": "Biliary obstruction raising the conjugated bilirubin fraction"}, {"letter": "E", "text": "Defective globin-chain synthesis from a hemoglobinopathy"}], "answer": "B", "explanation": "Hemolysis releases intracellular LDH and increases heme catabolism, raising unconjugated bilirubin; with normal liver enzymes this supports red-cell breakdown.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "13", "group": 13, "stem": "You are reviewing a patient's medication list for agents that could impair vitamin B12 status. Which combination contains only agents identified as potentially impairing vitamin B12 absorption or utilization?", "options": [{"letter": "A", "text": "Prednisone, doxycycline, and over-the-counter acetaminophen"}, {"letter": "B", "text": "Hydrochlorothiazide, lisinopril, and amlodipine"}, {"letter": "C", "text": "Ferrous sulfate, folic acid, and cyanocobalamin"}, {"letter": "D", "text": "Warfarin, aspirin, and clopidogrel"}, {"letter": "E", "text": "Metformin plus a proton pump inhibitor and an H2 blocker"}], "answer": "E", "explanation": "Metformin, proton pump inhibitors, and H2 receptor antagonists are the agents specifically associated with impaired B12 absorption or utilization.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "14", "group": 14, "stem": "A 70-year-old man is found to have Hgb 10.4 g/dL with MCV 109 fL. There is no history of alcohol use, his medications are unremarkable, and the smear shows macro-ovalocytes. Which initial tests best target the most common causes of this red-cell size abnormality?", "options": [{"letter": "A", "text": "Hemoglobin electrophoresis and the RDW"}, {"letter": "B", "text": "Ferritin and total iron-binding capacity"}, {"letter": "C", "text": "Serum B12 and serum folate levels"}, {"letter": "D", "text": "ESR and C-reactive protein"}, {"letter": "E", "text": "Direct antiglobulin test and haptoglobin"}], "answer": "C", "explanation": "Workup of macrocytic anemia should evaluate both B12 and folate concurrently, as these are the most common megaloblastic causes.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "14A", "group": 14, "stem": "Which process causes the increased cell size in a megaloblastic anemia?", "options": [{"letter": "A", "text": "Impaired DNA synthesis with nuclear-cytoplasmic dyssynchrony"}, {"letter": "B", "text": "Antibody coating that causes membrane loss in the spleen"}, {"letter": "C", "text": "Mechanical trauma that fragments the circulating mature erythrocytes"}, {"letter": "D", "text": "Hepcidin-mediated trapping of iron inside macrophages"}, {"letter": "E", "text": "Reduced beta-globin synthesis lowering hemoglobin content"}], "answer": "A", "explanation": "B12 and folate are required for DNA synthesis; deficiency causes nuclear-cytoplasmic dyssynchrony and large megaloblastic cells.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "15", "group": 15, "stem": "A 34-year-old woman reports 3 months of progressive fatigue, exertional dyspnea, and an irresistible urge to chew ice. Her menstrual periods last 7 days with frequent clot passage. On exam she is pale with mild conjunctival pallor and smooth, spoon-shaped nails. CBC shows Hgb 9.4 g/dL, MCV 74 fL, RDW 17.5%, and platelets 465,000/µL. Which of the following best explains her anemia?", "options": [{"letter": "A", "text": "Aplastic anemia"}, {"letter": "B", "text": "Beta thalassemia trait"}, {"letter": "C", "text": "Folate deficiency"}, {"letter": "D", "text": "Iron deficiency anemia"}, {"letter": "E", "text": "Anemia of chronic inflammation"}], "answer": "D", "explanation": "Chronic menstrual blood loss with pica/pagophagia, koilonychia, microcytosis, a high RDW, and reactive thrombocytosis is classic for iron deficiency.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "15A", "group": 15, "stem": "Which single laboratory test is most useful to confirm the suspected diagnosis?", "options": [{"letter": "A", "text": "Direct antiglobulin test"}, {"letter": "B", "text": "Serum ferritin"}, {"letter": "C", "text": "Hemoglobin electrophoresis"}, {"letter": "D", "text": "Corrected reticulocyte count"}, {"letter": "E", "text": "Serum lactate dehydrogenase"}], "answer": "B", "explanation": "Ferritin reflects total-body iron stores and is the single most useful confirmatory test; a low value strongly supports the diagnosis.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "15B", "group": 15, "stem": "Which pattern of iron studies is expected in this patient?", "options": [{"letter": "A", "text": "Low serum iron, high ferritin, low TIBC, normal saturation"}, {"letter": "B", "text": "High serum iron, high ferritin, low TIBC, high saturation"}, {"letter": "C", "text": "Low serum iron, low ferritin, high TIBC, low saturation"}, {"letter": "D", "text": "Low serum iron, normal ferritin, normal TIBC, normal saturation"}, {"letter": "E", "text": "Normal serum iron, normal ferritin, normal TIBC, normal saturation"}], "answer": "C", "explanation": "Stores and circulating iron fall while the liver makes more transferrin, so TIBC rises and saturation falls (often <10%).", "objective": "Objective 4", "section": "Objective 4"}, {"id": "15C", "group": 15, "stem": "After starting appropriate oral replacement, which laboratory change is expected first?", "options": [{"letter": "A", "text": "A platelet count below normal within 2 days"}, {"letter": "B", "text": "A ferritin above 300 ng/mL within 3 days"}, {"letter": "C", "text": "A fall in the RDW within 24 hours"}, {"letter": "D", "text": "Hemoglobin normalization within 48 hours"}, {"letter": "E", "text": "A reticulocyte rise within about one week"}], "answer": "E", "explanation": "Effective repletion produces reticulocytosis by about one week, followed by a hemoglobin rise over the following weeks.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "16", "group": 16, "stem": "A 57-year-old woman has 2 months of fevers, arthralgias, and weight loss with a mild normocytic anemia; ESR and CRP are markedly elevated. Regarding the red-cell indices in anemia of chronic inflammation, which statement is most accurate?", "options": [{"letter": "A", "text": "It is always severely microcytic from the onset"}, {"letter": "B", "text": "It is essentially always accompanied by an elevation of the hemoglobin A2 fraction"}, {"letter": "C", "text": "It is always accompanied by spherocytes"}, {"letter": "D", "text": "It is essentially always macrocytic"}, {"letter": "E", "text": "It is usually normocytic and becomes microcytic in only a minority"}], "answer": "E", "explanation": "Anemia of chronic inflammation is usually normocytic but becomes microcytic in roughly a third of cases as it persists.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "17", "group": 17, "stem": "Two anemic patients each have a hemoglobin of 8 g/dL. Patient A has a corrected reticulocyte count of 0.6%, and patient B has a corrected reticulocyte count of 5%. Which interpretation is most accurate?", "options": [{"letter": "A", "text": "Patient A has brisk hemolysis while patient B has early primary marrow failure"}, {"letter": "B", "text": "Both most likely have a purely hypoproliferative marrow process"}, {"letter": "C", "text": "Both most likely have a brisk hemolytic or blood-loss process"}, {"letter": "D", "text": "The reticulocyte response cannot separate these mechanisms"}, {"letter": "E", "text": "Patient A has a hypoproliferative anemia; patient B has increased turnover"}], "answer": "E", "explanation": "A low reticulocyte response indicates a production problem (hypoproliferative), whereas a high response indicates the marrow is compensating for loss or destruction.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "18", "group": 18, "stem": "A 24-year-old man of African descent develops fatigue, jaundice, and dark urine 2 days after starting trimethoprim-sulfamethoxazole for a urinary infection. Labs show a falling hemoglobin, an elevated reticulocyte count, elevated LDH, elevated indirect bilirubin, and low haptoglobin. The direct antiglobulin test is negative, and the smear shows bite cells with dark red-cell inclusions. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Beta thalassemia trait"}, {"letter": "B", "text": "Microangiopathic hemolytic anemia"}, {"letter": "C", "text": "Hereditary spherocytosis"}, {"letter": "D", "text": "G6PD deficiency"}, {"letter": "E", "text": "Warm autoimmune hemolytic anemia"}], "answer": "D", "explanation": "Episodic nonimmune hemolysis triggered by an oxidant drug in a man of African descent, with bite cells and Heinz bodies and a negative Coombs, is classic for the most common red-cell enzymopathy.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "18A", "group": 18, "stem": "The dark red-cell inclusions described on this smear are best identified as which finding?", "options": [{"letter": "A", "text": "Target cells"}, {"letter": "B", "text": "Howell-Jolly bodies"}, {"letter": "C", "text": "Basophilic stippling"}, {"letter": "D", "text": "Pappenheimer bodies"}, {"letter": "E", "text": "Heinz bodies"}], "answer": "E", "explanation": "Heinz bodies are precipitated, oxidized hemoglobin; splenic removal of these inclusions produces the bite cells.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "18B", "group": 18, "stem": "An enzyme assay obtained during brisk hemolysis is normal, but suspicion remains high. What is the best next step?", "options": [{"letter": "A", "text": "Repeat the enzyme assay after the acute episode resolves"}, {"letter": "B", "text": "Diagnose a microcytic disorder from the normal level"}, {"letter": "C", "text": "Order direct Coombs testing every month"}, {"letter": "D", "text": "Confirm the diagnosis using hemoglobin electrophoresis testing"}, {"letter": "E", "text": "Exclude the diagnosis permanently based on the level"}], "answer": "A", "explanation": "The most deficient cells are destroyed during an episode and residual young cells have higher enzyme activity, so testing after recovery avoids a false-normal result.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "18C", "group": 18, "stem": "Which is the most appropriate long-term management for this patient?", "options": [{"letter": "A", "text": "Elective splenectomy in essentially all patients"}, {"letter": "B", "text": "Chronic oral iron supplementation to replete stores"}, {"letter": "C", "text": "Scheduled monthly red-cell transfusions to maintain hematocrit"}, {"letter": "D", "text": "Avoidance of oxidant drugs, fava beans, and other triggers"}, {"letter": "E", "text": "Lifelong daily corticosteroids with a slow taper"}], "answer": "D", "explanation": "Most patients are asymptomatic between episodes; management centers on avoiding oxidant triggers such as sulfa drugs, some antimalarials, and fava beans.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "19", "group": 19, "stem": "A 28-year-old pregnant woman with a marginal diet develops a mild macrocytic anemia with no neurologic symptoms. Which factor most likely contributed to her deficiency?", "options": [{"letter": "A", "text": "Increased folate demand in pregnancy plus a limited diet"}, {"letter": "B", "text": "Reduced erythropoietin production from kidney dysfunction"}, {"letter": "C", "text": "Antibody-mediated destruction of red cells in the spleen"}, {"letter": "D", "text": "Inability to incorporate iron into heme in precursors"}, {"letter": "E", "text": "Loss of gastric intrinsic factor from autoimmune gastritis"}], "answer": "A", "explanation": "Folate stores are small and demand rises in pregnancy, so inadequate intake readily produces deficiency; the absence of neurologic findings fits folate rather than B12.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "20", "group": 20, "stem": "A patient has suspected immune hemolysis. Which statement best describes what the direct antiglobulin (Coombs) test detects?", "options": [{"letter": "A", "text": "Hemoglobin variants separated according to their net electrical charge"}, {"letter": "B", "text": "The quantity of storage iron within the marrow"}, {"letter": "C", "text": "Free unbound antibodies present only in the serum"}, {"letter": "D", "text": "The degree of size variability among the red cells"}, {"letter": "E", "text": "Antibody and/or complement already coating the red cells"}], "answer": "E", "explanation": "The direct antiglobulin test uses an antihuman globulin reagent to detect immunoglobulin and/or complement bound to the patient's red cells; agglutination is a positive result.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "21", "group": 21, "stem": "A 68-year-old woman has taken metformin and a proton pump inhibitor for many years. She reports mild fatigue and new tingling in her feet. Which is the most appropriate monitoring strategy?", "options": [{"letter": "A", "text": "Check only a serum folate level and nothing else"}, {"letter": "B", "text": "Keep a low threshold to check B12 and methylmalonic acid"}, {"letter": "C", "text": "Do no monitoring because these drugs do not affect B12"}, {"letter": "D", "text": "Reassure her that the symptoms are unrelated and defer testing"}, {"letter": "E", "text": "Order hemoglobin electrophoresis to screen for deficiency"}], "answer": "B", "explanation": "Because these drugs can impair B12 status, keep a low threshold to check B12 and MMA in long-term users, especially with suggestive symptoms.", "objective": "Objective 7", "section": "Objective 7"}, {"id": "22", "group": 22, "stem": "A 74-year-old man with coronary artery disease develops gradually worsening fatigue, exertional dyspnea, and new exertional chest tightness. Exam shows conjunctival pallor, tachycardia out of proportion to activity, and a soft systolic flow murmur. Which process best explains this constellation?", "options": [{"letter": "A", "text": "An acute pericarditis producing pleuritic pain and a rub"}, {"letter": "B", "text": "A primary anxiety disorder causing palpitations and dyspnea"}, {"letter": "C", "text": "A COPD exacerbation producing hypoxemia and dyspnea"}, {"letter": "D", "text": "Reduced oxygen-carrying capacity precipitating angina in CAD"}, {"letter": "E", "text": "Isolated iron overload depositing within the myocardium"}], "answer": "D", "explanation": "Gradual anemia causes fatigue, exertional dyspnea, pallor, tachycardia, and a flow murmur, and in coronary disease can precipitate angina by reducing oxygen delivery.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "23", "group": 23, "stem": "A patient with anemia has a hematocrit of 30% and a reported reticulocyte count of 4.5%. The laboratory's normal hematocrit reference is 45%. What is the corrected reticulocyte percentage?", "options": [{"letter": "A", "text": "6.0%"}, {"letter": "B", "text": "6.8%"}, {"letter": "C", "text": "1.5%"}, {"letter": "D", "text": "3.0%"}, {"letter": "E", "text": "4.5%"}], "answer": "D", "explanation": "Corrected reticulocyte % = reported % × (patient Hct / normal Hct) = 4.5 × 30/45 = 3.0%.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "23A", "group": 23, "stem": "Why is correction of the reticulocyte percentage useful in an anemic patient?", "options": [{"letter": "A", "text": "It estimates the hemoglobin A2 fraction on electrophoresis"}, {"letter": "B", "text": "It converts the reticulocyte value directly into an absolute neutrophil count for the patient"}, {"letter": "C", "text": "It is required only when the mean corpuscular volume is high"}, {"letter": "D", "text": "It removes the confounding influence of an elevated LDH"}, {"letter": "E", "text": "It adjusts for the reduced red-cell denominator, which otherwise overstates production"}], "answer": "E", "explanation": "The raw percentage is taken from a reduced red-cell mass, so it overstates production; correcting for the degree of anemia gives a truer marrow response.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "24", "group": 24, "stem": "A 68-year-old man is found to have iron deficiency anemia with Hgb 10.1 g/dL, MCV 76 fL, and ferritin 8 ng/mL. He takes no NSAIDs, reports no overt bleeding, and a single office fecal occult blood test is negative. He has lost 5 pounds unintentionally. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Reassure the patient because the occult blood test was negative"}, {"letter": "B", "text": "Obtain a direct antiglobulin (Coombs) test"}, {"letter": "C", "text": "Bidirectional upper and lower endoscopy"}, {"letter": "D", "text": "Order hemoglobin electrophoresis to evaluate the microcytosis"}, {"letter": "E", "text": "Begin oral iron and recheck in 6 months with no further workup"}], "answer": "C", "explanation": "In men and postmenopausal women, occult GI blood loss is the most common cause of iron deficiency, so endoscopic evaluation is indicated regardless of a negative office FOBT.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "24A", "group": 24, "stem": "In older adults evaluated this way, which findings are most commonly identified?", "options": [{"letter": "A", "text": "Esophageal varices with sigmoid diverticulitis on colonoscopy"}, {"letter": "B", "text": "Diffuse angiodysplasia with internal hemorrhoids as the only findings"}, {"letter": "C", "text": "Peptic ulcer disease on upper endoscopy and colon cancer on colonoscopy"}, {"letter": "D", "text": "Entirely normal findings on both examinations in nearly all patients"}, {"letter": "E", "text": "Biopsy-proven celiac disease with an incidental gastric lymphoma"}], "answer": "C", "explanation": "In older adults with iron deficiency, the most common upper finding was peptic ulcer disease and the most common lower finding was colon cancer.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "24B", "group": 24, "stem": "This patient's platelet count is 520,000/µL and normalizes after several weeks of iron therapy. This finding is best explained as which of the following?", "options": [{"letter": "A", "text": "Reactive thrombocytosis from iron deficiency"}, {"letter": "B", "text": "Direct evidence of an ongoing low-grade hemolytic process"}, {"letter": "C", "text": "An early myeloproliferative neoplasm such as essential thrombocythemia"}, {"letter": "D", "text": "A sign of a concurrent, previously undiagnosed vitamin deficiency"}, {"letter": "E", "text": "A laboratory artifact from in vitro platelet clumping"}], "answer": "A", "explanation": "Iron deficiency is commonly accompanied by mild-to-moderate reactive thrombocytosis that normalizes with iron replacement.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "25", "group": 25, "stem": "A microcytic anemia is being worked up, and the red cell distribution width (RDW) is markedly elevated. Which condition does an elevated RDW most help to favor over the others?", "options": [{"letter": "A", "text": "Aplastic anemia over both iron deficiency and thalassemia trait states"}, {"letter": "B", "text": "Thalassemia trait over iron deficiency and inflammation"}, {"letter": "C", "text": "Chronic inflammation over iron deficiency and thalassemia"}, {"letter": "D", "text": "Iron deficiency over thalassemia trait and chronic inflammation"}, {"letter": "E", "text": "G6PD deficiency over iron deficiency and thalassemia"}], "answer": "D", "explanation": "The RDW is typically elevated in iron deficiency (anisocytosis) but tends to stay normal in thalassemia trait and anemia of chronic inflammation.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "26", "group": 26, "stem": "A 29-year-old woman presents with acute fatigue and jaundice; her hemoglobin has fallen from a baseline of 13 to 8.5 g/dL over 5 days. You suspect a hemolytic process and order confirmatory labs. Which set of results would best support hemolysis?", "options": [{"letter": "A", "text": "High reticulocytes, low LDH, high haptoglobin, low bilirubin"}, {"letter": "B", "text": "Low reticulocytes, high haptoglobin, low indirect bilirubin, high MCV"}, {"letter": "C", "text": "High reticulocytes, high LDH, high indirect bilirubin, low haptoglobin"}, {"letter": "D", "text": "Normal reticulocytes, normal LDH, normal haptoglobin, high TIBC"}, {"letter": "E", "text": "Low reticulocytes, low LDH, high haptoglobin, high ferritin"}], "answer": "C", "explanation": "Hemolysis produces reticulocytosis, elevated LDH and indirect bilirubin from cell breakdown, and a low haptoglobin as it is consumed binding free hemoglobin.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "27", "group": 27, "stem": "A 63-year-old man with type 2 diabetes and reflux has taken metformin for 11 years and omeprazole for 6 years. He reports new fatigue, tongue soreness, and tingling in his feet. His hemoglobin is mildly reduced and the MCV is 103 fL. Which medication-related deficiency should be considered first?", "options": [{"letter": "A", "text": "G6PD deficiency"}, {"letter": "B", "text": "Vitamin B12 deficiency"}, {"letter": "C", "text": "Iron deficiency"}, {"letter": "D", "text": "Vitamin K deficiency"}, {"letter": "E", "text": "Folate deficiency"}], "answer": "B", "explanation": "Metformin and chronic acid suppression can impair B12 absorption or utilization; macrocytosis, glossitis, and neurologic symptoms increase suspicion.", "objective": "Objective 6", "section": "Objective 6"}, {"id": "28", "group": 28, "stem": "A 49-year-old man with alcohol use disorder and a poor diet presents with several weeks of fatigue. He has no numbness, tingling, or gait difficulty, and the neurologic exam is normal. CBC shows Hgb 10.2 g/dL and MCV 108 fL; the smear shows macro-ovalocytes and hypersegmented neutrophils. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Iron deficiency anemia"}, {"letter": "B", "text": "Aplastic anemia"}, {"letter": "C", "text": "Beta thalassemia trait"}, {"letter": "D", "text": "Folate deficiency"}, {"letter": "E", "text": "Vitamin B12 deficiency"}], "answer": "D", "explanation": "A megaloblastic macrocytic anemia in a malnourished patient with alcohol use and no neurologic findings is most consistent with folate deficiency, whose stores deplete within months.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "28A", "group": 28, "stem": "Which laboratory pattern best distinguishes this deficiency from the other megaloblastic cause?", "options": [{"letter": "A", "text": "Elevated methylmalonic acid and elevated homocysteine"}, {"letter": "B", "text": "Elevated ferritin with low transferrin saturation"}, {"letter": "C", "text": "Elevated homocysteine with a normal methylmalonic acid"}, {"letter": "D", "text": "Elevated methylmalonic acid with normal homocysteine"}, {"letter": "E", "text": "Low homocysteine and low methylmalonic acid"}], "answer": "C", "explanation": "Here homocysteine rises but methylmalonic acid stays normal; an elevated MMA would instead indicate cobalamin deficiency.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "28B", "group": 28, "stem": "Which feature of this vitamin's physiology explains why deficiency can develop within months?", "options": [{"letter": "A", "text": "It requires intrinsic factor for absorption in the ileum"}, {"letter": "B", "text": "It is absorbed only after binding to plasma transferrin"}, {"letter": "C", "text": "It is synthesized by colonic bacteria in sufficient amounts"}, {"letter": "D", "text": "Body stores are small, only about a 3-month supply"}, {"letter": "E", "text": "It is stored in large amounts and requires years to deplete"}], "answer": "D", "explanation": "Unlike B12, these stores are small (about a 3-month supply), so deficiency appears relatively quickly with poor intake.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "29", "group": 29, "stem": "A 36-year-old woman describes an irresistible urge to chew ice and restless legs at night. On exam she has angular cheilosis, a smooth tongue, and spoon-shaped nails. These findings are most characteristic of which deficiency state?", "options": [{"letter": "A", "text": "Vitamin C deficiency"}, {"letter": "B", "text": "Folate deficiency"}, {"letter": "C", "text": "Vitamin B12 deficiency"}, {"letter": "D", "text": "Copper deficiency"}, {"letter": "E", "text": "Iron deficiency"}], "answer": "E", "explanation": "Pagophagia/pica, restless legs, cheilosis, atrophic glossitis, and koilonychia are classic clinical clues to iron deficiency.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "30", "group": 30, "stem": "A 55-year-old man with an active soft-tissue infection has a microcytic anemia and a serum ferritin of 140 ng/mL. Which interpretation is most accurate regarding possible coexisting iron deficiency?", "options": [{"letter": "A", "text": "As an acute-phase reactant, a normal value cannot exclude it"}, {"letter": "B", "text": "Ferritin cannot be measured while an active infection is present"}, {"letter": "C", "text": "Ferritin is unaffected by inflammation and reads at face value"}, {"letter": "D", "text": "A ferritin of 140 ng/mL definitively confirms coexisting iron deficiency"}, {"letter": "E", "text": "Ferritin falls with inflammation, so this value excludes it"}], "answer": "A", "explanation": "Ferritin rises as an acute-phase reactant, so during active inflammation a normal or elevated value can mask coexisting iron deficiency and must be interpreted cautiously.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "31", "group": 31, "stem": "Before interpreting an electrophoresis result, you review the normal distribution of hemoglobin fractions in a healthy adult. Which distribution is correct?", "options": [{"letter": "A", "text": "Roughly 50% HbA, about 25% HbA2, and about 25% HbF"}, {"letter": "B", "text": "Only HbA, with no HbA2 or HbF present"}, {"letter": "C", "text": "About 70% HbA2 and 30% HbA"}, {"letter": "D", "text": "About 90% HbF and 10% HbA"}, {"letter": "E", "text": "About 97% HbA, 2.5% HbA2, and less than 1% HbF"}], "answer": "E", "explanation": "Normal adult hemoglobin is predominantly HbA, with a small HbA2 fraction and only trace HbF.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "32", "group": 32, "stem": "A 66-year-old woman reports several months of fatigue, tingling in both feet, and unsteadiness in the dark. On exam she has a smooth, sore, 'beefy' red tongue, decreased vibratory sensation in the toes, and a positive Romberg sign. CBC shows Hgb 9.8 g/dL and MCV 114 fL; the smear shows macro-ovalocytes and hypersegmented neutrophils. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Iron deficiency anemia"}, {"letter": "B", "text": "Anemia of chronic inflammation"}, {"letter": "C", "text": "Myelodysplastic syndrome"}, {"letter": "D", "text": "Folate deficiency"}, {"letter": "E", "text": "Vitamin B12 deficiency"}], "answer": "E", "explanation": "A macrocytic, megaloblastic anemia with glossitis plus posterior-column neurologic findings points to B12 deficiency; folate deficiency does not cause neurologic disease.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "32A", "group": 32, "stem": "If the serum level of the deficient vitamin is borderline, which metabolic pattern is most sensitive and specific for confirming this deficiency?", "options": [{"letter": "A", "text": "An elevated serum ferritin level"}, {"letter": "B", "text": "A reduced serum haptoglobin level"}, {"letter": "C", "text": "A low lactate dehydrogenase level"}, {"letter": "D", "text": "Elevated homocysteine with a normal methylmalonic acid"}, {"letter": "E", "text": "Elevated methylmalonic acid and elevated homocysteine"}], "answer": "E", "explanation": "Methylmalonic acid and homocysteine both rise in cobalamin deficiency; with folate deficiency MMA stays normal.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "32B", "group": 32, "stem": "Testing for which antibodies would best identify an autoimmune cause of this deficiency?", "options": [{"letter": "A", "text": "Anti-intrinsic factor and anti-parietal cell antibodies"}, {"letter": "B", "text": "Anti-smooth muscle and anti-mitochondrial antibodies"}, {"letter": "C", "text": "Anti-cyclic citrullinated peptide antibodies"}, {"letter": "D", "text": "Antinuclear and anti-double-stranded DNA antibodies"}, {"letter": "E", "text": "Anti-tissue transglutaminase and anti-endomysial antibodies"}], "answer": "A", "explanation": "Pernicious anemia—autoimmune gastritis with loss of intrinsic factor—is identified by anti-intrinsic factor and anti-parietal cell antibodies.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "32C", "group": 32, "stem": "Why is correct identification of the deficient vitamin critical before treatment?", "options": [{"letter": "A", "text": "The incorrect vitamin will cause immediate, severe iron overload"}, {"letter": "B", "text": "Giving the wrong vitamin will provoke an acute hemolytic crisis"}, {"letter": "C", "text": "The other vitamin alone can mask the anemia while neurologic damage progresses"}, {"letter": "D", "text": "Only one of these two vitamins can actually be measured in serum"}, {"letter": "E", "text": "The neurologic deficits will predictably worsen with essentially any oral therapy"}], "answer": "C", "explanation": "Folate can partially correct the megaloblastic anemia but will not prevent progression of the neurologic disease, so the specific deficiency must be identified.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "33", "group": 33, "stem": "A 58-year-old woman with a 6-year history of rheumatoid arthritis reports increasing fatigue during a 2-month flare of swollen, painful wrists and MCP joints. CBC shows Hgb 10.6 g/dL, MCV 88 fL, RDW 13.5%, and a low reticulocyte count. ESR and CRP are both elevated. Which of the following best explains her anemia?", "options": [{"letter": "A", "text": "Folate deficiency"}, {"letter": "B", "text": "Warm autoimmune hemolytic anemia"}, {"letter": "C", "text": "G6PD deficiency"}, {"letter": "D", "text": "Iron deficiency anemia"}, {"letter": "E", "text": "Anemia of chronic inflammation"}], "answer": "E", "explanation": "A mild normocytic anemia developing during active inflammatory disease with elevated acute-phase reactants is characteristic of anemia of chronic inflammation.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "33A", "group": 33, "stem": "Which set of iron studies is most consistent with this diagnosis?", "options": [{"letter": "A", "text": "High serum iron, high ferritin, high TIBC"}, {"letter": "B", "text": "Normal serum iron, low ferritin, high TIBC"}, {"letter": "C", "text": "Low serum iron together with a low ferritin and a high transferrin saturation"}, {"letter": "D", "text": "Low serum iron, normal-to-high ferritin, low-to-normal TIBC"}, {"letter": "E", "text": "Low serum iron, low ferritin, high TIBC"}], "answer": "D", "explanation": "Iron is sequestered in macrophages: serum iron is low but ferritin is normal or high and TIBC is low or normal.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "33B", "group": 33, "stem": "Which mediator is chiefly responsible for the reduced iron absorption and macrophage iron trapping in this condition?", "options": [{"letter": "A", "text": "Hepcidin"}, {"letter": "B", "text": "Erythropoietin"}, {"letter": "C", "text": "Haptoglobin"}, {"letter": "D", "text": "Intrinsic factor"}, {"letter": "E", "text": "Transferrin"}], "answer": "A", "explanation": "Inflammatory cytokines (notably IL-6) raise hepcidin, which blocks duodenal iron absorption and traps iron in macrophages.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "33C", "group": 33, "stem": "Which studies would best corroborate an underlying inflammatory process in this patient?", "options": [{"letter": "A", "text": "Direct antiglobulin test with serum lactate dehydrogenase"}, {"letter": "B", "text": "Serum cobalamin with a confirmatory methylmalonic acid level"}, {"letter": "C", "text": "Erythrocyte sedimentation rate and C-reactive protein"}, {"letter": "D", "text": "Hemoglobin electrophoresis with hemoglobin A2 quantitation"}, {"letter": "E", "text": "Reticulocyte count together with a serum haptoglobin level"}], "answer": "C", "explanation": "ESR and CRP are acute-phase reactants that rise with systemic inflammation and support an inflammatory driver of the anemia.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "34", "group": 34, "stem": "A 44-year-old woman presents with fatigue, scattered bruising, and confusion. Labs show Hgb 8.1 g/dL, platelets 28,000/µL, an elevated reticulocyte count, elevated LDH, elevated indirect bilirubin, and low haptoglobin. Coagulation studies (PT/PTT) are normal, the direct antiglobulin test is negative, and the smear shows numerous fragmented red cells. Which of the following best categorizes her hemolysis?", "options": [{"letter": "A", "text": "Microangiopathic hemolytic anemia"}, {"letter": "B", "text": "Megaloblastic anemia"}, {"letter": "C", "text": "Anemia of chronic inflammation"}, {"letter": "D", "text": "Autoimmune hemolytic anemia"}, {"letter": "E", "text": "Oxidative (enzymopathic) hemolysis"}], "answer": "A", "explanation": "Coombs-negative hemolysis with schistocytes and thrombocytopenia reflects mechanical red-cell fragmentation in small vessels; normal coagulation studies favor TTP over DIC.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "34A", "group": 34, "stem": "Which red-cell finding on the smear defines this category of hemolysis?", "options": [{"letter": "A", "text": "Bite cells accompanied by Heinz body inclusions"}, {"letter": "B", "text": "Schistocytes, the fragmented 'helmet' cells of vessel trauma"}, {"letter": "C", "text": "Elongated hypochromic pencil cells with targets"}, {"letter": "D", "text": "Dense spherocytes that lack central pallor"}, {"letter": "E", "text": "Macro-ovalocytes accompanied by hypersegmented neutrophils"}], "answer": "B", "explanation": "Traumatic fragmentation as cells pass through damaged small vessels produces schistocytes, the hallmark of this hemolysis.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "34B", "group": 34, "stem": "The negative direct antiglobulin test is most useful because it does which of the following?", "options": [{"letter": "A", "text": "Identifies an inherited hemoglobinopathy as the responsible defect"}, {"letter": "B", "text": "Confirms an oxidant medication as the trigger"}, {"letter": "C", "text": "Rules out every possible form of hemolysis here"}, {"letter": "D", "text": "Separates this mechanical process from immune-mediated hemolysis"}, {"letter": "E", "text": "Establishes a chronic microcytic disorder as the cause"}], "answer": "D", "explanation": "A negative Coombs excludes antibody/complement coating, separating mechanical hemolysis from autoimmune hemolysis.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "35", "group": 35, "stem": "When folate status is uncertain, what is the principal advantage of an RBC folate measurement over a serum folate measurement?", "options": [{"letter": "A", "text": "It is the definitive test for beta thalassemia trait"}, {"letter": "B", "text": "It confirms immune coating of the erythrocytes"}, {"letter": "C", "text": "It directly measures intrinsic factor function"}, {"letter": "D", "text": "It reflects longer-term intracellular folate stores"}, {"letter": "E", "text": "It rises only in vitamin B12 deficiency states"}], "answer": "D", "explanation": "RBC folate reflects folate incorporated during erythropoiesis and represents longer-term status; serum folate fluctuates with recent dietary intake.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "36", "group": 36, "stem": "A patient with confirmed hemolysis has a low serum haptoglobin. Which statement best explains why haptoglobin falls during significant hemolysis?", "options": [{"letter": "A", "text": "It is directly converted into circulating reticulocytes"}, {"letter": "B", "text": "It is consumed while binding free hemoglobin from lysed cells"}, {"letter": "C", "text": "The bone marrow abruptly stops producing it during hemolysis"}, {"letter": "D", "text": "It is oxidized and precipitates within cells as Heinz bodies"}, {"letter": "E", "text": "It is filtered and excreted in the urine with bilirubin"}], "answer": "B", "explanation": "Haptoglobin binds free hemoglobin for clearance; in hemolysis it is consumed, so a low level is a sensitive, specific clue.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "37", "group": 37, "stem": "A clinician orders hemoglobin electrophoresis to evaluate a suspected hemoglobinopathy. On what principle does this test separate hemoglobin types?", "options": [{"letter": "A", "text": "Hemoglobins are precipitated by oxidative cellular stress"}, {"letter": "B", "text": "Red cells are agglutinated by an antihuman globulin reagent"}, {"letter": "C", "text": "They are separated according to their reticulocyte content"}, {"letter": "D", "text": "They migrate differently by size, shape, and electrical charge"}, {"letter": "E", "text": "Storage iron is stained within developing red-cell precursors"}], "answer": "D", "explanation": "Electrophoresis separates proteins by physical properties—size, shape, and charge—so different hemoglobin forms migrate to different positions, allowing detection of variants such as an elevated Hb A2.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "38", "group": 38, "stem": "A student asks you to describe how dietary vitamin B12 is normally absorbed. Which sequence correctly describes normal vitamin B12 absorption?", "options": [{"letter": "A", "text": "It binds haptoglobin and is absorbed directly across the gastric wall"}, {"letter": "B", "text": "It binds transferrin and is absorbed within the proximal segment of the duodenum"}, {"letter": "C", "text": "It is absorbed in the jejunum without requiring any carrier protein"}, {"letter": "D", "text": "It is synthesized in the liver and stored there as ferritin complexes"}, {"letter": "E", "text": "It binds intrinsic factor from parietal cells and is absorbed in the ileum"}], "answer": "E", "explanation": "Dietary B12 from animal products binds intrinsic factor secreted by gastric parietal cells and is absorbed via specific receptors in the distal ileum.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "39", "group": 39, "stem": "A 50-year-old patient has an anemia with an MCV of 72 fL. Based on this index alone, how should the anemia be categorized, and which differential does it suggest?", "options": [{"letter": "A", "text": "Macrocytic, suggesting either a vitamin B12 or a folate deficiency state"}, {"letter": "B", "text": "Normocytic, suggesting acute blood loss or CKD"}, {"letter": "C", "text": "Microcytic, suggesting B12 deficiency and active hemolysis"}, {"letter": "D", "text": "Microcytic, suggesting iron deficiency, thalassemia, or inflammation"}, {"letter": "E", "text": "Macrocytic, suggesting iron deficiency with thalassemia"}], "answer": "D", "explanation": "An MCV below 80 fL defines microcytosis; the main adult causes are iron deficiency, thalassemia trait, and sometimes anemia of chronic inflammation.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "40", "group": 40, "stem": "A 52-year-old man with heavy alcohol use has anemia with basophilic stippling on the smear, and a marrow iron stain shows ringed sideroblasts. Iron studies show high serum iron and ferritin with a high transferrin saturation. Which underlying problem best explains this anemia?", "options": [{"letter": "A", "text": "Autoimmune destruction of circulating red cells within the spleen"}, {"letter": "B", "text": "Occult gastrointestinal blood loss slowly depleting iron stores"}, {"letter": "C", "text": "Reduced beta-globin chain production from an inherited mutation"}, {"letter": "D", "text": "Ineffective heme synthesis with iron trapped in precursor mitochondria"}, {"letter": "E", "text": "Loss of gastric intrinsic factor from chronic autoimmune atrophic gastritis"}], "answer": "D", "explanation": "Sideroblastic anemia reflects ineffective heme synthesis, so iron accumulates in the mitochondria ringing the nucleus; alcohol, lead, and isoniazid are recognized causes.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "41", "group": 41, "stem": "A 27-year-old asymptomatic man of Mediterranean descent is found to have a mild anemia on a routine preoperative CBC. Hgb is 12.1 g/dL, MCV 66 fL, RDW 13.0%, and the RBC count is 6.1 million/µL. Records show similar values 4 years ago, and his father has 'low blood counts.' Iron studies are normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Beta thalassemia trait"}, {"letter": "B", "text": "Anemia of chronic inflammation"}, {"letter": "C", "text": "Aplastic anemia"}, {"letter": "D", "text": "Iron deficiency anemia"}, {"letter": "E", "text": "Sideroblastic anemia"}], "answer": "A", "explanation": "Profound microcytosis with only mild anemia, a normal-to-high RBC count, normal RDW, normal iron studies, family history, and ancestry all point to beta thalassemia trait.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "41A", "group": 41, "stem": "Which test would definitively confirm the suspected diagnosis?", "options": [{"letter": "A", "text": "A direct antiglobulin (Coombs) test"}, {"letter": "B", "text": "Hemoglobin electrophoresis showing an elevated hemoglobin A2"}, {"letter": "C", "text": "A serum methylmalonic acid level"}, {"letter": "D", "text": "A bone marrow biopsy with special iron staining of the marrow"}, {"letter": "E", "text": "Serum ferritin and total iron-binding capacity"}], "answer": "B", "explanation": "Electrophoresis demonstrating an elevated Hb A2 (roughly 4–6%) confirms the diagnosis.", "objective": "Objective 1", "section": "Objective 1"}, {"id": "41B", "group": 41, "stem": "Which pathophysiologic defect best explains this patient's anemia?", "options": [{"letter": "A", "text": "Impaired DNA synthesis from a vitamin deficiency"}, {"letter": "B", "text": "Reduced synthesis of beta-globin chains"}, {"letter": "C", "text": "Reduced availability of iron for heme synthesis"}, {"letter": "D", "text": "Destruction of hematopoietic stem cells"}, {"letter": "E", "text": "Antibody-mediated erythrocyte destruction"}], "answer": "B", "explanation": "The trait results from an inherited defect reducing beta-globin chain synthesis, lowering hemoglobin per cell.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "41C", "group": 41, "stem": "Which management point is most important for this patient?", "options": [{"letter": "A", "text": "Begin lifelong scheduled transfusion therapy immediately"}, {"letter": "B", "text": "Avoid empiric oral iron, which is unhelpful and risks overload"}, {"letter": "C", "text": "Initiate corticosteroids to reduce ongoing red-cell hemolysis"}, {"letter": "D", "text": "Start high-dose vitamin therapy to prevent a hemolytic crisis"}, {"letter": "E", "text": "Perform monthly therapeutic phlebotomy to lower the hematocrit"}], "answer": "B", "explanation": "These patients are not iron deficient and require no therapy; giving iron is unhelpful and can lead to overload.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "42", "group": 42, "stem": "A patient with autoimmune hemolysis has bluish, painful fingers on cold exposure, and the direct antiglobulin test is positive for complement (C3) but negative for IgG. Which statement best characterizes this process compared with the warm type?", "options": [{"letter": "A", "text": "It is a non-immune process from mechanical fragmentation"}, {"letter": "B", "text": "It is IgM-mediated and often postinfectious, unlike the warm IgG type"}, {"letter": "C", "text": "It results from an inherited enzyme deficiency, not antibodies"}, {"letter": "D", "text": "It is essentially indistinguishable from the warm type on direct Coombs testing"}, {"letter": "E", "text": "It is IgG-mediated and, in most cases, clearly drug-induced"}], "answer": "B", "explanation": "Cold agglutinin disease is IgM/complement-mediated (C3-positive, IgG-negative Coombs) and often follows infection, whereas warm autoimmune hemolysis is IgG-mediated.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "43", "group": 43, "stem": "You are interpreting acute-phase reactants in a patient with a suspected inflammatory illness. Which statement about these markers is most accurate?", "options": [{"letter": "A", "text": "The ESR falls with inflammation while CRP rises sharply"}, {"letter": "B", "text": "Neither marker is meaningfully affected by any degree of systemic inflammation"}, {"letter": "C", "text": "Both rise with inflammation, and CRP changes more rapidly than the ESR"}, {"letter": "D", "text": "CRP is a red-cell index while the ESR measures hemoglobin"}, {"letter": "E", "text": "Both markers are specific confirmatory tests for iron deficiency"}], "answer": "C", "explanation": "ESR and CRP are both acute-phase reactants elevated in inflammation; CRP generally rises and normalizes faster than the ESR.", "objective": "Objective 2", "section": "Objective 2"}, {"id": "44", "group": 44, "stem": "A 36-year-old woman underwent terminal ileal resection for Crohn disease 4 years ago. She now has a macrocytic anemia, paresthesias, and loss of vibration sense in the lower extremities. Which deficiency is most likely?", "options": [{"letter": "A", "text": "G6PD deficiency"}, {"letter": "B", "text": "Iron deficiency"}, {"letter": "C", "text": "Beta thalassemia trait"}, {"letter": "D", "text": "Vitamin B12 deficiency"}, {"letter": "E", "text": "Folate deficiency"}], "answer": "D", "explanation": "B12 bound to intrinsic factor is absorbed in the distal ileum; ileal resection impairs its absorption and can cause both megaloblastic anemia and neurologic dysfunction.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "44A", "group": 44, "stem": "Which normal physiologic step is disrupted by this patient's surgery?", "options": [{"letter": "A", "text": "Dietary iron absorption occurring at the proximal duodenal brush border"}, {"letter": "B", "text": "Erythropoietin production in the renal cortex"}, {"letter": "C", "text": "Distal ileal absorption of the intrinsic factor–vitamin complex"}, {"letter": "D", "text": "Hepcidin production within the hepatocytes"}, {"letter": "E", "text": "Absorption of dietary nutrients across the gastric wall"}], "answer": "C", "explanation": "The intrinsic factor–B12 complex binds receptors in the distal ileum, so ileal disease or resection impairs absorption.", "objective": "Objective 3", "section": "Objective 3"}, {"id": "44B", "group": 44, "stem": "Which findings would instead favor a dietary or demand-related megaloblastic cause?", "options": [{"letter": "A", "text": "Anti-intrinsic factor and anti-parietal cell antibodies"}, {"letter": "B", "text": "Terminal ileal resection with loss of position sense"}, {"letter": "C", "text": "Elevated methylmalonic acid together with elevated homocysteine"}, {"letter": "D", "text": "Poor intake or pregnancy, no neurologic deficits, and a normal methylmalonic acid"}, {"letter": "E", "text": "A longstanding strict vegan diet with new lower-extremity paresthesias and gait unsteadiness"}], "answer": "D", "explanation": "The dietary/demand-related megaloblastic cause follows poor intake, alcohol, or increased demand, spares the nervous system, and leaves MMA normal.", "objective": "Objective 4", "section": "Objective 4"}, {"id": "45", "group": 45, "stem": "A patient's iron studies show a serum iron of 30 µg/dL and a TIBC of 400 µg/dL. What is the approximate transferrin saturation, and what does it indicate?", "options": [{"letter": "A", "text": "About 75%, indicating significant iron overload"}, {"letter": "B", "text": "About 13%, diagnostic of anemia of chronic inflammation"}, {"letter": "C", "text": "About 7.5%, compatible with iron deficiency"}, {"letter": "D", "text": "About 30%, a normal value typical of thalassemia trait"}, {"letter": "E", "text": "About 40%, a normal value excluding any iron disorder"}], "answer": "C", "explanation": "Transferrin saturation = serum iron / TIBC × 100 = 30/400 × 100 = 7.5%; a low saturation (often <10%) is characteristic of iron deficiency.", "objective": "Objective 1", "section": "Objective 1"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
