@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "OCD and Related Disorders — Practice Exam", "questions": [{"id": "1", "group": 1, "stem": "A 24-year-old man reports intrusive, unwanted thoughts that his hands are contaminated. To relieve the intense anxiety these thoughts cause, he washes his hands repeatedly, sometimes for more than two hours a day, until they are raw. He recognizes the behavior is excessive and irrational but cannot stop, and it is interfering with his job. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Obsessive-compulsive disorder"}, {"letter": "B", "text": "Specific phobia"}, {"letter": "C", "text": "Obsessive-compulsive personality disorder"}, {"letter": "D", "text": "Generalized anxiety disorder"}, {"letter": "E", "text": "Illness anxiety disorder"}], "answer": "A", "explanation": "Ego-dystonic obsessions (contamination) with time-consuming compulsions (washing) that the patient recognizes as irrational and that impair function define OCD.", "objective": "Objective 2", "section": "Obsessive-Compulsive Disorder"}, {"id": "1A", "group": 1, "stem": "Which of the following is the most effective treatment approach for this patient?", "options": [{"letter": "A", "text": "An antipsychotic agent as sole therapy"}, {"letter": "B", "text": "A low-dose SSRI with no added psychotherapy"}, {"letter": "C", "text": "Brief supportive counseling alone"}, {"letter": "D", "text": "A benzodiazepine as sole therapy"}, {"letter": "E", "text": "An SSRI plus CBT"}], "answer": "E", "explanation": "The combination of an SSRI (often at higher doses than for depression) plus CBT works best; most patients do not remit without both.", "objective": "Objective 2", "section": "Obsessive-Compulsive Disorder"}, {"id": "1B", "group": 1, "stem": "The CBT component for this patient primarily involves which of the following techniques?", "options": [{"letter": "A", "text": "Eye movement desensitization for trauma"}, {"letter": "B", "text": "Dialectical skills for emotion regulation"}, {"letter": "C", "text": "Exposure to the feared stimulus while preventing the ritual"}, {"letter": "D", "text": "Hypnosis to recover repressed memories"}, {"letter": "E", "text": "Systematic reinforcement of the ritual to reduce anxiety"}], "answer": "C", "explanation": "CBT for OCD uses exposure to the feared stimulus while preventing the compulsion (e.g., touching a public door handle and working through the anxiety).", "objective": "Objective 2", "section": "Obsessive-Compulsive Disorder"}, {"id": "2", "group": 2, "stem": "A clinician wants to distinguish OCD from a psychotic disorder in a patient with distressing recurrent thoughts. Which feature most reliably supports OCD rather than psychosis?", "options": [{"letter": "A", "text": "The patient reports no anxiety about the intrusive thoughts"}, {"letter": "B", "text": "The patient recognizes the thoughts as unreasonable"}, {"letter": "C", "text": "The patient shows disorganized and tangential speech"}, {"letter": "D", "text": "The patient hears voices commenting on his daily actions"}, {"letter": "E", "text": "The patient holds fixed delusional beliefs despite evidence"}], "answer": "B", "explanation": "OCD patients almost always retain insight and recognize their symptoms as unreasonable, unlike patients with psychotic disorders.", "objective": "Objective 2", "section": "Obsessive-Compulsive Disorder"}, {"id": "3", "group": 3, "stem": "A 28-year-old woman presents with multiple healing sores and scabs on her arms and face. She reports she repeatedly picks at her skin, causing the lesions, and has tried unsuccessfully to stop. She feels significant shame and distress about the behavior. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Trichotillomania"}, {"letter": "B", "text": "Delusional parasitosis"}, {"letter": "C", "text": "Factitious disorder"}, {"letter": "D", "text": "Atopic dermatitis"}, {"letter": "E", "text": "Excoriation disorder"}], "answer": "E", "explanation": "Recurrent skin picking producing skin lesions, with repeated attempts to stop and distress, is excoriation (skin-picking) disorder.", "objective": "Objective 6", "section": "Excoriation Disorder"}, {"id": "4", "group": 4, "stem": "A patient with OCD is being evaluated for coexisting conditions. Which comorbid psychiatric disorder is most commonly associated with OCD?", "options": [{"letter": "A", "text": "Bipolar I disorder"}, {"letter": "B", "text": "Antisocial personality disorder"}, {"letter": "C", "text": "Schizophrenia"}, {"letter": "D", "text": "Major depressive disorder"}, {"letter": "E", "text": "Panic disorder with agoraphobia"}], "answer": "D", "explanation": "Mood disorders are highly comorbid with OCD, and major depressive disorder is the most common single comorbidity.", "objective": "Objective 2", "section": "Obsessive-Compulsive Disorder"}, {"id": "5", "group": 5, "stem": "A 45-year-old accountant is described by coworkers as rigid, perfectionistic, and preoccupied with rules, lists, and order. He sees nothing wrong with his behavior and believes his high standards are necessary and beneficial; he has never sought help and only came in because conflict at work escalated. He has no true intrusive obsessions or ritualized compulsions. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Narcissistic personality disorder"}, {"letter": "B", "text": "Hoarding disorder"}, {"letter": "C", "text": "Obsessive-compulsive personality disorder"}, {"letter": "D", "text": "Generalized anxiety disorder"}, {"letter": "E", "text": "Obsessive-compulsive disorder"}], "answer": "C", "explanation": "Ego-syntonic perfectionism, orderliness, and control without true obsessions or compulsions, and reluctance to seek help, characterize OCPD.", "objective": "Objective 3", "section": "Obsessive-Compulsive Personality Disorder"}, {"id": "5A", "group": 5, "stem": "Which feature best distinguishes this patient's condition from the disorder marked by true intrusive obsessions and compulsions?", "options": [{"letter": "A", "text": "He responds only to unusually high doses of an SSRI"}, {"letter": "B", "text": "He experiences recurrent intrusive and unwanted images"}, {"letter": "C", "text": "His behaviors are ego-syntonic, seen as necessary"}, {"letter": "D", "text": "He acknowledges that his behavior is excessive and irrational"}, {"letter": "E", "text": "He performs more than one hour of ritualized behaviors each day"}], "answer": "C", "explanation": "OCPD is ego-syntonic — the patient sees the behaviors as necessary/beneficial — whereas OCD is ego-dystonic and distressing.", "objective": "Objective 3", "section": "Obsessive-Compulsive Personality Disorder"}, {"id": "6", "group": 6, "stem": "A clinician is teaching a student about OCD terminology. Which of the following statements correctly defines a compulsion?", "options": [{"letter": "A", "text": "A recurrent, intrusive, and unwanted thought that provokes anxiety"}, {"letter": "B", "text": "A fixed, false belief that is held despite clear contrary evidence"}, {"letter": "C", "text": "A sensory perception occurring in the absence of any real stimulus"}, {"letter": "D", "text": "A repetitive behavior performed to reduce obsession-driven anxiety"}, {"letter": "E", "text": "A persistent, excessive fear of a specific object or situation"}], "answer": "D", "explanation": "A compulsion is a repetitive behavior (e.g., washing, checking, counting) driven by an obsession and performed to reduce anxiety; an obsession is the intrusive thought itself.", "objective": "Objective 1", "section": "Terminology & Disorder Family"}, {"id": "7", "group": 7, "stem": "A 68-year-old woman is referred after a home visit revealed rooms so filled with accumulated newspapers, containers, and items that the kitchen and bedroom can no longer be used. She becomes extremely distressed at any suggestion of discarding these possessions, feeling she may need them or is attached to them. The clutter poses a fire and fall hazard. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Obsessive-compulsive personality disorder"}, {"letter": "B", "text": "Hoarding disorder"}, {"letter": "C", "text": "Obsessive-compulsive disorder"}, {"letter": "D", "text": "Body dysmorphic disorder"}, {"letter": "E", "text": "Major neurocognitive disorder"}], "answer": "B", "explanation": "Persistent difficulty discarding possessions due to a perceived need to save them, with clutter that compromises living space and safety, defines hoarding disorder.", "objective": "Objective 4", "section": "Hoarding Disorder"}, {"id": "7A", "group": 7, "stem": "Which of the following is the most appropriate first-line treatment for this condition when the patient accepts help?", "options": [{"letter": "A", "text": "A single session of motivational interviewing"}, {"letter": "B", "text": "Antipsychotic monotherapy"}, {"letter": "C", "text": "Electroconvulsive therapy"}, {"letter": "D", "text": "Benzodiazepine as needed"}, {"letter": "E", "text": "Long-term cognitive behavioral therapy"}], "answer": "E", "explanation": "Long-term CBT (often 26+ weeks) is used when the patient accepts help; SSRIs and family counseling are adjuncts.", "objective": "Objective 4", "section": "Hoarding Disorder"}, {"id": "8", "group": 8, "stem": "A 7-year-old boy develops the sudden, dramatic onset of obsessive-compulsive symptoms and motor tics within a few weeks of a documented streptococcal pharyngitis. He was previously well with no such symptoms. Which of the following best explains this presentation?", "options": [{"letter": "A", "text": "Obsessive-compulsive personality disorder"}, {"letter": "B", "text": "Functional neurological symptom disorder"}, {"letter": "C", "text": "Tourette disorder unrelated to any infection"}, {"letter": "D", "text": "Early-onset schizophrenia"}, {"letter": "E", "text": "PANDAS"}], "answer": "E", "explanation": "Abrupt onset or worsening of OCD and tics after streptococcal infection in a child is PANDAS.", "objective": "Objective 2", "section": "Obsessive-Compulsive Disorder"}, {"id": "9", "group": 9, "stem": "A 23-year-old man is preoccupied with the belief that his nose is grossly deformed, though others see it as normal. He spends three to four hours a day checking mirrors, camouflaging his face, and researching cosmetic procedures. He has consulted several plastic surgeons seeking correction. His weight and eating are normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Delusional disorder, somatic type"}, {"letter": "B", "text": "Obsessive-compulsive disorder"}, {"letter": "C", "text": "Body dysmorphic disorder"}, {"letter": "D", "text": "Anorexia nervosa"}, {"letter": "E", "text": "Social anxiety disorder"}], "answer": "C", "explanation": "Preoccupation with a perceived defect not observable to others, plus repetitive behaviors (mirror checking, camouflaging, seeking procedures), defines body dysmorphic disorder.", "objective": "Objective 7", "section": "Body Dysmorphic Disorder"}, {"id": "9A", "group": 9, "stem": "Which of the following is the most appropriate treatment for this condition?", "options": [{"letter": "A", "text": "An SSRI plus cognitive behavioral therapy"}, {"letter": "B", "text": "Referral for the cosmetic surgery the patient requests"}, {"letter": "C", "text": "An antipsychotic as first-line monotherapy"}, {"letter": "D", "text": "A benzodiazepine as monotherapy"}, {"letter": "E", "text": "Reassurance alone with no further treatment"}], "answer": "A", "explanation": "BDD is treated with the same OCD-family approach — SSRI plus CBT; cosmetic procedures generally do not relieve the preoccupation.", "objective": "Objective 7", "section": "Body Dysmorphic Disorder"}, {"id": "10", "group": 10, "stem": "A student notes that OCD, hoarding disorder, trichotillomania, excoriation disorder, and body dysmorphic disorder are grouped together in DSM-5. Which of the following is a shared feature of this disorder family?", "options": [{"letter": "A", "text": "An identical single genetic mutation in each disorder"}, {"letter": "B", "text": "A shared first-line approach of SSRI plus CBT"}, {"letter": "C", "text": "The presence of frank psychosis in every case"}, {"letter": "D", "text": "A characteristic and reliable response to lithium"}, {"letter": "E", "text": "A required symptom onset before age 5 years"}], "answer": "B", "explanation": "The OCD and related disorders share a similar treatment approach — SSRI plus CBT — across the family.", "objective": "Objective 1", "section": "Terminology & Disorder Family"}, {"id": "11", "group": 11, "stem": "A patient with OCD reports that her predominant obsession is a fear of germs and dirt, which she relieves through repeated cleaning and washing rituals. Which OCD symptom pattern does this represent, and how common is it?", "options": [{"letter": "A", "text": "Contamination — the most common symptom pattern"}, {"letter": "B", "text": "Intrusive thoughts only — with no compulsions"}, {"letter": "C", "text": "Pathological doubt — the least common pattern"}, {"letter": "D", "text": "Hoarding — the defining pattern of OCD"}, {"letter": "E", "text": "Symmetry — the most common pattern"}], "answer": "A", "explanation": "Contamination obsessions leading to cleaning/washing compulsions are the most common OCD symptom pattern.", "objective": "Objective 2", "section": "Obsessive-Compulsive Disorder"}, {"id": "12", "group": 12, "stem": "A 16-year-old girl has noticeable patchy hair loss on her scalp. She admits she repeatedly pulls out her own hair, has tried many times to stop, and feels distressed and embarrassed by it. There is no scalp inflammation or infection to explain the hair loss. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Excoriation disorder"}, {"letter": "B", "text": "Tinea capitis"}, {"letter": "C", "text": "Body dysmorphic disorder"}, {"letter": "D", "text": "Trichotillomania"}, {"letter": "E", "text": "Alopecia areata"}], "answer": "D", "explanation": "Recurrent pulling out of one's own hair leading to hair loss, with repeated attempts to stop and distress, is trichotillomania.", "objective": "Objective 5", "section": "Trichotillomania"}, {"id": "12A", "group": 12, "stem": "Besides an SSRI and CBT, which specific behavioral technique is most commonly used for this condition?", "options": [{"letter": "A", "text": "Habit-reversal therapy"}, {"letter": "B", "text": "Biofeedback for hypertension"}, {"letter": "C", "text": "Exposure and flooding"}, {"letter": "D", "text": "Systematic desensitization to needles"}, {"letter": "E", "text": "Contingency management with vouchers"}], "answer": "A", "explanation": "Habit-reversal therapy is a mainstay for trichotillomania, alongside the general OCD-family approach of SSRI plus CBT.", "objective": "Objective 5", "section": "Trichotillomania"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
