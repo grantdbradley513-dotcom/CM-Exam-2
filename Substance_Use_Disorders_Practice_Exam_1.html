@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Substance Use Disorders — Practice Exam", "questions": [{"id": "1", "group": 1, "stem": "A patient who abruptly stopped heroin is uncomfortable but not in danger. Which set of findings is most characteristic of opioid withdrawal?", "options": [{"letter": "A", "text": "Pinpoint pupils, respiratory depression, and obtundation"}, {"letter": "B", "text": "Generalized seizures and delirium that may be lethal"}, {"letter": "C", "text": "Confusion with a clouded sensorium, fever, and agitation"}, {"letter": "D", "text": "Lacrimation, rhinorrhea, yawning, mydriasis, and piloerection"}, {"letter": "E", "text": "Hyperthermia, paranoia, formication, and dilated pupils"}], "answer": "D", "explanation": "Opioid withdrawal produces lacrimation, rhinorrhea, yawning, mydriasis, piloerection, muscle aches, and GI symptoms; it is miserable but rarely fatal.", "objective": "Objective 7", "section": "Opioids"}, {"id": "2", "group": 2, "stem": "A 54-year-old man with a long history of heavy daily drinking is admitted after his last drink about three days ago. He is now confused and agitated, with visual hallucinations, fever, profuse sweating, blood pressure 178/104, and heart rate 128. He is disoriented to place and time. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Alcoholic hallucinosis"}, {"letter": "B", "text": "Withdrawal seizure"}, {"letter": "C", "text": "Minor alcohol withdrawal"}, {"letter": "D", "text": "Delirium tremens"}, {"letter": "E", "text": "Wernicke encephalopathy"}], "answer": "D", "explanation": "Delirium tremens appears roughly 48–96 hours after the last drink with confusion, agitation, autonomic instability, and hallucinations; it carries 5–15% mortality if untreated. Alcoholic hallucinosis has a clear sensorium.", "objective": "Objective 4", "section": "Alcohol"}, {"id": "2A", "group": 2, "stem": "Which of the following is the standard-of-care treatment for this patient's condition?", "options": [{"letter": "A", "text": "An antipsychotic agent given as monotherapy"}, {"letter": "B", "text": "Benzodiazepines, ideally symptom-triggered"}, {"letter": "C", "text": "Clonidine given alone to suppress autonomic signs"}, {"letter": "D", "text": "A beta-blocker given alone to control vitals"}, {"letter": "E", "text": "Phenytoin to prevent further withdrawal seizures"}], "answer": "B", "explanation": "Benzodiazepines are the standard of care for alcohol withdrawal and DTs; symptom-triggered (CIWA-Ar) dosing is preferred. Antipsychotics and beta-blockers alone are inadequate and can mask or worsen the picture.", "objective": "Objective 4", "section": "Alcohol"}, {"id": "2B", "group": 2, "stem": "To prevent Wernicke encephalopathy in this patient, which of the following must be given before glucose?", "options": [{"letter": "A", "text": "Folate"}, {"letter": "B", "text": "Vitamin B12"}, {"letter": "C", "text": "Magnesium"}, {"letter": "D", "text": "Naltrexone"}, {"letter": "E", "text": "Thiamine"}], "answer": "E", "explanation": "Thiamine must be given before glucose to prevent precipitating Wernicke encephalopathy in alcohol-dependent patients.", "objective": "Objective 4", "section": "Alcohol"}, {"id": "3", "group": 3, "stem": "A 35-year-old man presents with chest pain and hypertension shortly after using cocaine. Which of the following medications should be avoided because of the risk of unopposed alpha-adrenergic stimulation?", "options": [{"letter": "A", "text": "A pure beta-blocker such as propranolol"}, {"letter": "B", "text": "Sublingual or intravenous nitroglycerin"}, {"letter": "C", "text": "Intravenous crystalloid fluids for hydration"}, {"letter": "D", "text": "A benzodiazepine such as lorazepam for agitation"}, {"letter": "E", "text": "Aspirin for its antiplatelet effect"}], "answer": "A", "explanation": "Pure beta-blockers are avoided in cocaine toxicity because blocking beta receptors leaves alpha-mediated vasoconstriction unopposed, worsening hypertension and coronary vasospasm.", "objective": "Objective 6", "section": "Stimulants"}, {"id": "4", "group": 4, "stem": "A highly motivated patient with alcohol use disorder is started on disulfiram. He drinks alcohol and quickly develops flushing, throbbing headache, nausea, and vomiting. This aversive reaction results from inhibition of which enzyme?", "options": [{"letter": "A", "text": "Alcohol dehydrogenase"}, {"letter": "B", "text": "Monoamine oxidase"}, {"letter": "C", "text": "Cytochrome P450 2D6"}, {"letter": "D", "text": "Gamma-glutamyl transferase"}, {"letter": "E", "text": "Aldehyde dehydrogenase"}], "answer": "E", "explanation": "Disulfiram inhibits aldehyde dehydrogenase (ALDH), causing acetaldehyde accumulation and the aversive flushing reaction.", "objective": "Objective 4", "section": "Alcohol"}, {"id": "5", "group": 5, "stem": "A clinician suspects chronic heavy alcohol use in a patient and orders laboratory studies. Which pattern is most suggestive of chronic alcohol use?", "options": [{"letter": "A", "text": "An elevated lipase with otherwise normal liver enzymes"}, {"letter": "B", "text": "An isolated elevation of alkaline phosphatase only"}, {"letter": "C", "text": "ALT far greater than AST with a normal serum GGT level"}, {"letter": "D", "text": "A low MCV with an elevated serum ferritin level"}, {"letter": "E", "text": "AST:ALT ratio of at least 2:1, elevated GGT, and high MCV"}], "answer": "E", "explanation": "Chronic alcohol use classically shows an AST:ALT ratio ≥2:1, elevated GGT (most sensitive), and macrocytosis (increased MCV).", "objective": "Objective 4", "section": "Alcohol"}, {"id": "6", "group": 6, "stem": "A patient with alcohol use disorder who is also actively using opioids is considered for naltrexone. Why is naltrexone inappropriate at this time?", "options": [{"letter": "A", "text": "It has no meaningful effect on reducing alcohol craving"}, {"letter": "B", "text": "It is contraindicated solely in the presence of liver disease"}, {"letter": "C", "text": "As an antagonist, it can precipitate withdrawal in an active user"}, {"letter": "D", "text": "It is a full agonist that increases the risk of overdose"}, {"letter": "E", "text": "It causes an aversive flushing reaction only with alcohol"}], "answer": "C", "explanation": "Naltrexone is an opioid antagonist and will precipitate withdrawal in a patient actively using opioids; abstinence is required first.", "objective": "Objective 7", "section": "Opioids"}, {"id": "7", "group": 7, "stem": "A patient with opioid use disorder is to begin office-based buprenorphine. To avoid precipitated withdrawal, buprenorphine should be started only once the patient shows objective withdrawal, typically at a COWS score of at least which threshold?", "options": [{"letter": "A", "text": "20"}, {"letter": "B", "text": "8"}, {"letter": "C", "text": "0"}, {"letter": "D", "text": "2"}, {"letter": "E", "text": "40"}], "answer": "B", "explanation": "Buprenorphine, a partial mu-agonist, should be started at a COWS score of at least 8; starting sooner risks precipitated withdrawal.", "objective": "Objective 7", "section": "Opioids"}, {"id": "8", "group": 8, "stem": "A cancer patient on chronic morphine needs escalating doses for the same analgesic effect and would have withdrawal if the drug were stopped abruptly, but he uses it exactly as prescribed and has no compulsive drug-seeking. Which statement best characterizes his situation?", "options": [{"letter": "A", "text": "His tolerance and withdrawal here confirm ongoing misuse"}, {"letter": "B", "text": "He has physiologic tolerance and dependence, not addiction"}, {"letter": "C", "text": "He has an addiction because he now needs higher doses"}, {"letter": "D", "text": "He has a severe substance use disorder by strict definition"}, {"letter": "E", "text": "He should be tapered off the medication immediately for safety"}], "answer": "B", "explanation": "Tolerance and physical dependence are expected physiologic adaptations to chronic opioids and do not equal addiction, which requires compulsive use despite harm; per DSM-5, tolerance/withdrawal do not count when a medication is taken as prescribed.", "objective": "Objective 1", "section": "SUD Definitions & Severity"}, {"id": "9", "group": 9, "stem": "A 26-year-old man is found unresponsive. He has a respiratory rate of 6/min, pinpoint pupils, and decreased responsiveness. There are track marks on his arms. Which of the following best explains this presentation?", "options": [{"letter": "A", "text": "Opioid overdose"}, {"letter": "B", "text": "Benzodiazepine intoxication"}, {"letter": "C", "text": "Anticholinergic toxicity"}, {"letter": "D", "text": "Alcohol withdrawal"}, {"letter": "E", "text": "Stimulant intoxication"}], "answer": "A", "explanation": "The classic overdose triad of respiratory depression, miosis (pinpoint pupils), and depressed mental status indicates opioid overdose.", "objective": "Objective 7", "section": "Opioids"}, {"id": "9A", "group": 9, "stem": "Which of the following is the most appropriate immediate treatment for this patient?", "options": [{"letter": "A", "text": "Naltrexone"}, {"letter": "B", "text": "Flumazenil"}, {"letter": "C", "text": "Intravenous benzodiazepines"}, {"letter": "D", "text": "Naloxone"}, {"letter": "E", "text": "Activated charcoal"}], "answer": "D", "explanation": "Naloxone, a pure mu-opioid antagonist, rapidly reverses respiratory depression; its duration is short (30–90 min) so re-dosing may be needed for fentanyl or methadone.", "objective": "Objective 7", "section": "Opioids"}, {"id": "9B", "group": 9, "stem": "After stabilization, the patient wants long-term treatment for use of this substance. Which class of medication reduces all-cause mortality by roughly half?", "options": [{"letter": "A", "text": "Agonist therapy with methadone or buprenorphine"}, {"letter": "B", "text": "Long-term antipsychotic maintenance therapy"}, {"letter": "C", "text": "Antidepressant monotherapy with an SSRI"}, {"letter": "D", "text": "Short repeated courses of benzodiazepines"}, {"letter": "E", "text": "Inpatient detoxification alone without medication"}], "answer": "A", "explanation": "Medications for opioid use disorder (methadone, buprenorphine, naltrexone) cut all-cause mortality by about 50% and should be offered at first contact.", "objective": "Objective 7", "section": "Opioids"}, {"id": "10", "group": 10, "stem": "A patient meets 7 of the 11 DSM-5 criteria for a substance use disorder over the past 12 months. How is the severity of this substance use disorder classified?", "options": [{"letter": "A", "text": "Severe"}, {"letter": "B", "text": "In remission"}, {"letter": "C", "text": "Subthreshold"}, {"letter": "D", "text": "Mild"}, {"letter": "E", "text": "Moderate"}], "answer": "A", "explanation": "DSM-5 grades SUD by criteria count: mild 2–3, moderate 4–5, and severe 6 or more; 7 criteria is severe.", "objective": "Objective 1", "section": "SUD Definitions & Severity"}, {"id": "11", "group": 11, "stem": "A student is asked which classes of substances have inherently life-threatening withdrawal syndromes. Which of the following is correct?", "options": [{"letter": "A", "text": "Stimulants have the most lethal withdrawal of any class"}, {"letter": "B", "text": "No substance withdrawal syndrome is ever truly dangerous"}, {"letter": "C", "text": "Alcohol and sedative-hypnotics have inherently lethal withdrawal"}, {"letter": "D", "text": "Opioids have the most lethal withdrawal of any class"}, {"letter": "E", "text": "Cannabis withdrawal is commonly fatal without treatment"}], "answer": "C", "explanation": "Only alcohol and sedative-hypnotics (benzodiazepines) have inherently lethal withdrawal; opioid withdrawal is miserable but rarely fatal, and stimulant withdrawal is largely psychiatric.", "objective": "Objective 1", "section": "SUD Definitions & Severity"}, {"id": "12", "group": 12, "stem": "A prescriber is counseled about the danger of co-prescribing benzodiazepines with opioids. Which adverse outcome underlies the FDA black-box warning for this combination?", "options": [{"letter": "A", "text": "Serotonin syndrome with autonomic instability"}, {"letter": "B", "text": "Fulminant hepatic failure and encephalopathy"}, {"letter": "C", "text": "Profound respiratory depression and death"}, {"letter": "D", "text": "A hypertensive emergency with end-organ damage"}, {"letter": "E", "text": "An acute dystonic reaction of the head and neck"}], "answer": "C", "explanation": "Benzodiazepines cause mild respiratory depression alone but profound, often fatal respiratory depression with opioids or alcohol; about 85% of benzodiazepine deaths involve opioids.", "objective": "Objective 5", "section": "Benzodiazepines / Sedative-Hypnotics"}, {"id": "13", "group": 13, "stem": "A clinician uses a four-question tool asking whether a patient has felt the need to cut down, been annoyed by criticism, felt guilty, and needed a morning eye-opener. How many affirmative answers are considered clinically significant on this tool?", "options": [{"letter": "A", "text": "All four required"}, {"letter": "B", "text": "Three only"}, {"letter": "C", "text": "One"}, {"letter": "D", "text": "Two or more"}, {"letter": "E", "text": "Any answer, even zero"}], "answer": "D", "explanation": "On the CAGE questionnaire, two or more 'yes' answers is clinically significant; one warrants further assessment.", "objective": "Objective 3", "section": "Screening (CAGE, SBIRT)"}, {"id": "14", "group": 14, "stem": "During a toxicology lecture, a student is asked to contrast pupil findings. Which pairing of intoxication and pupil finding is correct?", "options": [{"letter": "A", "text": "Opioids cause miosis while stimulants cause mydriasis"}, {"letter": "B", "text": "Both opioids and stimulants cause mydriasis"}, {"letter": "C", "text": "Opioids cause mydriasis while stimulants cause miosis"}, {"letter": "D", "text": "Both opioids and stimulants cause miosis"}, {"letter": "E", "text": "Neither affects pupil size"}], "answer": "A", "explanation": "Opioid intoxication causes miosis (pinpoint pupils); stimulant intoxication causes mydriasis (dilated pupils) — a key clinical contrast.", "objective": "Objective 6", "section": "Stimulants"}, {"id": "15", "group": 15, "stem": "A 47-year-old man with alcohol use disorder and compensated cirrhosis wants medication to help him maintain abstinence. Given his liver disease, which first-line agent is safest because it is renally cleared and safe in hepatic impairment?", "options": [{"letter": "A", "text": "Topiramate"}, {"letter": "B", "text": "Chlordiazepoxide"}, {"letter": "C", "text": "Acamprosate"}, {"letter": "D", "text": "Oral naltrexone"}, {"letter": "E", "text": "Disulfiram"}], "answer": "C", "explanation": "Acamprosate is first-line and renally cleared, making it safe in liver disease. Naltrexone requires caution with LFTs, and disulfiram is second-line and hepatotoxic.", "objective": "Objective 4", "section": "Alcohol"}, {"id": "16", "group": 16, "stem": "A patient dependent on a short-acting benzodiazepine needs to be tapered safely. Which of the following is the preferred strategy?", "options": [{"letter": "A", "text": "Give flumazenil to rapidly reverse the physical dependence"}, {"letter": "B", "text": "Add a scheduled opioid to ease the withdrawal symptoms"}, {"letter": "C", "text": "Stop the medication abruptly and observe the patient closely"}, {"letter": "D", "text": "Substitute a barbiturate at a full dose indefinitely"}, {"letter": "E", "text": "Convert to a long-acting agent and taper gradually over months"}], "answer": "E", "explanation": "Benzodiazepine tapers convert short-acting agents to long-acting ones (e.g., diazepam/clonazepam) and reduce slowly, often over months; abrupt cessation risks seizures.", "objective": "Objective 5", "section": "Benzodiazepines / Sedative-Hypnotics"}, {"id": "17", "group": 17, "stem": "A 60-year-old woman has taken alprazolam daily for years and abruptly ran out three days ago. She now has severe anxiety, insomnia, tremor, sweating, tachycardia, hypertension, and a witnessed generalized seizure. Which statement about this withdrawal syndrome is most accurate?", "options": [{"letter": "A", "text": "It classically causes pinpoint pupils and respiratory depression"}, {"letter": "B", "text": "It should be managed by permanent abrupt discontinuation"}, {"letter": "C", "text": "It is best and most safely managed with flumazenil"}, {"letter": "D", "text": "It is purely psychiatric and is essentially never dangerous"}, {"letter": "E", "text": "Like alcohol withdrawal, it can be lethal and needs a slow taper"}], "answer": "E", "explanation": "Benzodiazepine (sedative-hypnotic) withdrawal, like alcohol, can be lethal with seizures and delirium; management is a slow taper, never abrupt cessation.", "objective": "Objective 5", "section": "Benzodiazepines / Sedative-Hypnotics"}, {"id": "18", "group": 18, "stem": "A 30-year-old man is brought to the ED agitated and paranoid. He has dilated pupils, temperature 39.2°C, heart rate 140, blood pressure 190/110, and is picking at his skin, saying bugs are crawling on him. Which of the following best explains this presentation?", "options": [{"letter": "A", "text": "Benzodiazepine intoxication"}, {"letter": "B", "text": "Alcohol withdrawal"}, {"letter": "C", "text": "Opioid withdrawal"}, {"letter": "D", "text": "Stimulant intoxication"}, {"letter": "E", "text": "Opioid intoxication"}], "answer": "D", "explanation": "Mydriasis, hyperthermia, tachycardia, hypertension, paranoia, and formication ('bugs') are classic sympathomimetic stimulant intoxication.", "objective": "Objective 6", "section": "Stimulants"}, {"id": "18A", "group": 18, "stem": "Which of the following is the most appropriate first-line agent to control this patient's agitation?", "options": [{"letter": "A", "text": "A pure beta-blocker"}, {"letter": "B", "text": "Flumazenil"}, {"letter": "C", "text": "Haloperidol as monotherapy"}, {"letter": "D", "text": "Naloxone"}, {"letter": "E", "text": "A benzodiazepine"}], "answer": "E", "explanation": "Benzodiazepines are first-line for stimulant-induced agitation; pure beta-blockers are avoided in cocaine because of unopposed alpha stimulation.", "objective": "Objective 6", "section": "Stimulants"}, {"id": "18B", "group": 18, "stem": "The patient asks about medication to treat his ongoing use disorder involving this drug. Which statement is most accurate?", "options": [{"letter": "A", "text": "No approved drug exists; contingency management is best-supported"}, {"letter": "B", "text": "Bupropion is FDA-approved and first-line for this indication"}, {"letter": "C", "text": "A scheduled benzodiazepine taper is generally curative"}, {"letter": "D", "text": "Methadone maintenance is the clear treatment of choice"}, {"letter": "E", "text": "Naltrexone reliably prevents relapse in most patients"}], "answer": "A", "explanation": "No FDA-approved medication exists for stimulant use disorder; contingency management (vouchers for negative drug screens) has the strongest evidence.", "objective": "Objective 6", "section": "Stimulants"}, {"id": "19", "group": 19, "stem": "A 40-year-old woman with alcohol use disorder is hospitalized. About 24 hours after her last drink she has a single generalized tonic-clonic seizure. Which phase of alcohol withdrawal does this most likely represent?", "options": [{"letter": "A", "text": "Protracted withdrawal lasting weeks to months"}, {"letter": "B", "text": "Withdrawal seizures, which peak around 24 hours"}, {"letter": "C", "text": "Delirium tremens, typically seen at 48–96 hours"}, {"letter": "D", "text": "Alcoholic hallucinosis with a clear sensorium"}, {"letter": "E", "text": "Minor withdrawal, typically seen at 6–12 hours"}], "answer": "B", "explanation": "Withdrawal seizures are generalized tonic-clonic, usually single, and peak around 24 hours after the last drink.", "objective": "Objective 4", "section": "Alcohol"}, {"id": "20", "group": 20, "stem": "A primary care practice implements a public-health approach of a brief validated screen, a short motivational conversation for at-risk patients, and referral of those with more severe disease to specialty addiction care. Which framework does this describe?", "options": [{"letter": "A", "text": "The COWS assessment scale"}, {"letter": "B", "text": "The Matrix model of behavioral therapy"}, {"letter": "C", "text": "SBIRT"}, {"letter": "D", "text": "The FRAMES counseling mnemonic"}, {"letter": "E", "text": "The CIWA-Ar withdrawal protocol"}], "answer": "C", "explanation": "SBIRT — Screening, Brief Intervention, and Referral to Treatment — is the SAMHSA framework described; USPSTF gives screening a Grade B for adults 18+.", "objective": "Objective 3", "section": "Screening (CAGE, SBIRT)"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
