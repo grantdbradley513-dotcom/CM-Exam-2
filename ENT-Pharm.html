@@ -1,0 +1,1725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* One-page missed-questions review */
+  .missed-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; position: sticky; top: 0; background: var(--bg); padding: 8px 0; z-index: 5; }
+  .copy-note { font-size: 0.85rem; font-weight: 600; color: var(--green); }
+  .missed-list { display: flex; flex-direction: column; gap: 18px; }
+  .missed-q { border: 1px solid var(--border); border-left: 4px solid var(--red); border-radius: 10px; padding: 14px 16px; background: var(--card); }
+  .mq-id { font-weight: 700; font-size: 0.8rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .mq-context { font-style: italic; color: var(--muted); margin-bottom: 6px; }
+  .mq-stem { font-weight: 600; margin-bottom: 8px; }
+  .mq-opts { margin-bottom: 8px; }
+  .mq-opts > div { padding: 1px 0; }
+  .mq-your { color: var(--red); font-weight: 600; }
+  .mq-correct { color: var(--green); font-weight: 600; }
+  .mq-exp { margin-top: 6px; }
+  .mq-obj { margin-top: 4px; font-size: 0.85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {
+  "title": "ENT Pharmacotherapy Interactive Exam",
+  "questions": [
+    {
+      "id": "1",
+      "group": 1,
+      "stem": "A 62-year-old man with poorly controlled hypertension asks about an oral decongestant for nasal congestion. Which adverse effect is the most significant concern with an alpha-adrenergic agonist decongestant?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Tendon rupture"
+        },
+        {
+          "letter": "B",
+          "text": "Cholestatic jaundice"
+        },
+        {
+          "letter": "C",
+          "text": "Photosensitivity rash"
+        },
+        {
+          "letter": "D",
+          "text": "Elevated blood pressure"
+        },
+        {
+          "letter": "E",
+          "text": "Excessive sedation"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Alpha-adrenergic agonists such as phenylephrine cause dose-dependent vasoconstriction and can worsen hypertension; they should be avoided or used with caution in cardiovascular disease and with MAOIs.",
+      "objective": "ENT-AR 2",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "2",
+      "group": 2,
+      "stem": "A clinician selects cefuroxime for a penicillin-allergic child with otitis media but worries about adherence. Which counseling point is most relevant to this agent?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Expect harmless red discoloration of urine"
+        },
+        {
+          "letter": "B",
+          "text": "Stop it at once if tendon pain develops"
+        },
+        {
+          "letter": "C",
+          "text": "Take whole with food; it tastes very bitter"
+        },
+        {
+          "letter": "D",
+          "text": "Separate it from acetaminophen by 2 hours"
+        },
+        {
+          "letter": "E",
+          "text": "Avoid all sun exposure while taking it"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Cefuroxime is notably bitter and its absorption improves with food and is reduced by antacids/H2 blockers; taking the tablet whole with food supports adherence.",
+      "objective": "ENT-Otitis 3",
+      "section": "Otitis Externa & Media"
+    },
+    {
+      "id": "3",
+      "group": 3,
+      "stem": "For which patient is doxycycline the LEAST appropriate choice for bacterial sinusitis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "A 50-year-old with type 2 diabetes"
+        },
+        {
+          "letter": "B",
+          "text": "A 25-year-old woman with mild asthma"
+        },
+        {
+          "letter": "C",
+          "text": "A woman who is pregnant"
+        },
+        {
+          "letter": "D",
+          "text": "A 35-year-old with seasonal allergies"
+        },
+        {
+          "letter": "E",
+          "text": "A 40-year-old man with hypertension"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Doxycycline is contraindicated in pregnancy and in children under 8 because tetracyclines deposit in developing bone and teeth and cross the placenta.",
+      "objective": "ENT-Sinus 3",
+      "section": "Sinusitis"
+    },
+    {
+      "id": "4",
+      "group": 4,
+      "stem": "A 40-year-old truck driver needs an oral antihistamine for allergic rhinitis but cannot be drowsy on the job. Which agent is the best choice?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Diphenhydramine"
+        },
+        {
+          "letter": "B",
+          "text": "Chlorpheniramine"
+        },
+        {
+          "letter": "C",
+          "text": "Loratadine"
+        },
+        {
+          "letter": "D",
+          "text": "Promethazine"
+        },
+        {
+          "letter": "E",
+          "text": "Hydroxyzine"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Second-generation antihistamines such as loratadine are peripherally selective, polar molecules that do not readily cross the blood-brain barrier, so they are non-sedating and preferred when alertness is required.",
+      "objective": "ENT-AR 2",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "5",
+      "group": 5,
+      "stem": "A 38-year-old woman has had facial pressure, purulent nasal discharge, and congestion for 12 days. Her symptoms initially improved around day 6 but then worsened again with a fever of 39°C. Which of the following best characterizes her condition?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Acute bacterial sinusitis"
+        },
+        {
+          "letter": "B",
+          "text": "Allergic rhinitis"
+        },
+        {
+          "letter": "C",
+          "text": "Chronic sinusitis"
+        },
+        {
+          "letter": "D",
+          "text": "Vasomotor rhinitis"
+        },
+        {
+          "letter": "E",
+          "text": "Acute viral sinusitis"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Symptoms persisting beyond 10 days, or worsening after initial improvement ('double sickening'), or severe symptoms with high fever and purulent discharge, indicate acute bacterial sinusitis.",
+      "objective": "ENT-Sinus 1",
+      "section": "Sinusitis"
+    },
+    {
+      "id": "5a",
+      "group": 5,
+      "stem": "She has no drug allergies. Which of the following is the most appropriate first-line antibiotic?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Cephalexin"
+        },
+        {
+          "letter": "B",
+          "text": "Clindamycin"
+        },
+        {
+          "letter": "C",
+          "text": "Azithromycin given for five days"
+        },
+        {
+          "letter": "D",
+          "text": "Levofloxacin"
+        },
+        {
+          "letter": "E",
+          "text": "Amoxicillin-clavulanate"
+        }
+      ],
+      "answer": "E",
+      "explanation": "First-line therapy for acute bacterial sinusitis is amoxicillin or amoxicillin-clavulanate; the latter adds beta-lactamase coverage.",
+      "objective": "ENT-Sinus 2",
+      "section": "Sinusitis"
+    },
+    {
+      "id": "5b",
+      "group": 5,
+      "stem": "If she instead had a penicillin allergy, which oral agent is an appropriate alternative for this infection?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Nitrofurantoin"
+        },
+        {
+          "letter": "B",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "C",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "D",
+          "text": "Penicillin V"
+        },
+        {
+          "letter": "E",
+          "text": "Amoxicillin"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Doxycycline is a recommended alternative for bacterial sinusitis in penicillin-allergic patients; respiratory fluoroquinolones (levofloxacin, moxifloxacin) are other options.",
+      "objective": "ENT-Sinus 2",
+      "section": "Sinusitis"
+    },
+    {
+      "id": "6",
+      "group": 6,
+      "stem": "A patient treated for pharyngitis with clindamycin returns with several days of severe, watery diarrhea, crampy abdominal pain, and low-grade fever. Which complication is most likely?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Serotonin syndrome"
+        },
+        {
+          "letter": "B",
+          "text": "Cholestatic jaundice with dark urine"
+        },
+        {
+          "letter": "C",
+          "text": "Rhinitis medicamentosa"
+        },
+        {
+          "letter": "D",
+          "text": "Clostridioides difficile colitis"
+        },
+        {
+          "letter": "E",
+          "text": "Achilles tendon rupture"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Clindamycin carries the highest C. difficile risk among pharyngitis antibiotics; new severe diarrhea should prompt evaluation for C. difficile colitis.",
+      "objective": "ENT-AR 2",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "7",
+      "group": 7,
+      "stem": "A patient treated with clarithromycin for pharyngitis is also on a statin and warfarin. Which property of this macrolide most drives its drug interactions?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Irreversible platelet inhibition"
+        },
+        {
+          "letter": "B",
+          "text": "Renal tubular secretion blockade"
+        },
+        {
+          "letter": "C",
+          "text": "Strong CYP3A4 induction"
+        },
+        {
+          "letter": "D",
+          "text": "Chelation with divalent cations"
+        },
+        {
+          "letter": "E",
+          "text": "Potent CYP3A4 inhibition"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Clarithromycin is a potent CYP3A4 inhibitor, raising levels of statins (rhabdomyolysis risk), warfarin, and calcineurin inhibitors; macrolides also prolong the QT interval.",
+      "objective": "ENT-AR 2",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "8",
+      "group": 8,
+      "stem": "Compared with plain amoxicillin, amoxicillin-clavulanate is more likely to cause which adverse effect that patients should be warned about?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Nephrolithiasis"
+        },
+        {
+          "letter": "B",
+          "text": "Tendon rupture"
+        },
+        {
+          "letter": "C",
+          "text": "Diarrhea"
+        },
+        {
+          "letter": "D",
+          "text": "Photosensitivity"
+        },
+        {
+          "letter": "E",
+          "text": "Ototoxicity"
+        }
+      ],
+      "answer": "C",
+      "explanation": "The clavulanate component increases GI upset and diarrhea; taking it with food and using probiotics can help, and rare cholestatic jaundice can occur.",
+      "objective": "ENT-Sinus 3",
+      "section": "Sinusitis"
+    },
+    {
+      "id": "9",
+      "group": 9,
+      "stem": "A 30-year-old woman is prescribed doxycycline for sinusitis. Which counseling point about adverse effects is most appropriate?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Anticipate marked daytime drowsiness"
+        },
+        {
+          "letter": "B",
+          "text": "Take it with an antacid to reduce upset"
+        },
+        {
+          "letter": "C",
+          "text": "Use sunscreen because of photosensitivity"
+        },
+        {
+          "letter": "D",
+          "text": "Expect harmless red discoloration of stool"
+        },
+        {
+          "letter": "E",
+          "text": "Watch for rebound nasal congestion"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Doxycycline causes phototoxicity, so sun protection is advised. It should be taken with water while upright to avoid esophageal irritation, and antacids/dairy/iron reduce its absorption.",
+      "objective": "ENT-Sinus 3",
+      "section": "Sinusitis"
+    },
+    {
+      "id": "10",
+      "group": 10,
+      "stem": "A 2-year-old with fever, ear tugging, and irritability has a bulging, erythematous, immobile tympanic membrane. She has not taken antibiotics recently and has no drug allergies. Which of the following is the recommended first-line therapy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Oral levofloxacin"
+        },
+        {
+          "letter": "B",
+          "text": "Topical ciprofloxacin drops"
+        },
+        {
+          "letter": "C",
+          "text": "Oral azithromycin"
+        },
+        {
+          "letter": "D",
+          "text": "Oral doxycycline"
+        },
+        {
+          "letter": "E",
+          "text": "High-dose amoxicillin"
+        }
+      ],
+      "answer": "E",
+      "explanation": "High-dose amoxicillin (80-90 mg/kg/day) is first-line for acute otitis media; amoxicillin-clavulanate is used when there was recent amoxicillin use or prior treatment failure.",
+      "objective": "ENT-Otitis 2",
+      "section": "Otitis Externa & Media"
+    },
+    {
+      "id": "10a",
+      "group": 10,
+      "stem": "If she had taken amoxicillin within the past month, which regimen would be preferred to overcome likely resistance?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Amoxicillin-clavulanate"
+        },
+        {
+          "letter": "B",
+          "text": "Oral clindamycin"
+        },
+        {
+          "letter": "C",
+          "text": "Plain amoxicillin at a lower dose"
+        },
+        {
+          "letter": "D",
+          "text": "Oral doxycycline"
+        },
+        {
+          "letter": "E",
+          "text": "Topical ofloxacin drops"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Recent amoxicillin exposure or treatment failure favors amoxicillin-clavulanate, which covers beta-lactamase-producing H. influenzae and M. catarrhalis.",
+      "objective": "ENT-Otitis 2",
+      "section": "Otitis Externa & Media"
+    },
+    {
+      "id": "11",
+      "group": 11,
+      "stem": "A parent asks whether decongestants and antihistamines will help their child's acute otitis media. What is the most appropriate response about these adjuncts?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "They shorten the antibiotic course substantially"
+        },
+        {
+          "letter": "B",
+          "text": "They are first-line and replace antibiotics"
+        },
+        {
+          "letter": "C",
+          "text": "They should be added routinely to every case"
+        },
+        {
+          "letter": "D",
+          "text": "They are not recommended and lack proven benefit"
+        },
+        {
+          "letter": "E",
+          "text": "They prevent tympanic membrane perforation"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Decongestants and antihistamines are not recommended for AOM because there is no evidence of efficacy; symptomatic care is acetaminophen or ibuprofen.",
+      "objective": "ENT-Otitis 1",
+      "section": "Otitis Externa & Media"
+    },
+    {
+      "id": "12",
+      "group": 12,
+      "stem": "A 45-year-old teacher has 4 days of hoarseness and a scratchy throat following a cold. Exam is consistent with viral laryngitis. Which of the following is the most appropriate management?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Systemic corticosteroid taper"
+        },
+        {
+          "letter": "B",
+          "text": "Oral azithromycin for five days"
+        },
+        {
+          "letter": "C",
+          "text": "Voice rest, hydration, and analgesia"
+        },
+        {
+          "letter": "D",
+          "text": "Intranasal oxymetazoline for two weeks"
+        },
+        {
+          "letter": "E",
+          "text": "Oral amoxicillin for ten days"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Laryngitis is usually viral and self-limited; management is supportive with vocal rest, hydration, humidification, and acetaminophen. Antibiotics are not indicated.",
+      "objective": "ENT-AR 4",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "13",
+      "group": 13,
+      "stem": "A patient on levofloxacin asks what over-the-counter pain reliever to avoid because of a seizure-risk interaction. Which class should be avoided?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "NSAIDs such as ibuprofen"
+        },
+        {
+          "letter": "B",
+          "text": "Acetaminophen products"
+        },
+        {
+          "letter": "C",
+          "text": "Bulk-forming laxatives"
+        },
+        {
+          "letter": "D",
+          "text": "Oral antihistamines"
+        },
+        {
+          "letter": "E",
+          "text": "Topical lidocaine patches"
+        }
+      ],
+      "answer": "A",
+      "explanation": "NSAIDs can increase the CNS stimulation/seizure risk of fluoroquinolones. Levofloxacin also lowers seizure threshold and can cause dysglycemia and QT prolongation.",
+      "objective": "ENT-Sinus 3",
+      "section": "Sinusitis"
+    },
+    {
+      "id": "14",
+      "group": 14,
+      "stem": "A 3-year-old has bilateral acute otitis media accompanied by purulent conjunctivitis ('otitis-conjunctivitis syndrome'). Which organism is most likely responsible?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Staphylococcus aureus"
+        },
+        {
+          "letter": "B",
+          "text": "Haemophilus influenzae"
+        },
+        {
+          "letter": "C",
+          "text": "Streptococcus pneumoniae"
+        },
+        {
+          "letter": "D",
+          "text": "Pseudomonas aeruginosa"
+        },
+        {
+          "letter": "E",
+          "text": "Group A streptococcus"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Otitis-conjunctivitis syndrome and bilateral AOM are classically caused by H. influenzae, which frequently produces beta-lactamase and is covered by amoxicillin-clavulanate.",
+      "objective": "ENT-Otitis 2",
+      "section": "Otitis Externa & Media"
+    },
+    {
+      "id": "15",
+      "group": 15,
+      "stem": "A neonate is being treated with intravenous ceftriaxone. Co-administration with which of the following is an absolute contraindication because of fatal precipitates?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Oral probiotic supplements"
+        },
+        {
+          "letter": "B",
+          "text": "IV calcium-containing solutions"
+        },
+        {
+          "letter": "C",
+          "text": "Oral acetaminophen for fever"
+        },
+        {
+          "letter": "D",
+          "text": "Nebulized albuterol for wheeze"
+        },
+        {
+          "letter": "E",
+          "text": "Topical emollient for dry skin"
+        }
+      ],
+      "answer": "B",
+      "explanation": "In neonates, IV ceftriaxone with calcium-containing IV solutions can form fatal ceftriaxone-calcium precipitates in the lungs and kidneys (black box warning).",
+      "objective": "ENT-Otitis 3",
+      "section": "Otitis Externa & Media"
+    },
+    {
+      "id": "16",
+      "group": 16,
+      "stem": "A 35-year-old man has used a topical nasal decongestant spray every day for 2 weeks and now reports worsening congestion whenever it wears off. Which agent and complication does this describe?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Loratadine causing anticholinergic effects"
+        },
+        {
+          "letter": "B",
+          "text": "Fluticasone causing septal perforation"
+        },
+        {
+          "letter": "C",
+          "text": "Azelastine causing paradoxical bronchospasm"
+        },
+        {
+          "letter": "D",
+          "text": "Oxymetazoline causing rebound congestion"
+        },
+        {
+          "letter": "E",
+          "text": "Montelukast causing neuropsychiatric events"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Topical oxymetazoline (Afrin) should be limited to no more than 3 days; prolonged use causes rebound nasal congestion (rhinitis medicamentosa).",
+      "objective": "ENT-AR 2",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "17",
+      "group": 17,
+      "stem": "A 30-year-old with both allergic rhinitis and mild asthma could benefit from a single oral agent that treats both. Which agent is most appropriate, and what serious warning must be discussed?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Fexofenadine with black box QT prolongation risk"
+        },
+        {
+          "letter": "B",
+          "text": "Diphenhydramine; black box tendon rupture"
+        },
+        {
+          "letter": "C",
+          "text": "Montelukast; black box neuropsychiatric events"
+        },
+        {
+          "letter": "D",
+          "text": "Oxymetazoline; black box hepatotoxicity"
+        },
+        {
+          "letter": "E",
+          "text": "Phenylephrine; black box agranulocytosis"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Montelukast, a leukotriene receptor antagonist, treats both allergic rhinitis and asthma but carries a black box warning for neuropsychiatric events (depression, suicidality, agitation, sleep disturbance).",
+      "objective": "ENT-AR 2",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "18",
+      "group": 18,
+      "stem": "An 80-year-old man with allergic rhinitis is brought in after starting an over-the-counter first-generation antihistamine; he is now sedated, has a dry mouth, and reports difficulty urinating. Which of the following best explains why this class should be avoided in the elderly?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Photosensitivity and esophageal irritation"
+        },
+        {
+          "letter": "B",
+          "text": "QT prolongation with torsades risk"
+        },
+        {
+          "letter": "C",
+          "text": "Direct nephrotoxicity requiring renal dose adjustment"
+        },
+        {
+          "letter": "D",
+          "text": "Anticholinergic and sedating effects (Beers Criteria)"
+        },
+        {
+          "letter": "E",
+          "text": "Tendon rupture and cartilage damage risk"
+        }
+      ],
+      "answer": "D",
+      "explanation": "First-generation antihistamines (e.g., diphenhydramine) cross the blood-brain barrier and block muscarinic receptors, causing sedation, dry mouth, urinary retention, and blurred vision; they are on the Beers Criteria to avoid in the elderly.",
+      "objective": "ENT-AR 2",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "19",
+      "group": 19,
+      "stem": "A 12-year-old presents with fever, sore throat, tonsillar exudates, tender anterior cervical nodes, and no cough. A rapid strep test is positive for group A streptococcus. He has no drug allergies. Which of the following is the first-line antibiotic?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "B",
+          "text": "Levofloxacin"
+        },
+        {
+          "letter": "C",
+          "text": "Penicillin V"
+        },
+        {
+          "letter": "D",
+          "text": "Azithromycin"
+        },
+        {
+          "letter": "E",
+          "text": "Clindamycin"
+        }
+      ],
+      "answer": "C",
+      "explanation": "First-line treatment of GAS pharyngitis in a non-allergic patient is penicillin V (or amoxicillin); completing the full course prevents rheumatic fever.",
+      "objective": "ENT-AR 4",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "19a",
+      "group": 19,
+      "stem": "Why is completing the full course of this antibiotic emphasized in this patient?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "To prevent tendon rupture"
+        },
+        {
+          "letter": "B",
+          "text": "To prevent phototoxic skin reactions"
+        },
+        {
+          "letter": "C",
+          "text": "To prevent acute rheumatic fever"
+        },
+        {
+          "letter": "D",
+          "text": "To prevent disulfiram-like reactions"
+        },
+        {
+          "letter": "E",
+          "text": "To prevent rebound congestion"
+        }
+      ],
+      "answer": "C",
+      "explanation": "The main reason to complete the full antibiotic course in GAS pharyngitis is to eradicate the organism and prevent rheumatic fever.",
+      "objective": "ENT-AR 4",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "20",
+      "group": 20,
+      "stem": "A 68-year-old man on chronic prednisone is prescribed levofloxacin for sinusitis. He should be counseled to stop the drug and call immediately if which of the following develops?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Mild transient nasal dryness"
+        },
+        {
+          "letter": "B",
+          "text": "Harmless dark discoloration of urine"
+        },
+        {
+          "letter": "C",
+          "text": "Expected mild daytime drowsiness"
+        },
+        {
+          "letter": "D",
+          "text": "Temporary metallic taste in the mouth"
+        },
+        {
+          "letter": "E",
+          "text": "Achilles tendon pain or swelling"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Fluoroquinolones carry a black box warning for tendinopathy and tendon rupture, especially in patients over 60, on corticosteroids, or with renal/transplant history; tendon pain warrants immediate discontinuation.",
+      "objective": "ENT-Sinus 3",
+      "section": "Sinusitis"
+    },
+    {
+      "id": "21",
+      "group": 21,
+      "stem": "A 28-year-old woman has perennial nasal congestion, rhinorrhea, sneezing, and itching from dust-mite allergy, with pale boggy nasal mucosa on exam. She wants the single most effective medication for ongoing control. Which of the following is the most appropriate first-line therapy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Intranasal fluticasone daily"
+        },
+        {
+          "letter": "B",
+          "text": "Intranasal oxymetazoline as needed"
+        },
+        {
+          "letter": "C",
+          "text": "Oral diphenhydramine at night"
+        },
+        {
+          "letter": "D",
+          "text": "Oral phenylephrine twice daily"
+        },
+        {
+          "letter": "E",
+          "text": "Oral montelukast every morning"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Intranasal corticosteroids (e.g., fluticasone) are the most effective and first-line therapy for allergic rhinitis because they suppress the entire inflammatory response, not just histamine.",
+      "objective": "ENT-AR 1",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "21a",
+      "group": 21,
+      "stem": "This patient returns after 3 days frustrated that she has had little relief. What is the most appropriate counseling point?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Add a first-generation antihistamine daily"
+        },
+        {
+          "letter": "B",
+          "text": "Double the dose for faster relief today"
+        },
+        {
+          "letter": "C",
+          "text": "Use it daily; full benefit takes 1-4 weeks"
+        },
+        {
+          "letter": "D",
+          "text": "Stop it because it has clearly failed"
+        },
+        {
+          "letter": "E",
+          "text": "Switch to an oral decongestant long-term"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Intranasal corticosteroids must be used consistently; maximal benefit takes 1-4 weeks, and expecting instant relief is a common reason patients stop them.",
+      "objective": "ENT-AR 4",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "21b",
+      "group": 21,
+      "stem": "Which adverse effect is most commonly associated with this drug class, often from poor spray technique?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Systemic hypertension"
+        },
+        {
+          "letter": "B",
+          "text": "Tendon rupture"
+        },
+        {
+          "letter": "C",
+          "text": "Epistaxis"
+        },
+        {
+          "letter": "D",
+          "text": "Marked sedation"
+        },
+        {
+          "letter": "E",
+          "text": "Rebound congestion"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Epistaxis and nasal irritation are the most common adverse effects of intranasal corticosteroids, usually from spraying toward the septum instead of the lateral wall.",
+      "objective": "ENT-AR 2",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "22",
+      "group": 22,
+      "stem": "A 19-year-old competitive swimmer has ear pain, itching, and drainage. The ear canal is erythematous and edematous, and pulling on the auricle reproduces the pain. The tympanic membrane appears intact. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Otitis externa"
+        },
+        {
+          "letter": "B",
+          "text": "Cholesteatoma"
+        },
+        {
+          "letter": "C",
+          "text": "Mastoiditis"
+        },
+        {
+          "letter": "D",
+          "text": "Acute otitis media"
+        },
+        {
+          "letter": "E",
+          "text": "Bullous myringitis"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Pain with tragal/auricular manipulation, canal edema and drainage, and water exposure are classic for otitis externa (often Pseudomonas aeruginosa).",
+      "objective": "ENT-Otitis 1",
+      "section": "Otitis Externa & Media"
+    },
+    {
+      "id": "22a",
+      "group": 22,
+      "stem": "Assuming an intact tympanic membrane, which of the following is the preferred topical treatment?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Intranasal corticosteroid spray"
+        },
+        {
+          "letter": "B",
+          "text": "Oral azithromycin for five days"
+        },
+        {
+          "letter": "C",
+          "text": "Systemic vancomycin infusion"
+        },
+        {
+          "letter": "D",
+          "text": "Oral amoxicillin for ten days"
+        },
+        {
+          "letter": "E",
+          "text": "Ciprofloxacin with a topical steroid"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Topical fluoroquinolone/steroid drops (e.g., ciprofloxacin-hydrocortisone or ciprofloxacin-dexamethasone) are preferred for otitis externa, covering Pseudomonas without systemic antibiotics.",
+      "objective": "ENT-Otitis 1",
+      "section": "Otitis Externa & Media"
+    },
+    {
+      "id": "22b",
+      "group": 22,
+      "stem": "A neomycin-polymyxin-hydrocortisone (Cortisporin) otic preparation is being considered. Which factor most limits its use?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Disulfiram-like reaction with alcohol"
+        },
+        {
+          "letter": "B",
+          "text": "QT prolongation requiring an ECG"
+        },
+        {
+          "letter": "C",
+          "text": "Tendon rupture with corticosteroid use"
+        },
+        {
+          "letter": "D",
+          "text": "Ototoxicity risk and use with a perforated eardrum"
+        },
+        {
+          "letter": "E",
+          "text": "Photosensitivity requiring strict sun avoidance"
+        }
+      ],
+      "answer": "D",
+      "explanation": "The neomycin in Cortisporin Otic is potentially ototoxic, especially with prolonged use, and it should not be used when the tympanic membrane is perforated.",
+      "objective": "ENT-Otitis 3",
+      "section": "Otitis Externa & Media"
+    },
+    {
+      "id": "23",
+      "group": 23,
+      "stem": "A child on cefdinir who also takes an iron supplement develops reddish discoloration of the stool. What is the most appropriate response?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Begin a proton pump inhibitor promptly"
+        },
+        {
+          "letter": "B",
+          "text": "Reassure that it is a benign iron-drug interaction"
+        },
+        {
+          "letter": "C",
+          "text": "Order an urgent endoscopy for possible hematochezia"
+        },
+        {
+          "letter": "D",
+          "text": "Switch to intravenous antibiotics now"
+        },
+        {
+          "letter": "E",
+          "text": "Stop cefdinir immediately for GI bleeding"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Cefdinir plus iron forms a nonabsorbable complex that can turn the stool red/brown; it is benign and not blood. Separate iron/antacids from cefdinir by about 2 hours.",
+      "objective": "ENT-Otitis 3",
+      "section": "Otitis Externa & Media"
+    },
+    {
+      "id": "24",
+      "group": 24,
+      "stem": "A 5-year-old with acute otitis media has a history of anaphylaxis to penicillin, so all beta-lactams are avoided. Which of the following is an appropriate option?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Azithromycin"
+        },
+        {
+          "letter": "B",
+          "text": "Cefdinir"
+        },
+        {
+          "letter": "C",
+          "text": "Cefuroxime"
+        },
+        {
+          "letter": "D",
+          "text": "Amoxicillin-clavulanate"
+        },
+        {
+          "letter": "E",
+          "text": "Ceftriaxone"
+        }
+      ],
+      "answer": "A",
+      "explanation": "With a severe (anaphylactic) penicillin allergy, cephalosporins are avoided; azithromycin or clindamycin are the limited alternatives for AOM.",
+      "objective": "ENT-Otitis 2",
+      "section": "Otitis Externa & Media"
+    },
+    {
+      "id": "25",
+      "group": 25,
+      "stem": "A 55-year-old man on warfarin is prescribed amoxicillin for bacterial sinusitis. Which of the following is the most important drug-interaction concern?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Increased INR and bleeding risk"
+        },
+        {
+          "letter": "B",
+          "text": "Tendon rupture risk"
+        },
+        {
+          "letter": "C",
+          "text": "Reduced amoxicillin absorption"
+        },
+        {
+          "letter": "D",
+          "text": "Serotonin syndrome"
+        },
+        {
+          "letter": "E",
+          "text": "QT prolongation and torsades"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Amoxicillin can raise the INR in patients on warfarin, increasing bleeding risk; INR should be monitored. (It also interacts with methotrexate and allopurinol.)",
+      "objective": "ENT-Sinus 3",
+      "section": "Sinusitis"
+    },
+    {
+      "id": "26",
+      "group": 26,
+      "stem": "A patient with viral sinusitis is using an intranasal decongestant for symptomatic relief. What is the most important counseling point?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Take it only on an empty stomach"
+        },
+        {
+          "letter": "B",
+          "text": "Expect full relief only after 4 weeks"
+        },
+        {
+          "letter": "C",
+          "text": "Limit use to no more than 3 days"
+        },
+        {
+          "letter": "D",
+          "text": "Continue daily for at least a month"
+        },
+        {
+          "letter": "E",
+          "text": "Avoid it entirely with any dairy intake"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Intranasal decongestants should be limited to 3 days or fewer to avoid rebound congestion (rhinitis medicamentosa).",
+      "objective": "ENT-Sinus 1",
+      "section": "Sinusitis"
+    },
+    {
+      "id": "27",
+      "group": 27,
+      "stem": "A 25-year-old with GAS pharyngitis has a documented history of anaphylaxis to penicillin. A cephalosporin is therefore avoided. Which of the following is an appropriate alternative?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Azithromycin"
+        },
+        {
+          "letter": "B",
+          "text": "Cefuroxime"
+        },
+        {
+          "letter": "C",
+          "text": "Cephalexin"
+        },
+        {
+          "letter": "D",
+          "text": "Amoxicillin"
+        },
+        {
+          "letter": "E",
+          "text": "Benzathine penicillin G"
+        }
+      ],
+      "answer": "A",
+      "explanation": "For a history of anaphylaxis to penicillin, beta-lactams (including cephalosporins) are avoided; a macrolide (azithromycin, clarithromycin) or clindamycin is used, keeping macrolide resistance in mind.",
+      "objective": "ENT-AR 4",
+      "section": "Rhinitis, Laryngitis & Pharyngitis"
+    },
+    {
+      "id": "28",
+      "group": 28,
+      "stem": "A 4-year-old with acute otitis media has a history of a non-severe rash to amoxicillin (no anaphylaxis). Which of the following is an appropriate alternative?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "B",
+          "text": "Nitrofurantoin"
+        },
+        {
+          "letter": "C",
+          "text": "Cefdinir"
+        },
+        {
+          "letter": "D",
+          "text": "Ampicillin"
+        },
+        {
+          "letter": "E",
+          "text": "Penicillin V"
+        }
+      ],
+      "answer": "C",
+      "explanation": "For a non-severe penicillin allergy, an oral cephalosporin such as cefdinir, cefuroxime, or cefpodoxime (or ceftriaxone) is appropriate; cross-reactivity is low (~1-2%).",
+      "objective": "ENT-Otitis 2",
+      "section": "Otitis Externa & Media"
+    }
+  ]
+};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missedQuestions().length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedList);
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function parentLookup() {
+    const p = {};
+    groups.forEach(g => { p[g[0].group] = g[0]; });
+    return p;
+  }
+
+  function missedPlainText() {
+    const missed = missedQuestions();
+    const parentOf = parentLookup();
+    const lines = [(EXAM_DATA.title || 'Exam') + ' — Missed Questions (' + missed.length + ')', ''];
+    missed.forEach(q => {
+      lines.push('Question ' + q.id);
+      const parent = parentOf[q.group];
+      if (parent && parent.id !== q.id) lines.push('[Case] ' + parent.stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      const yours = q.options.find(o => o.letter === answers[q.id]);
+      const corr = q.options.find(o => o.letter === q.answer);
+      lines.push('Your answer: ' + answers[q.id] + (yours ? '. ' + yours.text : ''));
+      lines.push('Correct answer: ' + q.answer + (corr ? '. ' + corr.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  function fallbackCopy(text, ok, fail) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-1000px';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    let done = false;
+    try { done = document.execCommand('copy'); } catch (e) { done = false; }
+    document.body.removeChild(ta);
+    done ? ok() : fail();
+  }
+
+  function copyMissed() {
+    const text = missedPlainText();
+    const note = $('copy-note');
+    const ok = () => { if (note) { note.textContent = 'Copied to clipboard!'; setTimeout(() => { note.textContent = ''; }, 2500); } };
+    const fail = () => { if (note) note.textContent = 'Select the text below and press Ctrl/Cmd+C'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok).catch(() => fallbackCopy(text, ok, fail));
+    } else { fallbackCopy(text, ok, fail); }
+  }
+
+  function showMissedList() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missedlist';
+    const parentOf = parentLookup();
+    let html = '<div class="missed-bar">';
+    html += '<button class="btn primary" id="btn-copy-missed">Copy all</button>';
+    html += '<button class="btn ghost" id="btn-back-results">Back to results</button>';
+    html += '<span class="copy-note" id="copy-note"></span></div>';
+    html += '<div class="missed-list" id="missed-list">';
+    missed.forEach(q => {
+      html += '<div class="missed-q">';
+      html += '<div class="mq-id">Question ' + esc(q.id) + '</div>';
+      const parent = parentOf[q.group];
+      if (parent && parent.id !== q.id) html += '<div class="mq-context">' + esc(parent.stem) + '</div>';
+      html += '<div class="mq-stem">' + esc(q.stem) + '</div>';
+      html += '<div class="mq-opts">';
+      q.options.forEach(o => { html += '<div>' + esc(o.letter) + '. ' + esc(o.text) + '</div>'; });
+      html += '</div>';
+      const yours = q.options.find(o => o.letter === answers[q.id]);
+      const corr = q.options.find(o => o.letter === q.answer);
+      html += '<div class="mq-your">Your answer: ' + esc(answers[q.id]) + (yours ? '. ' + esc(yours.text) : '') + '</div>';
+      html += '<div class="mq-correct">Correct answer: ' + esc(q.answer) + (corr ? '. ' + esc(corr.text) : '') + '</div>';
+      if (q.explanation) html += '<div class="mq-exp">' + esc(q.explanation) + '</div>';
+      if (q.objective) html += '<div class="mq-obj">' + esc(q.objective) + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    $('btn-back-results').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

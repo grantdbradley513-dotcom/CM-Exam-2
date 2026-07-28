@@ -1,0 +1,1136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* One-page missed-questions review */
+  .missed-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; position: sticky; top: 0; background: var(--bg); padding: 8px 0; z-index: 5; }
+  .copy-note { font-size: 0.85rem; font-weight: 600; color: var(--green); }
+  .missed-list { display: flex; flex-direction: column; gap: 18px; }
+  .missed-q { border: 1px solid var(--border); border-left: 4px solid var(--red); border-radius: 10px; padding: 14px 16px; background: var(--card); }
+  .mq-id { font-weight: 700; font-size: 0.8rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .mq-context { font-style: italic; color: var(--muted); margin-bottom: 6px; }
+  .mq-stem { font-weight: 600; margin-bottom: 8px; }
+  .mq-opts { margin-bottom: 8px; }
+  .mq-opts > div { padding: 1px 0; }
+  .mq-your { color: var(--red); font-weight: 600; }
+  .mq-correct { color: var(--green); font-weight: 600; }
+  .mq-exp { margin-top: 6px; }
+  .mq-obj { margin-top: 4px; font-size: 0.85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {
+  "title": "Pharm-Focused Combined Exam — Parasitic Infections",
+  "questions": [
+    {
+      "id": "1",
+      "group": 1,
+      "stem": "A 40-year-old man develops diarrhea, then fever, marked periorbital and facial edema, conjunctivitis, and diffuse myalgias about a week after eating undercooked wild boar. Labs show striking eosinophilia and elevated muscle enzymes. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Ascariasis"
+        },
+        {
+          "letter": "B",
+          "text": "Trichinellosis"
+        },
+        {
+          "letter": "C",
+          "text": "Strongyloidiasis"
+        },
+        {
+          "letter": "D",
+          "text": "Cysticercosis"
+        },
+        {
+          "letter": "E",
+          "text": "Schistosomiasis"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Periorbital edema, myalgias, fever, and eosinophilia after eating undercooked pork or wild game are classic for Trichinella; larvae encyst in muscle. Severe disease can cause myocarditis and CNS involvement. (Clin Med — Nematodes (Trichinella))",
+      "objective": "",
+      "section": "Clinical Medicine"
+    },
+    {
+      "id": "2",
+      "group": 2,
+      "stem": "A traveler is going to a region where Plasmodium vivax is common and wants prophylaxis that also acts against dormant liver forms. After confirming a normal G6PD level, which agent fits this need?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "B",
+          "text": "Primaquine"
+        },
+        {
+          "letter": "C",
+          "text": "Nystatin"
+        },
+        {
+          "letter": "D",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "E",
+          "text": "Fluconazole"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Primaquine (and tafenoquine) act against dormant hepatic forms of P. vivax/ovale to prevent relapse and require G6PD testing before use.",
+      "objective": "TFP 3",
+      "section": "Malaria (Pharm)"
+    },
+    {
+      "id": "3",
+      "group": 3,
+      "stem": "A 28-year-old woman has vaginal itching, dysuria, and a frothy, greenish-yellow discharge; wet mount shows motile trichomonads. Which of the following is the drug of choice?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "B",
+          "text": "Albendazole"
+        },
+        {
+          "letter": "C",
+          "text": "Fluconazole"
+        },
+        {
+          "letter": "D",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "E",
+          "text": "Nystatin"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Metronidazole is the drug of choice for Trichomonas vaginalis (also for giardiasis, amebiasis, and bacterial vaginosis).",
+      "objective": "TFP 3",
+      "section": "Trichomonas/Giardia (Pharm)"
+    },
+    {
+      "id": "3a",
+      "group": 3,
+      "stem": "Which counseling point about this drug is most important?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Use sunscreen daily to prevent phototoxic skin burns"
+        },
+        {
+          "letter": "B",
+          "text": "Expect harmless red discoloration of urine"
+        },
+        {
+          "letter": "C",
+          "text": "Stop the drug if tendon pain develops"
+        },
+        {
+          "letter": "D",
+          "text": "Take it with iron to improve absorption"
+        },
+        {
+          "letter": "E",
+          "text": "Avoid alcohol to prevent a disulfiram-like reaction"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Metronidazole causes a disulfiram-like reaction with alcohol; patients must avoid alcohol during and shortly after therapy. It can also prolong the QT interval.",
+      "objective": "TFP 3",
+      "section": "Trichomonas/Giardia (Pharm)"
+    },
+    {
+      "id": "4",
+      "group": 4,
+      "stem": "A 5-year-old boy is brought in for several days of intense nighttime anal itching, with excoriation of the perianal skin. He has no fever, diarrhea, or abdominal pain, and he attends preschool. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Perianal streptococcal dermatitis"
+        },
+        {
+          "letter": "B",
+          "text": "Trichuriasis"
+        },
+        {
+          "letter": "C",
+          "text": "Contact dermatitis"
+        },
+        {
+          "letter": "D",
+          "text": "Enterobiasis (pinworm)"
+        },
+        {
+          "letter": "E",
+          "text": "Ascariasis"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Nocturnal perianal pruritus in a school-age child is classic pinworm (Enterobius vermicularis), the most common helminthic infection in the U.S. (Clin Med — Nematodes (Enterobius))",
+      "objective": "",
+      "section": "Clinical Medicine"
+    },
+    {
+      "id": "5",
+      "group": 5,
+      "stem": "A 7-year-old recent immigrant presents with abdominal pain and vomiting; his mother saved a ~6 cm reddish-brown worm from his emesis, and imaging shows small-bowel obstruction. This is classic ascariasis. Which drug class is first-line?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Benzimidazoles (albendazole/mebendazole)"
+        },
+        {
+          "letter": "B",
+          "text": "Macrolides (azithromycin)"
+        },
+        {
+          "letter": "C",
+          "text": "Tetracyclines (doxycycline)"
+        },
+        {
+          "letter": "D",
+          "text": "Nitroimidazoles (metronidazole/tinidazole)"
+        },
+        {
+          "letter": "E",
+          "text": "Echinocandins (caspofungin)"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Roundworm (Ascaris) is treated with a benzimidazole such as albendazole or mebendazole.",
+      "objective": "TFP 3",
+      "section": "Helminths (Pharm)"
+    },
+    {
+      "id": "6",
+      "group": 6,
+      "stem": "A 6-year-old has perianal itching worse at night, and a household member saw the child scratching frequently. Enterobiasis (pinworm) is diagnosed. Which of the following is appropriate first-line therapy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Doxycycline for 10 days"
+        },
+        {
+          "letter": "B",
+          "text": "Albendazole, repeated in 2 weeks"
+        },
+        {
+          "letter": "C",
+          "text": "Fluconazole single dose"
+        },
+        {
+          "letter": "D",
+          "text": "Oral metronidazole for seven days"
+        },
+        {
+          "letter": "E",
+          "text": "Praziquantel single dose"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Pinworm is treated with a benzimidazole (albendazole or mebendazole) or pyrantel pamoate, repeated in 2 weeks; the whole household is usually treated.",
+      "objective": "TFP 3",
+      "section": "Helminths (Pharm)"
+    },
+    {
+      "id": "7",
+      "group": 7,
+      "stem": "A patient with Plasmodium vivax malaria needs an agent to eradicate the dormant liver forms and prevent relapse. Which test must be checked before prescribing this agent because of hemolysis risk?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "TSH (thyroid function)"
+        },
+        {
+          "letter": "B",
+          "text": "G6PD level (primaquine)"
+        },
+        {
+          "letter": "C",
+          "text": "Ferritin (iron stores)"
+        },
+        {
+          "letter": "D",
+          "text": "Serum lipase (pancreatitis)"
+        },
+        {
+          "letter": "E",
+          "text": "INR (warfarin sensitivity)"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Primaquine prevents relapse of P. vivax/ovale by eliminating dormant liver forms but can cause severe hemolysis in G6PD deficiency, so G6PD status must be checked first.",
+      "objective": "TFP 3",
+      "section": "Malaria (Pharm)"
+    },
+    {
+      "id": "8",
+      "group": 8,
+      "stem": "A traveler is diagnosed with schistosomiasis, and another patient has a tapeworm (cestode) infection. Which single agent is the treatment of choice for both of these conditions?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "B",
+          "text": "Albendazole"
+        },
+        {
+          "letter": "C",
+          "text": "Chloroquine"
+        },
+        {
+          "letter": "D",
+          "text": "Praziquantel"
+        },
+        {
+          "letter": "E",
+          "text": "Ivermectin"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Praziquantel is the treatment of choice for all forms of schistosomiasis (flukes) and cestode (tapeworm) infections; it is contraindicated in pregnancy/nursing.",
+      "objective": "TFP 3",
+      "section": "Helminths (Pharm)"
+    },
+    {
+      "id": "9",
+      "group": 9,
+      "stem": "A patient is treated with ivermectin for strongyloidiasis. Which adverse reaction, resulting from the death of parasites, should be anticipated?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Cholestatic jaundice with prolonged use"
+        },
+        {
+          "letter": "B",
+          "text": "Disulfiram-like reaction with any alcohol"
+        },
+        {
+          "letter": "C",
+          "text": "Cinchonism with tinnitus and vertigo"
+        },
+        {
+          "letter": "D",
+          "text": "Achilles tendon rupture with corticosteroids"
+        },
+        {
+          "letter": "E",
+          "text": "Fever, headache, hypotension (Mazzotti reaction)"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Ivermectin can cause a Mazzotti-like reaction (fever, headache, dizziness, hypotension) from parasite killing; it is used for strongyloidiasis and scabies and is avoided in pregnancy.",
+      "objective": "TFP 3",
+      "section": "Helminths (Pharm)"
+    },
+    {
+      "id": "10",
+      "group": 10,
+      "stem": "A 7-year-old boy who immigrated from Central America presents with abdominal pain and vomiting. His mother brings in a 6 cm reddish-brown worm he vomited. Exam shows a distended, tender abdomen with high-pitched bowel sounds, and abdominal films show air-fluid levels consistent with small bowel obstruction. Stool shows characteristic eggs and there is mild eosinophilia. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Taeniasis"
+        },
+        {
+          "letter": "B",
+          "text": "Trichuriasis"
+        },
+        {
+          "letter": "C",
+          "text": "Enterobiasis"
+        },
+        {
+          "letter": "D",
+          "text": "Ascariasis"
+        },
+        {
+          "letter": "E",
+          "text": "Strongyloidiasis"
+        }
+      ],
+      "answer": "D",
+      "explanation": "A large roundworm causing bowel obstruction and oral expulsion, with eggs on stool and eosinophilia, is Ascaris lumbricoides — the largest intestinal nematode and the most common helminth worldwide. (Clin Med — Nematodes (Ascaris))",
+      "objective": "",
+      "section": "Clinical Medicine"
+    },
+    {
+      "id": "11",
+      "group": 11,
+      "stem": "A patient treated with quinine for resistant malaria develops nausea, tinnitus, and vertigo that resolve when the drug is stopped. What is this reversible syndrome called?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Cinchonism"
+        },
+        {
+          "letter": "B",
+          "text": "Serotonin syndrome"
+        },
+        {
+          "letter": "C",
+          "text": "Rhinitis medicamentosa"
+        },
+        {
+          "letter": "D",
+          "text": "Red man syndrome"
+        },
+        {
+          "letter": "E",
+          "text": "Mazzotti reaction"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Quinine causes cinchonism, a reversible syndrome of nausea/vomiting, tinnitus, and vertigo that resolves on discontinuation.",
+      "objective": "TFP 3",
+      "section": "Malaria (Pharm)"
+    },
+    {
+      "id": "12",
+      "group": 12,
+      "stem": "A 34-year-old backpacker has 10 days of foul-smelling, greasy diarrhea, bloating, and flatulence after drinking from a stream; stool testing confirms Giardia. Beyond rehydration, which of the following is an appropriate antimicrobial for symptomatic disease?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Fluconazole"
+        },
+        {
+          "letter": "B",
+          "text": "Praziquantel"
+        },
+        {
+          "letter": "C",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "D",
+          "text": "Metronidazole"
+        },
+        {
+          "letter": "E",
+          "text": "Chloroquine"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Symptomatic giardiasis is treated with metronidazole, tinidazole, or nitazoxanide, along with supportive fluid/electrolyte care.",
+      "objective": "TFP 3",
+      "section": "Trichomonas/Giardia (Pharm)"
+    },
+    {
+      "id": "13",
+      "group": 13,
+      "stem": "A 24-year-old man returns from six months in West Africa with intensely itchy skin, subcutaneous nodules, and progressive visual impairment. He worked near fast-flowing rivers where he was repeatedly bitten by blackflies. Skin snips reveal microfilariae. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Cutaneous larva migrans infection"
+        },
+        {
+          "letter": "B",
+          "text": "Lymphatic filariasis"
+        },
+        {
+          "letter": "C",
+          "text": "Onchocerciasis (river blindness)"
+        },
+        {
+          "letter": "D",
+          "text": "Loiasis"
+        },
+        {
+          "letter": "E",
+          "text": "Schistosomiasis"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Blackfly-transmitted Onchocerca volvulus causes pruritic dermatitis, subcutaneous nodules, and ocular disease progressing to blindness ('river blindness'); diagnosis is by skin snips. (Clin Med — Nematodes (onchocerciasis))",
+      "objective": "",
+      "section": "Clinical Medicine"
+    },
+    {
+      "id": "14",
+      "group": 14,
+      "stem": "A pregnant patient is diagnosed with an intestinal helminth infection. Which consideration is most important when choosing therapy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Anthelmintics must be separated from iron by 4 hours"
+        },
+        {
+          "letter": "B",
+          "text": "All anthelmintics are completely safe to use in pregnancy"
+        },
+        {
+          "letter": "C",
+          "text": "Benzimidazoles and ivermectin are unsafe in pregnancy"
+        },
+        {
+          "letter": "D",
+          "text": "Anthelmintics all cause a disulfiram-like reaction"
+        },
+        {
+          "letter": "E",
+          "text": "Anthelmintics require G6PD testing before all use"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Benzimidazoles (albendazole/mebendazole), ivermectin, and praziquantel are generally contraindicated or used with caution in pregnancy; timing of therapy and drug choice must account for this.",
+      "objective": "TFP 4",
+      "section": "Helminths (Pharm)"
+    },
+    {
+      "id": "15",
+      "group": 15,
+      "stem": "A 32-year-old field scientist returns from a tropical malaria-endemic region with fever, chills, headache, and a blood smear showing Plasmodium falciparum. Which of the following is generally the most effective treatment option?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Oral doxycycline monotherapy for a week"
+        },
+        {
+          "letter": "B",
+          "text": "Oral metronidazole"
+        },
+        {
+          "letter": "C",
+          "text": "Oral fluconazole"
+        },
+        {
+          "letter": "D",
+          "text": "Artemisinin-based combination therapy"
+        },
+        {
+          "letter": "E",
+          "text": "Oral albendazole"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Artemisinin-based combination therapies (e.g., artemether-lumefantrine) are the most effective option for P. falciparum and are combined to prevent resistance.",
+      "objective": "TFP 3",
+      "section": "Malaria (Pharm)"
+    },
+    {
+      "id": "15a",
+      "group": 15,
+      "stem": "Which species is emphasized as the most dangerous, potentially fatal cause of malaria?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Plasmodium vivax"
+        },
+        {
+          "letter": "B",
+          "text": "Plasmodium falciparum"
+        },
+        {
+          "letter": "C",
+          "text": "Plasmodium knowlesi"
+        },
+        {
+          "letter": "D",
+          "text": "Plasmodium ovale"
+        },
+        {
+          "letter": "E",
+          "text": "Plasmodium malariae"
+        }
+      ],
+      "answer": "B",
+      "explanation": "P. falciparum is the most dangerous species, capable of rapidly fulminant, fatal disease; malaria is transmitted by the female Anopheles mosquito.",
+      "objective": "TFP 3",
+      "section": "Malaria (Pharm)"
+    }
+  ]
+};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missedQuestions().length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedList);
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function parentLookup() {
+    const p = {};
+    groups.forEach(g => { p[g[0].group] = g[0]; });
+    return p;
+  }
+
+  function missedPlainText() {
+    const missed = missedQuestions();
+    const parentOf = parentLookup();
+    const lines = [(EXAM_DATA.title || 'Exam') + ' — Missed Questions (' + missed.length + ')', ''];
+    missed.forEach(q => {
+      lines.push('Question ' + q.id);
+      const parent = parentOf[q.group];
+      if (parent && parent.id !== q.id) lines.push('[Case] ' + parent.stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      const yours = q.options.find(o => o.letter === answers[q.id]);
+      const corr = q.options.find(o => o.letter === q.answer);
+      lines.push('Your answer: ' + answers[q.id] + (yours ? '. ' + yours.text : ''));
+      lines.push('Correct answer: ' + q.answer + (corr ? '. ' + corr.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  function fallbackCopy(text, ok, fail) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-1000px';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    let done = false;
+    try { done = document.execCommand('copy'); } catch (e) { done = false; }
+    document.body.removeChild(ta);
+    done ? ok() : fail();
+  }
+
+  function copyMissed() {
+    const text = missedPlainText();
+    const note = $('copy-note');
+    const ok = () => { if (note) { note.textContent = 'Copied to clipboard!'; setTimeout(() => { note.textContent = ''; }, 2500); } };
+    const fail = () => { if (note) note.textContent = 'Select the text below and press Ctrl/Cmd+C'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok).catch(() => fallbackCopy(text, ok, fail));
+    } else { fallbackCopy(text, ok, fail); }
+  }
+
+  function showMissedList() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missedlist';
+    const parentOf = parentLookup();
+    let html = '<div class="missed-bar">';
+    html += '<button class="btn primary" id="btn-copy-missed">Copy all</button>';
+    html += '<button class="btn ghost" id="btn-back-results">Back to results</button>';
+    html += '<span class="copy-note" id="copy-note"></span></div>';
+    html += '<div class="missed-list" id="missed-list">';
+    missed.forEach(q => {
+      html += '<div class="missed-q">';
+      html += '<div class="mq-id">Question ' + esc(q.id) + '</div>';
+      const parent = parentOf[q.group];
+      if (parent && parent.id !== q.id) html += '<div class="mq-context">' + esc(parent.stem) + '</div>';
+      html += '<div class="mq-stem">' + esc(q.stem) + '</div>';
+      html += '<div class="mq-opts">';
+      q.options.forEach(o => { html += '<div>' + esc(o.letter) + '. ' + esc(o.text) + '</div>'; });
+      html += '</div>';
+      const yours = q.options.find(o => o.letter === answers[q.id]);
+      const corr = q.options.find(o => o.letter === q.answer);
+      html += '<div class="mq-your">Your answer: ' + esc(answers[q.id]) + (yours ? '. ' + esc(yours.text) : '') + '</div>';
+      html += '<div class="mq-correct">Correct answer: ' + esc(q.answer) + (corr ? '. ' + esc(corr.text) : '') + '</div>';
+      if (q.explanation) html += '<div class="mq-exp">' + esc(q.explanation) + '</div>';
+      if (q.objective) html += '<div class="mq-obj">' + esc(q.objective) + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    $('btn-back-results').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

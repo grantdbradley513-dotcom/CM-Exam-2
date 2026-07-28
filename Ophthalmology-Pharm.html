@@ -1,0 +1,1694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* One-page missed-questions review */
+  .missed-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; position: sticky; top: 0; background: var(--bg); padding: 8px 0; z-index: 5; }
+  .copy-note { font-size: 0.85rem; font-weight: 600; color: var(--green); }
+  .missed-list { display: flex; flex-direction: column; gap: 18px; }
+  .missed-q { border: 1px solid var(--border); border-left: 4px solid var(--red); border-radius: 10px; padding: 14px 16px; background: var(--card); }
+  .mq-id { font-weight: 700; font-size: 0.8rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .mq-context { font-style: italic; color: var(--muted); margin-bottom: 6px; }
+  .mq-stem { font-weight: 600; margin-bottom: 8px; }
+  .mq-opts { margin-bottom: 8px; }
+  .mq-opts > div { padding: 1px 0; }
+  .mq-your { color: var(--red); font-weight: 600; }
+  .mq-correct { color: var(--green); font-weight: 600; }
+  .mq-exp { margin-top: 6px; }
+  .mq-obj { margin-top: 4px; font-size: 0.85rem; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {
+  "title": "Ophthalmology Pharmacotherapy Interactive Exam",
+  "questions": [
+    {
+      "id": "1",
+      "group": 1,
+      "stem": "A 74-year-old man reports sudden central vision distortion; exam and imaging confirm neovascular (wet) age-related macular degeneration with choroidal neovascularization. Which class of medication is used to treat this condition?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Topical prostaglandin analogs"
+        },
+        {
+          "letter": "B",
+          "text": "Topical beta-blockers"
+        },
+        {
+          "letter": "C",
+          "text": "Intravitreal VEGF inhibitors"
+        },
+        {
+          "letter": "D",
+          "text": "Oral corticosteroids"
+        },
+        {
+          "letter": "E",
+          "text": "Oral antihistamines"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Wet AMD is treated with intravitreal anti-VEGF agents (bevacizumab, ranibizumab, aflibercept) that suppress neovascularization.",
+      "objective": "Ophtho 6",
+      "section": "Macular Degeneration"
+    },
+    {
+      "id": "1a",
+      "group": 1,
+      "stem": "For the dry form of this same disease, which of the following is the recommended intervention?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Topical cyclosporine twice daily"
+        },
+        {
+          "letter": "B",
+          "text": "Antioxidant vitamins and lifestyle changes"
+        },
+        {
+          "letter": "C",
+          "text": "Intravitreal VEGF inhibitor injections"
+        },
+        {
+          "letter": "D",
+          "text": "Topical timolol twice daily"
+        },
+        {
+          "letter": "E",
+          "text": "Oral doxycycline for two weeks"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Dry AMD is managed with antioxidant vitamins (AREDS-type supplements) and lifestyle measures (smoking cessation, diet); anti-VEGF injections are for the wet form.",
+      "objective": "Ophtho 6",
+      "section": "Macular Degeneration"
+    },
+    {
+      "id": "2",
+      "group": 2,
+      "stem": "A 25-year-old man presents with 2 days of redness and thick, purulent discharge in the left eye that started overnight and mats the lids shut; it is now spreading to the right eye. He does not wear contact lenses. Visual acuity is normal and there is no preauricular node. Which of the following is the most appropriate treatment?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Topical latanoprost"
+        },
+        {
+          "letter": "B",
+          "text": "Warm compresses alone with no medication"
+        },
+        {
+          "letter": "C",
+          "text": "Topical erythromycin ophthalmic ointment"
+        },
+        {
+          "letter": "D",
+          "text": "Topical prednisolone"
+        },
+        {
+          "letter": "E",
+          "text": "Oral acyclovir"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Bacterial conjunctivitis in a non-contact-lens wearer is treated with a topical antibiotic such as erythromycin ointment or trimethoprim/polymyxin B drops.",
+      "objective": "Ophtho 3",
+      "section": "Conjunctivitis, Cornea & Keratitis"
+    },
+    {
+      "id": "3",
+      "group": 3,
+      "stem": "A 66-year-old man is diagnosed with primary open-angle glaucoma and elevated intraocular pressure. His clinician wants to start the preferred first-line topical agent that lowers IOP by increasing aqueous outflow, dosed once nightly. Which agent is most appropriate?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Brimonidine"
+        },
+        {
+          "letter": "B",
+          "text": "Pilocarpine"
+        },
+        {
+          "letter": "C",
+          "text": "Timolol"
+        },
+        {
+          "letter": "D",
+          "text": "Latanoprost"
+        },
+        {
+          "letter": "E",
+          "text": "Acetazolamide"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Prostaglandin analogs such as latanoprost are preferred first-line for POAG; they increase uveoscleral aqueous outflow and are dosed once at bedtime.",
+      "objective": "Ophtho 11",
+      "section": "Glaucoma"
+    },
+    {
+      "id": "3a",
+      "group": 3,
+      "stem": "Which adverse effect should this patient be counseled about with this agent?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Rebound congestion with chronic use"
+        },
+        {
+          "letter": "B",
+          "text": "Bronchospasm and symptomatic bradycardia"
+        },
+        {
+          "letter": "C",
+          "text": "Iris darkening and eyelash lengthening"
+        },
+        {
+          "letter": "D",
+          "text": "Systemic hypokalemia and weakness"
+        },
+        {
+          "letter": "E",
+          "text": "Cinchonism with tinnitus and vertigo"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Prostaglandin analogs cause brown iris pigmentation, periocular skin darkening, and eyelash growth, along with conjunctival hyperemia.",
+      "objective": "Ophtho 11",
+      "section": "Glaucoma"
+    },
+    {
+      "id": "4",
+      "group": 4,
+      "stem": "A patient with a history of recurrent anterior uveitis needs additional IOP-lowering therapy. Which topical class is used with caution because it may exacerbate intraocular inflammation?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Carbonic anhydrase inhibitors"
+        },
+        {
+          "letter": "B",
+          "text": "Alpha-2 agonists"
+        },
+        {
+          "letter": "C",
+          "text": "Beta-blockers"
+        },
+        {
+          "letter": "D",
+          "text": "Prostaglandin analogs"
+        },
+        {
+          "letter": "E",
+          "text": "Osmotic diuretics"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Prostaglandin analogs should be used with caution in patients with inflammatory eye conditions such as uveitis because they can worsen inflammation and cystoid macular edema.",
+      "objective": "Ophtho 11",
+      "section": "Glaucoma"
+    },
+    {
+      "id": "5",
+      "group": 5,
+      "stem": "A 33-year-old woman with a history of ankylosing spondylitis presents with a painful, red left eye, photophobia, and blurred vision. Slit-lamp exam shows anterior chamber cells and flare consistent with anterior uveitis. Which combination is the mainstay of treatment (with ophthalmology)?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Topical corticosteroid plus a cycloplegic"
+        },
+        {
+          "letter": "B",
+          "text": "Topical antibiotic plus artificial tears"
+        },
+        {
+          "letter": "C",
+          "text": "Oral antiviral plus topical steroid"
+        },
+        {
+          "letter": "D",
+          "text": "Topical antihistamine plus decongestant"
+        },
+        {
+          "letter": "E",
+          "text": "Topical beta-blocker plus prostaglandin analog"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Anterior uveitis is treated with a topical corticosteroid (e.g., prednisolone acetate) to reduce inflammation plus a cycloplegic/dilating agent (e.g., cyclopentolate) for pain and to prevent synechiae.",
+      "objective": "Ophtho 2",
+      "section": "Uveitis"
+    },
+    {
+      "id": "6",
+      "group": 6,
+      "stem": "A 30-year-old contact-lens wearer walked into a tree branch and now has a painful right eye with tearing, photophobia, and foreign-body sensation. Fluorescein staining shows an epithelial defect without infiltrate. Which of the following is appropriate in his management?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "An eye patch for all abrasions"
+        },
+        {
+          "letter": "B",
+          "text": "Topical antipseudomonal antibiotic (ciprofloxacin)"
+        },
+        {
+          "letter": "C",
+          "text": "Topical prednisolone drops"
+        },
+        {
+          "letter": "D",
+          "text": "Topical proparacaine for the patient to use at home for pain"
+        },
+        {
+          "letter": "E",
+          "text": "Oral valacyclovir"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Contact-lens-associated abrasions require topical antibiotic prophylaxis with antipseudomonal coverage (fluoroquinolone); topical anesthetics are not prescribed for home use because they delay healing.",
+      "objective": "Ophtho 3",
+      "section": "Conjunctivitis, Cornea & Keratitis"
+    },
+    {
+      "id": "7",
+      "group": 7,
+      "stem": "A 10-year-old has preseptal cellulitis following a scratch to the eyelid. Because of the skin trauma, MRSA coverage is desired along with an agent for streptococci. Which oral regimen best accomplishes this?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Azithromycin alone for a five-day course"
+        },
+        {
+          "letter": "B",
+          "text": "Oral penicillin V alone for ten days"
+        },
+        {
+          "letter": "C",
+          "text": "Cephalexin alone for a ten-day course"
+        },
+        {
+          "letter": "D",
+          "text": "Amoxicillin alone for a ten-day course"
+        },
+        {
+          "letter": "E",
+          "text": "TMP-SMX plus amoxicillin-clavulanate"
+        }
+      ],
+      "answer": "E",
+      "explanation": "When skin trauma raises MRSA risk, add TMP-SMX (or linezolid) for MRSA plus a beta-lactam such as amoxicillin-clavulanate (or cefpodoxime/cefdinir) for streptococcal coverage.",
+      "objective": "Ophtho 9",
+      "section": "Preseptal & Orbital Cellulitis"
+    },
+    {
+      "id": "8",
+      "group": 8,
+      "stem": "A 40-year-old man has a red, painful left eye with tearing and decreased vision. Fluorescein staining reveals a branching dendritic ulcer on the cornea. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Anterior uveitis"
+        },
+        {
+          "letter": "B",
+          "text": "Allergic conjunctivitis"
+        },
+        {
+          "letter": "C",
+          "text": "Corneal abrasion"
+        },
+        {
+          "letter": "D",
+          "text": "Herpes simplex keratitis"
+        },
+        {
+          "letter": "E",
+          "text": "Bacterial (Pseudomonas) keratitis"
+        }
+      ],
+      "answer": "D",
+      "explanation": "A dendritic (branching) corneal ulcer on fluorescein staining is the hallmark of herpes simplex keratitis.",
+      "objective": "Ophtho 3",
+      "section": "Conjunctivitis, Cornea & Keratitis"
+    },
+    {
+      "id": "8a",
+      "group": 8,
+      "stem": "Which of the following is appropriate treatment for this condition?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Topical cyclosporine twice daily"
+        },
+        {
+          "letter": "B",
+          "text": "Topical prednisolone acetate monotherapy"
+        },
+        {
+          "letter": "C",
+          "text": "Oral acyclovir or topical trifluridine"
+        },
+        {
+          "letter": "D",
+          "text": "Topical latanoprost every night"
+        },
+        {
+          "letter": "E",
+          "text": "Oral amoxicillin for ten days"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Antivirals such as oral acyclovir/valacyclovir or topical trifluridine or ganciclovir are used; topical corticosteroids are avoided because they can worsen the infection.",
+      "objective": "Ophtho 3",
+      "section": "Conjunctivitis, Cornea & Keratitis"
+    },
+    {
+      "id": "8b",
+      "group": 8,
+      "stem": "Which class of medication should specifically be AVOIDED as monotherapy in this patient?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Topical corticosteroids"
+        },
+        {
+          "letter": "B",
+          "text": "Artificial tears"
+        },
+        {
+          "letter": "C",
+          "text": "Cycloplegics"
+        },
+        {
+          "letter": "D",
+          "text": "Oral antivirals"
+        },
+        {
+          "letter": "E",
+          "text": "Topical antivirals"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Topical corticosteroids can cause worsening, geographic ulceration, and perforation in herpetic keratitis and should not be given without antiviral coverage/ophthalmology guidance.",
+      "objective": "Ophtho 3",
+      "section": "Conjunctivitis, Cornea & Keratitis"
+    },
+    {
+      "id": "9",
+      "group": 9,
+      "stem": "A 55-year-old man with metastatic melanoma on immunotherapy develops eye pain, redness, and photophobia, and is found to have anterior uveitis. Which of the following medications is a recognized cause of drug-induced uveitis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Lisinopril"
+        },
+        {
+          "letter": "B",
+          "text": "Atorvastatin"
+        },
+        {
+          "letter": "C",
+          "text": "Metformin"
+        },
+        {
+          "letter": "D",
+          "text": "Amoxicillin"
+        },
+        {
+          "letter": "E",
+          "text": "Ipilimumab"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Immunotherapy agents such as ipilimumab (as well as rifabutin and bisphosphonates) are recognized causes of drug-induced uveitis.",
+      "objective": "Ophtho 2",
+      "section": "Uveitis"
+    },
+    {
+      "id": "10",
+      "group": 10,
+      "stem": "A 7-year-old boy with a recent sinus infection presents with fever, eyelid swelling, and redness. On exam he has pain and restriction with extraocular movements, proptosis, and diplopia. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Orbital cellulitis"
+        },
+        {
+          "letter": "B",
+          "text": "Allergic conjunctivitis"
+        },
+        {
+          "letter": "C",
+          "text": "Hordeolum"
+        },
+        {
+          "letter": "D",
+          "text": "Chalazion"
+        },
+        {
+          "letter": "E",
+          "text": "Preseptal (periorbital) cellulitis"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Pain and restriction of eye movements, proptosis, and diplopia distinguish orbital cellulitis (often from ethmoid sinusitis) from preseptal cellulitis, which lacks these findings.",
+      "objective": "Ophtho 8",
+      "section": "Preseptal & Orbital Cellulitis"
+    },
+    {
+      "id": "10a",
+      "group": 10,
+      "stem": "Which of the following is the most appropriate treatment approach for this patient?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Admit for IV vancomycin and ceftriaxone"
+        },
+        {
+          "letter": "B",
+          "text": "Oral cephalexin at home for ten days"
+        },
+        {
+          "letter": "C",
+          "text": "Topical erythromycin ophthalmic ointment"
+        },
+        {
+          "letter": "D",
+          "text": "Outpatient oral amoxicillin-clavulanate"
+        },
+        {
+          "letter": "E",
+          "text": "Artificial tears and warm compresses"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Orbital cellulitis requires admission and IV antibiotics covering S. aureus/MRSA, streptococci, and gram-negatives (e.g., vancomycin plus ampicillin-sulbactam, piperacillin-tazobactam, or ceftriaxone; add metronidazole for intracranial/anaerobic concern).",
+      "objective": "Ophtho 10",
+      "section": "Preseptal & Orbital Cellulitis"
+    },
+    {
+      "id": "10b",
+      "group": 10,
+      "stem": "A different 9-year-old child has eyelid swelling and redness after a URI but NO pain with eye movements, NO proptosis, and full motility. Which treatment is most appropriate for this presentation?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Topical prednisolone drops"
+        },
+        {
+          "letter": "B",
+          "text": "Oral acyclovir"
+        },
+        {
+          "letter": "C",
+          "text": "Intravitreal anti-VEGF injection"
+        },
+        {
+          "letter": "D",
+          "text": "Admission for IV vancomycin and piperacillin-tazobactam"
+        },
+        {
+          "letter": "E",
+          "text": "Oral amoxicillin-clavulanate as an outpatient"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Preseptal cellulitis without orbital signs is treated with oral antibiotics such as amoxicillin-clavulanate; MRSA coverage (e.g., TMP-SMX) is added when skin trauma is present or there is no improvement.",
+      "objective": "Ophtho 9",
+      "section": "Preseptal & Orbital Cellulitis"
+    },
+    {
+      "id": "11",
+      "group": 11,
+      "stem": "A 60-year-old woman with rosacea has posterior blepharitis with meibomian gland dysfunction that has not responded to warm compresses, lid hygiene, and topical antibiotic ointment over 6 weeks. Which oral agent is most appropriate next?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Amoxicillin"
+        },
+        {
+          "letter": "B",
+          "text": "Itraconazole"
+        },
+        {
+          "letter": "C",
+          "text": "Doxycycline"
+        },
+        {
+          "letter": "D",
+          "text": "Acyclovir"
+        },
+        {
+          "letter": "E",
+          "text": "Prednisone"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Oral doxycycline is used for refractory posterior blepharitis/meibomian gland dysfunction for its anti-inflammatory effect on gland secretions; azithromycin is an alternative.",
+      "objective": "Ophtho 2",
+      "section": "Eyelid Disorders"
+    },
+    {
+      "id": "12",
+      "group": 12,
+      "stem": "A 21-year-old woman who sleeps in her contact lenses presents with a painful red eye, decreased vision, and a corneal infiltrate with overlying epithelial defect. Bacterial keratitis is suspected. Which topical agent is most appropriate for empiric therapy?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Artificial tears"
+        },
+        {
+          "letter": "B",
+          "text": "Prednisolone drops"
+        },
+        {
+          "letter": "C",
+          "text": "Moxifloxacin drops"
+        },
+        {
+          "letter": "D",
+          "text": "Trifluridine drops"
+        },
+        {
+          "letter": "E",
+          "text": "Latanoprost drops"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Bacterial keratitis, frequently Pseudomonas in contact-lens wearers, is treated urgently with a topical fluoroquinolone such as moxifloxacin; steroids are avoided initially.",
+      "objective": "Ophtho 3",
+      "section": "Conjunctivitis, Cornea & Keratitis"
+    },
+    {
+      "id": "13",
+      "group": 13,
+      "stem": "A patient requiring acetazolamide for glaucoma reports a prior severe reaction to sulfonamide antibiotics. Acetazolamide belongs to which mechanistic class relevant to this caution?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Nonselective beta-adrenergic blocker"
+        },
+        {
+          "letter": "B",
+          "text": "Prostaglandin analog that increases outflow"
+        },
+        {
+          "letter": "C",
+          "text": "Carbonic anhydrase inhibitor (sulfonamide)"
+        },
+        {
+          "letter": "D",
+          "text": "Cholinergic (miotic) agonist agent"
+        },
+        {
+          "letter": "E",
+          "text": "Alpha-2 adrenergic receptor agonist"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Acetazolamide is a carbonic anhydrase inhibitor and sulfonamide derivative; it reduces aqueous humor production, and caution is advised in patients with sulfa hypersensitivity.",
+      "objective": "Ophtho 11",
+      "section": "Glaucoma"
+    },
+    {
+      "id": "14",
+      "group": 14,
+      "stem": "A 22-year-old woman who wears soft contact lenses develops a red eye with purulent discharge. Because of her contact lens use, coverage of Pseudomonas aeruginosa is required. Which topical agent is most appropriate?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Ciprofloxacin ophthalmic drops"
+        },
+        {
+          "letter": "B",
+          "text": "Sulfacetamide drops"
+        },
+        {
+          "letter": "C",
+          "text": "Bacitracin ophthalmic ointment"
+        },
+        {
+          "letter": "D",
+          "text": "Trifluridine drops"
+        },
+        {
+          "letter": "E",
+          "text": "Erythromycin ophthalmic ointment"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Contact-lens wearers need antipseudomonal coverage; a topical fluoroquinolone (e.g., ciprofloxacin, ofloxacin) or an aminoglycoside such as gentamicin is preferred.",
+      "objective": "Ophtho 3",
+      "section": "Conjunctivitis, Cornea & Keratitis"
+    },
+    {
+      "id": "15",
+      "group": 15,
+      "stem": "A 24-year-old sexually active man presents with a 1-day history of severe redness and copious, profuse purulent discharge of the right eye that reaccumulates within minutes of wiping. The onset was hyperacute. Which organism is the most likely cause?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Neisseria gonorrhoeae"
+        },
+        {
+          "letter": "B",
+          "text": "Adenovirus"
+        },
+        {
+          "letter": "C",
+          "text": "Herpes simplex virus"
+        },
+        {
+          "letter": "D",
+          "text": "Staphylococcus aureus"
+        },
+        {
+          "letter": "E",
+          "text": "Pseudomonas aeruginosa"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Hyperacute conjunctivitis with copious, rapidly reaccumulating purulent discharge in a sexually active adult is classic for N. gonorrhoeae and threatens corneal perforation.",
+      "objective": "Ophtho 3",
+      "section": "Conjunctivitis, Cornea & Keratitis"
+    },
+    {
+      "id": "15a",
+      "group": 15,
+      "stem": "In addition to urgent ophthalmology referral and saline flushes, which systemic therapy is most appropriate for the causative organism?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Oral amoxicillin"
+        },
+        {
+          "letter": "B",
+          "text": "Topical artificial tears only"
+        },
+        {
+          "letter": "C",
+          "text": "Intramuscular ceftriaxone"
+        },
+        {
+          "letter": "D",
+          "text": "Oral fluconazole"
+        },
+        {
+          "letter": "E",
+          "text": "Oral acyclovir"
+        }
+      ],
+      "answer": "C",
+      "explanation": "Gonococcal conjunctivitis requires systemic ceftriaxone (1 g IM) plus a topical fluoroquinolone and saline irrigation.",
+      "objective": "Ophtho 3",
+      "section": "Conjunctivitis, Cornea & Keratitis"
+    },
+    {
+      "id": "16",
+      "group": 16,
+      "stem": "A 15-year-old girl presents with a 3-day history of a painful, red, tender swelling near the base of the lashes on her left lower lid. Visual acuity is 20/20, extraocular movements are full, and there is no proptosis. The lesion points toward the lid margin. Which of the following is the most appropriate initial management?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Oral doxycycline for two weeks"
+        },
+        {
+          "letter": "B",
+          "text": "Topical prednisolone acetate drops"
+        },
+        {
+          "letter": "C",
+          "text": "Urgent IV vancomycin and admission"
+        },
+        {
+          "letter": "D",
+          "text": "Topical cyclosporine twice daily"
+        },
+        {
+          "letter": "E",
+          "text": "Warm compresses several times daily"
+        }
+      ],
+      "answer": "E",
+      "explanation": "An acute hordeolum (stye), usually S. aureus, is managed first with warm compresses to promote drainage; a topical antibiotic can be added, and I&D is reserved for lesions that do not resolve.",
+      "objective": "Ophtho 2",
+      "section": "Eyelid Disorders"
+    },
+    {
+      "id": "17",
+      "group": 17,
+      "stem": "A clinician is teaching a patient how to instill eye drops and minimize systemic absorption of a topical glaucoma medication. Which instruction is most appropriate?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Rub the eye vigorously to spread the drop after instilling"
+        },
+        {
+          "letter": "B",
+          "text": "Close the eye and press the inner corner for 2-3 minutes"
+        },
+        {
+          "letter": "C",
+          "text": "Touch the dropper tip to the eye to ensure accurate delivery"
+        },
+        {
+          "letter": "D",
+          "text": "Give multiple different drops at once without waiting between them"
+        },
+        {
+          "letter": "E",
+          "text": "Instill the drop onto the cornea while blinking rapidly"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Closing the eye and pressing on the inner canthus (nasolacrimal occlusion) reduces systemic absorption; the dropper should not touch the eye, and when using more than one drop, separate by ~5 minutes.",
+      "objective": "Ophtho 1",
+      "section": "Administration & Education"
+    },
+    {
+      "id": "18",
+      "group": 18,
+      "stem": "A 34-year-old woman on isotretinoin for severe acne develops worsening dry, irritated eyes. Her clinician reviews her medication list for contributors to dry eye. Which of the following classes is LEAST likely to cause or worsen keratoconjunctivitis sicca?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Beta-lactam antibiotics"
+        },
+        {
+          "letter": "B",
+          "text": "Systemic antihistamines"
+        },
+        {
+          "letter": "C",
+          "text": "Anticholinergics"
+        },
+        {
+          "letter": "D",
+          "text": "Systemic retinoids"
+        },
+        {
+          "letter": "E",
+          "text": "SSRIs"
+        }
+      ],
+      "answer": "A",
+      "explanation": "Antihistamines, anticholinergics, SSRIs, systemic retinoids (isotretinoin), and beta-blockers are recognized causes of dry eye; beta-lactam antibiotics are not.",
+      "objective": "Ophtho 5",
+      "section": "Dry Eye"
+    },
+    {
+      "id": "19",
+      "group": 19,
+      "stem": "A 70-year-old man with primary open-angle glaucoma is being considered for topical timolol, which lowers IOP by decreasing aqueous humor production. Which coexisting condition is a contraindication to this agent?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Type 2 diabetes mellitus, diet-controlled"
+        },
+        {
+          "letter": "B",
+          "text": "Severe asthma with reactive airway disease"
+        },
+        {
+          "letter": "C",
+          "text": "Benign prostatic hyperplasia"
+        },
+        {
+          "letter": "D",
+          "text": "Mild knee osteoarthritis"
+        },
+        {
+          "letter": "E",
+          "text": "Gastroesophageal reflux disease"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Topical nonselective beta-blockers (timolol) can be systemically absorbed and cause bronchospasm, bradycardia, hypotension, and worsening heart failure; they are contraindicated in reactive airway disease, marked bradycardia/heart block, and decompensated heart failure.",
+      "objective": "Ophtho 11",
+      "section": "Glaucoma"
+    },
+    {
+      "id": "20",
+      "group": 20,
+      "stem": "A 28-year-old man has bilateral red eyes with watery discharge, a gritty sensation, a recent sore throat and low-grade fever, and a palpable preauricular lymph node. Vision is normal and the cornea is clear. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Acute angle-closure glaucoma"
+        },
+        {
+          "letter": "B",
+          "text": "Bacterial conjunctivitis"
+        },
+        {
+          "letter": "C",
+          "text": "Anterior uveitis"
+        },
+        {
+          "letter": "D",
+          "text": "Viral (adenoviral) conjunctivitis"
+        },
+        {
+          "letter": "E",
+          "text": "Allergic conjunctivitis"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Watery discharge, a preauricular node, and associated pharyngitis/fever are classic for adenoviral conjunctivitis.",
+      "objective": "Ophtho 3",
+      "section": "Conjunctivitis, Cornea & Keratitis"
+    },
+    {
+      "id": "20a",
+      "group": 20,
+      "stem": "What is the most appropriate management for this patient's condition?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Topical timolol twice daily"
+        },
+        {
+          "letter": "B",
+          "text": "Intramuscular ceftriaxone once"
+        },
+        {
+          "letter": "C",
+          "text": "Topical prednisolone acetate drops"
+        },
+        {
+          "letter": "D",
+          "text": "Oral doxycycline for ten days"
+        },
+        {
+          "letter": "E",
+          "text": "Supportive care and artificial tears"
+        }
+      ],
+      "answer": "E",
+      "explanation": "Adenoviral conjunctivitis is self-limited and treated supportively; topical steroids are contraindicated and antibiotics are unnecessary.",
+      "objective": "Ophtho 3",
+      "section": "Conjunctivitis, Cornea & Keratitis"
+    },
+    {
+      "id": "21",
+      "group": 21,
+      "stem": "A 19-year-old with seasonal allergies reports bilateral itchy, watery, red eyes every spring. Which topical agent provides both immediate antihistamine relief and longer-term mast cell stabilization?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Latanoprost"
+        },
+        {
+          "letter": "B",
+          "text": "Erythromycin"
+        },
+        {
+          "letter": "C",
+          "text": "Prednisolone"
+        },
+        {
+          "letter": "D",
+          "text": "Olopatadine"
+        },
+        {
+          "letter": "E",
+          "text": "Ketorolac"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Olopatadine is a combined antihistamine/mast-cell stabilizer, giving rapid symptom relief plus prophylaxis; it is preferred for allergic conjunctivitis.",
+      "objective": "Ophtho 3",
+      "section": "Conjunctivitis, Cornea & Keratitis"
+    },
+    {
+      "id": "22",
+      "group": 22,
+      "stem": "A 58-year-old man reports several weeks of red, itchy, burning eyelid margins with crusting and small collarettes at the base of the lashes. Exam shows red-rimmed lids with scurf along the anterior lash line but a clear conjunctiva and cornea. He has tried warm compresses and lid hygiene with only partial improvement. Which of the following is the most appropriate pharmacologic therapy to add?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Oral fluconazole for two weeks"
+        },
+        {
+          "letter": "B",
+          "text": "Topical erythromycin ointment"
+        },
+        {
+          "letter": "C",
+          "text": "Topical prednisolone acetate drops"
+        },
+        {
+          "letter": "D",
+          "text": "Oral valacyclovir for 7-10 days"
+        },
+        {
+          "letter": "E",
+          "text": "Topical latanoprost every night"
+        }
+      ],
+      "answer": "B",
+      "explanation": "Anterior (staphylococcal) blepharitis that persists despite lid hygiene is treated with a topical antibiotic ointment such as erythromycin or bacitracin applied to the lid margin; oral doxycycline is reserved for refractory posterior disease.",
+      "objective": "Ophtho 2",
+      "section": "Eyelid Disorders"
+    },
+    {
+      "id": "23",
+      "group": 23,
+      "stem": "A 52-year-old woman with dry mouth and dry, gritty, foreign-body sensation in both eyes that worsens later in the day is diagnosed with keratoconjunctivitis sicca. Which of the following is the appropriate first-line treatment?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Topical atropine drops"
+        },
+        {
+          "letter": "B",
+          "text": "Topical timolol twice daily"
+        },
+        {
+          "letter": "C",
+          "text": "Artificial tears (ocular lubricants)"
+        },
+        {
+          "letter": "D",
+          "text": "Topical cyclosporine emulsion drops"
+        },
+        {
+          "letter": "E",
+          "text": "Oral prednisone taper over weeks"
+        }
+      ],
+      "answer": "C",
+      "explanation": "First-line treatment of dry eye is tear supplementation with artificial tears plus environmental measures; topical cyclosporine (Restasis) is added only when first-line measures fail.",
+      "objective": "Ophtho 4",
+      "section": "Dry Eye"
+    },
+    {
+      "id": "23a",
+      "group": 23,
+      "stem": "First-line measures fail and the patient is started on topical cyclosporine. What is this agent's mechanism of action?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Prostaglandin analog that increases aqueous outflow"
+        },
+        {
+          "letter": "B",
+          "text": "Carbonic anhydrase inhibitor"
+        },
+        {
+          "letter": "C",
+          "text": "Mast cell stabilizer"
+        },
+        {
+          "letter": "D",
+          "text": "Immunosuppressant that inhibits T-cell activation"
+        },
+        {
+          "letter": "E",
+          "text": "Alpha-adrenergic vasoconstrictor"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Topical cyclosporine is an immunosuppressant that inhibits T-cell activation, reducing the inflammation that disrupts lacrimal gland function.",
+      "objective": "Ophtho 4",
+      "section": "Dry Eye"
+    },
+    {
+      "id": "24",
+      "group": 24,
+      "stem": "A 62-year-old woman presents to the ED with a sudden severely painful red right eye, blurred vision with halos around lights, headache, and nausea. Exam shows a fixed mid-dilated pupil, a hazy/cloudy cornea, and markedly elevated intraocular pressure. Which of the following is the most likely diagnosis?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Anterior uveitis"
+        },
+        {
+          "letter": "B",
+          "text": "Primary open-angle glaucoma"
+        },
+        {
+          "letter": "C",
+          "text": "Central retinal vein occlusion"
+        },
+        {
+          "letter": "D",
+          "text": "Acute angle-closure glaucoma"
+        },
+        {
+          "letter": "E",
+          "text": "Bacterial conjunctivitis"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Sudden severe eye pain with halos, a fixed mid-dilated pupil, corneal edema, and very high IOP is an ophthalmologic emergency: acute angle-closure glaucoma.",
+      "objective": "Ophtho 11",
+      "section": "Glaucoma"
+    },
+    {
+      "id": "24a",
+      "group": 24,
+      "stem": "Which agent rapidly lowers intraocular pressure by reducing aqueous humor production as part of the acute regimen for this emergency?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Cyclopentolate"
+        },
+        {
+          "letter": "B",
+          "text": "Erythromycin ointment"
+        },
+        {
+          "letter": "C",
+          "text": "Acetazolamide"
+        },
+        {
+          "letter": "D",
+          "text": "Latanoprost"
+        },
+        {
+          "letter": "E",
+          "text": "Artificial tears"
+        }
+      ],
+      "answer": "C",
+      "explanation": "The carbonic anhydrase inhibitor acetazolamide reduces aqueous humor production and is a key part of acute IOP-lowering, along with topical timolol, apraclonidine, and pilocarpine, and mannitol if needed.",
+      "objective": "Ophtho 11",
+      "section": "Glaucoma"
+    },
+    {
+      "id": "24b",
+      "group": 24,
+      "stem": "Which drug class should specifically be AVOIDED because it can precipitate this condition through pupillary dilation?",
+      "options": [
+        {
+          "letter": "A",
+          "text": "Carbonic anhydrase inhibitors"
+        },
+        {
+          "letter": "B",
+          "text": "Beta-blockers"
+        },
+        {
+          "letter": "C",
+          "text": "Prostaglandin analogs"
+        },
+        {
+          "letter": "D",
+          "text": "Anticholinergics"
+        },
+        {
+          "letter": "E",
+          "text": "Cholinergic agonists"
+        }
+      ],
+      "answer": "D",
+      "explanation": "Anticholinergics (and sympathomimetics/decongestants) dilate the pupil and can precipitate acute angle-closure; cholinergic agonists like pilocarpine constrict the pupil and help open the angle.",
+      "objective": "Ophtho 11",
+      "section": "Glaucoma"
+    }
+  ]
+};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missedQuestions().length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedList);
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function parentLookup() {
+    const p = {};
+    groups.forEach(g => { p[g[0].group] = g[0]; });
+    return p;
+  }
+
+  function missedPlainText() {
+    const missed = missedQuestions();
+    const parentOf = parentLookup();
+    const lines = [(EXAM_DATA.title || 'Exam') + ' — Missed Questions (' + missed.length + ')', ''];
+    missed.forEach(q => {
+      lines.push('Question ' + q.id);
+      const parent = parentOf[q.group];
+      if (parent && parent.id !== q.id) lines.push('[Case] ' + parent.stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      const yours = q.options.find(o => o.letter === answers[q.id]);
+      const corr = q.options.find(o => o.letter === q.answer);
+      lines.push('Your answer: ' + answers[q.id] + (yours ? '. ' + yours.text : ''));
+      lines.push('Correct answer: ' + q.answer + (corr ? '. ' + corr.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      lines.push('');
+    });
+    return lines.join('\n');
+  }
+
+  function fallbackCopy(text, ok, fail) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.top = '-1000px';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    let done = false;
+    try { done = document.execCommand('copy'); } catch (e) { done = false; }
+    document.body.removeChild(ta);
+    done ? ok() : fail();
+  }
+
+  function copyMissed() {
+    const text = missedPlainText();
+    const note = $('copy-note');
+    const ok = () => { if (note) { note.textContent = 'Copied to clipboard!'; setTimeout(() => { note.textContent = ''; }, 2500); } };
+    const fail = () => { if (note) note.textContent = 'Select the text below and press Ctrl/Cmd+C'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok).catch(() => fallbackCopy(text, ok, fail));
+    } else { fallbackCopy(text, ok, fail); }
+  }
+
+  function showMissedList() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missedlist';
+    const parentOf = parentLookup();
+    let html = '<div class="missed-bar">';
+    html += '<button class="btn primary" id="btn-copy-missed">Copy all</button>';
+    html += '<button class="btn ghost" id="btn-back-results">Back to results</button>';
+    html += '<span class="copy-note" id="copy-note"></span></div>';
+    html += '<div class="missed-list" id="missed-list">';
+    missed.forEach(q => {
+      html += '<div class="missed-q">';
+      html += '<div class="mq-id">Question ' + esc(q.id) + '</div>';
+      const parent = parentOf[q.group];
+      if (parent && parent.id !== q.id) html += '<div class="mq-context">' + esc(parent.stem) + '</div>';
+      html += '<div class="mq-stem">' + esc(q.stem) + '</div>';
+      html += '<div class="mq-opts">';
+      q.options.forEach(o => { html += '<div>' + esc(o.letter) + '. ' + esc(o.text) + '</div>'; });
+      html += '</div>';
+      const yours = q.options.find(o => o.letter === answers[q.id]);
+      const corr = q.options.find(o => o.letter === q.answer);
+      html += '<div class="mq-your">Your answer: ' + esc(answers[q.id]) + (yours ? '. ' + esc(yours.text) : '') + '</div>';
+      html += '<div class="mq-correct">Correct answer: ' + esc(q.answer) + (corr ? '. ' + esc(corr.text) : '') + '</div>';
+      if (q.explanation) html += '<div class="mq-exp">' + esc(q.explanation) + '</div>';
+      if (q.objective) html += '<div class="mq-obj">' + esc(q.objective) + '</div>';
+      html += '</div>';
+    });
+    html += '</div>';
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    $('btn-back-results').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
