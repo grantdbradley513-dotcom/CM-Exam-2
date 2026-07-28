@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Compact layout for big groups: shrink text, two columns on wide screens */
+  .group.compact { font-size: 15px; }
+  .group.compact .qcard { padding: 14px 16px; margin-bottom: 10px; }
+  .group.compact .opt { padding: 7px 10px; margin-bottom: 6px; }
+  .group.compact .stem { margin-bottom: 10px; }
+  @media (min-width: 760px) {
+    .group.compact .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .group.compact .followups .qcard { margin-bottom: 0; }
+  }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Clinical Medicine Exam 5 — Practice Exam 1", "questions": [{"id": "1", "group": 1, "stem": "A 52-year-old man of Celtic ancestry is evaluated for elevated liver enzymes found on a routine exam. He also reports arthralgias, erectile dysfunction, and increasingly bronze-colored skin, and was recently diagnosed with diabetes. Which screening result would best support the suspected diagnosis?", "options": [{"letter": "A", "text": "Elevated ceruloplasmin"}, {"letter": "B", "text": "Positive antimitochondrial antibody"}, {"letter": "C", "text": "Low ferritin with high RDW"}, {"letter": "D", "text": "Transferrin saturation over 45%"}, {"letter": "E", "text": "Positive hepatitis C antibody"}], "answer": "D", "explanation": "Screening for hereditary hemochromatosis shows a fasting transferrin saturation over 45% and elevated ferritin; treatment is phlebotomy to a ferritin of 50 to 100.", "objective": "Clin Med — Anemia", "section": "Anemia"}, {"id": "2", "group": 2, "stem": "A 34-year-old man with AIDS (CD4 count 60) presents with headache, confusion, and right-sided weakness. Contrast head CT shows multiple ring-enhancing lesions and serum Toxoplasma IgG is positive. Which is the most appropriate initial treatment?", "options": [{"letter": "A", "text": "Amphotericin B plus flucytosine"}, {"letter": "B", "text": "Ganciclovir"}, {"letter": "C", "text": "TMP-SMX"}, {"letter": "D", "text": "RIPE anti-tuberculous therapy"}, {"letter": "E", "text": "Fluconazole"}], "answer": "C", "explanation": "Multiple ring-enhancing lesions with positive Toxoplasma IgG at CD4 under 100 indicate toxoplasma encephalitis, treated with TMP-SMX; prophylaxis is indicated when Toxo IgG-positive and CD4 under 100.", "objective": "Clin Med — HIV/AIDS", "section": "HIV/AIDS"}, {"id": "3", "group": 3, "stem": "An unvaccinated 5-year-old presents with 3 days of high fever, cough, coryza, and conjunctivitis. Small bluish-white spots are seen on the buccal mucosa, and the next day an erythematous maculopapular rash appears on the face and spreads downward. Which complication is the leading cause of death from this illness?", "options": [{"letter": "A", "text": "Diarrhea"}, {"letter": "B", "text": "Pneumonia"}, {"letter": "C", "text": "Myocarditis"}, {"letter": "D", "text": "Subacute sclerosing panencephalitis"}, {"letter": "E", "text": "Otitis media"}], "answer": "B", "explanation": "The three C's plus Koplik spots and a cephalocaudal rash indicate measles; pneumonia is the leading cause of measles death. Treatment is supportive plus vitamin A.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "4", "group": 4, "stem": "A 22-year-old woman with known sickle cell anemia presents with fever, pleuritic chest pain, cough, and hypoxia. Chest x-ray shows a new pulmonary infiltrate. Which is the most appropriate initial management?", "options": [{"letter": "A", "text": "Plasma exchange"}, {"letter": "B", "text": "High-dose corticosteroids as sole therapy"}, {"letter": "C", "text": "Immediate splenectomy"}, {"letter": "D", "text": "Therapeutic phlebotomy"}, {"letter": "E", "text": "Oxygen, analgesia, and antibiotics"}], "answer": "E", "explanation": "Acute chest syndrome is managed with oxygen, hydration, pain control, antibiotics (it is indistinguishable from pneumonia), and transfusion as needed.", "objective": "Clin Med — Anemia", "section": "Anemia"}, {"id": "5", "group": 5, "stem": "A 12-year-old boy with newly diagnosed acute leukemia and a high tumor burden develops acute kidney injury 2 days after starting chemotherapy. Which set of laboratory abnormalities is most expected?", "options": [{"letter": "A", "text": "High potassium and phosphate, low calcium"}, {"letter": "B", "text": "High sodium, low potassium, low uric acid"}, {"letter": "C", "text": "High calcium, low phosphate, normal potassium"}, {"letter": "D", "text": "Low uric acid, high bicarbonate, high calcium"}, {"letter": "E", "text": "Low potassium, low phosphate, high calcium"}], "answer": "A", "explanation": "Tumor lysis releases intracellular contents, causing hyperkalemia, hyperphosphatemia, hyperuricemia, and secondary hypocalcemia, which risk arrhythmia and renal failure.", "objective": "Clin Med — Oncology", "section": "Oncology"}, {"id": "6", "group": 6, "stem": "A 52-year-old man is found on a routine CBC to have an isolated platelet count of 35,000 with a normal hemoglobin and white cell count. He takes no medications, feels well, and has no bruising, splenomegaly, or lymphadenopathy. Before labeling this as immune thrombocytopenia, which is the most appropriate next step?", "options": [{"letter": "A", "text": "Review the peripheral smear"}, {"letter": "B", "text": "Perform a bone marrow biopsy"}, {"letter": "C", "text": "Transfuse platelets"}, {"letter": "D", "text": "Start high-dose prednisone"}, {"letter": "E", "text": "Administer IVIG"}], "answer": "A", "explanation": "ITP is a diagnosis of exclusion; reviewing the smear excludes pseudothrombocytopenia from platelet clumping and other processes before treatment.", "objective": "Clin Med — Hemostasis", "section": "Hemostasis"}, {"id": "7", "group": 7, "stem": "A 64-year-old man with gram-negative sepsis develops oozing from IV sites and hematuria. Labs show platelets 45,000, prolonged PT and PTT, low fibrinogen, and a markedly elevated D-dimer. The smear shows occasional schistocytes. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Thrombotic thrombocytopenic purpura"}, {"letter": "B", "text": "Disseminated intravascular coagulation"}, {"letter": "C", "text": "Heparin-induced thrombocytopenia and thrombosis"}, {"letter": "D", "text": "Immune thrombocytopenia"}, {"letter": "E", "text": "Vitamin K deficiency"}], "answer": "B", "explanation": "A consumptive coagulopathy with low platelets and fibrinogen, prolonged PT/PTT, and high D-dimer in sepsis is DIC; TTP has normal coagulation studies.", "objective": "Clin Med — Hemostasis", "section": "Hemostasis"}, {"id": "8", "group": 8, "stem": "A 26-year-old woman presents with vaginal itching, dysuria, and a frothy, greenish-yellow discharge that began shortly after a new sexual relationship. Exam shows vulvar erythema and a cervix with punctate hemorrhages (strawberry cervix). Wet mount shows motile flagellated organisms. Which is the most appropriate treatment?", "options": [{"letter": "A", "text": "Azithromycin"}, {"letter": "B", "text": "Nystatin"}, {"letter": "C", "text": "Metronidazole"}, {"letter": "D", "text": "Acyclovir"}, {"letter": "E", "text": "Fluconazole"}], "answer": "C", "explanation": "Trichomoniasis is treated with metronidazole; partners should be treated and patients counseled about the alcohol interaction.", "objective": "Clin Med — Parasitic Infections", "section": "Parasitic Infections"}, {"id": "9", "group": 9, "stem": "A 66-year-old man is postoperative day 7 after hip replacement and has been receiving unfractionated heparin. His platelet count has fallen from 320,000 on admission to 110,000. He develops a cool, dusky right foot with a diminished pulse and no active bleeding. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Immune thrombocytopenia"}, {"letter": "B", "text": "Postoperative hemodilution"}, {"letter": "C", "text": "Heparin-induced thrombocytopenia"}, {"letter": "D", "text": "Thrombotic thrombocytopenic purpura"}, {"letter": "E", "text": "Disseminated intravascular coagulation"}], "answer": "C", "explanation": "A platelet drop 5 to 14 days after starting heparin (even before reaching under 150,000) with new arterial thrombosis is characteristic; antibodies target the heparin-PF4 complex.", "objective": "Clin Med — Hemostasis", "section": "Hemostasis"}, {"id": "9A", "group": 9, "stem": "Which testing sequence best confirms this diagnosis?", "options": [{"letter": "A", "text": "ELISA then confirmatory SRA"}, {"letter": "B", "text": "JAK2 mutation testing"}, {"letter": "C", "text": "Bone marrow biopsy"}, {"letter": "D", "text": "ADAMTS13 activity level"}, {"letter": "E", "text": "Direct antiglobulin (Coombs) test"}], "answer": "A", "explanation": "A sensitive ELISA, which has frequent false positives, is confirmed by the specific serotonin-release assay.", "objective": "Clin Med — Hemostasis", "section": "Hemostasis"}, {"id": "9B", "group": 9, "stem": "Which is the most appropriate immediate management?", "options": [{"letter": "A", "text": "Stop all heparin and start argatroban"}, {"letter": "B", "text": "Give protamine and observe"}, {"letter": "C", "text": "Continue heparin and transfuse platelets"}, {"letter": "D", "text": "Begin warfarin monotherapy immediately"}, {"letter": "E", "text": "Switch to low-molecular-weight heparin"}], "answer": "A", "explanation": "Discontinue every form of heparin and anticoagulate with a non-heparin agent such as argatroban; warfarin is not started until platelets recover.", "objective": "Clin Med — Hemostasis", "section": "Hemostasis"}, {"id": "10", "group": 10, "stem": "A 70-year-old man is found on a routine CBC to have a WBC of 32,000 with an absolute lymphocytosis of 24,000; he is asymptomatic with no lymphadenopathy. The smear shows mature-appearing lymphocytes and smudge cells. Which test best establishes the diagnosis?", "options": [{"letter": "A", "text": "Peripheral blood flow cytometry"}, {"letter": "B", "text": "Serum protein electrophoresis"}, {"letter": "C", "text": "BCR-ABL transcript testing"}, {"letter": "D", "text": "Bone marrow reticulin staining"}, {"letter": "E", "text": "JAK2 mutation testing"}], "answer": "A", "explanation": "A sustained mature lymphocytosis over 5000 in an older adult is confirmed by flow cytometry demonstrating a clonal B-cell population.", "objective": "Clin Med — Heme Malignancies", "section": "Heme Malignancies"}, {"id": "11", "group": 11, "stem": "A 66-year-old man presents with weeks of worsening low back pain, fatigue, and constipation. Labs show Hgb 9 g/dL, calcium 11.8 mg/dL, and creatinine 2.4 mg/dL. Radiographs reveal discrete punched-out lytic lesions in the skull and vertebrae. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Metastatic prostate cancer"}, {"letter": "B", "text": "Multiple myeloma"}, {"letter": "C", "text": "Paget disease of bone"}, {"letter": "D", "text": "Primary hyperparathyroidism"}, {"letter": "E", "text": "Monoclonal gammopathy of undetermined significance"}], "answer": "B", "explanation": "Hypercalcemia, renal insufficiency, anemia, and lytic bone lesions (CRAB) in an older adult are classic; MGUS lacks end-organ damage.", "objective": "Clin Med — Heme Malignancies", "section": "Heme Malignancies"}, {"id": "11A", "group": 11, "stem": "Which combination of tests best establishes this diagnosis?", "options": [{"letter": "A", "text": "JAK2 mutation and erythropoietin level"}, {"letter": "B", "text": "Direct antiglobulin test and haptoglobin"}, {"letter": "C", "text": "Peripheral flow cytometry for CD20"}, {"letter": "D", "text": "BCR-ABL transcript quantification"}, {"letter": "E", "text": "SPEP/UPEP and marrow biopsy"}], "answer": "E", "explanation": "Serum and urine protein electrophoresis, serum free light chains, and a marrow biopsy documenting clonal plasma cells confirm the diagnosis.", "objective": "Clin Med — Heme Malignancies", "section": "Heme Malignancies"}, {"id": "11B", "group": 11, "stem": "The hypercalcemia in this disease is most directly caused by which mechanism?", "options": [{"letter": "A", "text": "PTH oversecretion from a parathyroid adenoma"}, {"letter": "B", "text": "PTHrP from a squamous carcinoma"}, {"letter": "C", "text": "Osteoclast-activating factor"}, {"letter": "D", "text": "Immobilization alone"}, {"letter": "E", "text": "Excess 1,25-dihydroxyvitamin D from granulomas"}], "answer": "C", "explanation": "Malignant plasma cells release osteoclast-activating factor, producing lytic lesions and hypercalcemia.", "objective": "Clin Med — Heme Malignancies", "section": "Heme Malignancies"}, {"id": "12", "group": 12, "stem": "A 44-year-old previously healthy man presents with a week of fever, cough, headache, myalgias, and pleuritic chest pain. His only recent travel was a trip to Ohio 2 weeks ago, where he explored several caves. Exam shows crackles in the left upper lung field. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Tuberculosis"}, {"letter": "B", "text": "Histoplasmosis"}, {"letter": "C", "text": "Blastomycosis"}, {"letter": "D", "text": "Community-acquired bacterial pneumonia"}, {"letter": "E", "text": "Coccidioidomycosis"}], "answer": "B", "explanation": "Cave and bat exposure in the Ohio-Mississippi River valley with a subacute pneumonia is classic histoplasmosis; best initial tests are urine and serum Histoplasma antigen.", "objective": "Clin Med — Fungal Infections", "section": "Fungal Infections"}, {"id": "13", "group": 13, "stem": "A 58-year-old man with a 25 pack-year smoking history who quit 4 years ago and is asymptomatic asks about cancer screening. According to USPSTF criteria, which is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Sputum cytology every 6 months"}, {"letter": "B", "text": "Annual chest radiograph"}, {"letter": "C", "text": "Annual low-dose CT of the chest"}, {"letter": "D", "text": "PET scan now"}, {"letter": "E", "text": "No screening, since he quit smoking"}], "answer": "C", "explanation": "LDCT is recommended annually for adults 50 to 80 with a 20 or more pack-year history who currently smoke or quit within 15 years; cessation remains the most effective intervention.", "objective": "Clin Med — Preventive Medicine", "section": "Preventive Medicine"}, {"id": "14", "group": 14, "stem": "A 39-year-old man with a history of heavy alcohol use and prior isoniazid therapy for latent TB is evaluated for anemia. Hgb is 10 g/dL and MCV 76 fL. The peripheral smear shows a dimorphic red cell population, and a bone marrow biopsy reveals ringed sideroblasts. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Sideroblastic anemia"}, {"letter": "B", "text": "Iron deficiency anemia"}, {"letter": "C", "text": "Anemia of chronic disease"}, {"letter": "D", "text": "Beta-thalassemia minor"}, {"letter": "E", "text": "Hereditary spherocytosis"}], "answer": "A", "explanation": "Ringed sideroblasts, where iron is trapped in mitochondria around the nucleus, are definitive; reversible causes include alcohol, B6 deficiency, lead, and isoniazid.", "objective": "Clin Med — Anemia", "section": "Anemia"}, {"id": "15", "group": 15, "stem": "A 45-year-old man from Arkansas presents with fever, headache, and myalgias after a tick bite. Labs show leukopenia, thrombocytopenia, and mild transaminitis. The peripheral smear reveals morulae within monocytes. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Rocky Mountain spotted fever"}, {"letter": "B", "text": "Babesiosis"}, {"letter": "C", "text": "Anaplasmosis"}, {"letter": "D", "text": "Ehrlichiosis"}, {"letter": "E", "text": "Lyme disease"}], "answer": "D", "explanation": "A flu-like illness with leukopenia, thrombocytopenia, transaminitis, and morulae in monocytes indicates ehrlichiosis; morulae in neutrophils would suggest anaplasmosis. Treat with doxycycline.", "objective": "Clin Med — Tick-Borne Diseases", "section": "Tick-Borne Diseases"}, {"id": "16", "group": 16, "stem": "A 58-year-old woman completed chemotherapy for breast cancer several months ago and now presents with progressive dyspnea and lower-extremity edema. Echocardiography shows a new dilated cardiomyopathy with a reduced ejection fraction. Which chemotherapeutic agent most likely caused this?", "options": [{"letter": "A", "text": "Vincristine"}, {"letter": "B", "text": "Doxorubicin"}, {"letter": "C", "text": "Cisplatin"}, {"letter": "D", "text": "Cyclophosphamide"}, {"letter": "E", "text": "Bleomycin"}], "answer": "B", "explanation": "Doxorubicin, an anthracycline, causes dose-dependent and sometimes delayed cardiotoxicity; cisplatin causes nephro- and ototoxicity, and bleomycin causes pulmonary fibrosis.", "objective": "Clin Med — Oncology", "section": "Oncology"}, {"id": "17", "group": 17, "stem": "A 40-year-old woman presents with confusion, fever, and scattered bruising. Labs show platelets 18,000, Hgb 8 g/dL, elevated LDH and indirect bilirubin, and creatinine 2.0 mg/dL. PT, PTT, and fibrinogen are normal. The peripheral smear shows numerous schistocytes and the direct antiglobulin test is negative. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Thrombotic thrombocytopenic purpura"}, {"letter": "B", "text": "Disseminated intravascular coagulation"}, {"letter": "C", "text": "Heparin-induced thrombocytopenia"}, {"letter": "D", "text": "Immune thrombocytopenia"}, {"letter": "E", "text": "Warm autoimmune hemolytic anemia"}], "answer": "A", "explanation": "Microangiopathic hemolysis with schistocytes, thrombocytopenia, renal and neurologic involvement, and fever with NORMAL coagulation studies distinguishes this from DIC.", "objective": "Clin Med — Hemostasis", "section": "Hemostasis"}, {"id": "17A", "group": 17, "stem": "The underlying defect in this disease is a deficiency or inhibition of which enzyme?", "options": [{"letter": "A", "text": "Glucose-6-phosphate dehydrogenase"}, {"letter": "B", "text": "Complement factor H"}, {"letter": "C", "text": "Factor VIII"}, {"letter": "D", "text": "ADAMTS13"}, {"letter": "E", "text": "Antithrombin III"}], "answer": "D", "explanation": "Autoantibodies against ADAMTS13 leave ultralarge von Willebrand multimers, causing platelet-rich microthrombi that shear red cells.", "objective": "Clin Med — Hemostasis", "section": "Hemostasis"}, {"id": "17B", "group": 17, "stem": "Which is the most appropriate urgent treatment?", "options": [{"letter": "A", "text": "Empiric heparin infusion"}, {"letter": "B", "text": "Broad-spectrum antibiotics alone"}, {"letter": "C", "text": "IV iron"}, {"letter": "D", "text": "Plasma exchange"}, {"letter": "E", "text": "Platelet transfusion"}], "answer": "D", "explanation": "Plasma exchange with steroids must be started urgently without waiting for the ADAMTS13 result; platelets are avoided unless there is life-threatening bleeding.", "objective": "Clin Med — Hemostasis", "section": "Hemostasis"}, {"id": "18", "group": 18, "stem": "A 32-year-old field scientist presents with 4 days of high spiking fevers, chills, headache, and myalgias after returning from fieldwork in sub-Saharan Africa. Exam shows T 39.2 C, scleral icterus, and hepatosplenomegaly. CBC shows anemia and thrombocytopenia. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Dengue fever"}, {"letter": "B", "text": "Malaria"}, {"letter": "C", "text": "Leptospirosis"}, {"letter": "D", "text": "Typhoid fever"}, {"letter": "E", "text": "Acute HIV seroconversion"}], "answer": "B", "explanation": "Cyclic fevers with hemolysis (icterus, anemia) and thrombocytopenia after travel to an endemic region must be presumed to be this until excluded.", "objective": "Clin Med — Parasitic Infections", "section": "Parasitic Infections"}, {"id": "18A", "group": 18, "stem": "Which test is the diagnostic gold standard?", "options": [{"letter": "A", "text": "Serum cryptococcal antigen"}, {"letter": "B", "text": "Bone marrow biopsy"}, {"letter": "C", "text": "Thick and thin blood smears"}, {"letter": "D", "text": "Stool ova and parasite exam"}, {"letter": "E", "text": "Blood cultures"}], "answer": "C", "explanation": "Thick smears screen for infection and thin smears identify the species and quantify parasitemia.", "objective": "Clin Med — Parasitic Infections", "section": "Parasitic Infections"}, {"id": "18B", "group": 18, "stem": "For severe disease due to the most virulent species, which is the first-line treatment?", "options": [{"letter": "A", "text": "IV artesunate"}, {"letter": "B", "text": "Oral metronidazole"}, {"letter": "C", "text": "IV ceftriaxone"}, {"letter": "D", "text": "Oral chloroquine"}, {"letter": "E", "text": "Primaquine monotherapy"}], "answer": "A", "explanation": "IV artesunate is now CDC first-line for severe, usually falciparum, disease; chloroquine resistance is widespread.", "objective": "Clin Med — Parasitic Infections", "section": "Parasitic Infections"}, {"id": "19", "group": 19, "stem": "A 28-year-old man presents with 10 days of progressively worsening fever, malaise, headache, and constipation after a 3-week trip to South Asia. Temperature is 39.5 C with a heart rate of 78 bpm. Exam reveals hepatosplenomegaly and faint salmon-colored macules on the abdomen. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Plasmodium falciparum malaria"}, {"letter": "B", "text": "Typhoid fever"}, {"letter": "C", "text": "Dengue fever"}, {"letter": "D", "text": "Acute hepatitis A"}, {"letter": "E", "text": "Shigellosis"}], "answer": "B", "explanation": "Stepwise fever, relative bradycardia, rose spots, hepatosplenomegaly, and constipation after travel to an endemic region are classic; malaria must still be excluded.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "19A", "group": 19, "stem": "Which test is most likely to establish the diagnosis during the first week of illness?", "options": [{"letter": "A", "text": "Thick and thin blood smear"}, {"letter": "B", "text": "Stool cultures"}, {"letter": "C", "text": "Blood cultures"}, {"letter": "D", "text": "Serum cryptococcal antigen"}, {"letter": "E", "text": "RPR with treponemal confirmation"}], "answer": "C", "explanation": "Blood cultures are positive in the first week; stool cultures become positive later in the course.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "19B", "group": 19, "stem": "Which is an appropriate first-line treatment?", "options": [{"letter": "A", "text": "Ceftriaxone"}, {"letter": "B", "text": "Oral vancomycin"}, {"letter": "C", "text": "Acyclovir"}, {"letter": "D", "text": "Nystatin"}, {"letter": "E", "text": "Metronidazole"}], "answer": "A", "explanation": "Ceftriaxone, or a fluoroquinolone or azithromycin depending on resistance, is appropriate; a travel vaccine helps prevent it.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "20", "group": 20, "stem": "A 14-year-old girl presents with a 3-week history of a tender, enlarged 4-cm left axillary lymph node with low-grade fever and malaise. The family adopted a kitten 5 weeks ago, and she has several healing scratches on her left forearm with a small crusted papule at one scratch site. CBC is unremarkable and ESR is mildly elevated. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Sporotrichosis"}, {"letter": "B", "text": "MRSA abscess"}, {"letter": "C", "text": "Cat-scratch disease"}, {"letter": "D", "text": "Ulceroglandular tularemia"}, {"letter": "E", "text": "Lymphoma"}], "answer": "C", "explanation": "An inoculation papule after a kitten scratch followed weeks later by regional tender lymphadenopathy is classic.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "20A", "group": 20, "stem": "Which is the most appropriate diagnostic and treatment approach?", "options": [{"letter": "A", "text": "Empiric amoxicillin for 14 days"}, {"letter": "B", "text": "Blood cultures and IV ceftriaxone"}, {"letter": "C", "text": "Excisional node biopsy and IV vancomycin"}, {"letter": "D", "text": "Serology and treatment with azithromycin"}, {"letter": "E", "text": "CT chest and abdomen and start chemotherapy"}], "answer": "D", "explanation": "Serology, or Warthin-Starry stain and PCR on tissue, confirms the diagnosis; azithromycin is used for moderate to severe disease.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "20B", "group": 20, "stem": "Which antibiotic class is INEFFECTIVE against the causative organism?", "options": [{"letter": "A", "text": "Penicillins"}, {"letter": "B", "text": "Aminoglycosides"}, {"letter": "C", "text": "Tetracyclines"}, {"letter": "D", "text": "Rifamycins"}, {"letter": "E", "text": "Macrolides"}], "answer": "A", "explanation": "Penicillins and first-generation cephalosporins have no activity against the organism.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "21", "group": 21, "stem": "A 26-year-old man presents with an unprovoked proximal DVT and reports that his father had a pulmonary embolism at age 40. He takes no medications and has had no recent surgery, immobilization, or trauma. Which is the most likely underlying condition?", "options": [{"letter": "A", "text": "Antiphospholipid antibody syndrome"}, {"letter": "B", "text": "Prothrombin gene mutation"}, {"letter": "C", "text": "Factor V Leiden"}, {"letter": "D", "text": "Protein C deficiency"}, {"letter": "E", "text": "Antithrombin deficiency"}], "answer": "C", "explanation": "Factor V Leiden, an abnormal factor V resistant to inactivation by protein C, is the most common inherited hypercoagulable state and typically presents as early, unprovoked venous thrombosis.", "objective": "Clin Med — Hemostasis", "section": "Hemostasis"}, {"id": "22", "group": 22, "stem": "A 29-year-old man with untreated HIV (CD4 count 90) presents with 3 weeks of progressive exertional dyspnea, nonproductive cough, and low-grade fever. He is tachypneic with an oxygen saturation of 86% on room air, yet his lungs are nearly clear on auscultation. LDH is elevated and chest x-ray shows bilateral interstitial infiltrates. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Pneumocystis jirovecii pneumonia"}, {"letter": "B", "text": "Cryptococcal pneumonia"}, {"letter": "C", "text": "Tuberculosis"}, {"letter": "D", "text": "Pulmonary Kaposi sarcoma"}, {"letter": "E", "text": "Bacterial lobar pneumonia (pneumococcal)"}], "answer": "A", "explanation": "Subacute dyspnea with hypoxia out of proportion to the exam, clear lungs, elevated LDH, and bilateral interstitial infiltrates at CD4 under 200 is classic.", "objective": "Clin Med — HIV/AIDS", "section": "HIV/AIDS"}, {"id": "22A", "group": 22, "stem": "Which is the treatment of choice for this infection?", "options": [{"letter": "A", "text": "Fluconazole"}, {"letter": "B", "text": "Isoniazid, rifampin, pyrazinamide, and ethambutol"}, {"letter": "C", "text": "Amphotericin B plus flucytosine"}, {"letter": "D", "text": "TMP-SMX"}, {"letter": "E", "text": "Ganciclovir"}], "answer": "D", "explanation": "High-dose TMP-SMX for 21 days is first-line, with adjunctive steroids if PaO2 is under 70 mmHg.", "objective": "Clin Med — HIV/AIDS", "section": "HIV/AIDS"}, {"id": "22B", "group": 22, "stem": "Adjunctive corticosteroids are indicated in this infection when which criterion is met?", "options": [{"letter": "A", "text": "Presence of oral thrush"}, {"letter": "B", "text": "Any CD4 count below 500"}, {"letter": "C", "text": "A positive tuberculin skin test"}, {"letter": "D", "text": "PaO2 below 70 mmHg on room air"}, {"letter": "E", "text": "Platelet count below 50,000"}], "answer": "D", "explanation": "Steroids reduce mortality in moderate to severe disease defined by PaO2 under 70 mmHg.", "objective": "Clin Med — HIV/AIDS", "section": "HIV/AIDS"}, {"id": "23", "group": 23, "stem": "A 28-year-old woman presents for a new patient visit. She is sexually active, uses oral contraceptives, and has no significant history. Her last Pap smear was 2 years ago and was normal. Which cervical cancer screening approach is recommended for her age group?", "options": [{"letter": "A", "text": "HPV testing alone every 3 years"}, {"letter": "B", "text": "No screening until age 30"}, {"letter": "C", "text": "Co-testing (Pap plus HPV) every 5 years now"}, {"letter": "D", "text": "Annual Pap smears"}, {"letter": "E", "text": "Cytology (Pap) every 3 years"}], "answer": "E", "explanation": "Women 21 to 29 are screened with cytology every 3 years; co-testing every 5 years applies to ages 30 to 65. With a normal Pap 2 years ago she is not yet due.", "objective": "Clin Med — Preventive Medicine", "section": "Preventive Medicine"}, {"id": "24", "group": 24, "stem": "A 24-year-old man develops fatigue, jaundice, and dark urine two days after starting primaquine for malaria prophylaxis. Labs show anemia, elevated LDH and indirect bilirubin, low haptoglobin, and reticulocytosis. The smear shows Heinz bodies and bite cells. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Warm autoimmune hemolytic anemia"}, {"letter": "B", "text": "Paroxysmal nocturnal hemoglobinuria"}, {"letter": "C", "text": "G6PD deficiency"}, {"letter": "D", "text": "Hereditary spherocytosis"}, {"letter": "E", "text": "Sickle cell trait"}], "answer": "C", "explanation": "Episodic intravascular hemolysis triggered by an oxidant drug such as primaquine, fava beans, or infection, with Heinz bodies and an X-linked pattern, is classic.", "objective": "Clin Med — Anemia", "section": "Anemia"}, {"id": "25", "group": 25, "stem": "A 62-year-old man reports headache, dizziness, and generalized itching that is worse after hot showers. Exam shows a ruddy (plethoric) face and splenomegaly. CBC shows Hct 58% with mildly elevated WBC and platelets. He does not smoke, and oxygen saturation is 98%. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Essential thrombocytosis"}, {"letter": "B", "text": "Polycythemia vera"}, {"letter": "C", "text": "Chronic myelogenous leukemia"}, {"letter": "D", "text": "Relative erythrocytosis from dehydration"}, {"letter": "E", "text": "Secondary polycythemia from hypoxia"}], "answer": "B", "explanation": "An elevated Hct with aquagenic pruritus, plethora, splenomegaly, and trilineage elevation in a non-hypoxic patient points to a primary myeloproliferative process.", "objective": "Clin Med — MPD", "section": "MPD"}, {"id": "25A", "group": 25, "stem": "Which pair of findings would best confirm this diagnosis?", "options": [{"letter": "A", "text": "Positive DAT with low haptoglobin"}, {"letter": "B", "text": "BCR-ABL fusion with basophilia"}, {"letter": "C", "text": "High erythropoietin with a renal mass"}, {"letter": "D", "text": "Low ferritin with high RDW"}, {"letter": "E", "text": "JAK2 mutation with low EPO"}], "answer": "E", "explanation": "A JAK2 mutation (positive in about 98%) plus a suppressed erythropoietin level is diagnostic; secondary causes have elevated EPO.", "objective": "Clin Med — MPD", "section": "MPD"}, {"id": "25B", "group": 25, "stem": "Which is the cornerstone of initial management?", "options": [{"letter": "A", "text": "Plasma exchange"}, {"letter": "B", "text": "Therapeutic phlebotomy"}, {"letter": "C", "text": "Amphotericin B"}, {"letter": "D", "text": "Systemic anticoagulation with warfarin"}, {"letter": "E", "text": "Splenectomy"}], "answer": "B", "explanation": "Phlebotomy to keep the Hct below 45%, with low-dose aspirin, markedly reduces thrombosis risk; hydroxyurea is added if counts stay high.", "objective": "Clin Med — MPD", "section": "MPD"}, {"id": "26", "group": 26, "stem": "A 58-year-old man with poorly controlled diabetes presents in diabetic ketoacidosis with facial pain, unilateral facial swelling, and a black necrotic eschar on the nasal turbinate and hard palate. Which is the most appropriate management?", "options": [{"letter": "A", "text": "Fluconazole alone"}, {"letter": "B", "text": "Acyclovir"}, {"letter": "C", "text": "Oral doxycycline"}, {"letter": "D", "text": "Amphotericin B plus debridement"}, {"letter": "E", "text": "Observation with glucose control only"}], "answer": "D", "explanation": "Rhinocerebral mucormycosis in DKA is aggressively angioinvasive and requires amphotericin B plus urgent surgical debridement; beta-D-glucan and galactomannan do not detect it.", "objective": "Clin Med — Fungal Infections", "section": "Fungal Infections"}, {"id": "27", "group": 27, "stem": "A 43-year-old man reports several months of fatigue, numbness of the fingers, and mild forgetfulness. His history includes type 2 diabetes well controlled on metformin and hypertension on lisinopril. Which examination finding is most expected?", "options": [{"letter": "A", "text": "Koilonychia"}, {"letter": "B", "text": "Palpable splenomegaly"}, {"letter": "C", "text": "Bronze skin hyperpigmentation"}, {"letter": "D", "text": "Scleral icterus"}, {"letter": "E", "text": "Beefy-red smooth tongue"}], "answer": "E", "explanation": "Glossitis together with neurologic symptoms such as paresthesias and cognitive changes is characteristic of this deficiency.", "objective": "Clin Med — Anemia", "section": "Anemia"}, {"id": "27A", "group": 27, "stem": "Which set of diagnostic values is most expected with this deficiency?", "options": [{"letter": "A", "text": "MCV 72 with reduced ferritin"}, {"letter": "B", "text": "MCV 112 with elevated methylmalonic acid"}, {"letter": "C", "text": "MCV 65 with elevated reticulocytes"}, {"letter": "D", "text": "MCV 88 with elevated D-dimer"}, {"letter": "E", "text": "MCV 105 with normal methylmalonic acid"}], "answer": "B", "explanation": "Macrocytosis (MCV over 100) with elevated methylmalonic acid is characteristic, and MMA rises before the vitamin level falls; folate deficiency raises homocysteine but not MMA.", "objective": "Clin Med — Anemia", "section": "Anemia"}, {"id": "27B", "group": 27, "stem": "Which is the most appropriate management?", "options": [{"letter": "A", "text": "Discontinue lisinopril and start amlodipine"}, {"letter": "B", "text": "Transfuse packed red blood cells"}, {"letter": "C", "text": "Discontinue metformin and start oral folate"}, {"letter": "D", "text": "Begin hydroxyurea and reassess in 6 months"}, {"letter": "E", "text": "Start cyanocobalamin supplementation"}], "answer": "E", "explanation": "Replace the deficient vitamin with cyanocobalamin; metformin can contribute to malabsorption but the treatment is repletion.", "objective": "Clin Med — Anemia", "section": "Anemia"}, {"id": "28", "group": 28, "stem": "A 28-year-old man presents with 2 weeks of migratory joint pain, first the right knee then the left shoulder, without trauma. He spends his leisure time hunting and camping in northern Minnesota. He recalls a red rash on the back of his right arm about 3 months ago that resolved on its own. Vitals and the rest of the exam are unremarkable. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Rocky Mountain spotted fever"}, {"letter": "B", "text": "Reactive arthritis"}, {"letter": "C", "text": "Lyme disease"}, {"letter": "D", "text": "Gout"}, {"letter": "E", "text": "Rheumatoid arthritis"}], "answer": "C", "explanation": "A prior resolved erythema migrans and later migratory arthralgias after exposure in an endemic upper-Midwest area indicate early disseminated infection.", "objective": "Clin Med — Tick-Borne Diseases", "section": "Tick-Borne Diseases"}, {"id": "28A", "group": 28, "stem": "Regarding the characteristic early skin lesion of this disease, which statement is correct?", "options": [{"letter": "A", "text": "It requires biopsy to confirm"}, {"letter": "B", "text": "A positive Western blot is required before treatment"}, {"letter": "C", "text": "It is a clinical diagnosis"}, {"letter": "D", "text": "It is diagnostic only with a positive blood culture"}, {"letter": "E", "text": "It appears only after joint symptoms"}], "answer": "C", "explanation": "Erythema migrans is diagnosed clinically and treated empirically; only 20 to 40% are seropositive in stage 1, so serology is not relied on early.", "objective": "Clin Med — Tick-Borne Diseases", "section": "Tick-Borne Diseases"}, {"id": "28B", "group": 28, "stem": "Which criterion supports single-dose doxycycline post-exposure prophylaxis after a tick bite?", "options": [{"letter": "A", "text": "Ixodes attachment over 36 hours"}, {"letter": "B", "text": "Attachment for less than 12 hours"}, {"letter": "C", "text": "A negative serology result"}, {"letter": "D", "text": "Presence of fever at the time of the bite"}, {"letter": "E", "text": "Any tick bite regardless of species"}], "answer": "A", "explanation": "Prophylaxis is considered when an identified Ixodes tick was attached over 36 hours in a highly endemic area and prophylaxis can start within 72 hours.", "objective": "Clin Med — Tick-Borne Diseases", "section": "Tick-Borne Diseases"}, {"id": "29", "group": 29, "stem": "A 30-year-old man presents with painless cervical lymphadenopathy, drenching night sweats, and weight loss. A node has been enlarging over 6 weeks. Which is the most appropriate procedure to establish the diagnosis?", "options": [{"letter": "A", "text": "PET scan alone"}, {"letter": "B", "text": "Fine-needle aspiration cytology"}, {"letter": "C", "text": "Serum LDH measurement"}, {"letter": "D", "text": "Excisional lymph node biopsy"}, {"letter": "E", "text": "Peripheral blood flow cytometry"}], "answer": "D", "explanation": "Lymphoma diagnosis requires an excisional node biopsy so the pathologist can determine the exact subtype, which guides therapy; FNA is insufficient.", "objective": "Clin Med — Heme Malignancies", "section": "Heme Malignancies"}, {"id": "30", "group": 30, "stem": "A 32-year-old man presents with diplopia, dysphagia, and dry mouth followed by progressive descending weakness that began 18 hours after eating home-canned vegetables. He is afebrile and mentally alert. Examination shows bilateral ptosis and symmetric descending flaccid paralysis with intact sensation. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Myasthenia gravis"}, {"letter": "B", "text": "Botulism"}, {"letter": "C", "text": "Guillain-Barre syndrome"}, {"letter": "D", "text": "Tetanus"}, {"letter": "E", "text": "Diphtheria"}], "answer": "B", "explanation": "Symmetric descending flaccid paralysis with early cranial nerve involvement, afebrile and alert, after home-canned food is classic.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "30A", "group": 30, "stem": "The toxin responsible for this illness acts by which mechanism?", "options": [{"letter": "A", "text": "Blocking acetylcholine release at the NMJ"}, {"letter": "B", "text": "Inhibiting ribosomal protein synthesis"}, {"letter": "C", "text": "Activating adenylate cyclase in enterocytes"}, {"letter": "D", "text": "Blocking GABA and glycine release in the CNS"}, {"letter": "E", "text": "Cleaving ADAMTS13"}], "answer": "A", "explanation": "The toxin blocks presynaptic acetylcholine release, producing flaccid paralysis; tetanus toxin instead blocks inhibitory GABA and glycine, causing rigidity.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "30B", "group": 30, "stem": "Which is the most appropriate specific treatment?", "options": [{"letter": "A", "text": "Pyridostigmine"}, {"letter": "B", "text": "Antitoxin plus airway support"}, {"letter": "C", "text": "High-dose penicillin only"}, {"letter": "D", "text": "Intravenous immune globulin"}, {"letter": "E", "text": "Plasma exchange"}], "answer": "B", "explanation": "Management centers on prompt antitoxin and supportive airway care; antibiotics play a minimal role.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "31", "group": 31, "stem": "An 8-year-old boy presents after a seizure with 5 days of fever, headache, myalgias, and a rash that began on the wrists and ankles, including the palms and soles, and spread centrally, after camping in Oklahoma. He appears toxic. Which is the most appropriate management?", "options": [{"letter": "A", "text": "Start ceftriaxone"}, {"letter": "B", "text": "Start doxycycline immediately"}, {"letter": "C", "text": "Start acyclovir"}, {"letter": "D", "text": "Supportive care only"}, {"letter": "E", "text": "Await confirmatory serology before treating"}], "answer": "B", "explanation": "RMSF is a clinical diagnosis; doxycycline must be started immediately, even in children, without waiting for confirmation, as delay increases mortality.", "objective": "Clin Med — Tick-Borne Diseases", "section": "Tick-Borne Diseases"}, {"id": "32", "group": 32, "stem": "A 60-year-old woman presents with fatigue and jaundice. Labs show Hgb 8 g/dL, an elevated reticulocyte count, elevated LDH and indirect bilirubin, and low haptoglobin. The direct antiglobulin (Coombs) test is positive for IgG. Which is the most appropriate first-line treatment?", "options": [{"letter": "A", "text": "Splenectomy"}, {"letter": "B", "text": "Rituximab"}, {"letter": "C", "text": "Plasma exchange"}, {"letter": "D", "text": "Corticosteroids"}, {"letter": "E", "text": "Cold avoidance alone"}], "answer": "D", "explanation": "Warm, IgG-mediated autoimmune hemolytic anemia is treated first with steroids; rituximab or splenectomy are later options.", "objective": "Clin Med — Anemia", "section": "Anemia"}, {"id": "33", "group": 33, "stem": "A 21-year-old man presents with 2 weeks of worsening headaches and double vision since returning from an extended stay abroad, and then has a generalized tonic-clonic seizure in the waiting room. Head CT reveals a cystic cerebral lesion. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Brain abscess"}, {"letter": "B", "text": "Tuberculoma"}, {"letter": "C", "text": "Toxoplasma encephalitis"}, {"letter": "D", "text": "Glioblastoma"}, {"letter": "E", "text": "Neurocysticercosis"}], "answer": "E", "explanation": "A new seizure with a cystic CNS lesion after travel to an endemic area indicates neurocysticercosis, the larval form of Taenia solium and the most common parasitic CNS infection.", "objective": "Clin Med — Parasitic Infections", "section": "Parasitic Infections"}, {"id": "34", "group": 34, "stem": "A 29-year-old woman who is 30 weeks pregnant asks about vaccines. She received a Tdap booster 2 years ago before her prior pregnancy. Which is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Give Tdap only if she sustains a wound"}, {"letter": "B", "text": "Give the live attenuated influenza vaccine instead"}, {"letter": "C", "text": "Give Tdap during this pregnancy"}, {"letter": "D", "text": "Defer Tdap because she had it within 5 years"}, {"letter": "E", "text": "No vaccines are safe in pregnancy"}], "answer": "C", "explanation": "Tdap is recommended in every pregnancy, at weeks 27 to 36, regardless of prior Tdap history, to protect the newborn from pertussis.", "objective": "Clin Med — Preventive Medicine", "section": "Preventive Medicine"}, {"id": "35", "group": 35, "stem": "A 34-year-old man reports a painless genital lesion that resolved on its own several weeks ago. He now presents with a diffuse, non-pruritic, symmetric maculopapular rash involving the palms and soles, along with low-grade fever, diffuse lymphadenopathy, and moist, flat, wart-like lesions in the perianal area. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Pityriasis rosea"}, {"letter": "B", "text": "Measles"}, {"letter": "C", "text": "Psoriasis"}, {"letter": "D", "text": "Secondary syphilis"}, {"letter": "E", "text": "Rocky Mountain spotted fever"}], "answer": "D", "explanation": "A palm-and-sole maculopapular rash with condylomata lata following a resolved painless chancre is classic.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "35A", "group": 35, "stem": "Which testing approach best confirms the diagnosis?", "options": [{"letter": "A", "text": "Thick and thin blood smear"}, {"letter": "B", "text": "Warthin-Starry stain of a lymph node"}, {"letter": "C", "text": "KOH prep of skin scrapings"}, {"letter": "D", "text": "Tzanck smear"}, {"letter": "E", "text": "RPR/VDRL then a treponemal test"}], "answer": "E", "explanation": "Nontreponemal RPR/VDRL screening is confirmed with a treponemal test such as FTA-ABS or TP-PA.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "35B", "group": 35, "stem": "Which is the recommended treatment?", "options": [{"letter": "A", "text": "Azithromycin plus ceftriaxone"}, {"letter": "B", "text": "Oral acyclovir"}, {"letter": "C", "text": "Nystatin"}, {"letter": "D", "text": "Benzathine penicillin G"}, {"letter": "E", "text": "Doxycycline plus rifampin"}], "answer": "D", "explanation": "A single IM dose of benzathine penicillin G treats early, including secondary, disease.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "36", "group": 36, "stem": "A 48-year-old man with chronic alcohol use and poor dietary intake presents with fatigue. Labs show Hgb 10.2 g/dL and MCV 110 fL, and the smear shows hypersegmented neutrophils. Methylmalonic acid is normal but homocysteine is elevated. He has no paresthesias or gait abnormality. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Folate deficiency"}, {"letter": "B", "text": "Iron deficiency anemia"}, {"letter": "C", "text": "Hypothyroidism"}, {"letter": "D", "text": "Vitamin B12 deficiency"}, {"letter": "E", "text": "Myelodysplastic syndrome"}], "answer": "A", "explanation": "Macrocytosis with hypersegmented neutrophils, a normal methylmalonic acid but elevated homocysteine, and no neurologic findings distinguish folate from B12 deficiency.", "objective": "Clin Med — Anemia", "section": "Anemia"}, {"id": "37", "group": 37, "stem": "A 19-year-old college wrestler presents with a painful, fluctuant 3-cm abscess on his thigh that he thought was a spider bite. Two teammates have had similar lesions. He is afebrile with no systemic symptoms. Which is the most appropriate initial management?", "options": [{"letter": "A", "text": "Warm compresses only"}, {"letter": "B", "text": "Excisional biopsy"}, {"letter": "C", "text": "Topical mupirocin alone"}, {"letter": "D", "text": "Oral penicillin V"}, {"letter": "E", "text": "Incision and drainage"}], "answer": "E", "explanation": "Incision and drainage is the primary treatment for a drainable abscess; antibiotics such as TMP-SMX, doxycycline, or clindamycin are added for large lesions, systemic symptoms, or immunocompromise.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "38", "group": 38, "stem": "A 62-year-old man presents after stepping on a rusty, soil-contaminated nail. He recalls having his shots as a kid but has no records and has not seen a physician in over 20 years. After wound cleaning, which is the most appropriate next step?", "options": [{"letter": "A", "text": "Oral metronidazole prophylaxis"}, {"letter": "B", "text": "No prophylaxis, since childhood vaccination is lifelong"}, {"letter": "C", "text": "Tetanus immune globulin only"}, {"letter": "D", "text": "Tdap vaccine AND tetanus immune globulin"}, {"letter": "E", "text": "Tdap vaccine only"}], "answer": "D", "explanation": "With an unknown history and a dirty wound, give both the tetanus toxoid vaccine (active) and TIG (passive) at separate sites; childhood vaccination is not lifelong.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "39", "group": 39, "stem": "A 26-year-old man with HIV who is nonadherent to ART presents with 8 days of progressively worsening headache and lethargy no longer relieved by acetaminophen. Temperature is 100.6 F; he is alert and oriented with nuchal rigidity and no focal deficit. Labs show viral load 524,000, CD4 85, and leukopenia. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Progressive multifocal leukoencephalopathy"}, {"letter": "B", "text": "Cryptococcal meningitis"}, {"letter": "C", "text": "CNS lymphoma"}, {"letter": "D", "text": "Bacterial meningitis"}, {"letter": "E", "text": "Toxoplasma encephalitis"}], "answer": "B", "explanation": "Subacute headache and meningismus without focal deficits in advanced HIV points to this encapsulated yeast with tropism for the CNS.", "objective": "Clin Med — HIV/AIDS", "section": "HIV/AIDS"}, {"id": "39A", "group": 39, "stem": "Which test best confirms the diagnosis?", "options": [{"letter": "A", "text": "CSF cryptococcal antigen"}, {"letter": "B", "text": "CSF Toxoplasma PCR"}, {"letter": "C", "text": "Blood cultures"}, {"letter": "D", "text": "Serum RPR"}, {"letter": "E", "text": "Sputum acid-fast bacilli smear"}], "answer": "A", "explanation": "CSF and serum cryptococcal antigen is highly sensitive; India ink and culture are supportive or confirmatory.", "objective": "Clin Med — HIV/AIDS", "section": "HIV/AIDS"}, {"id": "39B", "group": 39, "stem": "Which is the appropriate induction treatment?", "options": [{"letter": "A", "text": "Fluconazole monotherapy"}, {"letter": "B", "text": "Ganciclovir"}, {"letter": "C", "text": "Amphotericin B plus flucytosine"}, {"letter": "D", "text": "TMP-SMX"}, {"letter": "E", "text": "Ceftriaxone plus vancomycin (empiric)"}], "answer": "C", "explanation": "Induction is amphotericin B plus flucytosine, then fluconazole consolidation; ART is delayed 4 to 6 weeks to avoid IRIS.", "objective": "Clin Med — HIV/AIDS", "section": "HIV/AIDS"}, {"id": "40", "group": 40, "stem": "A 68-year-old man presents with 3 months of progressive fatigue and exertional dyspnea. He reports occasional dark stools but no other overt bleeding. On examination he has conjunctival pallor and spoon-shaped (koilonychia) nails. CBC shows Hgb 9.5 g/dL, MCV 74 fL, an elevated RDW, and a mildly elevated platelet count. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Vitamin B12 deficiency"}, {"letter": "B", "text": "Beta-thalassemia minor"}, {"letter": "C", "text": "Iron deficiency anemia"}, {"letter": "D", "text": "Sideroblastic anemia"}, {"letter": "E", "text": "Anemia of chronic disease"}], "answer": "C", "explanation": "Microcytosis with an elevated RDW, reactive thrombocytosis, koilonychia, and suspected GI blood loss in an older man are classic; thalassemia typically has a normal RDW and normal or high ferritin.", "objective": "Clin Med — Anemia", "section": "Anemia"}, {"id": "40A", "group": 40, "stem": "Which single test most accurately confirms this diagnosis?", "options": [{"letter": "A", "text": "Hemoglobin electrophoresis"}, {"letter": "B", "text": "Total bilirubin"}, {"letter": "C", "text": "Serum ferritin"}, {"letter": "D", "text": "Reticulocyte count"}, {"letter": "E", "text": "Serum iron level"}], "answer": "C", "explanation": "A reduced serum ferritin is the definitive and most accurate test; serum iron alone is affected by many variables and is unreliable.", "objective": "Clin Med — Anemia", "section": "Anemia"}, {"id": "40B", "group": 40, "stem": "Once this diagnosis is confirmed in this patient, which evaluation is mandatory?", "options": [{"letter": "A", "text": "Peripheral smear for schistocytes"}, {"letter": "B", "text": "Direct antiglobulin (Coombs) test"}, {"letter": "C", "text": "Hemoglobin electrophoresis"}, {"letter": "D", "text": "Bone marrow biopsy"}, {"letter": "E", "text": "EGD and colonoscopy"}], "answer": "E", "explanation": "In a man or postmenopausal woman this is almost always due to GI blood loss, mandating upper and lower endoscopic evaluation.", "objective": "Clin Med — Anemia", "section": "Anemia"}, {"id": "41", "group": 41, "stem": "A 58-year-old man without known cardiovascular disease, diabetes, or CKD presents for prevention. Using the PREVENT equation, his 10-year ASCVD risk is calculated at 12%. Which is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Lifestyle modification only"}, {"letter": "B", "text": "Coronary artery calcium score is required before any therapy"}, {"letter": "C", "text": "No intervention, since the risk is acceptable"}, {"letter": "D", "text": "Start aspirin alone"}, {"letter": "E", "text": "Lifestyle modification and statin therapy"}], "answer": "E", "explanation": "A 10-year risk of 10% or more is high risk, warranting lifestyle modification plus statin therapy; CAC scoring is reserved for borderline or intermediate risk with uncertainty.", "objective": "Clin Med — Preventive Medicine", "section": "Preventive Medicine"}, {"id": "42", "group": 42, "stem": "A 24-year-old woman presents with fever, severe abdominal cramping, and bloody, mucoid diarrhea 3 days after a daycare picnic. She reports tenesmus and 15 small-volume stools in 24 hours. Stool microscopy shows abundant fecal leukocytes. Which is the most likely causative organism?", "options": [{"letter": "A", "text": "Shigella dysenteriae"}, {"letter": "B", "text": "Clostridium botulinum"}, {"letter": "C", "text": "Giardia lamblia"}, {"letter": "D", "text": "Enterotoxigenic E. coli"}, {"letter": "E", "text": "Vibrio cholerae"}], "answer": "A", "explanation": "Low-volume bloody, mucoid diarrhea with tenesmus, fever, fecal leukocytes, and a very low infectious dose in a daycare setting is classic invasive shigellosis; a key complication is HUS.", "objective": "Clin Med — Infectious Disease Review", "section": "Infectious Disease Review"}, {"id": "43", "group": 43, "stem": "A 68-year-old man with metastatic prostate cancer presents with several days of worsening mid-back pain, now with bilateral leg weakness, a sensory level at the umbilicus, and urinary retention. Which is the most appropriate immediate management?", "options": [{"letter": "A", "text": "Bone scan and routine oncology follow-up"}, {"letter": "B", "text": "Empiric antibiotics"}, {"letter": "C", "text": "Plain lumbar radiographs and reassess in 1 week"}, {"letter": "D", "text": "Outpatient physical therapy referral"}, {"letter": "E", "text": "Emergent MRI and IV corticosteroids"}], "answer": "E", "explanation": "Back pain with new lower-extremity weakness in a cancer patient is malignant cord compression, an emergency requiring urgent MRI and steroids to preserve function.", "objective": "Clin Med — Oncology", "section": "Oncology"}, {"id": "44", "group": 44, "stem": "A 55-year-old man presents with fatigue, early satiety, and left upper quadrant fullness. Exam reveals marked splenomegaly. CBC shows WBC 145,000 with a full spectrum of maturing granulocytes (myelocytes, metamyelocytes, mature neutrophils) plus basophilia, and an elevated platelet count. He is not acutely ill. Which is the most likely diagnosis?", "options": [{"letter": "A", "text": "Leukemoid reaction"}, {"letter": "B", "text": "Acute myelogenous leukemia"}, {"letter": "C", "text": "Primary myelofibrosis"}, {"letter": "D", "text": "Chronic lymphocytic leukemia"}, {"letter": "E", "text": "Chronic myelogenous leukemia"}], "answer": "E", "explanation": "Marked leukocytosis with a left-shifted myeloid series, basophilia, thrombocytosis, and splenomegaly in a clinically stable patient is classic.", "objective": "Clin Med — Heme Malignancies", "section": "Heme Malignancies"}, {"id": "44A", "group": 44, "stem": "Which finding would confirm this diagnosis?", "options": [{"letter": "A", "text": "Anti-intrinsic factor antibodies"}, {"letter": "B", "text": "JAK2 V617F mutation"}, {"letter": "C", "text": "BCR-ABL fusion (Philadelphia chromosome)"}, {"letter": "D", "text": "t(15;17) with abnormal promyelocytes"}, {"letter": "E", "text": "Flow cytometry showing monoclonal B-lymphocytes"}], "answer": "C", "explanation": "The Philadelphia chromosome t(9;22) producing the BCR-ABL tyrosine kinase is the diagnostic hallmark and can be quantified to monitor therapy.", "objective": "Clin Med — Heme Malignancies", "section": "Heme Malignancies"}, {"id": "44B", "group": 44, "stem": "Which is the mainstay of treatment?", "options": [{"letter": "A", "text": "Plasma exchange"}, {"letter": "B", "text": "Oral tyrosine kinase inhibitor"}, {"letter": "C", "text": "Weekly intramuscular vitamin B12"}, {"letter": "D", "text": "All-trans retinoic acid"}, {"letter": "E", "text": "Immediate allogeneic stem cell transplant"}], "answer": "B", "explanation": "Daily oral TKI such as imatinib targets the fusion protein; undetectable transcript within about 2 years predicts near-normal life expectancy.", "objective": "Clin Med — Heme Malignancies", "section": "Heme Malignancies"}, {"id": "45", "group": 45, "stem": "A 31-year-old man with HIV (CD4 count 90) presents with 2 weeks of painful swallowing and difficulty eating. Exam reveals white plaques on the palate and oropharynx that scrape off. Which is the most appropriate treatment?", "options": [{"letter": "A", "text": "Nystatin swish-and-swallow only"}, {"letter": "B", "text": "Oral fluconazole"}, {"letter": "C", "text": "Amphotericin B plus flucytosine"}, {"letter": "D", "text": "Ganciclovir"}, {"letter": "E", "text": "IV acyclovir"}], "answer": "B", "explanation": "Odynophagia with oral thrush in AIDS indicates esophageal candidiasis, an AIDS-defining illness treated with systemic fluconazole for about 3 weeks; oral thrush alone would use topical nystatin.", "objective": "Clin Med — Fungal Infections", "section": "Fungal Infections"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage() {
+    const group = groups[pageList[page]];
+    const compact = group.length >= 3; // fit parent + follow-ups without scrolling
+    let html = '<div class="group' + (compact ? ' compact' : '') + '">';
+    html += questionHtml(group[0]);
+    if (group.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < group.length; i++) html += questionHtml(group[i]);
+      html += '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage();
+          renderProgress();
+          renderNav();
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function copyMissed(btn) {
+    const idx = missedGroups();
+    let out = 'MISSED QUESTIONS\n\n';
+    idx.forEach(gi => {
+      const g = groups[gi];
+      const parent = g[0];
+      out += 'Q' + parent.id + '. ' + parent.stem + '\n';
+      g.forEach(q => {
+        if (q.id !== parent.id) out += '\n  ' + q.id + '. ' + q.stem + '\n';
+        (q.options || []).forEach(o => { out += '     ' + o.letter + '. ' + o.text + '\n'; });
+        const your = answers[q.id];
+        const correctOpt = (q.options || []).find(o => o.letter === q.answer);
+        out += '     Your answer: ' + (your ? your : '(blank)') + '   Correct: ' + q.answer + '. ' + (correctOpt ? correctOpt.text : '') + '\n';
+        if (q.explanation) out += '     Rationale: ' + q.explanation + '\n';
+        if (q.objective) out += '     (' + q.objective + ')\n';
+      });
+      out += '\n----------------------------------------\n\n';
+    });
+    const done = () => { const t = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = t; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(out).then(done, () => fallbackCopy(out, done));
+    } else { fallbackCopy(out, done); }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) { alert('Copy failed — select and copy manually.'); }
+    document.body.removeChild(ta);
+  }
+
+  function missedGroups() {
+    const idx = [];
+    groups.forEach((g, i) => {
+      if (g.some(q => answers[q.id] !== undefined && answers[q.id] !== q.answer)) idx.push(i);
+    });
+    return idx;
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedGroups().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ' page' + (missed === 1 ? '' : 's') + ')</button>';
+    if (missed) html += '<button class="btn ghost" id="btn-copy-missed">Copy missed questions</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', () => startReview(true));
+    const cm = $('btn-copy-missed');
+    if (cm) cm.addEventListener('click', () => copyMissed(cm));
+    $('btn-review-all').addEventListener('click', () => startReview(false));
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReview(missedOnly) {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = missedOnly ? missedGroups() : answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = missedOnly ? 'Reviewing missed questions' : 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
