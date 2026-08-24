@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Clinical Medicine II — Gastric and Duodenal Disorders Practice Exam", "questions": [{"id": "1", "group": 1, "stem": "A 63-year-old man comes to the clinic because of burning epigastric pain for 3 months that comes on during and shortly after meals. He has postprandial belching and fullness, early satiety, and nausea, and he has lost 5.4 kg (12 lb). He takes naproxen daily for chronic low back pain and smokes a pack of cigarettes a day. He takes no aspirin, no steroids, and no anticoagulant. His temperature is 36.7°C (98.1°F), blood pressure is 128/80 mm Hg, pulse is 84/min, respirations are 14/min, and oxygen saturation is 98% on room air. Examination shows epigastric tenderness and conjunctival pallor, with no palpable abdominal mass and no supraclavicular lymphadenopathy.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "H. pylori stool antigen testing with clinical assessment"}, {"letter": "B", "text": "Fasting serum gastrin with gastric pH"}, {"letter": "C", "text": "EGD with biopsy"}, {"letter": "D", "text": "Urea breath test"}, {"letter": "E", "text": "CBC, CMP, and amylase/lipase"}], "answer": "C", "explanation": "Epigastric pain with weight loss, pallor, and age over 60 are alarm features, and alarm features mandate endoscopy rather than empiric therapy or a noninvasive test-and-treat strategy. Gastric ulcers are almost always biopsied to exclude malignancy, so the first study must be one that both visualizes and samples the lesion.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A2", "pgroup": "A", "pstack": "A"}, {"id": "1A", "group": 1, "stem": "Which of the following initial findings would most likely be present in this patient?", "options": [{"letter": "A", "text": "A 1.5-cm benign ulcer on the lesser curvature with iron deficiency anemia and a positive fecal occult blood test"}, {"letter": "B", "text": "An 8-mm clean-based ulcer in the duodenal bulb with a positive rapid urease test"}, {"letter": "C", "text": "A positive urea breath test with a normal blood count and a negative fecal occult blood test"}, {"letter": "D", "text": "Normal blood counts, chemistries, and lipase with a negative H. pylori stool antigen"}, {"letter": "E", "text": "Fasting gastrin 1,840 pg/mL at a gastric pH of 1.4 with multiple duodenal ulcers"}], "answer": "A", "explanation": "Bleeding is the most common complication of peptic ulcer disease, and chronic occult loss from a gastric crater produces microcytic iron deficiency anemia with a positive fecal occult blood test. Daily NSAID use inhibits COX-1 and COX-2, reducing prostaglandins and therefore mucus, bicarbonate, mucosal blood flow, and epithelial repair.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A2", "pgroup": "A", "pstack": "A"}, {"id": "1B", "group": 1, "stem": "Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Gastritis"}, {"letter": "B", "text": "Helicobacter pylori infection"}, {"letter": "C", "text": "Functional (non-ulcer) dyspepsia"}, {"letter": "D", "text": "Peptic ulcer disease with a gastric ulcer"}, {"letter": "E", "text": "Zollinger-Ellison syndrome"}], "answer": "D", "explanation": "Pain that comes on during and shortly after meals with weight loss, in a daily NSAID user with a discrete crater in the gastric body, is a gastric ulcer. A duodenal ulcer produces pain 2 to 5 hours after eating that is relieved by food and causes weight gain, and gastritis produces diffuse superficial erosions without a crater.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A2", "pgroup": "A", "pstack": "A"}, {"id": "2", "group": 2, "stem": "A 45-year-old man comes to the clinic because of vague upper abdominal pain for 4 months that came on insidiously and has gradually worsened. He is nauseated with occasional vomiting, feels full after a few bites, has a poor appetite, and has lost 4 kg (9 lb). He had a partial gastrectomy for a bleeding ulcer 6 years ago. He eats a large amount of raw vegetables and persimmons. He has no psychiatric history and does not pull his hair. His temperature is 36.7°C (98.1°F), blood pressure is 122/76 mm Hg, pulse is 76/min, respirations are 14/min, and oxygen saturation is 99% on room air. Examination is unremarkable except for halitosis, with no palpable mass, no distension, and no succussion splash.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Scintigraphic gastric emptying study with upper endoscopy"}, {"letter": "B", "text": "Upper endoscopy"}, {"letter": "C", "text": "Upper endoscopy with CT of the abdomen"}, {"letter": "D", "text": "CBC, CMP, and amylase/lipase"}, {"letter": "E", "text": "Clinical criteria with CBC and CMP"}], "answer": "B", "explanation": "Insidious upper abdominal pain with early satiety and weight loss after gastric surgery calls for direct visualization of the stomach. Endoscopy identifies the intraluminal mass and simultaneously excludes a recurrent ulcer or malignancy at the anastomosis.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C3", "pgroup": "C", "pstack": "A"}, {"id": "2A", "group": 2, "stem": "Which of the following initial findings would most likely be present in this patient?", "options": [{"letter": "A", "text": "42% of a labeled meal retained at 4 hours with a patent pylorus"}, {"letter": "B", "text": "A narrowed, fibrotic pylorus with retained gastric contents and a hypokalemic hypochloremic metabolic alkalosis"}, {"letter": "C", "text": "A dark green, amorphous ball of matted vegetable fiber in the antrum with normal mucosa"}, {"letter": "D", "text": "A 1.5-cm benign ulcer on the lesser curvature with iron deficiency anemia and a positive fecal occult blood test"}, {"letter": "E", "text": "Normal blood counts, chemistries, and lipase with a negative H. pylori stool antigen"}], "answer": "C", "explanation": "Bezoars form when indigestible material is ingested by a patient with impaired gastric grinding. A partial gastrectomy destroys the antral grinding mechanism, and raw vegetables and persimmons supply the fiber that mats into a phytobezoar; the mucosa beneath it is normal because the mass is intraluminal rather than infiltrative.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C3", "pgroup": "C", "pstack": "A"}, {"id": "2B", "group": 2, "stem": "Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Gastroparesis"}, {"letter": "B", "text": "Pyloric stenosis from adult gastric outlet obstruction"}, {"letter": "C", "text": "Functional (non-ulcer) dyspepsia"}, {"letter": "D", "text": "Bezoar"}, {"letter": "E", "text": "Cyclical vomiting syndrome"}], "answer": "D", "explanation": "A mobile intraluminal mass of ingested vegetable matter with normal underlying mucosa is a phytobezoar, which is most common in men in their forties and fifties. Gastroparesis leaves retained food without a discrete mass, and pyloric stenosis narrows the outlet rather than filling the antrum.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C3", "pgroup": "C", "pstack": "A"}, {"id": "3", "group": 3, "stem": "A 41-year-old man comes to the clinic because of epigastric burning and fullness for 4 months. He is nauseated but has not vomited, and on some days he has no symptoms at all. He grew up in crowded housing with six siblings, sharing a bed, without running water. He takes no NSAIDs, no aspirin, and no steroids, and he drinks no alcohol. He has had no weight loss, no dysphagia, no vomiting, and no gastrointestinal bleeding. His temperature is 36.7°C (98.1°F), blood pressure is 122/78 mm Hg, pulse is 74/min, respirations are 14/min, and oxygen saturation is 99% on room air. Examination shows epigastric tenderness with an otherwise normal abdomen, no mass, and no lymphadenopathy.\n\nLaboratory studies:\n  Hemoglobin: 14.2 g/dL\n  Hematocrit: 43%\n  MCV: 88 fL\n  Ferritin: 96 ng/mL\n  Fecal occult blood test: Negative\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Fasting serum gastrin with gastric pH"}, {"letter": "B", "text": "Urea breath test"}, {"letter": "C", "text": "EGD with biopsy"}, {"letter": "D", "text": "CBC, CMP, and amylase/lipase"}, {"letter": "E", "text": "Endoscopic biopsy with rapid urease (CLO) testing"}], "answer": "B", "explanation": "Dyspepsia in a patient under 55 with no alarm features is evaluated with noninvasive H. pylori testing rather than endoscopy. The urea breath test detects labeled carbon dioxide released when bacterial urease hydrolyzes ingested urea, with a sensitivity of 88 to 95% and a specificity of 95 to 100%.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A4", "pgroup": "A", "pstack": "A"}, {"id": "3A", "group": 3, "stem": "Which of the following additional findings would most likely be present in this patient?", "options": [{"letter": "A", "text": "Epigastric tenderness with an NSAID and alcohol history and a negative H. pylori test"}, {"letter": "B", "text": "Fasting gastrin 1,840 pg/mL at a gastric pH of 1.4 with multiple duodenal ulcers"}, {"letter": "C", "text": "A positive urea breath test"}, {"letter": "D", "text": "An 8-mm clean-based ulcer in the duodenal bulb with a positive rapid urease test"}, {"letter": "E", "text": "A 1.5-cm benign ulcer on the lesser curvature with a positive fecal occult blood test"}], "answer": "C", "explanation": "H. pylori causes iron deficiency anemia that is not from blood loss, which is why the fecal occult blood test is negative. Crowded housing without running water is the classic exposure history for an organism transmitted by fecal-oral or oral-oral routes.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A4", "pgroup": "A", "pstack": "A"}, {"id": "3B", "group": 3, "stem": "Which of the following tests would most directly confirm the underlying cause of this patient's symptoms?", "options": [{"letter": "A", "text": "Upper endoscopy with biopsy of the gastric antrum and body"}, {"letter": "B", "text": "Secretin stimulation test with somatostatin receptor scintigraphy"}, {"letter": "C", "text": "Fasting serum gastrin with gastric pH"}, {"letter": "D", "text": "Endoscopic biopsy with rapid urease (CLO) testing"}, {"letter": "E", "text": "CBC, CMP, and amylase/lipase"}], "answer": "D", "explanation": "The CLO test detects bacterial urease directly in the biopsy, turning positive within an hour with a sensitivity of about 90% and a specificity of about 95%. Both the antrum and the corpus are sampled because the organism is patchily distributed. Serology is not used, since antibodies persist for years and cannot confirm eradication.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A4", "pgroup": "A", "pstack": "A"}, {"id": "3C", "group": 3, "stem": "Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Peptic ulcer disease with a duodenal ulcer"}, {"letter": "B", "text": "Gastritis"}, {"letter": "C", "text": "Zollinger-Ellison syndrome"}, {"letter": "D", "text": "Functional (non-ulcer) dyspepsia"}, {"letter": "E", "text": "Helicobacter pylori infection"}], "answer": "E", "explanation": "Dyspepsia with a positive noninvasive test and no ulcer crater is infection itself rather than peptic ulcer disease. The bacterial urease creates an island of alkalinity in a sea of acidity, and the spiral shape, flagella, and mucolytic enzymes let the organism cross the mucus layer and incite inflammation.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A4", "pgroup": "A", "pstack": "A"}, {"id": "4", "group": 4, "stem": "A 22-year-old man comes to the emergency department for his fourth visit in 6 months for repeated vomiting with crampy periumbilical pain. He drinks no alcohol, takes no NSAIDs, and has had no prior abdominal surgery. His temperature is 36.8°C (98.2°F), blood pressure is 118/74 mm Hg, pulse is 104/min, respirations are 16/min, and oxygen saturation is 99% on room air. Examination shows diffuse abdominal tenderness without guarding or rebound and dry mucous membranes, with no distension, no succussion splash, and no palpable mass.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Clinical criteria with CBC and CMP"}, {"letter": "B", "text": "Upper endoscopy with CT of the abdomen"}, {"letter": "C", "text": "CBC, CMP, and lipase"}, {"letter": "D", "text": "Scintigraphic gastric emptying study with upper endoscopy"}, {"letter": "E", "text": "H. pylori stool antigen testing with clinical assessment"}], "answer": "C", "explanation": "Repeated vomiting with crampy abdominal pain requires a basic laboratory evaluation to document electrolyte losses and to exclude pancreatitis before an episodic vomiting syndrome is diagnosed. A normal lipase is what allows the pattern to be attributed to the vomiting syndrome itself.", "objective": "", "section": "Cyclical bouts of vomiting with normal health between episodes", "pcase": "D2", "pgroup": "D", "pstack": "A"}, {"id": "4A", "group": 4, "stem": "Which of the following additional findings would most likely be present in this patient?", "options": [{"letter": "A", "text": "At least 3 stereotypical episodes in the prior year, at least 1 week apart, with complete wellness between them"}, {"letter": "B", "text": "Cyclical vomiting relieved by hot bathing in a chronic cannabis user, with a normal lipase"}, {"letter": "C", "text": "42% of a labeled meal retained at 4 hours with a patent pylorus"}, {"letter": "D", "text": "A narrowed, fibrotic pylorus with retained gastric contents and a hypokalemic hypochloremic metabolic alkalosis"}, {"letter": "E", "text": "A dark green, amorphous ball of matted vegetable fiber in the antrum with normal mucosa"}], "answer": "B", "explanation": "Relief with prolonged hot bathing in a patient using cannabis several times daily is the hallmark pattern. The repeated vomiting produces a hypokalemic, hypochloremic picture with a raised bicarbonate, while the lipase stays normal because the pancreas is not involved.", "objective": "", "section": "Cyclical bouts of vomiting with normal health between episodes", "pcase": "D2", "pgroup": "D", "pstack": "A"}, {"id": "4B", "group": 4, "stem": "Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Gastroparesis"}, {"letter": "B", "text": "Cyclical vomiting syndrome"}, {"letter": "C", "text": "Bezoar"}, {"letter": "D", "text": "Pyloric stenosis from adult gastric outlet obstruction"}, {"letter": "E", "text": "Cannabis hyperemesis syndrome"}], "answer": "E", "explanation": "Recurrent vomiting tied to chronic daily cannabis use and relieved by hot showers distinguishes this from cyclical vomiting syndrome, which carries a personal or family migraine association and no cannabis exposure. Gastroparesis produces continuous postprandial symptoms with objectively delayed emptying rather than discrete bouts.", "objective": "", "section": "Cyclical bouts of vomiting with normal health between episodes", "pcase": "D2", "pgroup": "D", "pstack": "A"}, {"id": "5", "group": 5, "stem": "A 44-year-old woman comes to the clinic because of burning epigastric pain for 6 weeks. She feels bloated and uncomfortably full after meals, is nauseated most days with occasional vomiting, and has a decreased appetite. She takes ibuprofen 600 mg three times daily for knee osteoarthritis and drinks two or three glasses of wine most evenings. She takes no steroids, has not vomited blood, and has not had black stools. Her temperature is 36.8°C (98.2°F), blood pressure is 126/78 mm Hg, pulse is 76/min, respirations are 14/min, and oxygen saturation is 99% on room air. Examination shows epigastric tenderness with a soft abdomen, no palpable mass, no organomegaly, and no rebound or guarding. Her symptoms do not improve after 8 weeks off the ibuprofen and on a proton pump inhibitor.\n\nLaboratory studies:\n  Hemoglobin: 12.6 g/dL\n  Hematocrit: 38%\n  MCV: 88 fL\n  H. pylori stool antigen: Negative\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Endoscopic biopsy with rapid urease (CLO) testing"}, {"letter": "B", "text": "Secretin stimulation test with somatostatin receptor scintigraphy"}, {"letter": "C", "text": "Upper endoscopy with biopsy"}, {"letter": "D", "text": "Fasting serum gastrin with gastric pH"}, {"letter": "E", "text": "Urea breath test"}], "answer": "C", "explanation": "Her initial evaluation is complete: the H. pylori stool antigen is negative and the blood count shows no anemia. Endoscopy is indicated here only because symptoms failed to improve after withdrawal of the offending agents and a course of acid suppression, and it is the study that establishes the mucosal diagnosis.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A1", "pgroup": "A", "pstack": "A"}, {"id": "5A", "group": 5, "stem": "Which of the following findings would most likely be present on this study?", "options": [{"letter": "A", "text": "Patchy erythema and superficial erosions with no discrete ulcer crater"}, {"letter": "B", "text": "No organic lesion, with biopsies negative for H. pylori"}, {"letter": "C", "text": "A positive CLO test within 1 hour from antral and corpus biopsies"}, {"letter": "D", "text": "A gastrin rise of 340 pg/mL after intravenous secretin, with a pancreatic head lesion"}, {"letter": "E", "text": "An 8-mm clean-based ulcer in the duodenal bulb"}], "answer": "A", "explanation": "Gastritis is inflammation-associated mucosal injury, so the endoscopic picture is diffuse and superficial rather than a single deep lesion. NSAIDs and alcohol injure the mucosa broadly across the antrum and body, and the absence of a discrete crater is what separates gastritis from peptic ulcer disease.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A1", "pgroup": "A", "pstack": "A"}, {"id": "5B", "group": 5, "stem": "Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Functional (non-ulcer) dyspepsia"}, {"letter": "B", "text": "Peptic ulcer disease with a gastric ulcer"}, {"letter": "C", "text": "Helicobacter pylori infection"}, {"letter": "D", "text": "Zollinger-Ellison syndrome"}, {"letter": "E", "text": "Gastritis"}], "answer": "E", "explanation": "Diffuse superficial erosions with a compatible NSAID and alcohol history, negative H. pylori testing, and no anemia, weight loss, or positive fecal occult blood test make this gastritis. A completely normal mucosa would indicate functional dyspepsia, and a discrete crater would indicate peptic ulcer disease.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A1", "pgroup": "A", "pstack": "A"}, {"id": "6", "group": 6, "stem": "A 47-year-old man is referred to the gastroenterology clinic because of epigastric burning that has recurred three times in 2 years despite two completed courses of a proton pump inhibitor. He has watery diarrhea most days and heartburn, and he has lost 4 kg (9 lb). He takes no NSAIDs, no aspirin, and no steroids, and H. pylori testing has been negative on two occasions. His mother had both a parathyroid tumor and a pituitary tumor. His temperature is 36.7°C (98.1°F), blood pressure is 124/78 mm Hg, pulse is 78/min, respirations are 14/min, and oxygen saturation is 99% on room air. Examination shows epigastric tenderness with an otherwise normal abdomen, no palpable mass, and no organomegaly. Upper endoscopy shows multiple ulcers in the duodenal bulb and the distal duodenum.\n\nLaboratory studies:\n  Calcium: 11.2 mg/dL\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "CBC, CMP, and amylase/lipase"}, {"letter": "B", "text": "H. pylori stool antigen testing with clinical assessment"}, {"letter": "C", "text": "Urea breath test"}, {"letter": "D", "text": "Fasting serum gastrin with gastric pH"}, {"letter": "E", "text": "EGD with biopsy"}], "answer": "D", "explanation": "Ulcers that recur despite two completed courses of a proton pump inhibitor, in a patient with no NSAID exposure and repeatedly negative H. pylori testing, point to acid hypersecretion from a gastrin-secreting tumor. The gastrin must be paired with a gastric pH, because a raised gastrin only means hypersecretion when the stomach is still acidic.", "objective": "", "section": "Epigastric pain with no mucosal lesion found on the initial evaluation", "pcase": "B2", "pgroup": "B", "pstack": "A"}, {"id": "6A", "group": 6, "stem": "Which of the following additional findings would most likely be present in this patient?", "options": [{"letter": "A", "text": "Normal blood counts, chemistries, and lipase with a negative H. pylori stool antigen"}, {"letter": "B", "text": "A fasting gastrin of 1,840 pg/mL at a gastric pH of 1.4"}, {"letter": "C", "text": "A positive urea breath test with a normal blood count and a negative fecal occult blood test"}, {"letter": "D", "text": "Epigastric tenderness with an NSAID and alcohol history and a negative H. pylori test"}, {"letter": "E", "text": "A 1.5-cm benign ulcer on the lesser curvature with iron deficiency anemia and a positive fecal occult blood test"}], "answer": "B", "explanation": "A fasting gastrin above 1,000 pg/mL with a gastric pH below 2 is diagnostic. Acid suppression itself raises gastrin, which is why a level drawn on a high-dose proton pump inhibitor is uninterpretable and abolishes the pH criterion.", "objective": "", "section": "Epigastric pain with no mucosal lesion found on the initial evaluation", "pcase": "B2", "pgroup": "B", "pstack": "A"}, {"id": "6B", "group": 6, "stem": "Which of the following tests would most directly confirm the suspected diagnosis?", "options": [{"letter": "A", "text": "Upper endoscopy with biopsy"}, {"letter": "B", "text": "Endoscopic biopsy with rapid urease (CLO) testing"}, {"letter": "C", "text": "Secretin stimulation test with somatostatin receptor scintigraphy"}, {"letter": "D", "text": "Urea breath test"}, {"letter": "E", "text": "CBC, CMP, and amylase/lipase"}], "answer": "C", "explanation": "Secretin normally inhibits gastric G cells but stimulates gastrinoma cells, so a paradoxical rise of more than 200 pg/mL confirms the diagnosis. Scintigraphy then localizes the receptor-avid lesion, most often in the pancreas or the duodenum.", "objective": "", "section": "Epigastric pain with no mucosal lesion found on the initial evaluation", "pcase": "B2", "pgroup": "B", "pstack": "A"}, {"id": "6C", "group": 6, "stem": "Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Zollinger-Ellison syndrome"}, {"letter": "B", "text": "Functional (non-ulcer) dyspepsia"}, {"letter": "C", "text": "Gastritis"}, {"letter": "D", "text": "Peptic ulcer disease with a duodenal ulcer"}, {"letter": "E", "text": "Helicobacter pylori infection"}], "answer": "A", "explanation": "A neuroendocrine tumor secreting excess gastrin drives excess acid, producing ulcers beyond the bulb and diarrhea from an acid volume load that exceeds reabsorption and inactivates pancreatic enzymes. The mother's parathyroid and pituitary tumors and this patient's raised calcium point to MEN I.", "objective": "", "section": "Epigastric pain with no mucosal lesion found on the initial evaluation", "pcase": "B2", "pgroup": "B", "pstack": "A"}, {"id": "7", "group": 7, "stem": "A 36-year-old woman comes to the clinic because of burning epigastric pain for 2 months that comes on about 3 hours after eating and wakes her around midnight. The pain is relieved by eating or drinking milk. She belches frequently and has gained 2.7 kg (6 lb). She takes no NSAIDs, aspirin, steroids, or anticoagulants and does not smoke. She has no dysphagia, no vomiting, no melena, and no family history of upper gastrointestinal cancer. Her temperature is 36.6°C (97.9°F), blood pressure is 118/72 mm Hg, pulse is 72/min, respirations are 14/min, and oxygen saturation is 99% on room air. Examination shows epigastric tenderness, with no pallor, no palpable mass, and no lymphadenopathy.\n\nLaboratory studies:\n  Hemoglobin: 13.2 g/dL\n  Hematocrit: 40%\n  MCV: 89 fL\n  Fecal occult blood test: Negative\n  BUN: 12 mg/dL\n  Creatinine: 0.8 mg/dL\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Urea breath test"}, {"letter": "B", "text": "Fasting serum gastrin with gastric pH"}, {"letter": "C", "text": "H. pylori stool antigen testing with clinical assessment"}, {"letter": "D", "text": "EGD with biopsy"}, {"letter": "E", "text": "Secretin stimulation test with somatostatin receptor scintigraphy"}], "answer": "D", "explanation": "Endoscopy with biopsy both visualizes the crater and provides antral tissue for rapid urease testing, which is what settles the cause. NSAIDs and H. pylori account for more than 90% of peptic ulcer disease, so every suspected ulcer is tested for the organism.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A3", "pgroup": "A", "pstack": "A"}, {"id": "7A", "group": 7, "stem": "Which of the following additional findings would most likely be present in this patient?", "options": [{"letter": "A", "text": "A 1.5-cm benign ulcer on the lesser curvature with iron deficiency anemia and a positive fecal occult blood test"}, {"letter": "B", "text": "Epigastric tenderness with an NSAID and alcohol history and a negative H. pylori test"}, {"letter": "C", "text": "An 8-mm clean-based ulcer in the duodenal bulb with a positive rapid urease test"}, {"letter": "D", "text": "Fasting gastrin 1,840 pg/mL at a gastric pH of 1.4 with multiple duodenal ulcers"}, {"letter": "E", "text": "Normal blood counts, chemistries, and lipase with a negative H. pylori stool antigen"}], "answer": "C", "explanation": "Pain 2 to 5 hours after eating and at night, relieved by food and milk, with weight gain, is the duodenal pattern, reflecting peak circadian acid output between 11 PM and 2 AM. With no NSAID exposure, H. pylori is the remaining cause, so the urease test is positive.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A3", "pgroup": "A", "pstack": "A"}, {"id": "7B", "group": 7, "stem": "Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Zollinger-Ellison syndrome"}, {"letter": "B", "text": "Peptic ulcer disease with a duodenal ulcer"}, {"letter": "C", "text": "Gastritis"}, {"letter": "D", "text": "Helicobacter pylori infection"}, {"letter": "E", "text": "Functional (non-ulcer) dyspepsia"}], "answer": "B", "explanation": "A solitary bulbar crater with a positive urease test in a patient taking no NSAIDs is H. pylori-associated duodenal ulcer disease. Isolated infection would have no crater, and a gastric ulcer would produce pain with meals and weight loss rather than relief with food and weight gain.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A3", "pgroup": "A", "pstack": "A"}, {"id": "8", "group": 8, "stem": "A 58-year-old man comes to the emergency department because he has vomited after nearly every meal for the past 3 weeks. The vomiting is forceful and brings up food he ate several hours earlier. He feels full after a few bites, is bloated, and has lost 7 kg (15 lb). He was treated for a duodenal ulcer 4 years ago and has taken no NSAIDs since. He has no known malignancy. His temperature is 36.8°C (98.2°F), blood pressure is 104/68 mm Hg, pulse is 106/min, respirations are 16/min, and oxygen saturation is 98% on room air. Examination shows a distended epigastrium, a succussion splash when the abdomen is shaken, and dry mucous membranes, with no palpable abdominal mass and no organomegaly.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Upper endoscopy with CT of the abdomen"}, {"letter": "B", "text": "Scintigraphic gastric emptying study with upper endoscopy"}, {"letter": "C", "text": "Upper endoscopy"}, {"letter": "D", "text": "CBC, CMP, and amylase/lipase"}, {"letter": "E", "text": "Clinical criteria with CBC and CMP"}], "answer": "A", "explanation": "Forceful vomiting of food eaten hours earlier with a succussion splash indicates gastric outlet obstruction. In adults the cause is malignancy or peptic ulcer disease, so the pylorus must be visualized and biopsied, and cross-sectional imaging defines the degree of gastric distension and looks for a mass.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C1", "pgroup": "C", "pstack": "A"}, {"id": "8A", "group": 8, "stem": "Which of the following initial findings would most likely be present in this patient?", "options": [{"letter": "A", "text": "A dark green, amorphous ball of matted vegetable fiber in the antrum with normal mucosa"}, {"letter": "B", "text": "42% of a labeled meal retained at 4 hours with a patent pylorus"}, {"letter": "C", "text": "Normal blood counts, chemistries, and lipase with a negative H. pylori stool antigen"}, {"letter": "D", "text": "A narrowed, fibrotic pylorus with retained gastric contents and a hypokalemic hypochloremic metabolic alkalosis"}, {"letter": "E", "text": "At least 3 stereotypical episodes in the prior year, at least 1 week apart, with complete wellness between them"}], "answer": "D", "explanation": "Repeated loss of gastric contents strips hydrogen and chloride, and the resulting volume depletion drives renal potassium wasting, producing the hypokalemic hypochloremic metabolic alkalosis. The pylorus itself is fixed and fibrotic from healed ulcer disease and will not admit the scope.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C1", "pgroup": "C", "pstack": "A"}, {"id": "8B", "group": 8, "stem": "Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Bezoar"}, {"letter": "B", "text": "Gastroparesis"}, {"letter": "C", "text": "Pyloric stenosis from adult gastric outlet obstruction"}, {"letter": "D", "text": "Peptic ulcer disease with a gastric ulcer"}, {"letter": "E", "text": "Functional (non-ulcer) dyspepsia"}], "answer": "C", "explanation": "Prior duodenal ulcer disease with a fixed, impassable pylorus and biopsies negative for malignancy establishes a benign cicatricial stricture. Gastroparesis leaves a patent pylorus with normal chemistries, and a bezoar is a mobile intraluminal mass rather than a narrowed outlet.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C1", "pgroup": "C", "pstack": "A"}, {"id": "9", "group": 9, "stem": "A 63-year-old man has peptic ulcer disease with a 1.5-cm benign ulcer on the lesser curvature of the gastric body found on upper endoscopy. He takes naproxen daily for chronic low back pain and smokes a pack of cigarettes a day. His hemoglobin is 10.4 g/dL and a fecal occult blood test is positive.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Stop the naproxen and give a proton pump inhibitor for 8 weeks"}, {"letter": "B", "text": "Continue the naproxen and give a proton pump inhibitor for 8 weeks"}, {"letter": "C", "text": "Continue the naproxen and add misoprostol 200 mcg four times daily"}, {"letter": "D", "text": "Stop the naproxen and give a proton pump inhibitor for 2 weeks"}, {"letter": "E", "text": "Stop the naproxen and give an antacid as needed for pain"}], "answer": "A", "explanation": "Withdrawing the causative agent is the first management step, and an 8-week course of acid suppression heals the ulcer. Misoprostol is for NSAID-ulcer prevention rather than treatment and is contraindicated in pregnancy because it induces uterine contractions, so continuing the NSAID and adding it is not the answer here.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A2", "pgroup": "A", "pstack": "B"}, {"id": "9A", "group": 9, "stem": "He completes 8 weeks of therapy and his symptoms resolve. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Repeat upper endoscopy only if his symptoms recur after treatment"}, {"letter": "B", "text": "Repeat upper endoscopy only if his anemia fails to correct"}, {"letter": "C", "text": "Repeat upper endoscopy only if the initial biopsies had shown dysplasia"}, {"letter": "D", "text": "Repeat upper endoscopy only if he resumes taking naproxen"}, {"letter": "E", "text": "Repeat upper endoscopy now to confirm healing"}], "answer": "E", "explanation": "Repeat endoscopy is required after treatment of a gastric ulcer to confirm healing and to ensure the lesion is benign, regardless of whether symptoms resolved. This requirement is what separates gastric from duodenal ulcers, which are almost certainly benign and need no routine repeat study.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A2", "pgroup": "A", "pstack": "B"}, {"id": "10", "group": 10, "stem": "A 13-year-old girl is brought to the emergency department by her mother during her fourth episode of relentless vomiting this year. Each episode begins with hours of intense nausea, sweating, and hot and cold flashes, followed by two to three days of retching. Between episodes she goes to school normally. The episodes began two years ago. Her mother has migraine headaches, and during the episodes she asks for the lights to be turned off. Her temperature is 36.9°C (98.4°F), blood pressure is 104/64 mm Hg, pulse is 118/min, respirations are 20/min, and oxygen saturation is 99% on room air. Examination shows dry mucous membranes and delayed capillary refill, with a soft abdomen, mild diffuse tenderness, no guarding or rebound, and a normal neurologic examination.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Scintigraphic gastric emptying study with upper endoscopy"}, {"letter": "B", "text": "Clinical criteria with CBC and CMP"}, {"letter": "C", "text": "CBC, CMP, and lipase"}, {"letter": "D", "text": "Upper endoscopy with CT of the abdomen"}, {"letter": "E", "text": "H. pylori stool antigen testing with clinical assessment"}], "answer": "B", "explanation": "Cyclical vomiting syndrome is a diagnosis of exclusion made on clinical criteria, supported by chemistries that document the dehydration and electrolyte loss. Endoscopy and imaging are used to exclude other causes rather than to make the diagnosis, since no confirmatory test exists.", "objective": "", "section": "Cyclical bouts of vomiting with normal health between episodes", "pcase": "D1", "pgroup": "D", "pstack": "A"}, {"id": "10A", "group": 10, "stem": "Which of the following initial findings would most likely be present in this patient?", "options": [{"letter": "A", "text": "Cyclical vomiting relieved by hot bathing in a chronic cannabis user, with a normal lipase"}, {"letter": "B", "text": "A narrowed, fibrotic pylorus with retained gastric contents and a hypokalemic hypochloremic metabolic alkalosis"}, {"letter": "C", "text": "A dark green, amorphous ball of matted vegetable fiber in the antrum with normal mucosa"}, {"letter": "D", "text": "At least 3 stereotypical episodes in the prior year, at least 1 week apart, with complete wellness between them"}, {"letter": "E", "text": "42% of a labeled meal retained at 4 hours with a patent pylorus"}], "answer": "D", "explanation": "The definition requires recurrent stereotypical bouts, stereotypical in both acute onset and duration of less than a week, with intervening return to baseline health. The absence of vomiting between episodes is what excludes a continuous motility or obstructive disorder.", "objective": "", "section": "Cyclical bouts of vomiting with normal health between episodes", "pcase": "D1", "pgroup": "D", "pstack": "A"}, {"id": "10B", "group": 10, "stem": "Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Cyclical vomiting syndrome"}, {"letter": "B", "text": "Cannabis hyperemesis syndrome"}, {"letter": "C", "text": "Gastroparesis"}, {"letter": "D", "text": "Bezoar"}, {"letter": "E", "text": "Pyloric stenosis from adult gastric outlet obstruction"}], "answer": "A", "explanation": "The four-phase cycle of prodrome, vomiting and retching, recovery, and an inter-episodic phase of baseline health, with photosensitivity and a family history of migraine, is characteristic. Cannabis hyperemesis would require chronic cannabis use and relief with hot bathing, neither of which is present.", "objective": "", "section": "Cyclical bouts of vomiting with normal health between episodes", "pcase": "D1", "pgroup": "D", "pstack": "A"}, {"id": "11", "group": 11, "stem": "A 41-year-old man has Helicobacter pylori infection confirmed by a positive urea breath test. He has had no prior macrolide exposure.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Withdraw the causative agent and start a proton pump inhibitor"}, {"letter": "B", "text": "Triple therapy for 14 days with omeprazole, clarithromycin, and amoxicillin"}, {"letter": "C", "text": "Withdraw offending agents with diet change and a proton pump inhibitor"}, {"letter": "D", "text": "Surgical resection of the tumor with a high-dose proton pump inhibitor"}, {"letter": "E", "text": "Withdraw NSAIDs and give a proton pump inhibitor for 8 weeks"}], "answer": "B", "explanation": "With no prior macrolide exposure, clarithromycin-based triple therapy is first-line. A standard-dose proton pump inhibitor twice daily is a mandatory backbone of every regimen, and 14 days is mandatory whenever clarithromycin is used.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A4", "pgroup": "A", "pstack": "B"}, {"id": "11A", "group": 11, "stem": "Therapy is completed. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Retest at least 4 weeks after therapy is completed"}, {"letter": "B", "text": "Retest on the last day of therapy"}, {"letter": "C", "text": "Retest 1 week after therapy is completed"}, {"letter": "D", "text": "Retest with serology at least 4 weeks after therapy is completed"}, {"letter": "E", "text": "Retest only if his symptoms persist after therapy"}], "answer": "A", "explanation": "Eradication must always be confirmed, and the retest is done at least 4 weeks after therapy, off antibiotics for 30 days and off the proton pump inhibitor for 1 to 2 weeks, because residual drug produces false negatives. Serology cannot be used, since antibodies persist for years and never document cure.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A4", "pgroup": "A", "pstack": "B"}, {"id": "12", "group": 12, "stem": "A 29-year-old woman comes to the clinic because of burning epigastric pain and a sense of fullness after meals for the past 5 months. She often cannot finish a normal-sized meal. She takes ibuprofen a few days each month for menstrual cramps, takes no aspirin or steroids, and drinks no alcohol. She has had no weight loss, no dysphagia, no odynophagia, no vomiting, no jaundice, and no black or bloody stools, and no one in her family has had stomach cancer. Her temperature is 36.6°C (97.9°F), blood pressure is 112/70 mm Hg, pulse is 70/min, respirations are 14/min, and oxygen saturation is 99% on room air. Examination shows epigastric tenderness with an otherwise normal abdomen, no mass, no lymphadenopathy, and no organomegaly. Her symptoms are unchanged after 8 weeks on a proton pump inhibitor.\n\nLaboratory studies:\n  Hemoglobin: 13.0 g/dL\n  Hematocrit: 39%\n  MCV: 88 fL\n  CMP: Normal\n  Lipase: 32 U/L\n  H. pylori stool antigen: Negative\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Fasting serum gastrin with gastric pH"}, {"letter": "B", "text": "Endoscopic biopsy with rapid urease (CLO) testing"}, {"letter": "C", "text": "Upper endoscopy with biopsy"}, {"letter": "D", "text": "Secretin stimulation test with somatostatin receptor scintigraphy"}, {"letter": "E", "text": "Urea breath test"}], "answer": "C", "explanation": "Her blood counts, chemistries, lipase, and H. pylori stool antigen are all normal, so the initial evaluation is complete. Endoscopy is indicated here because her symptoms proved refractory to treatment, not because of her age or an alarm feature, and it is the study that establishes whether an organic lesion exists.", "objective": "", "section": "Epigastric pain with no mucosal lesion found on the initial evaluation", "pcase": "B1", "pgroup": "B", "pstack": "A"}, {"id": "12A", "group": 12, "stem": "Which of the following findings would most likely be present on this study?", "options": [{"letter": "A", "text": "Patchy erythema and superficial erosions with no discrete ulcer crater"}, {"letter": "B", "text": "No organic lesion, with biopsies negative for H. pylori"}, {"letter": "C", "text": "A positive CLO test within 1 hour from antral and corpus biopsies"}, {"letter": "D", "text": "An 8-mm clean-based ulcer in the duodenal bulb"}, {"letter": "E", "text": "A gastrin rise of 340 pg/mL after intravenous secretin, with a pancreatic head lesion"}], "answer": "B", "explanation": "About 75% of dyspepsia is functional, with no organic disease found on evaluation. Biopsies are always taken at the time of endoscopy, and they are negative for H. pylori here, which is what leaves the disorder idiopathic.", "objective": "", "section": "Epigastric pain with no mucosal lesion found on the initial evaluation", "pcase": "B1", "pgroup": "B", "pstack": "A"}, {"id": "12B", "group": 12, "stem": "Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Gastritis"}, {"letter": "B", "text": "Zollinger-Ellison syndrome"}, {"letter": "C", "text": "Peptic ulcer disease with a gastric ulcer"}, {"letter": "D", "text": "Helicobacter pylori infection"}, {"letter": "E", "text": "Functional (non-ulcer) dyspepsia"}], "answer": "E", "explanation": "Persistent symptoms with a completely normal endoscopy and negative biopsies define functional dyspepsia. Gastritis produces erythema and erosions, peptic ulcer disease produces a crater with anemia or a positive fecal occult blood test, and gastrinoma produces recurrent ulcers with diarrhea and weight loss.", "objective": "", "section": "Epigastric pain with no mucosal lesion found on the initial evaluation", "pcase": "B1", "pgroup": "B", "pstack": "A"}, {"id": "13", "group": 13, "stem": "A 44-year-old woman is given a clinical diagnosis of gastritis. She takes ibuprofen 600 mg three times daily for knee osteoarthritis and drinks two or three glasses of wine most evenings. Testing for Helicobacter pylori is planned.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Send the stool antigen today and begin the proton pump inhibitor afterward"}, {"letter": "B", "text": "Begin the proton pump inhibitor today and send the stool antigen the same day"}, {"letter": "C", "text": "Begin the proton pump inhibitor today and send the stool antigen after 2 weeks of therapy"}, {"letter": "D", "text": "Begin the proton pump inhibitor and bismuth today and send the stool antigen after 4 weeks of therapy"}, {"letter": "E", "text": "Begin the proton pump inhibitor today and order serology instead of the stool antigen"}], "answer": "A", "explanation": "Proton pump inhibitors, antibiotics, and bismuth all cause false-negative H. pylori testing, so a proton pump inhibitor must be held for 2 weeks and antibiotics and bismuth for 4 weeks before a stool antigen or urea breath test. Starting acid suppression before the sample is obtained invalidates the result, and serology is not recommended because its low accuracy leads to treating uninfected patients.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A1", "pgroup": "A", "pstack": "B"}, {"id": "14", "group": 14, "stem": "A 34-year-old woman is seen in the endocrinology clinic because of early satiety for 6 months. She cannot finish a normal meal, is nauseated and vomits several times a week bringing up food eaten hours earlier, and has postprandial fullness and bloating. She has had type 1 diabetes since age 12 and takes insulin, and she also has diabetic retinopathy and peripheral neuropathy. She takes no narcotics, no GLP-1 agonist, no clonidine, no tricyclic antidepressant, and no anticholinergics. Her temperature is 36.6°C (97.9°F), blood pressure is 116/72 mm Hg, pulse is 84/min, respirations are 14/min, and oxygen saturation is 99% on room air. Examination shows epigastric distension, a succussion splash, and reduced vibratory sensation in both feet, with no palpable abdominal mass.\n\nLaboratory studies:\n  HbA1c: 10.4%\n  Glucose: 268 mg/dL\n  Potassium: 4.0 mEq/L\n  Creatinine: 0.9 mg/dL\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Upper endoscopy"}, {"letter": "B", "text": "CBC, CMP, and amylase/lipase"}, {"letter": "C", "text": "Scintigraphic gastric emptying study with upper endoscopy"}, {"letter": "D", "text": "Upper endoscopy with CT of the abdomen"}, {"letter": "E", "text": "EGD with biopsy"}], "answer": "C", "explanation": "Gastroparesis is objectively delayed emptying in the absence of mechanical obstruction, so both halves must be shown. Endoscopy excludes an obstructing lesion, and the scintigraphic study quantifies emptying, which no clinical measure can substitute for.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C2", "pgroup": "C", "pstack": "A"}, {"id": "14A", "group": 14, "stem": "Which of the following additional findings would most likely be present in this patient?", "options": [{"letter": "A", "text": "42% of a labeled meal retained at 4 hours with a patent pylorus"}, {"letter": "B", "text": "A narrowed, fibrotic pylorus with retained gastric contents and a hypokalemic hypochloremic metabolic alkalosis"}, {"letter": "C", "text": "A dark green, amorphous ball of matted vegetable fiber in the antrum with normal mucosa"}, {"letter": "D", "text": "A 1.5-cm benign ulcer on the lesser curvature with iron deficiency anemia and a positive fecal occult blood test"}, {"letter": "E", "text": "At least 3 stereotypical episodes in the prior year, at least 1 week apart, with complete wellness between them"}], "answer": "A", "explanation": "Normal retention at 4 hours is less than 10%, so 42% is markedly delayed. Long-standing type 1 diabetes with retinopathy and peripheral neuropathy indicates the autonomic denervation that impairs gastric motility, and the pylorus stays patent because the defect is neuromuscular rather than mechanical.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C2", "pgroup": "C", "pstack": "A"}, {"id": "14B", "group": 14, "stem": "Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Pyloric stenosis from adult gastric outlet obstruction"}, {"letter": "B", "text": "Bezoar"}, {"letter": "C", "text": "Cyclical vomiting syndrome"}, {"letter": "D", "text": "Functional (non-ulcer) dyspepsia"}, {"letter": "E", "text": "Gastroparesis"}], "answer": "E", "explanation": "Delayed emptying with a patent pylorus and no mechanical obstruction, in a poorly controlled type 1 diabetic, is gastroparesis. Pyloric stenosis produces a fixed fibrotic narrowing with a hypokalemic alkalosis, and a bezoar produces a discrete intraluminal mass.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C2", "pgroup": "C", "pstack": "A"}, {"id": "15", "group": 15, "stem": "A 36-year-old woman has peptic ulcer disease with an 8-mm clean-based ulcer in the duodenal bulb and a positive rapid urease test on antral biopsy. She takes no NSAIDs and is of childbearing age.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "A proton pump inhibitor for 8 weeks alone"}, {"letter": "B", "text": "A 14-day eradication regimen alone"}, {"letter": "C", "text": "A proton pump inhibitor for 8 weeks with a 14-day eradication regimen"}, {"letter": "D", "text": "A proton pump inhibitor for 8 weeks with misoprostol 200 mcg four times daily"}, {"letter": "E", "text": "A proton pump inhibitor for 8 weeks with repeat upper endoscopy afterward"}], "answer": "C", "explanation": "An H. pylori-positive duodenal ulcer requires both acid suppression to heal the crater and eradication to prevent recurrence, with confirmation of eradication afterward. Misoprostol is contraindicated in pregnancy because it induces uterine contractions and is intended for NSAID-ulcer prevention rather than for treating an established H. pylori ulcer in a woman of childbearing age.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A3", "pgroup": "A", "pstack": "B"}, {"id": "16", "group": 16, "stem": "A 22-year-old man has cannabis hyperemesis syndrome. He has smoked cannabis several times daily for 4 years and used more heavily this past week. His potassium is 3.3 mEq/L, chloride is 95 mEq/L, and bicarbonate is 31 mEq/L, and his lipase is normal.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Tight glycemic control and small low-fat low-fiber meals with metoclopramide"}, {"letter": "B", "text": "Endoscopic balloon dilation of the pylorus with a proton pump inhibitor"}, {"letter": "C", "text": "Chemical dissolution with Coca-Cola lavage"}, {"letter": "D", "text": "Fluid repletion with cannabis cessation and ondansetron"}, {"letter": "E", "text": "Withdraw the causative agent and start a proton pump inhibitor"}], "answer": "D", "explanation": "Repeated vomiting produces the volume and electrolyte deficits that must be corrected first, and ondansetron controls the vomiting acutely. Cannabis cessation is the only measure that addresses the cause, so it is recommended at the first encounter rather than deferred.", "objective": "", "section": "Cyclical bouts of vomiting with normal health between episodes", "pcase": "D2", "pgroup": "D", "pstack": "B"}, {"id": "16A", "group": 16, "stem": "His vomiting persists despite ondansetron and haloperidol is being considered. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Obtain an electrocardiogram before giving haloperidol"}, {"letter": "B", "text": "Obtain an electrocardiogram only if he reports palpitations after haloperidol"}, {"letter": "C", "text": "Obtain an electrocardiogram only if haloperidol fails to control the vomiting"}, {"letter": "D", "text": "Obtain an electrocardiogram only if his potassium remains low after repletion"}, {"letter": "E", "text": "Obtain an electrocardiogram only if lorazepam is given together with haloperidol"}], "answer": "A", "explanation": "Droperidol and haloperidol both prolong the QT interval, and this patient's potassium of 3.3 mEq/L compounds that risk. The electrocardiogram is therefore obtained before the drug is given, not after an arrhythmia or symptom appears.", "objective": "", "section": "Cyclical bouts of vomiting with normal health between episodes", "pcase": "D2", "pgroup": "D", "pstack": "B"}, {"id": "17", "group": 17, "stem": "A 63-year-old man has had 3 months of epigastric pain. He has lost 5.4 kg (12 lb) and has iron deficiency anemia.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Perform upper endoscopy at presentation only in patients with a palpable mass or Virchow's node"}, {"letter": "B", "text": "Perform upper endoscopy at presentation in any patient 60 years or older or with an alarm feature"}, {"letter": "C", "text": "Perform upper endoscopy at presentation only in patients whose H. pylori testing is positive"}, {"letter": "D", "text": "Perform upper endoscopy at presentation only after 8 weeks of a proton pump inhibitor have failed"}, {"letter": "E", "text": "Perform upper endoscopy at presentation only in patients with a family history of upper GI cancer"}], "answer": "B", "explanation": "Endoscopy is done up front at age 60 or older or with any alarm feature: weight loss or anorexia, iron deficiency anemia or melena, persistent vomiting, a palpable mass or Virchow's node, or a family history of upper gastrointestinal cancer. Waiting for an empiric trial to fail in such patients delays the diagnosis of malignancy.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A2", "pgroup": "A", "pstack": "C"}, {"id": "18", "group": 18, "stem": "A 45-year-old man has a gastric bezoar — a dark green, amorphous, mobile ball of matted vegetable fiber in the antrum with normal underlying mucosa found on upper endoscopy. He had a partial gastrectomy 6 years ago and eats a large amount of raw vegetables and persimmons.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Endoscopic balloon dilation of the pylorus with a proton pump inhibitor"}, {"letter": "B", "text": "Tight glycemic control and small low-fat low-fiber meals with metoclopramide"}, {"letter": "C", "text": "Chemical dissolution with Coca-Cola lavage"}, {"letter": "D", "text": "Withdraw NSAIDs and give a proton pump inhibitor for 8 weeks"}, {"letter": "E", "text": "Intravenous fluid repletion in a quiet dark room with ondansetron"}], "answer": "C", "explanation": "Chemical dissolution is the first-line treatment because it is noninvasive and inexpensive. Coca-Cola works through its low pH, the mucolytic effect of its high sodium bicarbonate content, and carbon dioxide bubbles that enhance dissolution of the matted fiber.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C3", "pgroup": "C", "pstack": "B"}, {"id": "18A", "group": 18, "stem": "Dissolution is begun. Which of the following is the most appropriate instruction?", "options": [{"letter": "A", "text": "Return for obstructive symptoms at any time over the next 6 weeks"}, {"letter": "B", "text": "Return for obstructive symptoms only during the 12 hours of lavage"}, {"letter": "C", "text": "Return for obstructive symptoms only during the first week after dissolution"}, {"letter": "D", "text": "Return for obstructive symptoms only if he resumes eating persimmons"}, {"letter": "E", "text": "Return for obstructive symptoms only if the bezoar is shown to recur"}], "answer": "A", "explanation": "Fragments of a dissolving bezoar can precipitate a small bowel obstruction up to 6 weeks later, so the patient must be told to return for obstructive symptoms throughout that window rather than have them attributed to something else. Recurrence occurs in about 20% of patients.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C3", "pgroup": "C", "pstack": "B"}, {"id": "19", "group": 19, "stem": "A 41-year-old man with dyspepsia is being considered for Helicobacter pylori testing.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Test every patient with dyspepsia, regardless of whether treatment is planned"}, {"letter": "B", "text": "Test every patient with typical reflux symptoms"}, {"letter": "C", "text": "Test only patients in whom a positive result would be treated"}, {"letter": "D", "text": "Test only patients who grew up in crowded housing without running water"}, {"letter": "E", "text": "Test only patients who have iron deficiency anemia"}], "answer": "C", "explanation": "The rule is to test only if you plan to treat a positive result, which in practice means gastric MALT lymphoma, active or documented peptic ulcer disease, and early gastric cancer. Testing is specifically not recommended in the workup of typical GERD, and serology is not used because antibodies persist for years.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A4", "pgroup": "A", "pstack": "C"}, {"id": "20", "group": 20, "stem": "A 47-year-old man has Zollinger-Ellison syndrome from a 2.1-cm receptor-avid gastrinoma in the pancreatic head.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Withdraw offending agents with diet change and a proton pump inhibitor"}, {"letter": "B", "text": "Triple therapy for 14 days with omeprazole, clarithromycin, and amoxicillin"}, {"letter": "C", "text": "Withdraw NSAIDs and give a proton pump inhibitor for 8 weeks"}, {"letter": "D", "text": "A proton pump inhibitor for 8 weeks with H. pylori eradication"}, {"letter": "E", "text": "Surgical resection of the tumor with a high-dose proton pump inhibitor"}], "answer": "E", "explanation": "Sixty percent of gastrinomas are malignant and one third of patients have metastatic disease at diagnosis, most often in the liver, so resection of the primary tumor is the definitive treatment. High-dose acid suppression controls the hypersecretion that causes the ulcers and diarrhea in the meantime.", "objective": "", "section": "Epigastric pain with no mucosal lesion found on the initial evaluation", "pcase": "B2", "pgroup": "B", "pstack": "B"}, {"id": "21", "group": 21, "stem": "A 44-year-old woman with gastritis is counseled about the exposures that caused it. She takes ibuprofen 600 mg three times daily for knee osteoarthritis and drinks two or three glasses of wine most evenings.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Avoid ibuprofen alone; other NSAID-containing products and alcohol may continue"}, {"letter": "B", "text": "Avoid ibuprofen and alcohol until symptoms resolve, then resume both"}, {"letter": "C", "text": "Avoid alcohol and corticosteroids; ibuprofen may continue at a lower dose"}, {"letter": "D", "text": "Avoid all NSAID-containing products, corticosteroids, and alcohol"}, {"letter": "E", "text": "Avoid all NSAID-containing products and corticosteroids; alcohol may continue"}], "answer": "D", "explanation": "Management begins with withdrawing the causative agent, and the injury is not specific to ibuprofen: steroids and NSAID-containing combination products such as Goody's powders and Excedrin do the same thing. Alcohol-induced injury is one of the recognized types of gastritis, alongside H. pylori, NSAID, autoimmune, and stress-related disease.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A1", "pgroup": "A", "pstack": "C"}, {"id": "22", "group": 22, "stem": "A 58-year-old man has adult pyloric stenosis, with a narrowed, fibrotic pylorus that will not admit the endoscope and a large volume of retained gastric contents. He was treated for a duodenal ulcer 4 years ago. His potassium is 2.9 mEq/L, chloride is 88 mEq/L, and bicarbonate is 34 mEq/L.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Dilate the pylorus endoscopically at the index endoscopy, before biopsy results return"}, {"letter": "B", "text": "Dilate the pylorus endoscopically after biopsies have excluded malignancy"}, {"letter": "C", "text": "Dilate the pylorus endoscopically only if a proton pump inhibitor fails to relieve the obstruction"}, {"letter": "D", "text": "Dilate the pylorus endoscopically only if surgical repair is declined"}, {"letter": "E", "text": "Dilate the pylorus endoscopically only if CT of the abdomen shows a mass"}], "answer": "B", "explanation": "In adults, gastric outlet obstruction arises from malignancy or peptic ulcer disease, so the pylorus must be biopsied to exclude cancer before it is dilated rather than after. Dilation also carries a risk of perforation, and recurrence is common if the underlying ulcer disease is not addressed, so it is never a standalone treatment.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C1", "pgroup": "C", "pstack": "B"}, {"id": "22A", "group": 22, "stem": "Which of the following should also be provided while he awaits the procedure?", "options": [{"letter": "A", "text": "Nasogastric suction with acid suppression, started now"}, {"letter": "B", "text": "Nasogastric suction with acid suppression, only if dilation fails"}, {"letter": "C", "text": "Nasogastric suction with acid suppression, only after surgical repair"}, {"letter": "D", "text": "Nasogastric suction with acid suppression, only if his potassium falls below 2.5 mEq/L"}, {"letter": "E", "text": "Nasogastric suction with acid suppression, only if biopsies show malignancy"}], "answer": "A", "explanation": "Nasogastric suction decompresses the obstructed stomach and acid suppression reduces the inflammatory edema contributing to the narrowing, both of which are needed acutely alongside fluid and electrolyte repletion. Waiting until dilation fails leaves the patient vomiting and losing hydrogen, chloride, and potassium in the meantime.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C1", "pgroup": "C", "pstack": "B"}, {"id": "23", "group": 23, "stem": "A 36-year-old woman has completed treatment for a duodenal ulcer that had a positive rapid urease test. Her symptoms have resolved.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Repeat upper endoscopy in 8 weeks in every patient with a duodenal ulcer"}, {"letter": "B", "text": "Repeat upper endoscopy in 8 weeks, because the rapid urease test was positive"}, {"letter": "C", "text": "Repeat upper endoscopy in 8 weeks, to exclude malignancy in the duodenal bulb"}, {"letter": "D", "text": "Repeat upper endoscopy only if her symptoms persist after treatment"}, {"letter": "E", "text": "Repeat upper endoscopy only if the eradication test remains positive"}], "answer": "D", "explanation": "Duodenal ulcers are more common than gastric ulcers and are almost certainly benign, so no repeat endoscopy is needed unless the ulcers are large or multiple or symptoms persist after treatment. Eradication is confirmed with a urea breath or stool antigen test rather than with repeat endoscopy.", "objective": "", "section": "Chronic epigastric pain with an identifiable mucosal or infectious cause", "pcase": "A3", "pgroup": "A", "pstack": "C"}, {"id": "24", "group": 24, "stem": "A 13-year-old girl has cyclical vomiting syndrome. She has had four episodes this year and is completely well between them. Her mother has migraine headaches.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Start a migraine prophylactic agent at the onset of the prodrome"}, {"letter": "B", "text": "Start a migraine prophylactic agent during the retching phase"}, {"letter": "C", "text": "Start a migraine prophylactic agent between episodes"}, {"letter": "D", "text": "Start a migraine prophylactic agent only if she develops migraine headaches herself"}, {"letter": "E", "text": "Start a migraine prophylactic agent only if an episode lasts longer than one week"}], "answer": "C", "explanation": "Prophylaxis is given during the inter-episodic phase, when the patient is at baseline health, in order to prevent the next cycle. A personal or family history of migraine supports the diagnosis and is what makes migraine prophylaxis the rational preventive agent; treatment during the prodrome or vomiting phase is abortive rather than preventive.", "objective": "", "section": "Cyclical bouts of vomiting with normal health between episodes", "pcase": "D1", "pgroup": "D", "pstack": "C"}, {"id": "25", "group": 25, "stem": "A 29-year-old woman has functional dyspepsia. Upper endoscopy showed no organic lesion and biopsies were negative for Helicobacter pylori. Her symptoms were unchanged after 8 weeks on a proton pump inhibitor, and she has stopped the ibuprofen.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Add famotidine now that endoscopy has excluded an organic lesion"}, {"letter": "B", "text": "Add famotidine only after a second 8-week course of the proton pump inhibitor"}, {"letter": "C", "text": "Add famotidine only if the H. pylori stool antigen later becomes positive"}, {"letter": "D", "text": "Add famotidine only if she develops an alarm feature requiring endoscopy"}, {"letter": "E", "text": "Add famotidine only if she resumes taking ibuprofen for menstrual cramps"}], "answer": "A", "explanation": "The refractory branch of management is endoscopy followed by an H2 blocker such as famotidine, and she has now completed both steps that precede it: withdrawal of the offending agent and a failed course of a proton pump inhibitor, with a normal endoscopy. Repeating the proton pump inhibitor does not address a failure already demonstrated.", "objective": "", "section": "Epigastric pain with no mucosal lesion found on the initial evaluation", "pcase": "B1", "pgroup": "B", "pstack": "B"}, {"id": "26", "group": 26, "stem": "A 34-year-old woman has gastroparesis, with 42% of a labeled meal retained at 4 hours and a patent pylorus with no mechanical obstruction on endoscopy. She has type 1 diabetes and her HbA1c is 10.4%.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Chemical dissolution with Coca-Cola lavage"}, {"letter": "B", "text": "Endoscopic balloon dilation of the pylorus with a proton pump inhibitor"}, {"letter": "C", "text": "Withdraw NSAIDs and give a proton pump inhibitor for 8 weeks"}, {"letter": "D", "text": "Tight glycemic control and small low-fat low-fiber meals with metoclopramide"}, {"letter": "E", "text": "Intravenous fluid repletion in a quiet dark room with ondansetron"}], "answer": "D", "explanation": "Hyperglycemia itself slows gastric emptying, so tight glycemic control is foundational, and small low-fat, low-fiber meals reduce the residue the stomach must grind and empty. Metoclopramide is the first-line prokinetic, with erythromycin as an alternative.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C2", "pgroup": "C", "pstack": "B"}, {"id": "26A", "group": 26, "stem": "Metoclopramide is started. Which of the following is the most appropriate plan for its use?", "options": [{"letter": "A", "text": "Continue it indefinitely if it controls her symptoms"}, {"letter": "B", "text": "Continue it indefinitely at the lowest dose, since the risk is dose-dependent"}, {"letter": "C", "text": "Continue it for the shortest effective period"}, {"letter": "D", "text": "Continue it indefinitely unless a gastric electrical stimulator is placed"}, {"letter": "E", "text": "Continue it indefinitely if her HbA1c improves"}], "answer": "C", "explanation": "Metoclopramide carries a black box warning for tardive dyskinesia, which is irreversible and independent of both dose and duration of treatment. Because lowering the dose does not lower the risk, exposure is limited by shortening the course rather than by adjusting the dose.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C2", "pgroup": "C", "pstack": "B"}, {"id": "27", "group": 27, "stem": "A 22-year-old man with cannabis hyperemesis syndrome is counseled about stopping cannabis.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Symptoms should resolve within 24 hours of abstinence and will not return with resumed use"}, {"letter": "B", "text": "Symptoms may take several weeks of abstinence to resolve and will return with resumed use"}, {"letter": "C", "text": "Symptoms should resolve within 24 hours of abstinence but will return with resumed use"}, {"letter": "D", "text": "Symptoms may take several weeks of abstinence to resolve and will not return with resumed use"}, {"letter": "E", "text": "Symptoms may take several weeks of abstinence to resolve only if hot bathing is also stopped"}], "answer": "B", "explanation": "Patients must be told that resolution takes weeks rather than days, or they abandon abstinence when symptoms persist and conclude cannabis was not the cause. They must also be told that symptoms worsen or return if use resumes, which is what makes cessation rather than antiemetics the definitive treatment.", "objective": "", "section": "Cyclical bouts of vomiting with normal health between episodes", "pcase": "D2", "pgroup": "D", "pstack": "C"}, {"id": "28", "group": 28, "stem": "A 45-year-old man with a gastric phytobezoar is to be treated with Coca-Cola.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "3,000 mL by lavage over 12 hours"}, {"letter": "B", "text": "3,000 mL by lavage over 1 hour"}, {"letter": "C", "text": "1,000 mL by lavage over 12 hours"}, {"letter": "D", "text": "3,000 mL by lavage daily for 6 weeks"}, {"letter": "E", "text": "3,000 mL by lavage only if endoscopic removal fails"}], "answer": "A", "explanation": "The regimen is 3,000 mL of Coca-Cola over 12 hours by lavage or taken orally, roughly 8.5 twelve-ounce cans. Endoscopic removal is an adjuvant rather than a prerequisite, and a prokinetic may be added to shorten the time to dissolution.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C3", "pgroup": "C", "pstack": "C"}, {"id": "29", "group": 29, "stem": "A 47-year-old man has a gastrinoma in the pancreatic head. His mother had both a parathyroid tumor and a pituitary tumor, and his serum calcium is 11.2 mg/dL.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Screen for parathyroid and pituitary tumors only if the gastrinoma proves malignant"}, {"letter": "B", "text": "Screen for parathyroid and pituitary tumors only if the tumor is duodenal rather than pancreatic"}, {"letter": "C", "text": "Screen for parathyroid and pituitary tumors only if his serum calcium is normal"}, {"letter": "D", "text": "Screen for parathyroid and pituitary tumors in this patient now"}, {"letter": "E", "text": "Screen for parathyroid and pituitary tumors only if a relative is found to have a gastrinoma"}], "answer": "D", "explanation": "Gastrinoma can arise as part of MEN I, an inherited syndrome of multiple endocrine tumors including pancreatic and parathyroid lesions. His mother's parathyroid and pituitary tumors and his own calcium of 11.2 mg/dL already point to it, so screening is indicated at diagnosis rather than contingent on tumor location or malignancy.", "objective": "", "section": "Epigastric pain with no mucosal lesion found on the initial evaluation", "pcase": "B2", "pgroup": "B", "pstack": "C"}, {"id": "30", "group": 30, "stem": "A 58-year-old man with adult gastric outlet obstruction has a fibrotic pyloric stricture from prior duodenal ulcer disease. Nasogastric suction and acid suppression have been started.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Acid suppression alone will suffice, because adult pyloric narrowing is muscular hypertrophy"}, {"letter": "B", "text": "Endoscopic dilation will still be required, because a fibrotic stricture persists after the ulcer heals"}, {"letter": "C", "text": "Acid suppression alone will suffice, because the narrowing will resolve as the ulcer heals"}, {"letter": "D", "text": "Nasogastric suction alone will suffice, because the narrowing is entirely edematous"}, {"letter": "E", "text": "Observation alone will suffice, because recurrence after dilation is common"}], "answer": "B", "explanation": "Inflammatory edema at the pylorus may respond to acid suppression and nasogastric suction, but a fibrotic stricture is fixed scar that persists after the ulcer heals and requires dilation or surgery. Adult pyloric narrowing is cicatricial or malignant, unlike the muscular hypertrophy seen in infants.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C1", "pgroup": "C", "pstack": "C"}, {"id": "31", "group": 31, "stem": "A 29-year-old woman has had 5 months of epigastric pain and postprandial fullness. She has no weight loss, no dysphagia, no vomiting, no gastrointestinal bleeding, and no family history of gastric cancer.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Proceed to upper endoscopy in every patient who reports dyspepsia"}, {"letter": "B", "text": "Proceed to upper endoscopy only in patients whose symptoms have lasted longer than 5 months"}, {"letter": "C", "text": "Proceed to upper endoscopy only in patients who take NSAIDs for any indication"}, {"letter": "D", "text": "Proceed to upper endoscopy only in patients whose H. pylori stool antigen is positive"}, {"letter": "E", "text": "Proceed to upper endoscopy in patients over 55 with new-onset dyspepsia or with an alarm feature"}], "answer": "E", "explanation": "Endoscopy is indicated for new-onset dyspepsia over age 55 or for any alarm feature: unintentional weight loss, dysphagia, odynophagia, unexplained iron deficiency anemia, persistent vomiting, a palpable mass or lymphadenopathy, a family history of upper gastrointestinal cancer, jaundice, or gastrointestinal bleeding. A patient under 55 with none of these is managed by test-and-treat for H. pylori and empiric therapy.", "objective": "", "section": "Epigastric pain with no mucosal lesion found on the initial evaluation", "pcase": "B1", "pgroup": "B", "pstack": "C"}, {"id": "32", "group": 32, "stem": "A 34-year-old woman with type 1 diabetes has objectively delayed gastric emptying with no mechanical obstruction. She is counseled about medications that could worsen it.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Avoid narcotics, clonidine, tricyclic antidepressants, and GLP-1 agonists"}, {"letter": "B", "text": "Avoid narcotics only; the others do not delay gastric emptying"}, {"letter": "C", "text": "Avoid narcotics and clonidine only if her HbA1c remains above 10%"}, {"letter": "D", "text": "Avoid narcotics, clonidine, tricyclics, and GLP-1 agonists only during flares"}, {"letter": "E", "text": "Avoid narcotics, clonidine, tricyclics, and GLP-1 agonists only if a gastric pacer is placed"}], "answer": "A", "explanation": "Delayed gastric emptying is frequently drug-induced, and the responsible agents include narcotics, alpha-2 agonists such as clonidine, tricyclic antidepressants, calcium channel blockers, dopamine agonists, anticholinergics, octreotide, GLP-1 agonists, phenothiazines, and cyclosporine. Because the severity of delayed emptying correlates poorly with symptom severity, these agents are avoided regardless of how she feels on any given day.", "objective": "", "section": "Early satiety and vomiting of retained gastric contents", "pcase": "C2", "pgroup": "C", "pstack": "C"}]};
+
+// Reshuffle-on-load for a Clinical Vignette practice exam.
+//
+// Inject this immediately after the `const EXAM_DATA = ...;` line of the
+// interactive-exam template, before the main IIFE. It reorders the stacks and
+// the options on every page load, then renumbers, so the exam cannot be
+// answered from memory of position.
+//
+// Requires three extra fields on every question, written by the exam build:
+//   pcase   the case id from the case file, e.g. "A3"
+//   pgroup  the differential group letter, e.g. "A"
+//   pstack  "A" recognition | "B" management safety | "C" counseling
+//
+// Constraints preserved on every shuffle:
+//   1. no two consecutive stacks share a differential group
+//   2. a patient's Stack A precedes their Stack B, which precedes their Stack C
+//   3. follow-up nodes never leave their parent
+(function reshuffleExam() {
+  var qs = EXAM_DATA.questions;
+  if (!qs || !qs.length || !qs[0].pcase) return;   // metadata absent: leave order alone
+
+  // ---- collect stacks, parent first ----------------------------------------
+  var map = {}, order = [];
+  qs.forEach(function (q) {
+    if (!map[q.group]) { map[q.group] = []; order.push(q.group); }
+    map[q.group].push(q);
+  });
+  var stacks = order.map(function (g) {
+    return { qs: map[g], pcase: map[g][0].pcase, pgroup: map[g][0].pgroup, pstack: map[g][0].pstack };
+  });
+  if (stacks.length < 3) return;
+
+  var RANK = { A: 0, B: 1, C: 2 };
+
+  function shuffled(a) {
+    var b = a.slice();
+    for (var i = b.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = b[i]; b[i] = b[j]; b[j] = t;
+    }
+    return b;
+  }
+
+  // Reorder one case's stacks into A→B→C at whatever positions that case holds,
+  // leaving every other position as the shuffle left it.
+  function repairCaseOrder(seq) {
+    var pend = {}, idx = {};
+    seq.forEach(function (s) { (pend[s.pcase] = pend[s.pcase] || []).push(s); });
+    Object.keys(pend).forEach(function (c) {
+      pend[c].sort(function (x, y) { return RANK[x.pstack] - RANK[y.pstack]; });
+      idx[c] = 0;
+    });
+    return seq.map(function (s) { return pend[s.pcase][idx[s.pcase]++]; });
+  }
+
+  function groupsAdjacent(seq) {
+    for (var i = 0; i < seq.length - 1; i++) {
+      if (seq[i].pgroup === seq[i + 1].pgroup) return true;
+    }
+    return false;
+  }
+
+  // BUILD-TIME PATCH (this exam only; the skill asset is unmodified).
+  // Accept/reject shuffling cannot satisfy constraint 1 here: one differential
+  // group holds 12 of the 32 stacks, so a uniform shuffle is adjacency-free
+  // about 7 times in 100,000 and the 4000-attempt loop falls back ~76% of loads.
+  // repairCaseOrder only permutes stacks within one pcase, and every stack of a
+  // pcase shares its pgroup, so the group sequence it returns is the one it was
+  // given — which means a group sequence built adjacency-free stays that way.
+  function arrangeNoAdjacent(items) {
+    var buckets = {};
+    items.forEach(function (s) { (buckets[s.pgroup] = buckets[s.pgroup] || []).push(s); });
+    var kk = Object.keys(buckets);
+    kk.forEach(function (k) { buckets[k] = shuffled(buckets[k]); });
+    var out = [], prev = null, rem = items.length;
+    while (rem > 0) {
+      var maxK = null;
+      kk.forEach(function (k) {
+        if (buckets[k].length && (maxK === null || buckets[k].length > buckets[maxK].length)) maxK = k;
+      });
+      var pick;
+      if (buckets[maxK].length * 2 - 1 >= rem) {
+        pick = maxK;                       // only this group can still fit
+      } else {
+        var elig = kk.filter(function (k) { return k !== prev && buckets[k].length; });
+        if (!elig.length) return null;
+        pick = elig[Math.floor(Math.random() * elig.length)];
+      }
+      if (pick === prev) return null;
+      out.push(buckets[pick].pop());
+      prev = pick; rem--;
+    }
+    return out;
+  }
+
+  var seq = null, attempt, cand;
+  for (attempt = 0; attempt < 200; attempt++) {
+    cand = arrangeNoAdjacent(stacks);
+    if (cand) { cand = repairCaseOrder(cand); if (!groupsAdjacent(cand)) { seq = cand; break; } }
+  }
+  for (attempt = 0; !seq && attempt < 4000; attempt++) {
+    cand = repairCaseOrder(shuffled(stacks));
+    if (!groupsAdjacent(cand)) { seq = cand; break; }
+  }
+  if (!seq) return;   // could not satisfy the constraints: keep the built order
+
+  // ---- shuffle the options inside each question ----------------------------
+  var LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  seq.forEach(function (s) {
+    s.qs.forEach(function (q) {
+      if (!q.options || q.options.length < 2) return;
+      var keyText = null;
+      q.options.forEach(function (o) { if (o.letter === q.answer) keyText = o.text; });
+      var texts = shuffled(q.options.map(function (o) { return o.text; }));
+      q.options = texts.map(function (t, i) { return { letter: LET[i], text: t }; });
+      for (var i = 0; i < q.options.length; i++) {
+        if (q.options[i].text === keyText) { q.answer = q.options[i].letter; break; }
+      }
+    });
+  });
+
+  // ---- renumber and write the new order back ------------------------------
+  var out = [];
+  seq.forEach(function (s, i) {
+    var n = i + 1;
+    s.qs.forEach(function (q, j) {
+      q.group = n;
+      q.id = j === 0 ? String(n) : String(n) + LET[j - 1];
+      out.push(q);
+    });
+  });
+  EXAM_DATA.questions = out;
+})();
+
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

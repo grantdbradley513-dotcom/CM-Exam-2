@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Clinical Medicine II — Pancreatic Disorders Practice Exam", "questions": [{"id": "1", "group": 1, "stem": "A 44-year-old woman presents to the emergency department with severe epigastric pain that began 6 hours ago. The pain is constant and boring, and it eases when she sits up and leans forward. She has vomited repeatedly and cannot eat. She has Crohn disease and was started on azathioprine 5 weeks ago; she also takes a 5-aminosalicylate. She drinks no alcohol, has no history of gallbladder symptoms, has never had high triglycerides, and has had no recent ERCP. Her temperature is 38.1°C (100.6°F), blood pressure is 118/72 mm Hg, pulse is 108/min, respirations are 20/min, and oxygen saturation is 96% on room air. Examination shows marked epigastric tenderness with no guarding and no rebound.\n\nLaboratory studies:\n  WBC: 15,800/mm³\n  Hematocrit: 47%\n  Calcium: 8.1 mg/dL\n\nWhich of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Lipase more than 3× the upper limit of normal with low magnesium and phosphorus and no gallstones"}, {"letter": "B", "text": "Triglycerides above 1,000 mg/dL with lipemic serum"}, {"letter": "C", "text": "Lipase more than 3× the upper limit of normal with a normal ultrasound and normal triglycerides"}, {"letter": "D", "text": "An ALT above 150 U/L in a cholestatic pattern, with cholelithiasis and a dilated common bile duct"}, {"letter": "E", "text": "Nonenhancing areas of pancreatic parenchyma with persistent leukocytosis"}], "answer": "C", "explanation": "Typical pancreatic pain with an enzyme at least three times the upper limit of normal satisfies the Atlanta criteria. Because she drinks no alcohol, has no biliary history, and has never had high triglycerides, the accompanying panel is expected to be unremarkable — a normal ultrasound and normal triglycerides — which is what leaves the recently started drug as the cause.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A1", "pgroup": "A", "pstack": "A"}, {"id": "1A", "group": 1, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Alcoholic pancreatitis"}, {"letter": "B", "text": "Gallstone (biliary) pancreatitis"}, {"letter": "C", "text": "Necrotizing pancreatitis"}, {"letter": "D", "text": "Drug-induced acute pancreatitis"}, {"letter": "E", "text": "Hypertriglyceridemia-induced pancreatitis"}], "answer": "D", "explanation": "Azathioprine started 5 weeks earlier is an established cause, acting through ischemia and immunologic mechanisms, and the negative ultrasound with normal triglycerides excludes the gallstone and metabolic causes. Guarding and rebound are absent because the pancreas is retroperitoneal.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A1", "pgroup": "A", "pstack": "A"}, {"id": "2", "group": 2, "stem": "A 49-year-old woman presents to the gastroenterology clinic with persistent and now recurrent epigastric pain over the past 3 weeks. She has early satiety and vomits after small meals, and she can feel a fullness in her upper abdomen. She had acute alcoholic pancreatitis 7 weeks ago, from which she initially recovered, and she has stopped drinking since. Her temperature is 36.8°C (98.2°F), blood pressure is 118/72 mm Hg, pulse is 84/min, respirations are 16/min, and oxygen saturation is 98% on room air. Examination shows epigastric fullness with a palpable, minimally mobile mass and epigastric tenderness. There is mild scleral icterus, no guarding, no rebound, and no signs of sepsis. A contrast-enhanced CT of the abdomen is obtained.\n\nLaboratory studies:\n  WBC: 9,100/mm³\n  Total bilirubin: 2.1 mg/dL\n  Alkaline phosphatase: 168 U/L\n\nWhich of the following findings on the CT would most likely be present in this patient?", "options": [{"letter": "A", "text": "Gas bubbles within necrotic tissue in the pancreatic bed"}, {"letter": "B", "text": "An encapsulated fluid collection with a well-defined enhancing wall"}, {"letter": "C", "text": "A homogeneous fluid collection with no encapsulating wall and no necrosis"}, {"letter": "D", "text": "Nonenhancing areas of pancreatic parenchyma involving part of the gland"}, {"letter": "E", "text": "Retroperitoneal hemorrhage with erosion of a peripancreatic vessel"}], "answer": "B", "explanation": "More than 4 weeks have passed since her attack, which is the interval in which a fibrous capsule forms around a persisting peripancreatic collection. The pancreas itself enhances normally, so the collection is fluid rather than necrosis, and there is no fever or leukocytosis to suggest infection.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B2", "pgroup": "B", "pstack": "A"}, {"id": "2A", "group": 2, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Acute peripancreatic fluid collection"}, {"letter": "B", "text": "Infected pancreatic necrosis"}, {"letter": "C", "text": "Necrotizing pancreatitis"}, {"letter": "D", "text": "Pancreatic pseudocyst"}, {"letter": "E", "text": "Hemorrhagic pancreatitis"}], "answer": "D", "explanation": "A walled, clear-fluid collection at 7 weeks with early satiety and a palpable mass is a pseudocyst; her mild jaundice comes from mass effect. An acute peripancreatic fluid collection has no wall and occurs within 4 weeks, and necrosis would show nonenhancing parenchyma.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B2", "pgroup": "B", "pstack": "A"}, {"id": "3", "group": 3, "stem": "A 51-year-old man presents to the gastroenterology clinic with epigastric pain that has been recurrent for 4 years and is now nearly constant, boring through to his back, and worse after meals. He has lost 16 kg (35 lb), passes bulky, oily stools that float, and has several loose movements most days. He has had five prior admissions for acute pancreatitis, has drunk heavily for two decades, and smokes a pack a day. His temperature is 36.7°C (98.1°F), blood pressure is 118/72 mm Hg, pulse is 82/min, respirations are 14/min, and oxygen saturation is 97% on room air. Examination shows cachexia with temporal wasting and epigastric tenderness; there is no jaundice, no palpable mass, and no ascites. CT of the abdomen shows pancreatic calcifications with parenchymal atrophy and a dilated, irregular main duct in a chain-of-lakes pattern.\n\nLaboratory studies:\n  Amylase: Normal\n  Lipase: Normal\n  Fecal elastase-1: 84 mcg/g\n  HbA1c: 6.4%\n  Vitamin D: Low\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Upper endoscopy with proximal and distal duodenal biopsies"}, {"letter": "B", "text": "Small bowel aspirate"}, {"letter": "C", "text": "MRCP"}, {"letter": "D", "text": "EUS with fine-needle aspiration"}, {"letter": "E", "text": "No further diagnostic testing — the fecal elastase with the glycemic and vitamin panel is diagnostic"}], "answer": "C", "explanation": "The calcifications, atrophy, chain-of-lakes duct, and fecal elastase of 84 mcg/g already point to chronic pancreatitis, and MRCP is more sensitive than CT for characterizing early ductal change. Duodenal biopsy and small bowel aspirate address other causes of steatorrhea, and EUS-guided aspiration is for a cystic lesion.", "objective": "", "section": "Chronic pancreatic disease with pain, steatorrhea, and weight loss", "pcase": "D1", "pgroup": "D", "pstack": "A"}, {"id": "3A", "group": 3, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Celiac disease"}, {"letter": "B", "text": "Small intestinal bacterial overgrowth"}, {"letter": "C", "text": "Pancreatic pseudocyst"}, {"letter": "D", "text": "Exocrine pancreatic insufficiency with Type 3c diabetes"}, {"letter": "E", "text": "Chronic pancreatitis"}], "answer": "E", "explanation": "Pancreatic calcifications on imaging are essentially pathognomonic, and recurrent attacks with two decades of alcohol and tobacco use are the classic substrate. Normal amylase and lipase do not exclude the diagnosis — enzymes are usually normal in advanced disease, which is why fecal elastase and imaging make the diagnosis instead.", "objective": "", "section": "Chronic pancreatic disease with pain, steatorrhea, and weight loss", "pcase": "D1", "pgroup": "D", "pstack": "A"}, {"id": "4", "group": 4, "stem": "A 64-year-old man is in the intensive care unit on hospital day 3 after severe acute pancreatitis with rapid deterioration. His pain worsened abruptly this morning, his blood pressure has fallen despite fluids, and his abdomen has become distended. He takes no anticoagulant, has no known aneurysm, and has had no trauma. His temperature is 37.6°C (99.7°F), blood pressure is 78/46 mm Hg, pulse is 132/min, respirations are 28/min, and oxygen saturation is 92% on 4 L. Examination shows bilateral flank ecchymosis and periumbilical ecchymosis, hypotension and tachycardia with cool, mottled skin, and marked abdominal distention with diffuse tenderness.\n\nLaboratory studies:\n  WBC: 19,200/mm³\n\nWhich of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "A homogeneous fluid collection with no encapsulating wall and no necrosis"}, {"letter": "B", "text": "Nonenhancing areas of pancreatic parenchyma with no gas and negative cultures"}, {"letter": "C", "text": "Gas within necrotic tissue on CT, with persistent leukocytosis and positive blood cultures"}, {"letter": "D", "text": "A falling hematocrit with retroperitoneal hemorrhage and vessel erosion"}, {"letter": "E", "text": "An encapsulated fluid collection with a well-defined enhancing wall and a normally enhancing pancreas"}], "answer": "D", "explanation": "Abrupt worsening of pain with hypotension refractory to fluids on day 3 of severe pancreatitis indicates bleeding, and enzymatic digestion erodes a peripancreatic vessel into the retroperitoneum. The falling hematocrit is the earlier and more reliable signal than the bruising signs.", "objective": "", "section": "Clinical deterioration after severe acute pancreatitis", "pcase": "C2", "pgroup": "C", "pstack": "A"}, {"id": "4A", "group": 4, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Hemorrhagic pancreatitis"}, {"letter": "B", "text": "Infected pancreatic necrosis"}, {"letter": "C", "text": "Acute peripancreatic fluid collection"}, {"letter": "D", "text": "Necrotizing pancreatitis"}, {"letter": "E", "text": "Pancreatic pseudocyst"}], "answer": "A", "explanation": "Flank ecchymosis (Grey Turner's sign) is retroperitoneal blood dissecting through the lateral abdominal wall, and periumbilical ecchymosis (Cullen's sign) is blood tracking along the falciform ligament. With shock at day 3 and no gas in the pancreatic bed, this is hemorrhage rather than infected necrosis.", "objective": "", "section": "Clinical deterioration after severe acute pancreatitis", "pcase": "C2", "pgroup": "C", "pstack": "A"}, {"id": "5", "group": 5, "stem": "A 46-year-old man presents to the emergency department with severe epigastric pain that began about 12 hours after a heavy weekend of drinking. He has had nausea and repeated vomiting. He has had 4 to 5 drinks daily for more than 5 years, with a heavy binge two nights ago, and his last drink was 20 hours ago. A prior ultrasound showed no gallstones; he takes no new medications and has no history of high triglycerides. His temperature is 38.0°C (100.4°F), blood pressure is 138/88 mm Hg, pulse is 118/min, respirations are 22/min, and oxygen saturation is 96% on room air. Examination shows epigastric tenderness, tachycardia and fever, and a fine tremor of the outstretched hands with diaphoresis and mild agitation. There is no guarding and no rebound.\n\nLaboratory studies:\n  Potassium: 3.2 mEq/L\n  AST: 92 U/L\n  ALT: 44 U/L\n\nWhich of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "An ALT above 150 U/L in a cholestatic pattern, with cholelithiasis and a dilated common bile duct"}, {"letter": "B", "text": "Triglycerides above 1,000 mg/dL with lipemic serum"}, {"letter": "C", "text": "Pancreatic calcifications with atrophy and \"chain of lakes\" ductal dilation, and fecal elastase under 200 mcg/g"}, {"letter": "D", "text": "Lipase more than 3× the upper limit of normal with low magnesium and phosphorus and no gallstones"}, {"letter": "E", "text": "Nonenhancing areas of pancreatic parenchyma with persistent leukocytosis"}], "answer": "D", "explanation": "Years of heavy drinking produce renal and gastrointestinal losses of magnesium and phosphorus, so the metabolic panel is the discriminator in an alcoholic attack. His prior ultrasound showed no gallstones, and the mildly elevated AST with a normal ALT is not a cholestatic pattern.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A3", "pgroup": "A", "pstack": "A"}, {"id": "5A", "group": 5, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Hypertriglyceridemia-induced pancreatitis"}, {"letter": "B", "text": "Alcoholic pancreatitis"}, {"letter": "C", "text": "Drug-induced acute pancreatitis"}, {"letter": "D", "text": "Gallstone (biliary) pancreatitis"}, {"letter": "E", "text": "Chronic pancreatitis"}], "answer": "B", "explanation": "Alcohol is the second most common cause of acute pancreatitis overall and the most common cause in men. The tremor, diaphoresis, and agitation 20 hours after his last drink are early withdrawal, which must be anticipated rather than discovered.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A3", "pgroup": "A", "pstack": "A"}, {"id": "6", "group": 6, "stem": "A 55-year-old man is on the inpatient unit on hospital day 6 after an attack of mild gallstone pancreatitis. His pain has largely settled and he is tolerating a soft low-fat diet, but he still has a dull ache in the epigastrium. His temperature is 36.9°C (98.4°F), blood pressure is 124/76 mm Hg, pulse is 78/min, respirations are 16/min, and oxygen saturation is 98% on room air. Examination shows a soft, nondistended abdomen with only trace epigastric tenderness, no palpable mass, and no guarding. A contrast-enhanced CT of the abdomen is obtained before his planned cholecystectomy.\n\nLaboratory studies:\n  WBC: 8,600/mm³ (down from 15,400/mm³)\n  Creatinine: 0.9 mg/dL\n\nWhich of the following findings on the CT would most likely be present in this patient?", "options": [{"letter": "A", "text": "Nonenhancing areas of pancreatic parenchyma involving part of the gland"}, {"letter": "B", "text": "Retroperitoneal hemorrhage with erosion of a peripancreatic vessel"}, {"letter": "C", "text": "A homogeneous fluid collection with no encapsulating wall and no necrosis"}, {"letter": "D", "text": "An encapsulated fluid collection with a well-defined enhancing wall"}, {"letter": "E", "text": "Gas bubbles within necrotic tissue in the pancreatic bed"}], "answer": "C", "explanation": "An acute peripancreatic fluid collection arises in the first 4 weeks after interstitial edematous pancreatitis, before any capsule can form. The parenchyma enhances normally because there is no necrosis, and the falling white cell count reflects an improving course.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B1", "pgroup": "B", "pstack": "A"}, {"id": "6A", "group": 6, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Pancreatic pseudocyst"}, {"letter": "B", "text": "Hemorrhagic pancreatitis"}, {"letter": "C", "text": "Necrotizing pancreatitis"}, {"letter": "D", "text": "Acute pancreatitis (uncomplicated)"}, {"letter": "E", "text": "Acute peripancreatic fluid collection"}], "answer": "E", "explanation": "The absence of a defined wall is what separates this from a pseudocyst, which is what it becomes if it persists past 4 weeks. He is afebrile with a normal abdominal examination, which excludes infected necrosis and hemorrhage.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B1", "pgroup": "B", "pstack": "A"}, {"id": "7", "group": 7, "stem": "A 59-year-old woman presents to the gastroenterology clinic with oily, floating stools three to four times a day for the past year that are difficult to flush. She also has bloating and cramping and has lost 11 kg (24 lb). Her abdominal pain has largely faded over the past two years. She was given a diagnosis of chronic pancreatitis 12 years ago and stopped drinking a decade ago. She was told last year that her blood sugar was high. She does not have cystic fibrosis. Her temperature is 36.6°C (97.9°F), blood pressure is 112/68 mm Hg, pulse is 76/min, respirations are 14/min, and oxygen saturation is 97% on room air. Examination shows marked weight loss with sarcopenia and temporal wasting; the abdomen is soft and nontender with no mass and no jaundice.\n\nLaboratory studies:\n  Albumin: 3.0 g/dL\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "CT abdomen with contrast"}, {"letter": "B", "text": "Hydrogen breath test"}, {"letter": "C", "text": "IgA anti-tTG2 serology with a total IgA level"}, {"letter": "D", "text": "Fecal elastase-1 with HbA1c and fat-soluble vitamin levels"}, {"letter": "E", "text": "CT abdomen with fecal elastase-1, amylase, and lipase"}], "answer": "D", "explanation": "Steatorrhea with weight loss after longstanding chronic pancreatitis points to loss of exocrine function, which fecal elastase measures directly, and the islet loss that accompanies it must be captured with a glycemic measure. Fat-soluble vitamin levels are checked because their absorption depends on digested lipid.", "objective": "", "section": "Chronic pancreatic disease with pain, steatorrhea, and weight loss", "pcase": "D2", "pgroup": "D", "pstack": "A"}, {"id": "7A", "group": 7, "stem": "Which of the following additional test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Positive IgA anti-tTG2 with iron-deficiency anemia and low fat-soluble vitamins"}, {"letter": "B", "text": "Fecal elastase under 100 mcg/g with hyperglycemia and low vitamins A, D, E, and K"}, {"letter": "C", "text": "A positive hydrogen breath test with bloating that worsens through the day"}, {"letter": "D", "text": "Pancreatic calcifications with atrophy and \"chain of lakes\" ductal dilation, and normal amylase and lipase"}, {"letter": "E", "text": "An encapsulated fluid collection with a well-defined enhancing wall and a normally enhancing pancreas"}], "answer": "B", "explanation": "The reference for fecal elastase-1 is at least 200 mcg/g; below 200 is abnormal and below 100 suggests exocrine insufficiency. Steatorrhea requires roughly 90% loss of exocrine capacity, so by the time it appears the endocrine islets are usually failing as well.", "objective": "", "section": "Chronic pancreatic disease with pain, steatorrhea, and weight loss", "pcase": "D2", "pgroup": "D", "pstack": "A"}, {"id": "7B", "group": 7, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Chronic pancreatitis"}, {"letter": "B", "text": "Celiac disease"}, {"letter": "C", "text": "Exocrine pancreatic insufficiency with Type 3c diabetes"}, {"letter": "D", "text": "Small intestinal bacterial overgrowth"}, {"letter": "E", "text": "Pancreatic pseudocyst"}], "answer": "C", "explanation": "Loss of acinar tissue removes lipase, and without digested lipid there is no micelle formation, so fat and the fat-soluble vitamins are lost in the stool. Pain has faded because the gland is burned out, which is what separates this stage from active chronic pancreatitis.", "objective": "", "section": "Chronic pancreatic disease with pain, steatorrhea, and weight loss", "pcase": "D2", "pgroup": "D", "pstack": "A"}, {"id": "8", "group": 8, "stem": "A 52-year-old woman presents to the emergency department with epigastric pain radiating straight through to her back that began 10 hours ago after a fatty meal. She has had nausea and repeated vomiting, and she has noticed that her eyes look yellow. She has had two prior episodes of biliary colic after fatty meals in the past year, and an ultrasound 8 months ago showed gallstones. She drinks no alcohol, takes no new medications, and has no history of high triglycerides. Her temperature is 37.6°C (99.7°F), blood pressure is 116/70 mm Hg, pulse is 112/min, respirations are 20/min, and oxygen saturation is 96% on room air. Examination shows epigastric and right upper quadrant tenderness, fever and tachycardia, and scleral icterus. There is no guarding and no rebound.\n\nLaboratory studies:\n  Lipase: 2,140 U/L (upper limit of normal 60 U/L)\n\nWhich of the following additional test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Lipase more than 3× the upper limit of normal with low magnesium and phosphorus and no gallstones"}, {"letter": "B", "text": "An ALT above 150 U/L in a cholestatic pattern, with cholelithiasis and a dilated common bile duct"}, {"letter": "C", "text": "Triglycerides above 1,000 mg/dL with lipemic serum"}, {"letter": "D", "text": "Pancreatic calcifications with atrophy and \"chain of lakes\" ductal dilation, and fecal elastase under 200 mcg/g"}, {"letter": "E", "text": "Lipase more than 3× the upper limit of normal with a normal ultrasound and normal triglycerides"}], "answer": "B", "explanation": "A stone passing through the ampulla obstructs the pancreatic duct and the bile duct together, producing a transaminase and alkaline phosphatase rise with hyperbilirubinemia. Prior biliary colic, a fatty-meal trigger, and known gallstones all point the same way.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A2", "pgroup": "A", "pstack": "A"}, {"id": "8A", "group": 8, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Drug-induced acute pancreatitis"}, {"letter": "B", "text": "Chronic pancreatitis"}, {"letter": "C", "text": "Alcoholic pancreatitis"}, {"letter": "D", "text": "Gallstone (biliary) pancreatitis"}, {"letter": "E", "text": "Hypertriglyceridemia-induced pancreatitis"}], "answer": "D", "explanation": "Gallstones are the most common cause of acute pancreatitis overall, at 40–70%. Jaundice is the discriminating feature here — most patients with acute pancreatitis are not jaundiced because the obstruction is usually brief.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A2", "pgroup": "A", "pstack": "A"}, {"id": "9", "group": 9, "stem": "A 57-year-old woman is in the intensive care unit on hospital day 12 of an admission for severe necrotizing pancreatitis. She improved briefly around day 5 but has now had daily fevers for a week without getting better. She has had no antibiotics to this point. Her temperature is 38.9°C (102.0°F), blood pressure is 96/58 mm Hg, pulse is 124/min, respirations are 26/min, and oxygen saturation is 93% on 3 L. Examination shows persistent fever and tachycardia, cool extremities with delayed capillary refill, and diffuse abdominal tenderness with distention. There is no flank or periumbilical bruising.\n\nLaboratory studies:\n  Hematocrit: 34% (stable)\n  Creatinine: 2.4 mg/dL\n  Lactate: 3.1 mmol/L\n\nWhich of the following additional test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "A homogeneous fluid collection with no encapsulating wall and no necrosis"}, {"letter": "B", "text": "Gas within necrotic tissue on CT, with persistent leukocytosis and positive blood cultures"}, {"letter": "C", "text": "Nonenhancing areas of pancreatic parenchyma with no gas and negative cultures"}, {"letter": "D", "text": "An encapsulated fluid collection with a well-defined enhancing wall and a normally enhancing pancreas"}, {"letter": "E", "text": "A falling hematocrit with retroperitoneal hemorrhage and vessel erosion"}], "answer": "B", "explanation": "Necrotic pancreatic tissue is seeded from the gut, most often by *E. coli*, and gas within the necrosis is the imaging finding that establishes infection. Failure to improve over 7 to 10 days with rising fever is the clinical trigger to look for it.", "objective": "", "section": "Clinical deterioration after severe acute pancreatitis", "pcase": "C1", "pgroup": "C", "pstack": "A"}, {"id": "9A", "group": 9, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Necrotizing pancreatitis (sterile)"}, {"letter": "B", "text": "Pancreatic pseudocyst"}, {"letter": "C", "text": "Acute peripancreatic fluid collection"}, {"letter": "D", "text": "Hemorrhagic pancreatitis"}, {"letter": "E", "text": "Infected pancreatic necrosis"}], "answer": "E", "explanation": "Infection develops in about one third of patients with necrotizing pancreatitis and is the one setting in acute pancreatitis where antibiotics treat the pancreatic disease itself. Her hematocrit is stable and there is no bruising, which excludes hemorrhage.", "objective": "", "section": "Clinical deterioration after severe acute pancreatitis", "pcase": "C1", "pgroup": "C", "pstack": "A"}, {"id": "10", "group": 10, "stem": "A 36-year-old woman presents to the emergency department with severe epigastric pain for 8 hours with nausea and vomiting. She has also noticed crops of small yellow bumps over her elbows and buttocks in recent weeks. She was given a diagnosis of familial hypertriglyceridemia in her twenties, and her father and a brother are affected. She has poorly controlled type 2 diabetes and takes a combined oral contraceptive. She drinks no alcohol and has no gallstones. Her temperature is 37.8°C (100.0°F), blood pressure is 124/76 mm Hg, pulse is 104/min, respirations are 20/min, and oxygen saturation is 97% on room air. Examination shows epigastric tenderness with no guarding or rebound, eruptive xanthomas over the extensor elbows and buttocks, and lipemia retinalis on fundoscopy. Right upper quadrant ultrasound shows no gallstones.\n\nLaboratory studies:\n  Glucose: 318 mg/dL\n  HbA1c: 10.9%\n  Calcium: 8.4 mg/dL\n\nWhich of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Pancreatic calcifications with atrophy and \"chain of lakes\" ductal dilation, and fecal elastase under 200 mcg/g"}, {"letter": "B", "text": "Lipase more than 3× the upper limit of normal with low magnesium and phosphorus and no gallstones"}, {"letter": "C", "text": "Triglycerides above 1,000 mg/dL with lipemic serum"}, {"letter": "D", "text": "An ALT above 150 U/L in a cholestatic pattern, with cholelithiasis and a dilated common bile duct"}, {"letter": "E", "text": "Lipase more than 3× the upper limit of normal with a normal ultrasound and normal triglycerides"}], "answer": "C", "explanation": "The risk of pancreatitis climbs above about 1,000 mg/dL, at which point serum becomes visibly milky. Free fatty acids liberated from those triglycerides by lipase are directly cytotoxic to acinar cell membranes.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A4", "pgroup": "A", "pstack": "A"}, {"id": "10A", "group": 10, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Gallstone (biliary) pancreatitis"}, {"letter": "B", "text": "Drug-induced acute pancreatitis"}, {"letter": "C", "text": "Alcoholic pancreatitis"}, {"letter": "D", "text": "Hypertriglyceridemia-induced pancreatitis"}, {"letter": "E", "text": "Necrotizing pancreatitis"}], "answer": "D", "explanation": "Eruptive xanthomas and lipemia retinalis are the cutaneous and retinal signatures of extreme hypertriglyceridemia. This is the third most common cause after gallstones and alcohol, and her familial disease, uncontrolled diabetes, and estrogen-containing contraceptive all raise the level.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A4", "pgroup": "A", "pstack": "A"}, {"id": "11", "group": 11, "stem": "A 61-year-old man is in the intensive care unit on hospital day 5. He was admitted with severe acute pancreatitis from gallstones with organ dysfunction from the outset and has needed ICU-level care since admission. His pain has not settled, he remains febrile, and he is sicker than the course predicted. His temperature is 38.4°C (101.1°F), blood pressure is 108/64 mm Hg, pulse is 116/min, respirations are 22/min, and oxygen saturation is 94% on 2 L. Examination shows persistent fever and persistent tachycardia and diffuse abdominal tenderness with mild distention. There is no rigidity and no flank or periumbilical bruising. A contrast-enhanced CT of the abdomen is obtained 96 hours after the onset of symptoms.\n\nLaboratory studies:\n  WBC: 18,900/mm³\n  Creatinine: 2.1 mg/dL (risen from 1.0 mg/dL)\n  Blood cultures: Negative to date\n\nWhich of the following findings on the CT would most likely be present in this patient?", "options": [{"letter": "A", "text": "A homogeneous fluid collection with no encapsulating wall and no necrosis"}, {"letter": "B", "text": "Nonenhancing areas of pancreatic parenchyma with no gas within the necrosis"}, {"letter": "C", "text": "Gas bubbles within necrotic tissue in the pancreatic bed"}, {"letter": "D", "text": "An encapsulated fluid collection with a well-defined enhancing wall"}, {"letter": "E", "text": "Retroperitoneal hemorrhage with erosion of a peripancreatic vessel"}], "answer": "B", "explanation": "Failure to improve over several days after severe pancreatitis with organ dysfunction indicates necrosis, which appears as parenchyma that does not take up contrast. An early scan underestimates necrosis, which is why the study is obtained at least 72 hours after onset.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B3", "pgroup": "B", "pstack": "A"}, {"id": "11A", "group": 11, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Acute peripancreatic fluid collection"}, {"letter": "B", "text": "Hemorrhagic pancreatitis"}, {"letter": "C", "text": "Necrotizing pancreatitis"}, {"letter": "D", "text": "Pancreatic pseudocyst"}, {"letter": "E", "text": "Infected pancreatic necrosis"}], "answer": "C", "explanation": "Necrosis within the first 4 weeks is acute necrotic collection; the same collection becomes walled-off necrosis once an inflammatory capsule forms. The absence of gas and the negative cultures make this sterile rather than infected necrosis.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B3", "pgroup": "B", "pstack": "A"}, {"id": "12", "group": 12, "stem": "A 44-year-old woman is admitted with acute pancreatitis. Her lipase is 1,480 U/L against an upper limit of 60 U/L, right upper quadrant ultrasound shows no gallstones and a normal-caliber common bile duct, and her triglycerides are 142 mg/dL. She has Crohn disease and was started on azathioprine 5 weeks ago; she also takes a 5-aminosalicylate. Her temperature is 38.1°C (100.6°F), blood pressure is 118/72 mm Hg, and pulse is 108/min.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Begin lactated Ringer's, give hydromorphone for pain, and stop the azathioprine and the 5-aminosalicylate"}, {"letter": "B", "text": "Begin lactated Ringer's, give morphine for pain, and stop the azathioprine and the 5-aminosalicylate"}, {"letter": "C", "text": "Begin lactated Ringer's, give hydromorphone for pain, and add prophylactic antibiotics"}, {"letter": "D", "text": "Begin lactated Ringer's, give hydromorphone for pain, and continue the azathioprine and the 5-aminosalicylate"}, {"letter": "E", "text": "Begin lactated Ringer's, give hydromorphone for pain, and continue aggressive fluid resuscitation beyond 48 hours"}], "answer": "A", "explanation": "Aggressive fluid resuscitation in the first 24 hours is the core of treatment, and removing the offending drug is what treats the cause. Morphine is typically avoided because it may raise sphincter of Oddi pressure; prophylactic antibiotics are not indicated in acute pancreatitis; and aggressive fluids past 48 hours raise the risk of intubation and abdominal compartment syndrome.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A1", "pgroup": "A", "pstack": "B"}, {"id": "12A", "group": 12, "stem": "On hospital day 5 she is still unable to tolerate oral intake. Which of the following is the most appropriate next step in nutritional management?", "options": [{"letter": "A", "text": "Continue nothing by mouth and reassess in 48 hours"}, {"letter": "B", "text": "Advance her to a low-residue, low-fat soft diet as tolerated"}, {"letter": "C", "text": "Begin nasojejunal feeding with the tube tip past the sphincter of Oddi"}, {"letter": "D", "text": "Begin total parenteral nutrition"}, {"letter": "E", "text": "Begin total parenteral nutrition once she has been unable to eat for 7 days"}], "answer": "C", "explanation": "Enteral feeding is started by day 5 when oral intake is not tolerated, and the tube is placed past the sphincter of Oddi so that feeding does not stimulate the inflamed gland. Enteral routes are preferred over total parenteral nutrition.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A1", "pgroup": "A", "pstack": "B"}, {"id": "13", "group": 13, "stem": "A 51-year-old man with chronic pancreatitis returns to the clinic with nearly constant epigastric pain that bores through to his back and is worse after meals. CT of the abdomen shows pancreatic calcifications with parenchymal atrophy and chain-of-lakes ductal dilation, and his fecal elastase-1 is 84 mcg/g. His amylase and lipase are normal. He drinks heavily and smokes a pack a day.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Advise alcohol and nicotine cessation and low-fat small frequent meals, with acetaminophen for pain"}, {"letter": "B", "text": "Advise alcohol and nicotine cessation and low-fat small frequent meals, with a long-acting opioid for pain"}, {"letter": "C", "text": "Advise alcohol and nicotine cessation and low-fat small frequent meals, with analgesia only after a celiac ganglion block"}, {"letter": "D", "text": "Advise alcohol and nicotine cessation and low-fat small frequent meals, with analgesia deferred until the amylase and lipase rise"}, {"letter": "E", "text": "Advise alcohol and nicotine cessation and low-fat small frequent meals, with surgical resection of the diseased gland"}], "answer": "A", "explanation": "Cessation of alcohol and nicotine is the only intervention that alters the course, and acetaminophen and NSAIDs are the first-line analgesics. Opioids are avoided unless absolutely necessary in chronic pancreatitis, and analgesia is never deferred pending an enzyme rise, since amylase and lipase are usually normal in advanced disease.", "objective": "", "section": "Chronic pancreatic disease with pain, steatorrhea, and weight loss", "pcase": "D1", "pgroup": "D", "pstack": "B"}, {"id": "13A", "group": 13, "stem": "His pain persists despite acetaminophen, an NSAID, and abstinence from alcohol and tobacco. Which of the following is the most appropriate next step in the management of his pain?", "options": [{"letter": "A", "text": "Whipple resection of the pancreatic head"}, {"letter": "B", "text": "Celiac ganglion nerve block"}, {"letter": "C", "text": "Long-term oral opioid therapy"}, {"letter": "D", "text": "Distal pancreatectomy"}, {"letter": "E", "text": "Pancrelipase with each meal"}], "answer": "B", "explanation": "When first-line analgesia fails, the escalation is a celiac ganglion block with antidepressant adjuvants, before any consideration of resection. Surgical resection is reserved for the most recalcitrant cases, and long-term opioids are what this pathway is designed to avoid.", "objective": "", "section": "Chronic pancreatic disease with pain, steatorrhea, and weight loss", "pcase": "D1", "pgroup": "D", "pstack": "B"}, {"id": "14", "group": 14, "stem": "A 64-year-old man in the intensive care unit on hospital day 3 of severe acute pancreatitis is found to have hemorrhagic pancreatitis. His blood pressure is 78/46 mm Hg and his pulse is 132/min. His hematocrit has fallen from 41% to 24% over 18 hours with a hemoglobin of 8.0 g/dL, and contrast CT shows retroperitoneal hemorrhage with erosion of a peripancreatic vessel and active contrast extravasation. Flank and periumbilical ecchymoses are present. A type and screen has been completed.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Admit to the ICU, resuscitate with blood products, and arrange interventional radiology angioembolization"}, {"letter": "B", "text": "Admit to the ICU, resuscitate with lactated Ringer's at 5–10 mL/kg/h, and arrange interventional radiology angioembolization"}, {"letter": "C", "text": "Admit to the ICU, resuscitate with blood products, and proceed directly to surgical exploration"}, {"letter": "D", "text": "Admit to the ICU, resuscitate with blood products, and observe without angioembolization"}, {"letter": "E", "text": "Admit to the ICU, resuscitate with lactated Ringer's at 5–10 mL/kg/h, and observe without angioembolization"}], "answer": "A", "explanation": "Hemorrhagic shock is corrected with blood products, not with crystalloid — the aggressive fluid strategy that is correct in the first 24 hours of ordinary acute pancreatitis is the wrong answer here. Active contrast extravasation from an eroded vessel is treated by angioembolization.", "objective": "", "section": "Clinical deterioration after severe acute pancreatitis", "pcase": "C2", "pgroup": "C", "pstack": "B"}, {"id": "14A", "group": 14, "stem": "Bleeding continues despite angioembolization and ongoing transfusion. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Continue blood-product transfusion and observe"}, {"letter": "B", "text": "Add vasopressor support and continue transfusion without further intervention"}, {"letter": "C", "text": "Repeat interventional radiology angioembolization"}, {"letter": "D", "text": "Proceed to surgical intervention for uncontrolled hemorrhage"}, {"letter": "E", "text": "Resume lactated Ringer's at 5–10 mL/kg/h in place of blood products"}], "answer": "D", "explanation": "Surgery is reserved for hemorrhage that angioembolization and transfusion fail to control. Vasopressors support perfusion but do not stop bleeding, and returning to crystalloid would dilute an already failing oxygen-carrying capacity.", "objective": "", "section": "Clinical deterioration after severe acute pancreatitis", "pcase": "C2", "pgroup": "C", "pstack": "B"}, {"id": "15", "group": 15, "stem": "A 52-year-old woman is admitted with gallstone pancreatitis. Her lipase is 2,140 U/L, her ALT is 312 U/L with an alkaline phosphatase of 296 U/L and a total bilirubin of 3.8 mg/dL, and ultrasound shows cholelithiasis with sludge and a common bile duct dilated to 9 mm. Her temperature is 37.6°C (99.7°F) and her pulse is 112/min. There are no peripancreatic collections.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Intravenous fluids, hydromorphone for pain, early enteral nutrition, and cholecystectomy during this admission"}, {"letter": "B", "text": "Intravenous fluids, morphine for pain, early enteral nutrition, and cholecystectomy during this admission"}, {"letter": "C", "text": "Intravenous fluids, hydromorphone for pain, early enteral nutrition, and cholecystectomy deferred for at least 6 weeks"}, {"letter": "D", "text": "Intravenous fluids, hydromorphone for pain, early enteral nutrition, and prophylactic antibiotics before cholecystectomy"}, {"letter": "E", "text": "Intravenous fluids, morphine for pain, early enteral nutrition, and cholecystectomy deferred for at least 6 weeks"}], "answer": "A", "explanation": "Cholecystectomy during the initial admission for mild gallstone pancreatitis produces fewer biliary readmissions with no added surgical risk. Delay to 6 weeks is correct only when peripancreatic collections are present, which she does not have; morphine is avoided; and prophylactic antibiotics are not indicated.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A2", "pgroup": "A", "pstack": "B"}, {"id": "15A", "group": 15, "stem": "Her jaundice persists and her total bilirubin remains 3.8 mg/dL after 48 hours of supportive care. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Continued observation with serial liver function tests"}, {"letter": "B", "text": "Cholecystectomy alone, deferred until the bilirubin normalizes"}, {"letter": "C", "text": "ERCP with sphincterotomy and stone extraction"}, {"letter": "D", "text": "Repeat right upper quadrant ultrasound in one week"}, {"letter": "E", "text": "Repeat MRCP in one week"}], "answer": "C", "explanation": "Persistent jaundice is a red flag for a retained common bile duct stone or malignancy, not something to watch. ERCP with sphincterotomy both clears the duct and relieves the obstruction; MRCP is an imaging study and would not treat the stone.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A2", "pgroup": "A", "pstack": "B"}, {"id": "16", "group": 16, "stem": "A 49-year-old woman is found to have a pancreatic pseudocyst 7 weeks after an attack of acute alcoholic pancreatitis. Contrast CT shows an 8 cm encapsulated fluid collection with a well-defined enhancing wall in the lesser sac, with minimal necrosis and a normally enhancing pancreas. She has epigastric fullness with a palpable mass, early satiety, and vomiting after small meals. She is afebrile and her white cell count is 9,100/mm³.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Observation alone, with repeat imaging in several months"}, {"letter": "B", "text": "Endoscopic drainage, after EUS-guided fine-needle aspiration has excluded a cystic neoplasm"}, {"letter": "C", "text": "Endoscopic drainage, without tissue sampling because the collection followed a documented attack of pancreatitis"}, {"letter": "D", "text": "Percutaneous drainage, without tissue sampling because the collection has a well-defined wall"}, {"letter": "E", "text": "Surgical drainage, without tissue sampling because the collection is larger than 5 cm"}], "answer": "C", "explanation": "A pseudocyst that is large or symptomatic is drained, and endoscopic drainage is preferred. Tissue sampling is reserved for a collection whose nature is uncertain — the guide calls for EUS-guided aspiration only when a cystic neoplasm cannot be excluded. Here an encapsulated collection with a well-defined wall appearing 7 weeks after a documented attack of pancreatitis is characteristic, so routine aspiration before drainage is not required.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B2", "pgroup": "B", "pstack": "B"}, {"id": "17", "group": 17, "stem": "A 46-year-old man is admitted with alcoholic pancreatitis. His lipase is 1,960 U/L, his magnesium is 1.2 mg/dL and his phosphorus is 1.6 mg/dL, and ultrasound shows no gallstones. He has had 4 to 5 drinks daily for more than 5 years and his last drink was 20 hours ago. His temperature is 38.0°C (100.4°F) and his pulse is 118/min. He has a fine tremor of the outstretched hands with diaphoresis and mild agitation.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Lactated Ringer's, morphine for pain, and treatment for alcohol withdrawal started now"}, {"letter": "B", "text": "Lactated Ringer's, hydromorphone for pain, and treatment for alcohol withdrawal started if seizures develop"}, {"letter": "C", "text": "Lactated Ringer's, morphine for pain, and treatment for alcohol withdrawal started if seizures develop"}, {"letter": "D", "text": "Lactated Ringer's, hydromorphone for pain, and treatment for alcohol withdrawal started now"}, {"letter": "E", "text": "Lactated Ringer's, hydromorphone for pain, and treatment for alcohol withdrawal started after discharge"}], "answer": "D", "explanation": "Withdrawal must be anticipated rather than discovered: his last drink was 20 hours ago and he is already tremulous and diaphoretic. Morphine is typically avoided in pancreatitis because it may raise sphincter of Oddi pressure.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A3", "pgroup": "A", "pstack": "B"}, {"id": "17A", "group": 17, "stem": "His magnesium and phosphorus remain low after initial resuscitation. Which of the following should be added to his management?", "options": [{"letter": "A", "text": "Repletion of magnesium and phosphorus with thiamine, pyridoxine, and folic acid"}, {"letter": "B", "text": "Repletion of magnesium and phosphorus alone, with vitamins deferred until oral intake resumes"}, {"letter": "C", "text": "Thiamine, pyridoxine, and folic acid alone, with electrolyte repletion deferred until withdrawal is treated"}, {"letter": "D", "text": "Repletion of magnesium and phosphorus, with alcohol use disorder referral arranged after discharge"}, {"letter": "E", "text": "Repletion of magnesium and phosphorus, with vitamins withheld until the lipase falls"}], "answer": "A", "explanation": "Chronic alcohol use depletes magnesium, phosphorus, and the B vitamins together, and repletion is given concurrently rather than sequentially. Alcohol use disorder counseling or referral is arranged before discharge, not after.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A3", "pgroup": "A", "pstack": "B"}, {"id": "18", "group": 18, "stem": "A 59-year-old woman with longstanding chronic pancreatitis is given a diagnosis of exocrine pancreatic insufficiency with Type 3c diabetes. Her fecal elastase-1 is 42 mcg/g, her fasting glucose is 214 mg/dL with an HbA1c of 9.1%, and her vitamins A, D, E, and K are low with an INR of 1.6.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Pancrelipase 40,000 to 50,000 units at the end of each main meal, fat-soluble vitamins, and glucose monitoring without tight targets"}, {"letter": "B", "text": "Pancrelipase 40,000 to 50,000 units with the first bite of each main meal, fat-soluble vitamins, and glucose monitoring without tight targets"}, {"letter": "C", "text": "Pancrelipase 40,000 to 50,000 units with the first bite of each main meal, fat-soluble vitamins, and tight glycemic control"}, {"letter": "D", "text": "Pancrelipase 40,000 to 50,000 units at the end of each main meal, fat-soluble vitamins, and tight glycemic control"}, {"letter": "E", "text": "Pancrelipase 40,000 to 50,000 units with the first bite of each main meal, no vitamin supplementation, and tight glycemic control"}], "answer": "B", "explanation": "Timing matters as much as dose — enzyme taken after the meal does not mix with the food it is meant to digest. Type 3c diabetes loses glucagon along with insulin, so counter-regulation fails and tight glycemic control must be avoided.", "objective": "", "section": "Chronic pancreatic disease with pain, steatorrhea, and weight loss", "pcase": "D2", "pgroup": "D", "pstack": "B"}, {"id": "18A", "group": 18, "stem": "Her fasting glucose remains 214 mg/dL and her HbA1c 9.1% despite dietary modification. Which of the following is the most appropriate treatment for her diabetes?", "options": [{"letter": "A", "text": "Insulin, with tight glycemic targets"}, {"letter": "B", "text": "Insulin, withheld until pancrelipase has controlled her steatorrhea"}, {"letter": "C", "text": "No insulin, with glucose monitoring alone"}, {"letter": "D", "text": "Insulin, with deliberately loose glycemic targets"}, {"letter": "E", "text": "Insulin, withheld until an annual HbA1c has been repeated"}], "answer": "D", "explanation": "Type 3c diabetes is brittle and insulin-requiring because the islet loss removes both insulin and its counter-regulatory partners. That same loss makes hypoglycemia dangerous, so targets are deliberately kept loose.", "objective": "", "section": "Chronic pancreatic disease with pain, steatorrhea, and weight loss", "pcase": "D2", "pgroup": "D", "pstack": "B"}, {"id": "19", "group": 19, "stem": "A 55-year-old man on hospital day 6 after mild gallstone pancreatitis is found to have an acute peripancreatic fluid collection. Contrast CT shows a homogeneous fluid collection with no encapsulating wall adjacent to the body of the pancreas, with no necrosis and a normally enhancing pancreas. He is afebrile, his abdominal examination is normal, and his white cell count has fallen to 8,600/mm³. A cholecystectomy had been planned for this admission.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Observation alone, with cholecystectomy delayed until the collection resolves"}, {"letter": "B", "text": "Observation alone, with cholecystectomy performed before discharge"}, {"letter": "C", "text": "Percutaneous drainage of the collection, with cholecystectomy delayed until the collection resolves"}, {"letter": "D", "text": "Prophylactic antibiotics, with cholecystectomy delayed until the collection resolves"}, {"letter": "E", "text": "Percutaneous drainage with prophylactic antibiotics, and cholecystectomy performed before discharge"}], "answer": "A", "explanation": "An acute peripancreatic fluid collection in an improving patient typically resolves within 7 to 10 days. Draining a homogeneous wall-less collection risks infecting something that would have resolved, prophylactic antibiotics are not indicated, and cholecystectomy is delayed until the collection resolves or at least 6 weeks have passed.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B1", "pgroup": "B", "pstack": "B"}, {"id": "20", "group": 20, "stem": "A 36-year-old woman is admitted with hypertriglyceridemia-induced pancreatitis. Her triglycerides are 3,640 mg/dL with lipemic serum, her lipase is 890 U/L, her glucose is 318 mg/dL, and her HbA1c is 10.9%. She has familial hypertriglyceridemia and poorly controlled type 2 diabetes, and she takes a combined oral contraceptive.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Aggressive intravenous fluids, an insulin infusion with glucose, and continuation of her combined oral contraceptive"}, {"letter": "B", "text": "Aggressive intravenous fluids, an insulin infusion with glucose, and discontinuation of her combined oral contraceptive"}, {"letter": "C", "text": "Aggressive intravenous fluids, prophylactic antibiotics, and discontinuation of her combined oral contraceptive"}, {"letter": "D", "text": "Aggressive intravenous fluids continued beyond 48 hours, an insulin infusion with glucose, and continuation of her combined oral contraceptive"}, {"letter": "E", "text": "Aggressive intravenous fluids, morphine for pain, and continuation of her combined oral contraceptive"}], "answer": "B", "explanation": "An insulin infusion accelerates chylomicron clearance and acutely lowers triglycerides. Estrogen both causes pancreatitis through intravascular thrombosis and raises triglycerides, so the contraceptive is a direct contributor and must be stopped rather than merely noted.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A4", "pgroup": "A", "pstack": "B"}, {"id": "20A", "group": 20, "stem": "Her triglycerides remain above 1,000 mg/dL despite the insulin infusion. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Continue the insulin infusion without further intervention"}, {"letter": "B", "text": "A fibrate started once she is eating"}, {"letter": "C", "text": "Dietary and lifestyle modification alone"}, {"letter": "D", "text": "Plasmapheresis"}, {"letter": "E", "text": "Screening for familial hypertriglyceridemia"}], "answer": "D", "explanation": "Plasmapheresis physically removes circulating triglycerides and is the escalation when severe hypertriglyceridemia does not respond to insulin. Fibrates, dietary modification, and familial screening are long-term measures that do not lower the level acutely.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A4", "pgroup": "A", "pstack": "B"}, {"id": "21", "group": 21, "stem": "A 57-year-old woman on hospital day 12 of severe necrotizing pancreatitis is found to have infected pancreatic necrosis. Her white cell count is 24,600/mm³ with a left shift, two of two blood cultures grow E. coli, and contrast CT shows gas within the necrotic pancreatic bed. Her temperature is 38.9°C (102.0°F), her blood pressure is 96/58 mm Hg, and her pulse is 124/min. She has had no antibiotics to this point.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Conservative management with ICU-level monitoring, and no antibiotics"}, {"letter": "B", "text": "Imipenem-cilastatin 500 mg IV q6h for 14 days, with continued ICU care"}, {"letter": "C", "text": "Observation only, with no drainage and no antibiotics"}, {"letter": "D", "text": "ICU admission with blood-product resuscitation and interventional radiology angioembolization"}, {"letter": "E", "text": "Observation if small and asymptomatic; endoscopic drainage if large or symptomatic"}], "answer": "B", "explanation": "This is the one setting in acute pancreatitis where antibiotics treat the pancreatic disease itself, and the agent must penetrate pancreatic tissue. About 39% of patients resolve on antibiotics alone. Withholding antibiotics is correct only for sterile necrosis, and drainage of sterile necrosis does not reduce mortality.", "objective": "", "section": "Clinical deterioration after severe acute pancreatitis", "pcase": "C1", "pgroup": "C", "pstack": "B"}, {"id": "21A", "group": 21, "stem": "She remains febrile after 10 days of imipenem-cilastatin and her white cell count has not fallen. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Immediate open surgical necrosectomy, without waiting for a wall to form"}, {"letter": "B", "text": "Ciprofloxacin plus metronidazole substituted for the imipenem-cilastatin"}, {"letter": "C", "text": "Endoscopic or percutaneous necrosectomy, delayed until the necrosis walls off at about 30 days"}, {"letter": "D", "text": "Percutaneous drainage of the sterile portions of the pancreatic bed"}, {"letter": "E", "text": "Imipenem-cilastatin continued alone for a further 14 days"}], "answer": "C", "explanation": "Necrosectomy is attempted only after antibiotics fail, and minimally invasive routes come first. Surgical necrosectomy is best delayed until a fibrous wall has formed at around 30 days, which is when the procedure is safest.", "objective": "", "section": "Clinical deterioration after severe acute pancreatitis", "pcase": "C1", "pgroup": "C", "pstack": "B"}, {"id": "22", "group": 22, "stem": "A 44-year-old woman recovers from drug-induced acute pancreatitis after her azathioprine is stopped. She asks how a future attack would be confirmed if her pain returns.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Measure serum lipase, which is more sensitive and specific and stays elevated for about 2 weeks"}, {"letter": "B", "text": "Measure serum amylase, which is more sensitive and specific and stays elevated for about 2 weeks"}, {"letter": "C", "text": "Measure serum lipase only if the serum amylase is normal"}, {"letter": "D", "text": "Measure serum amylase only if the serum lipase is normal"}, {"letter": "E", "text": "Measure serum lipase only within the first 24 hours of the pain"}], "answer": "A", "explanation": "Lipase is the better test and remains elevated for roughly 2 weeks, so it is not missed by a delayed presentation. A high amylase with a normal lipase points to a non-pancreatic cause, since amylase also rises in parotitis and bowel perforation.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A1", "pgroup": "A", "pstack": "C"}, {"id": "23", "group": 23, "stem": "A 61-year-old man in the intensive care unit on hospital day 5 of severe acute pancreatitis is found to have necrotizing pancreatitis. Contrast CT obtained 96 hours after symptom onset shows nonenhancing areas of pancreatic parenchyma involving about 40% of the gland with peripancreatic necrotic collections and no gas within the necrosis. His white cell count is 18,900/mm³, his creatinine has risen from 1.0 to 2.1 mg/dL, and blood cultures are negative to date. His temperature is 38.4°C (101.1°F) and his pulse is 116/min.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Conservative management with ICU-level monitoring and prophylactic broad-spectrum antibiotics"}, {"letter": "B", "text": "Percutaneous drainage of the necrotic collections with ICU-level monitoring and no antibiotics"}, {"letter": "C", "text": "Conservative management with ICU-level monitoring and no antibiotics"}, {"letter": "D", "text": "Immediate surgical necrosectomy with ICU-level monitoring and prophylactic broad-spectrum antibiotics"}, {"letter": "E", "text": "Percutaneous drainage of the necrotic collections with prophylactic broad-spectrum antibiotics"}], "answer": "C", "explanation": "Sterile necrosis usually stays sterile and may resorb, so supportive care with close monitoring is the treatment. Antibiotics are reserved for infected necrosis, and drainage of sterile necrosis does not reduce mortality. Rising white cell count, fever, failure to improve over 7 to 10 days, or gas within the necrosis are what should raise suspicion of infection.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B3", "pgroup": "B", "pstack": "B"}, {"id": "23A", "group": 23, "stem": "Four weeks later repeat imaging shows that the necrosis has walled off, and he remains symptomatic. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Observation alone, regardless of symptoms"}, {"letter": "B", "text": "Attempt drainage of the walled-off necrosis"}, {"letter": "C", "text": "Begin prophylactic antibiotics"}, {"letter": "D", "text": "Repeat contrast CT in a further 72 hours"}, {"letter": "E", "text": "Immediate open surgical necrosectomy"}], "answer": "B", "explanation": "Acute necrotic collection becomes walled-off necrosis once an inflammatory capsule forms at about 4 weeks. Drainage is attempted at that point if the patient is symptomatic and observed if not; the capsule is what makes intervention feasible.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B3", "pgroup": "B", "pstack": "B"}, {"id": "24", "group": 24, "stem": "A 51-year-old man with newly diagnosed chronic pancreatitis asks what he can do to slow the disease.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Stop alcohol and tobacco, since the risk rises with the number of attacks and with alcohol and tobacco use"}, {"letter": "B", "text": "Stop alcohol only, since tobacco does not affect progression"}, {"letter": "C", "text": "Stop tobacco only, since alcohol no longer matters once calcifications are present"}, {"letter": "D", "text": "Stop alcohol and tobacco only if a further attack of acute pancreatitis occurs"}, {"letter": "E", "text": "Continue both, since only about 10% of acute pancreatitis progresses to chronic disease"}], "answer": "A", "explanation": "About 10% of acute pancreatitis progresses to chronic disease, and the risk rises with severity, with the number of attacks, and with alcohol and tobacco use. Both exposures matter, and stopping them is the only intervention that changes the trajectory.", "objective": "", "section": "Chronic pancreatic disease with pain, steatorrhea, and weight loss", "pcase": "D1", "pgroup": "D", "pstack": "C"}, {"id": "25", "group": 25, "stem": "A 52-year-old woman recovering from gallstone pancreatitis asks whether her sister, who has gallstones seen incidentally on imaging and has never had symptoms, should have her gallbladder removed.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Cholecystectomy for every patient found to have gallstones"}, {"letter": "B", "text": "Cholecystectomy only for patients whose gallstones are symptomatic"}, {"letter": "C", "text": "Cholecystectomy only for patients who have had an attack of pancreatitis"}, {"letter": "D", "text": "Cholecystectomy only for patients with sludge on ultrasound"}, {"letter": "E", "text": "Cholecystectomy only for patients who become jaundiced"}], "answer": "B", "explanation": "Gallstones are the most common cause of acute pancreatitis, but only 3–7% of people with gallstones ever develop it. That is the reason to remove a symptomatic gallbladder rather than every gallbladder.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A2", "pgroup": "A", "pstack": "C"}, {"id": "26", "group": 26, "stem": "A 64-year-old man is recovering after angioembolization for hemorrhagic pancreatitis. The team asks how flank and periumbilical ecchymoses should be used in future patients with severe acute pancreatitis.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Rely on a falling hematocrit rather than on the ecchymoses, which are non-specific and take 24 to 48 hours to appear"}, {"letter": "B", "text": "Rely on the ecchymoses rather than on a falling hematocrit, since they are specific for pancreatic hemorrhage"}, {"letter": "C", "text": "Rely on the ecchymoses only when they appear within the first 24 hours of symptom onset"}, {"letter": "D", "text": "Rely on the absence of the ecchymoses to exclude retroperitoneal hemorrhage"}, {"letter": "E", "text": "Rely on a falling hematocrit only after the ecchymoses have appeared"}], "answer": "A", "explanation": "Neither Grey Turner's nor Cullen's sign is specific — each signals major retroperitoneal bleeding from any cause, including a ruptured abdominal aortic aneurysm, ectopic pregnancy, or trauma. Both are rare and take 24 to 48 hours to appear, so their absence early does not exclude hemorrhage.", "objective": "", "section": "Clinical deterioration after severe acute pancreatitis", "pcase": "C2", "pgroup": "C", "pstack": "C"}, {"id": "27", "group": 27, "stem": "A 46-year-old man recovering from alcoholic pancreatitis says that the attack followed a single heavy night and that he therefore does not think alcohol is the cause.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Attribute the attack to alcohol only if he drinks daily"}, {"letter": "B", "text": "Attribute the attack to alcohol, since a single night of 10 to 12 or more drinks can cause it"}, {"letter": "C", "text": "Attribute the attack to alcohol only if a repeat ultrasound excludes gallstones"}, {"letter": "D", "text": "Attribute the attack to alcohol only in patients who already have chronic pancreatitis"}, {"letter": "E", "text": "Attribute the attack to alcohol only if he is one of the roughly 10% of people with alcohol use disorder who have attacks"}], "answer": "B", "explanation": "Alcoholic pancreatitis rarely follows an isolated binge, but it is possible with 10 to 12 or more drinks in a night. A first episode should not be dismissed because it was \"only one night.\"", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A3", "pgroup": "A", "pstack": "C"}, {"id": "28", "group": 28, "stem": "A 49-year-old woman with a pancreatic pseudocyst asks why the lesion is called a \"pseudo\" cyst.\n\nWhich of the following is the most appropriate explanation?", "options": [{"letter": "A", "text": "Its wall is fibrin and granulation tissue with no epithelial lining"}, {"letter": "B", "text": "Its wall is epithelial, like that of a true cyst"}, {"letter": "C", "text": "Its wall is fibrin and granulation tissue with a partial epithelial lining"}, {"letter": "D", "text": "Its contents are necrotic tissue rather than fluid"}, {"letter": "E", "text": "It forms within 4 weeks of an attack rather than after 4 weeks"}], "answer": "A", "explanation": "A pseudocyst is walled off by a non-epithelialized capsule of fibrin and granulation tissue, which is what the \"pseudo\" refers to. It follows prior acute or chronic pancreatitis by at least 4 weeks, and it contains fluid rather than the necrotic tissue of walled-off necrosis.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B2", "pgroup": "B", "pstack": "C"}, {"id": "29", "group": 29, "stem": "A 59-year-old woman with exocrine pancreatic insufficiency and Type 3c diabetes asks why she must also take vitamins A, D, E, and K.\n\nWhich of the following is the most appropriate explanation?", "options": [{"letter": "A", "text": "Fat-soluble vitamins are destroyed by the pancrelipase itself"}, {"letter": "B", "text": "Fat-soluble vitamins are lost only when the diet is low in fat"}, {"letter": "C", "text": "Fat-soluble vitamins need micelle formation with digested lipid, which fails without pancreatic lipase"}, {"letter": "D", "text": "Fat-soluble vitamins are lost because of the loss of the counter-regulatory islet hormones"}, {"letter": "E", "text": "Fat-soluble vitamins are lost only in patients with cystic fibrosis"}], "answer": "C", "explanation": "Pancrelipase supplies the lipase, amylase, and protease the gland no longer makes. Without lipase, fat digestion fails, and because vitamins A, D, E, and K require micelle formation with digested lipid to be absorbed, their absorption fails with it.", "objective": "", "section": "Chronic pancreatic disease with pain, steatorrhea, and weight loss", "pcase": "D2", "pgroup": "D", "pstack": "C"}, {"id": "30", "group": 30, "stem": "A 36-year-old woman recovering from hypertriglyceridemia-induced pancreatitis has a father and a brother with familial hypertriglyceridemia. She asks who else in her family should be tested.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Screen her relatives for familial hypertriglyceridemia"}, {"letter": "B", "text": "Screen her relatives only if they develop pancreatitis"}, {"letter": "C", "text": "Screen her relatives only if their fasting triglycerides exceed 1,000 mg/dL"}, {"letter": "D", "text": "Screen her relatives only if they have eruptive xanthomas"}, {"letter": "E", "text": "Screen no relatives, since the condition is acquired rather than inherited"}], "answer": "A", "explanation": "Screening for familial hypertriglyceridemia is part of long-term management, and her father and brother demonstrate that the condition runs in the family. Waiting for pancreatitis, extreme levels, or xanthomas would mean screening only those already at risk of an attack.", "objective": "", "section": "Sudden severe epigastric pain with a lipase at least three times the upper limit of normal", "pcase": "A4", "pgroup": "A", "pstack": "C"}, {"id": "31", "group": 31, "stem": "A 55-year-old man with an acute peripancreatic fluid collection found 6 days after mild gallstone pancreatitis asks what will happen to it.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Expect resolution within 7 to 10 days, with a pseudocyst forming only if it becomes infected"}, {"letter": "B", "text": "Expect a pseudocyst to form within 7 to 10 days regardless of whether the collection persists"}, {"letter": "C", "text": "Expect resolution only after drainage, with a pseudocyst forming if drainage is delayed beyond 4 weeks"}, {"letter": "D", "text": "Expect resolution within 7 to 10 days, with a pseudocyst forming only if it persists beyond 4 weeks"}, {"letter": "E", "text": "Expect resolution within 4 weeks, with walled-off necrosis forming if it persists beyond that"}], "answer": "D", "explanation": "An acute peripancreatic fluid collection occurs in the first 4 weeks after interstitial edematous pancreatitis and typically resolves spontaneously in 7 to 10 days. The absence of a defined wall is what separates it from a pseudocyst, which is what it becomes if it persists past 4 weeks.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B1", "pgroup": "B", "pstack": "C"}, {"id": "32", "group": 32, "stem": "A 57-year-old woman is treated for infected pancreatic necrosis. The team asks when antibiotics are indicated in acute pancreatitis.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Give antibiotics to every patient with acute pancreatitis"}, {"letter": "B", "text": "Give antibiotics only for infected necrosis or an identified extra-pancreatic source"}, {"letter": "C", "text": "Give antibiotics to every patient with pancreatic necrosis"}, {"letter": "D", "text": "Give antibiotics only once the necrosis has walled off"}, {"letter": "E", "text": "Give antibiotics to every patient with a peripancreatic fluid collection"}], "answer": "B", "explanation": "Prophylactic antibiotics are not indicated anywhere in acute pancreatitis. They are reserved for infected necrosis — the one setting where antibiotics treat the pancreatic disease itself — or for an identified extra-pancreatic source of infection.", "objective": "", "section": "Clinical deterioration after severe acute pancreatitis", "pcase": "C1", "pgroup": "C", "pstack": "C"}, {"id": "33", "group": 33, "stem": "A 61-year-old man with necrotizing pancreatitis asks what the difference is between the necrosis he has now and \"walled-off necrosis.\"\n\nWhich of the following is the most appropriate explanation?", "options": [{"letter": "A", "text": "They are the same collection, distinguished only by whether an inflammatory capsule has formed"}, {"letter": "B", "text": "They are the same collection, distinguished only by whether it has become infected"}, {"letter": "C", "text": "They are different collections, one containing clear fluid and the other necrotic tissue"}, {"letter": "D", "text": "They are the same collection, distinguished only by whether antibiotics have been given"}, {"letter": "E", "text": "They are different collections, one occurring after gallstone pancreatitis and the other after alcoholic pancreatitis"}], "answer": "A", "explanation": "Acute necrotic collection is necrosis in the first 4 weeks; walled-off necrosis is the same collection once an inflammatory capsule forms. Once the fibrous wall is present, the same antibiotics apply and drainage or necrosectomy can be delayed to a safer point.", "objective": "", "section": "A collection or a nonenhancing pancreas found on imaging after an attack of acute pancreatitis", "pcase": "B3", "pgroup": "B", "pstack": "C"}]};
+
+// Reshuffle-on-load for a Clinical Vignette practice exam.
+//
+// Inject this immediately after the `const EXAM_DATA = ...;` line of the
+// interactive-exam template, before the main IIFE. It reorders the stacks and
+// the options on every page load, then renumbers, so the exam cannot be
+// answered from memory of position.
+//
+// Requires three extra fields on every question, written by the exam build:
+//   pcase   the case id from the case file, e.g. "A3"
+//   pgroup  the differential group letter, e.g. "A"
+//   pstack  "A" recognition | "B" management safety | "C" counseling
+//
+// Constraints preserved on every shuffle:
+//   1. no two consecutive stacks share a differential group
+//   2. a patient's Stack A precedes their Stack B, which precedes their Stack C
+//   3. follow-up nodes never leave their parent
+(function reshuffleExam() {
+  var qs = EXAM_DATA.questions;
+  if (!qs || !qs.length || !qs[0].pcase) return;   // metadata absent: leave order alone
+
+  // ---- collect stacks, parent first ----------------------------------------
+  var map = {}, order = [];
+  qs.forEach(function (q) {
+    if (!map[q.group]) { map[q.group] = []; order.push(q.group); }
+    map[q.group].push(q);
+  });
+  var stacks = order.map(function (g) {
+    return { qs: map[g], pcase: map[g][0].pcase, pgroup: map[g][0].pgroup, pstack: map[g][0].pstack };
+  });
+  if (stacks.length < 3) return;
+
+  var RANK = { A: 0, B: 1, C: 2 };
+
+  function shuffled(a) {
+    var b = a.slice();
+    for (var i = b.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = b[i]; b[i] = b[j]; b[j] = t;
+    }
+    return b;
+  }
+
+  // Reorder one case's stacks into A→B→C at whatever positions that case holds,
+  // leaving every other position as the shuffle left it.
+  function repairCaseOrder(seq) {
+    var pend = {}, idx = {};
+    seq.forEach(function (s) { (pend[s.pcase] = pend[s.pcase] || []).push(s); });
+    Object.keys(pend).forEach(function (c) {
+      pend[c].sort(function (x, y) { return RANK[x.pstack] - RANK[y.pstack]; });
+      idx[c] = 0;
+    });
+    return seq.map(function (s) { return pend[s.pcase][idx[s.pcase]++]; });
+  }
+
+  function groupsAdjacent(seq) {
+    for (var i = 0; i < seq.length - 1; i++) {
+      if (seq[i].pgroup === seq[i + 1].pgroup) return true;
+    }
+    return false;
+  }
+
+  var seq = null;
+  for (var attempt = 0; attempt < 120000; attempt++) {
+    var cand = repairCaseOrder(shuffled(stacks));
+    if (!groupsAdjacent(cand)) { seq = cand; break; }
+  }
+  if (!seq) return;   // could not satisfy the constraints: keep the built order
+
+  // ---- shuffle the options inside each question ----------------------------
+  var LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  seq.forEach(function (s) {
+    s.qs.forEach(function (q) {
+      if (!q.options || q.options.length < 2) return;
+      var keyText = null;
+      q.options.forEach(function (o) { if (o.letter === q.answer) keyText = o.text; });
+      var texts = shuffled(q.options.map(function (o) { return o.text; }));
+      q.options = texts.map(function (t, i) { return { letter: LET[i], text: t }; });
+      for (var i = 0; i < q.options.length; i++) {
+        if (q.options[i].text === keyText) { q.answer = q.options[i].letter; break; }
+      }
+    });
+  });
+
+  // ---- renumber and write the new order back ------------------------------
+  var out = [];
+  seq.forEach(function (s, i) {
+    var n = i + 1;
+    s.qs.forEach(function (q, j) {
+      q.group = n;
+      q.id = j === 0 ? String(n) : String(n) + LET[j - 1];
+      out.push(q);
+    });
+  });
+  EXAM_DATA.questions = out;
+})();
+
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

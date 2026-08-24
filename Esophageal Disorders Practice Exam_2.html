@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Esophageal Disorders Practice Exam", "questions": [{"id": "1", "group": 1, "stem": "A 24-year-old man presents to the clinic because solid food has been sticking in his chest for about a year, and twice in that time a piece of meat lodged and passed on its own after several minutes. He also has heartburn that did not improve after eight weeks of a proton pump inhibitor. He has asthma and seasonal allergies and avoids shellfish and peanuts because they cause hives. His temperature is 36.6\u00b0C (97.9\u00b0F), blood pressure is 118/72 mm Hg, pulse is 68/min, and respirations are 14/min. Examination is normal, with no pallor, no glossitis, and no weight loss.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Barium swallow"}, {"letter": "B", "text": "High-resolution esophageal manometry"}, {"letter": "C", "text": "Upper endoscopy with esophageal biopsy"}, {"letter": "D", "text": "Serum iron studies with a complete blood count"}, {"letter": "E", "text": "Endoscopic biopsy of a narrowed distal esophageal segment"}], "answer": "C", "explanation": "Solid-food dysphagia with spontaneous food impaction and heartburn refractory to eight weeks of a proton pump inhibitor in an atopic young man requires endoscopy with mucosal biopsies, because the diagnosis rests on both the endoscopic appearance and the histology. Barium swallow and manometry assess structure and motility rather than mucosal inflammation, and iron studies address a nutritional cause he has no signs of.", "objective": "", "section": "Chronic dysphagia", "pcase": "A3", "pgroup": "A", "pstack": "A"}, {"id": "1A", "group": 1, "stem": "Which of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "A thin web in the upper cervical esophagus with microcytic anemia and a low ferritin"}, {"letter": "B", "text": "Concentric rings and linear furrows with more than 15 eosinophils per high-power field"}, {"letter": "C", "text": "A dilated esophagus with smooth bird-beak distal narrowing and retained food"}, {"letter": "D", "text": "Normal mucosa with no structural lesion and no pathologic acid reflux"}, {"letter": "E", "text": "A thin ring at the gastroesophageal junction"}], "answer": "B", "explanation": "Eosinophilic esophagitis produces concentric rings and linear furrows through the mid and distal esophagus, and biopsy shows more than 15 eosinophils per high-power field. The diagnosis requires both symptoms of esophageal dysfunction and eosinophil-predominant histology, which is why the biopsy is taken at the index endoscopy. Bird-beak narrowing, a proximal web with iron deficiency, a distal ring, and a normal mucosa belong to the other conditions in this differential.", "objective": "", "section": "Chronic dysphagia", "pcase": "A3", "pgroup": "A", "pstack": "A"}, {"id": "1B", "group": 1, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Achalasia"}, {"letter": "B", "text": "Peptic esophageal stricture"}, {"letter": "C", "text": "Diffuse esophageal spasm"}, {"letter": "D", "text": "Eosinophilic esophagitis"}, {"letter": "E", "text": "Esophageal web (Plummer-Vinson syndrome)"}], "answer": "D", "explanation": "Solid-only dysphagia with food impaction in a young man with asthma, seasonal allergies, and food allergy, together with rings and furrows and more than 15 eosinophils per high-power field, is eosinophilic esophagitis. Achalasia causes dysphagia to liquids as well and shows a bird-beak on barium, spasm leaves the mucosa normal, a web sits proximally with iron deficiency, and a peptic stricture progresses with weight loss.", "objective": "", "section": "Chronic dysphagia", "pcase": "A3", "pgroup": "A", "pstack": "A"}, {"id": "2", "group": 2, "stem": "A 55-year-old man is brought to the emergency department with severe retrosternal chest pain that began during violent retching after a night of heavy drinking. He is short of breath and has continued to vomit. His temperature is 38.6\u00b0C (101.5\u00b0F), blood pressure is 88/54 mm Hg, pulse is 124/min, respirations are 26/min, and oxygen saturation is 92% on room air. Examination shows crackling under the skin at the base of the neck and over the upper chest, and he appears ill and mottled. His white cell count is 17,200/mm\u00b3, his amylase is 180 U/L, and his lipase is normal. A chest radiograph shows mediastinal widening with mediastinal air and subcutaneous emphysema.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Empiric proton pump inhibitor trial"}, {"letter": "B", "text": "EGD"}, {"letter": "C", "text": "Barium swallow"}, {"letter": "D", "text": "Urgent EGD"}, {"letter": "E", "text": "CT of the chest with contrast"}], "answer": "E", "explanation": "Vomiting followed by chest pain and subcutaneous emphysema in a febrile, hypotensive patient points to a full-thickness esophageal rupture, and CT of the chest with contrast demonstrates the leak and its extent. Endoscopy does not show a mediastinal leak and consumes time in a condition where delay is what kills, and an elevated amylase with a normal lipase points to perforation rather than pancreatitis, for which lipase is the pancreas-specific enzyme.", "objective": "", "section": "Hematemesis after vomiting", "pcase": "D2", "pgroup": "D", "pstack": "A"}, {"id": "2A", "group": 2, "stem": "Which of the following additional test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Single longitudinal mucosal tear at the gastroesophageal junction with normal adjacent mucosa"}, {"letter": "B", "text": "Thin web in the upper cervical esophagus with microcytic anemia and a low ferritin"}, {"letter": "C", "text": "Extravasation of contrast from the esophageal lumen into the mediastinum"}, {"letter": "D", "text": "Dilated submucosal veins in the distal esophagus with active bleeding"}, {"letter": "E", "text": "Single discrete ulcer with normal surrounding mucosa and remnants of a pill"}], "answer": "C", "explanation": "Contrast escaping the esophageal lumen into the mediastinum establishes that the wall has been breached through its full thickness, which is what drives the mediastinal air and the septic physiology already present. A mucosal tear, dilated veins, and a solitary pill ulcer are all injuries confined to the mucosa and would leave the esophageal wall intact.", "objective": "", "section": "Hematemesis after vomiting", "pcase": "D2", "pgroup": "D", "pstack": "A"}, {"id": "2B", "group": 2, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Boerhaave syndrome"}, {"letter": "B", "text": "Mallory-Weiss tear"}, {"letter": "C", "text": "Esophageal varices"}, {"letter": "D", "text": "Pill-induced esophagitis"}, {"letter": "E", "text": "Erosive reflux esophagitis"}], "answer": "A", "explanation": "Boerhaave syndrome is full-thickness rupture of the esophagus from violent vomiting, and the Mackler triad of vomiting, then chest pain, then subcutaneous emphysema is present here with fever and shock. A Mallory-Weiss tear shares the retching but is a mucosal laceration that produces bleeding without crepitus or mediastinal air, and variceal hemorrhage is brisk and painless in a patient with cirrhosis.", "objective": "", "section": "Hematemesis after vomiting", "pcase": "D2", "pgroup": "D", "pstack": "A"}, {"id": "3", "group": 3, "stem": "A 74-year-old woman presents to the clinic because swallowing became painful three days ago, shortly after she started a new weekly medication for her bones. She takes it with a small sip of water and goes back to bed afterward. She also has retrosternal pain and difficulty swallowing. Her temperature is 36.8\u00b0C (98.2\u00b0F), blood pressure is 138/78 mm Hg, pulse is 76/min, and respirations are 16/min. Examination is normal, with no oral thrush, no oral ulcers, and no crepitus.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "An empiric trial of a proton pump inhibitor"}, {"letter": "B", "text": "Upper endoscopy with medication reconciliation"}, {"letter": "C", "text": "Upper endoscopy with a CD4 count"}, {"letter": "D", "text": "Esophageal pH monitoring with a wireless capsule"}, {"letter": "E", "text": "Upper endoscopy with mucosal biopsy"}], "answer": "B", "explanation": "Odynophagia beginning days after a new oral medication swallowed with minimal fluid before lying down points to direct chemical injury of the esophageal mucosa, and endoscopy paired with a review of the medication list identifies both the lesion and the drug that caused it. She is afebrile and immunocompetent, so a CD4 count contributes nothing, and acid suppression or pH testing addresses reflux rather than a drug-contact ulcer.", "objective": "", "section": "Acute odynophagia", "pcase": "C4", "pgroup": "C", "pstack": "A"}, {"id": "3A", "group": 3, "stem": "Which of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Diffuse erosive changes of the distal esophageal mucosa"}, {"letter": "B", "text": "Large, deep linear and longitudinal ulcers in the distal esophagus"}, {"letter": "C", "text": "White mucosal plaque-type lesions in the mid and distal esophagus"}, {"letter": "D", "text": "Multiple shallow, well-circumscribed volcano-like ulcers in the mid esophagus"}, {"letter": "E", "text": "A single discrete ulcer with normal surrounding mucosa"}], "answer": "E", "explanation": "A tablet that lodges in the esophagus injures the mucosa only where it rests, so the lesion is one discrete ulcer with entirely normal mucosa around it, often with remnants of the pill still present. Infectious esophagitis is multifocal or diffuse because the organism spreads through the mucosa rather than acting at a single point of contact.", "objective": "", "section": "Acute odynophagia", "pcase": "C4", "pgroup": "C", "pstack": "A"}, {"id": "3B", "group": 3, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Cytomegalovirus esophagitis"}, {"letter": "B", "text": "Erosive reflux esophagitis"}, {"letter": "C", "text": "Herpes simplex virus esophagitis"}, {"letter": "D", "text": "Pill-induced esophagitis"}, {"letter": "E", "text": "Candida esophagitis"}], "answer": "D", "explanation": "A single discrete ulcer with normal surrounding mucosa in an afebrile, immunocompetent patient who began a new oral medication days earlier identifies pill-induced esophagitis. Bisphosphonates are one of the frequent offenders, along with antibiotics, which cause more than half of cases, NSAIDs, and potassium chloride.", "objective": "", "section": "Acute odynophagia", "pcase": "C4", "pgroup": "C", "pstack": "A"}, {"id": "4", "group": 4, "stem": "A 55-year-old woman presents to the clinic because of episodes in which both solid food and liquids stick in her chest. The episodes have come and gone for about a year without progressing, and between them she swallows normally. She also has episodes of squeezing substernal chest pain that last minutes, along with heartburn and regurgitation. A cardiac evaluation was unremarkable. Her temperature is 36.7\u00b0C (98.1\u00b0F), blood pressure is 124/76 mm Hg, pulse is 74/min, and respirations are 14/min. Examination is normal, with no weight loss, no pallor, and no glossitis. Upper endoscopy with biopsy shows normal mucosa with no structural lesion, and esophageal pH and impedance testing is negative for pathologic acid reflux.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Upper endoscopy"}, {"letter": "B", "text": "Serum iron studies with a complete blood count"}, {"letter": "C", "text": "Endoscopic biopsy of a narrowed distal esophageal segment"}, {"letter": "D", "text": "Mucosal biopsy for eosinophil count"}, {"letter": "E", "text": "Esophageal manometry"}], "answer": "E", "explanation": "Endoscopy with biopsy has shown normal mucosa with no structural lesion, and pH and impedance testing has excluded pathologic acid reflux, so a motility disorder is what remains and manometry is the study that characterizes it. Repeating endoscopy, biopsying a narrowed segment that does not exist, counting mucosal eosinophils, and measuring iron stores all pursue mucosal or nutritional disease the completed workup has already excluded.", "objective": "", "section": "Chronic dysphagia", "pcase": "A2", "pgroup": "A", "pstack": "A"}, {"id": "4A", "group": 4, "stem": "Which of the following additional findings would most likely be present in this patient?", "options": [{"letter": "A", "text": "Failure of lower esophageal sphincter relaxation with absent distal peristalsis"}, {"letter": "B", "text": "Premature, simultaneous distal contractions"}, {"letter": "C", "text": "More than 15 eosinophils per high-power field on mucosal biopsy"}, {"letter": "D", "text": "A thin web in the upper cervical esophagus with a low ferritin"}, {"letter": "E", "text": "A smooth benign narrowing of the distal esophagus with biopsy negative for malignancy"}], "answer": "B", "explanation": "Premature, simultaneous contractions of the distal esophagus are the manometric finding of diffuse esophageal spasm; the hypercontractile jackhammer variant instead shows normal-sequence contractions of excessive amplitude. Failure of sphincter relaxation with absent peristalsis is achalasia. The eosinophil count, proximal web, and benign distal narrowing are mucosal and structural findings that her endoscopy excluded.", "objective": "", "section": "Chronic dysphagia", "pcase": "A2", "pgroup": "A", "pstack": "A"}, {"id": "4B", "group": 4, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Achalasia"}, {"letter": "B", "text": "Schatzki ring"}, {"letter": "C", "text": "Diffuse esophageal spasm"}, {"letter": "D", "text": "Eosinophilic esophagitis"}, {"letter": "E", "text": "Esophageal web (Plummer-Vinson syndrome)"}], "answer": "C", "explanation": "Intermittent, non-progressive dysphagia to solids and liquids with squeezing substernal chest pain, a structurally normal esophagus, and premature simultaneous distal contractions on manometry is diffuse esophageal spasm. Achalasia progresses over years with weight loss and a dilated bird-beak esophagus. A Schatzki ring and a cervical web are structural lesions visible on imaging, and eosinophilic esophagitis shows rings, furrows, and eosinophilic histology.", "objective": "", "section": "Chronic dysphagia", "pcase": "A2", "pgroup": "A", "pstack": "A"}, {"id": "5", "group": 5, "stem": "A 43-year-old woman presents to the clinic because of burning chest discomfort after meals for the past six months. It is worse when she lies down at night and after large dinners, and she sometimes tastes sour fluid at the back of her throat. She has a persistent morning cough and hoarseness. She is overweight and takes no medications. She has not lost weight, has no trouble swallowing, and has never vomited blood. Her temperature is 36.7\u00b0C (98.1\u00b0F), blood pressure is 126/78 mm Hg, pulse is 76/min, and respirations are 14/min. Examination is normal.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "High-resolution esophageal manometry"}, {"letter": "B", "text": "Esophageal pH monitoring with a BRAVO capsule"}, {"letter": "C", "text": "Barium swallow"}, {"letter": "D", "text": "EGD with biopsy"}, {"letter": "E", "text": "Empiric proton pump inhibitor trial"}], "answer": "E", "explanation": "Typical postprandial burning with regurgitation and no alarm features is diagnosed clinically, and the response to an empiric proton pump inhibitor both treats the patient and establishes the diagnosis. Endoscopy is reserved for alarm features or failure of an 8-week trial, and pH testing is reserved for cases that remain unclear afterward.", "objective": "", "section": "Chronic heartburn", "pcase": "E1", "pgroup": "E", "pstack": "A"}, {"id": "5A", "group": 5, "stem": "Which of the following would the initial evaluation of this patient most likely show?", "options": [{"letter": "A", "text": "Concentric rings and linear furrows with more than 15 eosinophils per high-power field"}, {"letter": "B", "text": "Complete relief of symptoms on an empiric proton pump inhibitor, with no alarm features"}, {"letter": "C", "text": "A smooth narrowed segment of the distal esophagus with biopsy negative for malignancy"}, {"letter": "D", "text": "Salmon-colored mucosa above the gastroesophageal junction with metaplastic columnar epithelium"}, {"letter": "E", "text": "Herniation of the stomach through the esophageal hiatus with normal overlying mucosa"}], "answer": "B", "explanation": "A proton pump inhibitor irreversibly blocks the H+/K+ ATPase, the final step of acid secretion, so relief of symptoms on an empiric trial confirms the diagnosis clinically without any imaging or endoscopy. About two-thirds of these patients have a normal esophagus at endoscopy, so the absence of a mucosal lesion does not argue against the diagnosis.", "objective": "", "section": "Chronic heartburn", "pcase": "E1", "pgroup": "E", "pstack": "A"}, {"id": "5B", "group": 5, "stem": "If the diagnosis were to remain uncertain, which of the following tests would most directly confirm it?", "options": [{"letter": "A", "text": "Esophageal pH monitoring with a BRAVO capsule"}, {"letter": "B", "text": "High-resolution esophageal manometry"}, {"letter": "C", "text": "Barium swallow"}, {"letter": "D", "text": "EGD with biopsy of the distal esophagus"}, {"letter": "E", "text": "EGD with esophageal biopsies for eosinophil count"}], "answer": "A", "explanation": "Esophageal pH monitoring, by catheter or wireless capsule, measures acid exposure directly and correlates it with the patient's symptom episodes, which is what settles a case the empiric trial leaves unclear. Manometry is reserved for planning surgery, and endoscopic biopsy answers whether the mucosa is injured rather than whether acid exposure is pathologic.", "objective": "", "section": "Chronic heartburn", "pcase": "E1", "pgroup": "E", "pstack": "A"}, {"id": "5C", "group": 5, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Eosinophilic esophagitis"}, {"letter": "B", "text": "Barrett's esophagus"}, {"letter": "C", "text": "Hiatal hernia"}, {"letter": "D", "text": "Gastroesophageal reflux disease"}, {"letter": "E", "text": "Diffuse esophageal spasm"}], "answer": "D", "explanation": "Postprandial burning that worsens when supine, with regurgitation, water brash, cough, and hoarseness, and without dysphagia, weight loss, or bleeding, is reflux disease. Barrett's requires metaplasia on biopsy, a hernia requires an anatomic finding on imaging, and eosinophilic esophagitis produces solid-food dysphagia in an atopic patient with rings and furrows.", "objective": "", "section": "Chronic heartburn", "pcase": "E1", "pgroup": "E", "pstack": "A"}, {"id": "6", "group": 6, "stem": "A 61-year-old woman presents to the clinic because swallowing solid food has become steadily harder over the past eight months. She began cutting meat into smaller pieces, then switched to soft foods, and has lost about 5 kg (11 lb). She has had reflux for more than fifteen years and was told years ago she had esophagitis. Her temperature is 36.8\u00b0C (98.2\u00b0F), blood pressure is 132/80 mm Hg, pulse is 78/min, and respirations are 16/min. Examination is normal apart from the weight loss, with no pallor and no lymphadenopathy.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Upper endoscopy with biopsy"}, {"letter": "B", "text": "Urgent upper endoscopy"}, {"letter": "C", "text": "High-resolution esophageal manometry"}, {"letter": "D", "text": "Serum iron studies with a complete blood count"}, {"letter": "E", "text": "Barium swallow"}], "answer": "E", "explanation": "Steadily progressive solid-food dysphagia on a background of longstanding reflux calls for a barium swallow first, which maps the site, length, and caliber of the narrowing and also screens for an associated diverticulum or hiatal hernia. Endoscopy with biopsy follows to sample the lesion, but the anatomy is defined first. Manometry and iron studies address motility and mucosal-nutritional disease, neither of which fits this course.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B2", "pgroup": "B", "pstack": "A"}, {"id": "6A", "group": 6, "stem": "Which of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Smooth narrowed distal segment with biopsy negative for malignancy"}, {"letter": "B", "text": "Thin ring at the gastroesophageal junction"}, {"letter": "C", "text": "Normal mucosa with no structural lesion and no pathologic acid reflux"}, {"letter": "D", "text": "Dilated esophagus with smooth bird-beak distal narrowing and retained food"}, {"letter": "E", "text": "Thin web in the upper cervical esophagus with microcytic anemia and a low ferritin"}], "answer": "A", "explanation": "Years of acid exposure produce fibrosis of the distal esophageal wall, giving a smooth narrowed segment whose lumen shrinks gradually, which is why solids become progressively harder to swallow. Biopsy is required because malignancy narrows the distal esophagus in the same way, and here it is negative. A discrete ring would produce episodic rather than progressive symptoms.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B2", "pgroup": "B", "pstack": "A"}, {"id": "6B", "group": 6, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Schatzki ring"}, {"letter": "B", "text": "Achalasia"}, {"letter": "C", "text": "Diffuse esophageal spasm"}, {"letter": "D", "text": "Peptic esophageal stricture"}, {"letter": "E", "text": "Esophageal web (Plummer-Vinson syndrome)"}], "answer": "D", "explanation": "A peptic stricture follows more than a decade of reflux with prior esophagitis and produces steadily progressive solid dysphagia with weight loss and a smooth benign narrowing of the distal esophagus. A Schatzki ring is episodic and non-progressive, achalasia involves liquids and shows a dilated esophagus, and a Plummer-Vinson web is proximal with iron deficiency.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B2", "pgroup": "B", "pstack": "A"}, {"id": "7", "group": 7, "stem": "A 70-year-old woman presents to the clinic because she feels uncomfortably full after eating and has substernal pressure that comes on after meals. She also has epigastric discomfort, and she has had heartburn and regurgitation over the years. She is obese and takes amlodipine for hypertension. Her temperature is 36.6\u00b0C (97.9\u00b0F), blood pressure is 138/82 mm Hg, pulse is 78/min, and respirations are 16/min. Examination is normal.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Empiric proton pump inhibitor trial"}, {"letter": "B", "text": "EGD with biopsy"}, {"letter": "C", "text": "High-resolution esophageal manometry"}, {"letter": "D", "text": "Esophageal pH monitoring with a BRAVO capsule"}, {"letter": "E", "text": "Barium swallow"}], "answer": "E", "explanation": "Postprandial fullness and substernal pressure are mechanical rather than acid symptoms and point to an anatomic abnormality, and barium swallow is the sensitive, diagnostic study for herniation through the esophageal hiatus. Studies of acid exposure and motility measure function and would not demonstrate the anatomy.", "objective": "", "section": "Chronic heartburn", "pcase": "E3", "pgroup": "E", "pstack": "A"}, {"id": "7A", "group": 7, "stem": "Which of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Herniation of the stomach through the esophageal hiatus with normal overlying mucosa"}, {"letter": "B", "text": "Salmon-colored mucosa above the gastroesophageal junction with metaplastic columnar epithelium"}, {"letter": "C", "text": "Concentric rings and linear furrows with more than 15 eosinophils per high-power field"}, {"letter": "D", "text": "A smooth narrowed segment of the distal esophagus with biopsy negative for malignancy"}, {"letter": "E", "text": "Normal mucosa with no structural lesion and no pathologic acid exposure"}], "answer": "A", "explanation": "The lesion is protrusion of the stomach through the diaphragmatic hiatus, which contrast study demonstrates directly while the esophageal mucosa itself remains normal. The position of the gastroesophageal junction on that study is what distinguishes a sliding from a paraesophageal hernia.", "objective": "", "section": "Chronic heartburn", "pcase": "E3", "pgroup": "E", "pstack": "A"}, {"id": "7B", "group": 7, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Peptic esophageal stricture"}, {"letter": "B", "text": "Gastroesophageal reflux disease"}, {"letter": "C", "text": "Barrett's esophagus"}, {"letter": "D", "text": "Hiatal hernia"}, {"letter": "E", "text": "Diffuse esophageal spasm"}], "answer": "D", "explanation": "Mechanical postprandial fullness and pressure in a patient with years of reflux, together with an anatomic protrusion through the hiatus and an otherwise normal mucosa, identify the hernia. Reflux disease is a clinical diagnosis with no anatomic finding, metaplasia is histologic, and a stricture produces progressive solid-food dysphagia with a narrowed lumen.", "objective": "", "section": "Chronic heartburn", "pcase": "E3", "pgroup": "E", "pstack": "A"}, {"id": "8", "group": 8, "stem": "A 61-year-old woman with a peptic esophageal stricture underwent endoscopic dilation and has taken a daily proton pump inhibitor since, now for more than 1 year. She is swallowing normally and feels well.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Measure serum magnesium and vitamin B12 only if tremor or tetany develops"}, {"letter": "B", "text": "Measure serum magnesium and vitamin B12 now"}, {"letter": "C", "text": "Measure serum magnesium and vitamin B12 only if diarrhea develops"}, {"letter": "D", "text": "Measure serum magnesium and vitamin B12 only if an ECG shows a prolonged QT interval"}, {"letter": "E", "text": "Measure serum magnesium and vitamin B12 only if the dysphagia recurs"}], "answer": "B", "explanation": "Magnesium and vitamin B12 are checked once proton pump inhibitor use exceeds 1 year, regardless of symptoms, because acid suppression impairs their absorption silently. Waiting for tremor, tetany, or a prolonged QT interval means waiting for hypomagnesemia severe enough to cause torsades, and waiting for diarrhea confuses monitoring with the separate risk of Clostridioides difficile infection.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B2", "pgroup": "B", "pstack": "B"}, {"id": "9", "group": 9, "stem": "A 24-year-old man with eosinophilic esophagitis continues to have solid-food dysphagia despite an elimination diet and a proton pump inhibitor, and topical fluticasone is prescribed.\n\nWhich of the following is the most appropriate instruction?", "options": [{"letter": "A", "text": "Swallow the fluticasone only when a food impaction occurs"}, {"letter": "B", "text": "Swallow the fluticasone only if esophageal dilation fails"}, {"letter": "C", "text": "Inhale the fluticasone from a metered-dose inhaler as for asthma"}, {"letter": "D", "text": "Swallow the fluticasone from a metered-dose inhaler"}, {"letter": "E", "text": "Inhale the fluticasone only during seasonal allergy flares"}], "answer": "D", "explanation": "The steroid is an inhaled formulation that is swallowed rather than inhaled, so that it coats the esophageal mucosa and acts topically there. Inhaling it delivers the drug to the airway and leaves the esophagus untreated. It is the step taken when the elimination diet and proton pump inhibitor fail, not a therapy reserved for impaction episodes or for failed dilation.", "objective": "", "section": "Chronic dysphagia", "pcase": "A3", "pgroup": "A", "pstack": "C"}, {"id": "10", "group": 10, "stem": "A 57-year-old man presents to the clinic for evaluation of heartburn he has had for more than twenty years. It is well controlled on a daily proton pump inhibitor, and lately he barely notices it, though he still regurgitates occasionally. His temperature is 36.8\u00b0C (98.2\u00b0F), blood pressure is 130/80 mm Hg, pulse is 74/min, and respirations are 14/min. Examination is normal.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Barium swallow"}, {"letter": "B", "text": "Empiric proton pump inhibitor trial"}, {"letter": "C", "text": "EGD with biopsy"}, {"letter": "D", "text": "Esophageal pH monitoring with a BRAVO capsule"}, {"letter": "E", "text": "High-resolution esophageal manometry"}], "answer": "C", "explanation": "Two decades of reflux is the setting in which endoscopy is performed to look for mucosal change, and only tissue sampling can establish whether the epithelium itself has changed. Acid and motility studies measure function rather than mucosa, and an empiric trial adds nothing in a patient already controlled on acid suppression.", "objective": "", "section": "Chronic heartburn", "pcase": "E2", "pgroup": "E", "pstack": "A"}, {"id": "10A", "group": 10, "stem": "Which of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Concentric rings and linear furrows with more than 15 eosinophils per high-power field"}, {"letter": "B", "text": "A smooth narrowed segment of the distal esophagus with biopsy negative for malignancy"}, {"letter": "C", "text": "Normal mucosa with no structural lesion and no pathologic acid exposure"}, {"letter": "D", "text": "Salmon-colored mucosa above the gastroesophageal junction with metaplastic columnar epithelium"}, {"letter": "E", "text": "Herniation of the stomach through the esophageal hiatus with normal overlying mucosa"}], "answer": "D", "explanation": "Prolonged acid exposure drives replacement of the distal squamous epithelium by metaplastic columnar epithelium, which appears endoscopically as salmon-colored mucosa extending above the gastroesophageal junction. The endoscopic appearance suggests the change and the biopsy establishes it.", "objective": "", "section": "Chronic heartburn", "pcase": "E2", "pgroup": "E", "pstack": "A"}, {"id": "10B", "group": 10, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Gastroesophageal reflux disease"}, {"letter": "B", "text": "Barrett's esophagus"}, {"letter": "C", "text": "Eosinophilic esophagitis"}, {"letter": "D", "text": "Peptic esophageal stricture"}, {"letter": "E", "text": "Hiatal hernia"}], "answer": "B", "explanation": "Metaplastic columnar epithelium replacing distal squamous epithelium after decades of reflux defines the condition; uncomplicated reflux disease leaves the mucosa histologically unchanged. The metaplasia carries roughly a 0.8% annual risk of esophageal adenocarcinoma, a forty-fold increase, which is why it is named separately from the reflux that caused it.", "objective": "", "section": "Chronic heartburn", "pcase": "E2", "pgroup": "E", "pstack": "A"}, {"id": "11", "group": 11, "stem": "A 58-year-old woman is brought to the emergency department after vomiting a large volume of bright red blood twice in the past hour. She feels lightheaded and has passed black stool since yesterday. She has cirrhosis from years of alcohol use. Her temperature is 36.6\u00b0C (97.9\u00b0F), blood pressure is 92/58 mm Hg, pulse is 118/min, and respirations are 22/min. Examination shows pallor, spider angiomata, palmar erythema, and a distended abdomen with shifting dullness, and there is no subcutaneous crepitus.\n\nWhich of the following is the most appropriate next step in management?\n\nHemoglobin                7.8 g/dL\nHematocrit                23%\nBUN                       41 mg/dL\nCreatinine                0.9 mg/dL\nFecal occult blood test   Positive", "options": [{"letter": "A", "text": "Barium swallow"}, {"letter": "B", "text": "Empiric proton pump inhibitor trial"}, {"letter": "C", "text": "CT of the chest with contrast"}, {"letter": "D", "text": "Urgent EGD"}, {"letter": "E", "text": "EGD with medication reconciliation"}], "answer": "D", "explanation": "Brisk hematemesis with melena, hypotension, and tachycardia in a patient with stigmata of cirrhosis is a life-threatening upper gastrointestinal hemorrhage, and endoscopy performed urgently alongside fluid resuscitation both identifies the bleeding source and treats it. A hemoglobin of 7.8 g/dL with a BUN elevated out of proportion to the creatinine confirms a large upper gastrointestinal blood load, and no contrast study or empiric drug trial addresses active bleeding.", "objective": "", "section": "Hematemesis after vomiting", "pcase": "D3", "pgroup": "D", "pstack": "A"}, {"id": "11A", "group": 11, "stem": "Which of the following additional test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Single discrete ulcer with normal surrounding mucosa and remnants of a pill"}, {"letter": "B", "text": "Dilated submucosal veins in the distal esophagus with active bleeding"}, {"letter": "C", "text": "Single longitudinal mucosal tear at the gastroesophageal junction with normal adjacent mucosa"}, {"letter": "D", "text": "Mediastinal widening with mediastinal air and free contrast extravasation"}, {"letter": "E", "text": "Thin web in the upper cervical esophagus with microcytic anemia and a low ferritin"}], "answer": "B", "explanation": "Portal hypertension diverts flow into submucosal collateral veins of the distal esophagus, which dilate and remain silent until they rupture, at which point the hemorrhage is brisk. A mucosal tear follows retching in a patient without portal hypertension, and mediastinal air indicates a full-thickness rupture rather than bleeding.", "objective": "", "section": "Hematemesis after vomiting", "pcase": "D3", "pgroup": "D", "pstack": "A"}, {"id": "11B", "group": 11, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Mallory-Weiss tear"}, {"letter": "B", "text": "Boerhaave syndrome"}, {"letter": "C", "text": "Esophageal varices"}, {"letter": "D", "text": "Pill-induced esophagitis"}, {"letter": "E", "text": "Erosive reflux esophagitis"}], "answer": "C", "explanation": "Cirrhosis with spider angiomata, palmar erythema, and ascites establishes portal hypertension, and painless brisk hematemesis with hemodynamic instability is how varices declare themselves. A Mallory-Weiss tear follows retching in a stable patient with normal adjacent mucosa, and Boerhaave syndrome would bring severe chest pain, crepitus, and mediastinal air rather than painless bleeding.", "objective": "", "section": "Hematemesis after vomiting", "pcase": "D3", "pgroup": "D", "pstack": "A"}, {"id": "12", "group": 12, "stem": "A 55-year-old woman has diffuse esophageal spasm, confirmed by esophageal manometry showing premature, simultaneous distal contractions. She continues to have intermittent dysphagia to solids and liquids, episodes of squeezing substernal chest pain lasting minutes, heartburn, and regurgitation. Upper endoscopy with biopsy was normal.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "A twice-daily proton pump inhibitor"}, {"letter": "B", "text": "Pneumatic balloon dilation of the lower esophageal sphincter"}, {"letter": "C", "text": "Diltiazem"}, {"letter": "D", "text": "Elimination diet with a proton pump inhibitor"}, {"letter": "E", "text": "Endoscopic dilation with a daily proton pump inhibitor"}], "answer": "A", "explanation": "First-line treatment is a proton pump inhibitor taken twice daily to control the reflux symptoms that accompany the spasm. Diltiazem relaxes lower esophageal sphincter smooth muscle, so it worsens the heartburn and regurgitation it would be prescribed alongside; it belongs to later add-on therapy, not the first step. Balloon dilation, endoscopic dilation, and dietary elimination are the first-line treatments of other conditions in this differential.", "objective": "", "section": "Chronic dysphagia", "pcase": "A2", "pgroup": "A", "pstack": "B"}, {"id": "12A", "group": 12, "stem": "Her chest pain and dysphagia persist despite the twice-daily proton pump inhibitor. Which of the following treatments should be added?", "options": [{"letter": "A", "text": "Elimination diet with a proton pump inhibitor"}, {"letter": "B", "text": "Endoscopic dilation with a daily proton pump inhibitor"}, {"letter": "C", "text": "Oral iron replacement"}, {"letter": "D", "text": "A tricyclic antidepressant"}, {"letter": "E", "text": "Pneumatic balloon dilation of the lower esophageal sphincter"}], "answer": "D", "explanation": "When acid suppression fails and chest pain predominates, a tricyclic antidepressant is the appropriate addition. The alternative add-ons \u2014 anticholinergics such as hyoscyamine or dicyclomine, and smooth-muscle relaxants such as isosorbide dinitrate or diltiazem \u2014 relax the lower esophageal sphincter and aggravate her reflux. The remaining options are the first-line treatments of achalasia, eosinophilic esophagitis, peptic stricture, and iron deficiency.", "objective": "", "section": "Chronic dysphagia", "pcase": "A2", "pgroup": "A", "pstack": "B"}, {"id": "13", "group": 13, "stem": "A 51-year-old man presents to the clinic because swallowing has been painful for about a week. He also has difficulty swallowing and chest pain. He has acute myeloid leukemia, is receiving chemotherapy, and was recently neutropenic. His temperature is 38.1\u00b0C (100.6\u00b0F), blood pressure is 122/74 mm Hg, pulse is 90/min, and respirations are 16/min. Examination shows fever, with no oral ulcers, no oral thrush, and no crepitus.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Upper endoscopy with a CD4 count"}, {"letter": "B", "text": "Esophageal pH monitoring with a wireless capsule"}, {"letter": "C", "text": "An empiric trial of a proton pump inhibitor"}, {"letter": "D", "text": "Upper endoscopy with medication reconciliation"}, {"letter": "E", "text": "Upper endoscopy with mucosal biopsy"}], "answer": "E", "explanation": "Fever and painful swallowing in a patient immunosuppressed by chemotherapy indicate infectious esophagitis, and endoscopy with biopsy identifies the organism responsible. A CD4 count applies to HIV rather than chemotherapy-induced immunosuppression, and medication reconciliation, empiric acid suppression, and pH testing address non-infectious causes he does not have.", "objective": "", "section": "Acute odynophagia", "pcase": "C3", "pgroup": "C", "pstack": "A"}, {"id": "13A", "group": 13, "stem": "Which of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "White mucosal plaque-type lesions in the mid and distal esophagus"}, {"letter": "B", "text": "Large, deep linear and longitudinal ulcers in the distal esophagus"}, {"letter": "C", "text": "A single discrete ulcer with normal surrounding mucosa"}, {"letter": "D", "text": "Multiple shallow, well-circumscribed volcano-like ulcers in the mid esophagus"}, {"letter": "E", "text": "Diffuse erosive changes of the distal esophageal mucosa"}], "answer": "B", "explanation": "Cytomegalovirus involves the deeper layers of the mucosa, so the ulcers it produces are large and deep, running in a linear or longitudinal direction in the distal esophagus. Herpes simplex virus is confined to squamous epithelium and instead produces multiple shallow volcano-like ulcers.", "objective": "", "section": "Acute odynophagia", "pcase": "C3", "pgroup": "C", "pstack": "A"}, {"id": "13B", "group": 13, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Herpes simplex virus esophagitis"}, {"letter": "B", "text": "Eosinophilic esophagitis"}, {"letter": "C", "text": "Cytomegalovirus esophagitis"}, {"letter": "D", "text": "Candida esophagitis"}, {"letter": "E", "text": "Pill-induced esophagitis"}], "answer": "C", "explanation": "Large, deep, linear ulcers on endoscopic biopsy in a patient immunosuppressed by chemotherapy identify CMV esophagitis, and the absence of oral ulcers separates it from HSV. Candida produces white plaques rather than ulcers, and a chemical pill injury produces one discrete ulcer in a patient with a drug exposure and no fever.", "objective": "", "section": "Acute odynophagia", "pcase": "C3", "pgroup": "C", "pstack": "A"}, {"id": "14", "group": 14, "stem": "A 38-year-old man is brought to the emergency department 90 minutes after a piece of steak lodged in his chest at dinner. He cannot swallow anything, including his own saliva, and is spitting into a cup. He has had food stick briefly a few times before. His temperature is 36.9\u00b0C (98.4\u00b0F), blood pressure is 136/84 mm Hg, pulse is 96/min, and respirations are 18/min. He is drooling, with faint wheezing and blood-streaked saliva, and there is no subcutaneous crepitus.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Barium swallow"}, {"letter": "B", "text": "Upper endoscopy with biopsy"}, {"letter": "C", "text": "Serum iron studies with a complete blood count"}, {"letter": "D", "text": "Urgent upper endoscopy with bolus removal"}, {"letter": "E", "text": "High-resolution esophageal manometry"}], "answer": "D", "explanation": "Complete obstruction with inability to handle secretions is an airway and perforation risk, and endoscopy is both the diagnostic and the therapeutic step, so it is performed urgently. Imaging is not mandatory and must not delay endoscopy; a contrast study in a patient who cannot clear his own saliva also risks aspiration. Manometry and iron studies have no role in an acute obstruction.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B3", "pgroup": "B", "pstack": "A"}, {"id": "14A", "group": 14, "stem": "Which of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Obstructing food bolus lodged at a distal ring, with no perforation"}, {"letter": "B", "text": "Thin ring at the gastroesophageal junction"}, {"letter": "C", "text": "Smooth narrowed distal segment with biopsy negative for malignancy"}, {"letter": "D", "text": "Dilated esophagus with smooth bird-beak distal narrowing and retained food"}, {"letter": "E", "text": "Normal mucosa with no structural lesion and no pathologic acid reflux"}], "answer": "A", "explanation": "A meat bolus arrests where the lumen is already narrowed, so the study shows the bolus itself sitting at an underlying ring or stricture, and the absence of crepitus is matched by the absence of perforation. The prior brief episodes of food sticking indicate the narrowing predated tonight's meal. The other findings describe the underlying lesions alone, without the acutely impacted bolus that explains his inability to swallow saliva.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B3", "pgroup": "B", "pstack": "A"}, {"id": "14B", "group": 14, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Schatzki ring"}, {"letter": "B", "text": "Peptic esophageal stricture"}, {"letter": "C", "text": "Achalasia"}, {"letter": "D", "text": "Diffuse esophageal spasm"}, {"letter": "E", "text": "Acute esophageal food bolus impaction"}], "answer": "E", "explanation": "Sudden complete obstruction after eating meat, with drooling and an inability to handle saliva, is an acute food bolus impaction, which is a complication superimposed on a predisposing lesion rather than the lesion itself. The chronic entities present as swallowing difficulty over months to years without complete obstruction, and none of them accounts for an acute inability to pass saliva.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B3", "pgroup": "B", "pstack": "A"}, {"id": "15", "group": 15, "stem": "A 57-year-old man is given a diagnosis of Barrett's esophagus after biopsies show metaplastic columnar epithelium with no dysplasia. He has taken a daily proton pump inhibitor for years, his heartburn is well controlled, and he asks whether he still needs the medication now that he barely has symptoms.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Long-term daily proton pump inhibitor with endoscopic surveillance"}, {"letter": "B", "text": "An 8-week course of a proton pump inhibitor followed by an attempt at discontinuation"}, {"letter": "C", "text": "Endoscopic dilation followed by a daily proton pump inhibitor"}, {"letter": "D", "text": "Anti-reflux measures with a proton pump inhibitor, and surgical repair if symptoms persist"}, {"letter": "E", "text": "An elimination diet with a proton pump inhibitor"}], "answer": "A", "explanation": "Barrett's esophagus is one of the few indications for indefinite maintenance acid suppression, and surveillance endoscopy continues regardless of how well symptoms are controlled. Stopping a long-standing proton pump inhibitor abruptly causes rebound acid hypersecretion in exactly the patient who must remain on it; when a course of more than 6 months is stopped at all, the dose is tapered by 50% weekly.", "objective": "", "section": "Chronic heartburn", "pcase": "E2", "pgroup": "E", "pstack": "B"}, {"id": "15A", "group": 15, "stem": "Surveillance endoscopy performed 3 years later shows dysplasia on biopsy. Which of the following treatments should be added?", "options": [{"letter": "A", "text": "Endoscopic dilation with a daily proton pump inhibitor"}, {"letter": "B", "text": "Endoscopic ablation or resection with shorter-interval surveillance"}, {"letter": "C", "text": "An elimination diet with a proton pump inhibitor"}, {"letter": "D", "text": "An 8-week proton pump inhibitor course with lifestyle measures"}, {"letter": "E", "text": "Surgical repair of the esophageal hiatus with anti-reflux measures"}], "answer": "B", "explanation": "Once dysplasia appears, observation is no longer sufficient and the abnormal epithelium is destroyed or removed endoscopically, with surveillance intervals shortened afterward. Acid suppression slows injury but does not eliminate dysplastic tissue, and dilation, dietary elimination, and hiatal repair treat different diseases.", "objective": "", "section": "Chronic heartburn", "pcase": "E2", "pgroup": "E", "pstack": "B"}, {"id": "16", "group": 16, "stem": "A 55-year-old woman with diffuse esophageal spasm asks about the episodes of squeezing substernal chest pain that last several minutes. Her symptoms are stable, and an earlier cardiac evaluation was unremarkable.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Evaluate for cardiac disease only if the chest pain lasts longer than several minutes"}, {"letter": "B", "text": "Evaluate for cardiac disease only if esophageal manometry is normal"}, {"letter": "C", "text": "Evaluate for cardiac disease only if the chest pain occurs without dysphagia"}, {"letter": "D", "text": "Evaluate for cardiac disease only if heartburn fails to respond to a proton pump inhibitor"}, {"letter": "E", "text": "Evaluate for cardiac disease in every patient before attributing chest pain to the esophagus"}], "answer": "E", "explanation": "Esophageal spasm is largely a diagnosis of exclusion: cardiac disease and structural lesions must be ruled out before chest pain is attributed to the esophagus. Restricting cardiac evaluation to pain of a certain duration, to pain without dysphagia, to a normal manometry, or to failure of acid suppression would let ischemic disease be missed in exactly the patients whose pain looks esophageal.", "objective": "", "section": "Chronic dysphagia", "pcase": "A2", "pgroup": "A", "pstack": "C"}, {"id": "17", "group": 17, "stem": "A 52-year-old man presents to the clinic because solid food has occasionally stuck in his lower chest over the past year. It happens perhaps once a month, usually with bread or steak, and passes after a few minutes; between episodes he swallows normally and has never had trouble with liquids. He has had heartburn for years. His temperature is 36.7\u00b0C (98.1\u00b0F), blood pressure is 128/78 mm Hg, pulse is 72/min, and respirations are 14/min. Examination is normal, with no pallor, no glossitis, and no weight loss.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Upper endoscopy with biopsy"}, {"letter": "B", "text": "Barium swallow"}, {"letter": "C", "text": "High-resolution esophageal manometry"}, {"letter": "D", "text": "Serum iron studies with a complete blood count"}, {"letter": "E", "text": "Urgent upper endoscopy"}], "answer": "B", "explanation": "Intermittent solid-food dysphagia that resolves in minutes, with normal swallowing between episodes and no dysphagia to liquids, points to a fixed structural narrowing rather than a motility disorder or a mucosal process. A barium swallow is the first-line study, defining the site and length of the narrowing before any endoscopic procedure. Nothing about this episodic, non-progressive course makes endoscopy urgent.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B1", "pgroup": "B", "pstack": "A"}, {"id": "17A", "group": 17, "stem": "Which of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Dilated esophagus with smooth bird-beak distal narrowing and retained food"}, {"letter": "B", "text": "Smooth narrowed distal segment with biopsy negative for malignancy"}, {"letter": "C", "text": "Thin web in the upper cervical esophagus with microcytic anemia and a low ferritin"}, {"letter": "D", "text": "Thin ring at the gastroesophageal junction"}, {"letter": "E", "text": "Normal mucosa with no structural lesion and no pathologic acid reflux"}], "answer": "D", "explanation": "A discrete thin ring at the gastroesophageal junction narrows the lumen only intermittently, so a large solid bolus lodges and then passes while liquids and smaller boluses go through normally. A length of smoothly narrowed lumen produces steadily progressive dysphagia instead, and a proximal web sits in the cervical esophagus alongside iron deficiency.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B1", "pgroup": "B", "pstack": "A"}, {"id": "17B", "group": 17, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Schatzki ring"}, {"letter": "B", "text": "Peptic esophageal stricture"}, {"letter": "C", "text": "Achalasia"}, {"letter": "D", "text": "Esophageal web (Plummer-Vinson syndrome)"}, {"letter": "E", "text": "Diffuse esophageal spasm"}], "answer": "A", "explanation": "A Schatzki ring is a thin ring at the gastroesophageal junction producing episodic solid-food impaction with normal swallowing in between, classically with bread or steak. A peptic stricture is a length of narrowed lumen with steadily progressive dysphagia and weight loss, achalasia adds dysphagia to liquids, and a Plummer-Vinson web is proximal and accompanied by iron deficiency.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B1", "pgroup": "B", "pstack": "A"}, {"id": "18", "group": 18, "stem": "A 70-year-old woman with a symptomatic hiatal hernia was started 8 weeks ago on anti-reflux measures and a daily proton pump inhibitor, and her heartburn and regurgitation persist. She is obese and takes amlodipine for hypertension.\n\nWhich of the following is the most appropriate next step in her medical management?", "options": [{"letter": "A", "text": "Increase the proton pump inhibitor to twice daily and continue it indefinitely"}, {"letter": "B", "text": "Replace her amlodipine with an agent that does not lower esophageal sphincter tone"}, {"letter": "C", "text": "Add an anticholinergic agent for the postprandial fullness and pressure"}, {"letter": "D", "text": "Measure her serum magnesium and vitamin B12 before making any other change"}, {"letter": "E", "text": "Discontinue the proton pump inhibitor and rely on the anti-reflux measures alone"}], "answer": "B", "explanation": "Calcium channel blockers lower lower esophageal sphincter tone and worsen reflux, so reviewing and adjusting the medication list comes before escalating acid suppression. Anticholinergics relax the sphincter for the same reason and would aggravate her symptoms, and magnesium and vitamin B12 are checked once proton pump inhibitor use exceeds a year rather than at 8 weeks.", "objective": "", "section": "Chronic heartburn", "pcase": "E3", "pgroup": "E", "pstack": "B"}, {"id": "19", "group": 19, "stem": "A 38-year-old man had an obstructing food bolus removed endoscopically and is seen in follow-up. He has had food stick briefly a few times before.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Refer him for evaluation of an underlying structural lesion only if anemia or gastrointestinal bleeding develops"}, {"letter": "B", "text": "Refer him for evaluation of an underlying structural lesion only if symptoms begin after age 60"}, {"letter": "C", "text": "Refer him for evaluation of an underlying structural lesion only if he loses weight"}, {"letter": "D", "text": "Refer him for evaluation of an underlying structural lesion now"}, {"letter": "E", "text": "Refer him for evaluation of an underlying structural lesion only if empiric acid suppression fails"}], "answer": "D", "explanation": "A bolus impacts because something narrows the lumen \u2014 a diverticulum, web, ring, achalasia, or tumor \u2014 so the predisposing lesion is sought after the bolus is cleared. Dysphagia is itself an alarm feature that mandates evaluation rather than empiric therapy, alongside odynophagia, bleeding or anemia, weight loss, chest pain, recurrent vomiting, anorexia, and new onset after 60. Waiting for a second alarm feature to appear delays the diagnosis of the lesion already known to be there.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B3", "pgroup": "B", "pstack": "C"}, {"id": "20", "group": 20, "stem": "A 44-year-old woman presents to the clinic because swallowing has been painful for five days. She also has difficulty swallowing and chest pain. She had a kidney transplant eight months ago and takes immunosuppressive medication. Her temperature is 38.3\u00b0C (100.9\u00b0F), blood pressure is 118/72 mm Hg, pulse is 94/min, and respirations are 16/min. Examination shows several shallow ulcers on the lips and buccal mucosa, with no white plaques that scrape off and no crepitus.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Upper endoscopy with medication reconciliation"}, {"letter": "B", "text": "An empiric trial of a proton pump inhibitor"}, {"letter": "C", "text": "Upper endoscopy with mucosal biopsy"}, {"letter": "D", "text": "Upper endoscopy with a CD4 count"}, {"letter": "E", "text": "Esophageal pH monitoring with a wireless capsule"}], "answer": "C", "explanation": "Painful swallowing with fever and oral ulceration in a transplant recipient on immunosuppressive therapy indicates infectious esophagitis, and endoscopy with biopsy of the lesions is what identifies the responsible organism. A CD4 count applies to HIV, which she does not have, and acid suppression or pH testing addresses reflux rather than an infectious ulcer.", "objective": "", "section": "Acute odynophagia", "pcase": "C2", "pgroup": "C", "pstack": "A"}, {"id": "20A", "group": 20, "stem": "Which of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Multiple shallow, well-circumscribed volcano-like ulcers in the mid esophagus"}, {"letter": "B", "text": "Diffuse erosive changes of the distal esophageal mucosa"}, {"letter": "C", "text": "White mucosal plaque-type lesions in the mid and distal esophagus"}, {"letter": "D", "text": "Large, deep linear and longitudinal ulcers in the distal esophagus"}, {"letter": "E", "text": "A single discrete ulcer with normal surrounding mucosa"}], "answer": "A", "explanation": "Herpes simplex virus infects squamous epithelium and produces multiple small, shallow, well-circumscribed ulcers with raised margins, described as volcano-like, in the mid esophagus. Cytomegalovirus instead involves deeper mucosal tissue and produces large, deep, linear ulcers, and candida produces white plaques rather than ulcers.", "objective": "", "section": "Acute odynophagia", "pcase": "C2", "pgroup": "C", "pstack": "A"}, {"id": "20B", "group": 20, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Candida esophagitis"}, {"letter": "B", "text": "Pill-induced esophagitis"}, {"letter": "C", "text": "Erosive reflux esophagitis"}, {"letter": "D", "text": "Cytomegalovirus esophagitis"}, {"letter": "E", "text": "Herpes simplex virus esophagitis"}], "answer": "E", "explanation": "Fever with shallow oral ulcers and multiple shallow volcano-like esophageal ulcers in a transplant recipient on immunosuppressive therapy identifies HSV esophagitis. Candida would produce white plaques that scrape off, and CMV would produce large deep linear ulcers without accompanying oral ulceration.", "objective": "", "section": "Acute odynophagia", "pcase": "C2", "pgroup": "C", "pstack": "A"}, {"id": "21", "group": 21, "stem": "A 52-year-old man with a Schatzki ring underwent endoscopic dilation and has taken a daily proton pump inhibitor for more than 6 months since. He now swallows normally and asks to come off the medication.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Stop the proton pump inhibitor now"}, {"letter": "B", "text": "Continue the proton pump inhibitor at the same dose indefinitely"}, {"letter": "C", "text": "Reduce the proton pump inhibitor dose by 50% each week until it is stopped"}, {"letter": "D", "text": "Reduce the proton pump inhibitor dose by 50% each month until it is stopped"}, {"letter": "E", "text": "Stop the proton pump inhibitor once serum magnesium and vitamin B12 are confirmed normal"}], "answer": "C", "explanation": "A proton pump inhibitor used longer than 6 months is tapered by 50% each week rather than stopped outright. Abrupt discontinuation after prolonged acid suppression causes rebound acid hypersecretion, which returns the patient with worse symptoms than before treatment. Magnesium and vitamin B12 monitoring belongs to use beyond 1 year and is not what governs discontinuation.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B1", "pgroup": "B", "pstack": "B"}, {"id": "22", "group": 22, "stem": "A 36-year-old man presents to the clinic because it has hurt to swallow for the past two weeks, and food now sticks behind his breastbone. He has HIV and stopped taking his antiretroviral medication about a year ago. His temperature is 37.1\u00b0C (98.8\u00b0F), blood pressure is 114/70 mm Hg, pulse is 84/min, and respirations are 16/min. Examination shows white plaques on the tongue and buccal mucosa that scrape off, and he appears cachectic; there are no oral ulcers and no crepitus.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "An empiric trial of a proton pump inhibitor"}, {"letter": "B", "text": "Upper endoscopy with a CD4 count"}, {"letter": "C", "text": "Upper endoscopy with mucosal biopsy"}, {"letter": "D", "text": "Esophageal pH monitoring with a wireless capsule"}, {"letter": "E", "text": "Upper endoscopy with medication reconciliation"}], "answer": "B", "explanation": "Odynophagia with oral thrush in a patient with untreated HIV points to an opportunistic esophageal infection, and endoscopy is what establishes it while the CD4 count establishes the degree of immunosuppression that permitted it. The endoscopic appearance itself is diagnostic here, so biopsy adds nothing, and an acid-suppression trial or pH study addresses reflux, which does not produce painful swallowing with oral plaques.", "objective": "", "section": "Acute odynophagia", "pcase": "C1", "pgroup": "C", "pstack": "A"}, {"id": "22A", "group": 22, "stem": "Which of the following initial test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Multiple shallow, well-circumscribed volcano-like ulcers in the mid esophagus"}, {"letter": "B", "text": "A single discrete ulcer with normal surrounding mucosa"}, {"letter": "C", "text": "Large, deep linear and longitudinal ulcers in the distal esophagus"}, {"letter": "D", "text": "White mucosal plaque-type lesions in the mid and distal esophagus"}, {"letter": "E", "text": "Diffuse erosive changes of the distal esophageal mucosa"}], "answer": "D", "explanation": "Candida invades the esophageal mucosa and grows as adherent white plaque-type lesions through the mid and distal esophagus, the same organism producing the plaques on his tongue and buccal mucosa. Ulceration, whether shallow and multiple or large and linear, indicates viral rather than fungal infection.", "objective": "", "section": "Acute odynophagia", "pcase": "C1", "pgroup": "C", "pstack": "A"}, {"id": "22B", "group": 22, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Candida esophagitis"}, {"letter": "B", "text": "Cytomegalovirus esophagitis"}, {"letter": "C", "text": "Pill-induced esophagitis"}, {"letter": "D", "text": "Eosinophilic esophagitis"}, {"letter": "E", "text": "Herpes simplex virus esophagitis"}], "answer": "A", "explanation": "White plaque-type lesions on endoscopy together with oral thrush and a CD4 count below 200 cells/\u00b5L identify candida esophagitis, which is an AIDS-defining illness. Candida albicans is the most common cause, and advanced immunosuppression from untreated HIV is the setting in which it invades the esophagus.", "objective": "", "section": "Acute odynophagia", "pcase": "C1", "pgroup": "C", "pstack": "A"}, {"id": "23", "group": 23, "stem": "A 46-year-old man is brought to the emergency department after vomiting blood. He drank heavily last night, retched repeatedly through the morning, and after several episodes of non-bloody vomiting brought up bright red blood. He has epigastric and back pain but no pain with the bleeding itself. His temperature is 36.9\u00b0C (98.4\u00b0F), blood pressure is 118/70 mm Hg, pulse is 104/min, and respirations are 18/min. Examination is normal apart from the tachycardia, with no subcutaneous crepitus and no stigmata of chronic liver disease.\n\nWhich of the following is the most appropriate next step in management?\n\nHemoglobin                11.2 g/dL\nHematocrit                34%\nBUN                       32 mg/dL\nCreatinine                0.8 mg/dL\nFecal occult blood test   Positive", "options": [{"letter": "A", "text": "CT of the chest with contrast"}, {"letter": "B", "text": "Empiric proton pump inhibitor trial"}, {"letter": "C", "text": "EGD"}, {"letter": "D", "text": "Barium swallow"}, {"letter": "E", "text": "EGD with medication reconciliation"}], "answer": "C", "explanation": "Hematemesis after repeated retching, with a positive fecal occult blood test and a BUN elevated out of proportion to a normal creatinine, indicates an upper gastrointestinal source carrying the protein load of digested red cells. Endoscopy localizes the bleeding surface and can treat it in the same sitting, which neither cross-sectional imaging nor a contrast swallow can do, and empiric acid suppression alone leaves the source unidentified.", "objective": "", "section": "Hematemesis after vomiting", "pcase": "D1", "pgroup": "D", "pstack": "A"}, {"id": "23A", "group": 23, "stem": "Which of the following additional test results would most likely be present in this patient?", "options": [{"letter": "A", "text": "Mediastinal widening with mediastinal air and free contrast extravasation"}, {"letter": "B", "text": "Single longitudinal mucosal tear at the gastroesophageal junction with normal adjacent mucosa"}, {"letter": "C", "text": "Dilated submucosal veins in the distal esophagus with active bleeding"}, {"letter": "D", "text": "Thin web in the upper cervical esophagus with microcytic anemia and a low ferritin"}, {"letter": "E", "text": "Single discrete ulcer with normal surrounding mucosa and remnants of a pill"}], "answer": "B", "explanation": "Forceful retching against a closed glottis lacerates the mucosa of the distal esophagus or proximal stomach, so the tear runs longitudinally at the gastroesophageal junction and the mucosa on either side of it is normal. A full-thickness rupture instead produces mediastinal air, and portal hypertensive bleeding produces dilated submucosal veins, neither of which follows a mucosa-depth injury.", "objective": "", "section": "Hematemesis after vomiting", "pcase": "D1", "pgroup": "D", "pstack": "A"}, {"id": "23B", "group": 23, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Boerhaave syndrome"}, {"letter": "B", "text": "Esophageal varices"}, {"letter": "C", "text": "Erosive reflux esophagitis"}, {"letter": "D", "text": "Pill-induced esophagitis"}, {"letter": "E", "text": "Mallory-Weiss tear"}], "answer": "E", "explanation": "A Mallory-Weiss tear is a mucosal laceration produced by forceful vomiting and retching, classically after an alcohol binge, and the bleeding itself is painless. Boerhaave syndrome is a full-thickness rupture and would bring severe chest pain with subcutaneous crepitus, and variceal bleeding requires the cirrhosis and hemodynamic instability this stable patient does not have.", "objective": "", "section": "Hematemesis after vomiting", "pcase": "D1", "pgroup": "D", "pstack": "A"}, {"id": "24", "group": 24, "stem": "A 47-year-old woman presents to the clinic because solid food has intermittently stuck in her throat for several months, and she has felt increasingly tired. She has had iron deficiency anemia for years. Her temperature is 36.7\u00b0C (98.1\u00b0F), blood pressure is 116/70 mm Hg, pulse is 88/min, and respirations are 14/min. Examination shows pallor, a smooth red tongue, and cracking at the corners of her mouth, with no oral thrush and no weight loss.\n\nWhich of the following is the most appropriate next step in management?\n\nHemoglobin                9.6 g/dL\nHematocrit                29%\nMean corpuscular volume   71 fL\nFerritin                  6 ng/mL\nFecal occult blood test   Negative", "options": [{"letter": "A", "text": "Upper endoscopy with esophageal biopsy"}, {"letter": "B", "text": "High-resolution esophageal manometry"}, {"letter": "C", "text": "Endoscopic biopsy of a narrowed distal esophageal segment"}, {"letter": "D", "text": "Barium swallow"}, {"letter": "E", "text": "Upper endoscopy"}], "answer": "D", "explanation": "Intermittent solid-food dysphagia with microcytic anemia, a ferritin of 6 ng/mL, pallor, glossitis, and angular cheilitis points to a structural lesion of the upper esophagus, and barium swallow is the first-line study that demonstrates it. The blood and iron studies are already in hand and occult blood testing is negative. Manometry evaluates motility, and biopsy of a distal narrowed segment addresses disease her presentation does not suggest.", "objective": "", "section": "Chronic dysphagia", "pcase": "A4", "pgroup": "A", "pstack": "A"}, {"id": "24A", "group": 24, "stem": "Which of the following additional findings would most likely be present in this patient?", "options": [{"letter": "A", "text": "A dilated esophagus with smooth bird-beak distal narrowing and retained food"}, {"letter": "B", "text": "A thin ring at the gastroesophageal junction"}, {"letter": "C", "text": "Concentric rings and linear furrows with more than 15 eosinophils per high-power field"}, {"letter": "D", "text": "A smooth benign narrowing of the distal esophagus with biopsy negative for malignancy"}, {"letter": "E", "text": "A thin web in the upper cervical esophagus"}], "answer": "E", "explanation": "A thin web in the upper, anterior cervical esophagus is the structural lesion that accompanies chronic iron deficiency, and it completes the picture already given by the microcytic anemia and low ferritin. A Schatzki ring sits at the gastroesophageal junction rather than the upper third, bird-beak narrowing indicates achalasia, rings with furrows and eosinophilia indicate eosinophilic esophagitis, and a smooth distal narrowing indicates a peptic stricture.", "objective": "", "section": "Chronic dysphagia", "pcase": "A4", "pgroup": "A", "pstack": "A"}, {"id": "24B", "group": 24, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Eosinophilic esophagitis"}, {"letter": "B", "text": "Esophageal web (Plummer-Vinson syndrome)"}, {"letter": "C", "text": "Achalasia"}, {"letter": "D", "text": "Diffuse esophageal spasm"}, {"letter": "E", "text": "Schatzki ring"}], "answer": "B", "explanation": "Chronic iron deficiency anemia, dysphagia, and an esophageal web are the classic triad of Plummer-Vinson syndrome, and the web lies in the upper third of the esophagus. A Schatzki ring sits at the gastroesophageal junction, achalasia and diffuse esophageal spasm are motility disorders without mucosal or nutritional signs, and eosinophilic esophagitis occurs in an atopic patient with rings and furrows. The syndrome carries an increased risk of squamous cell carcinoma of the esophagus and hypopharynx.", "objective": "", "section": "Chronic dysphagia", "pcase": "A4", "pgroup": "A", "pstack": "A"}, {"id": "25", "group": 25, "stem": "A 55-year-old man is evaluated in the emergency department for severe retrosternal chest pain that began during violent retching. He is febrile and hypotensive, with crackling under the skin at the base of the neck, and esophageal rupture is suspected.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Obtain CT of the chest with contrast only after a repeat chest radiograph several hours later remains normal"}, {"letter": "B", "text": "Obtain CT of the chest with contrast only when subcutaneous emphysema is present on examination"}, {"letter": "C", "text": "Obtain CT of the chest with contrast only after mediastinal air appears on the chest radiograph"}, {"letter": "D", "text": "Obtain CT of the chest with contrast when a chest radiograph taken within the first hour is normal"}, {"letter": "E", "text": "Obtain CT of the chest with contrast only after mediastinal widening appears on the chest radiograph"}], "answer": "D", "explanation": "Mediastinal emphysema may take about an hour to become visible on a chest radiograph, and mediastinal widening and effusions take several hours, so a film obtained early in the course can be normal while the esophagus is already ruptured. Because this is a surgical emergency in which delay kills, suspicion alone justifies proceeding to CT rather than waiting for radiographic signs to declare themselves.", "objective": "", "section": "Hematemesis after vomiting", "pcase": "D2", "pgroup": "D", "pstack": "C"}, {"id": "26", "group": 26, "stem": "A 70-year-old woman with a hiatal hernia has postprandial fullness and substernal pressure after meals, along with years of heartburn. Barium swallow shows herniation of the stomach through the esophageal hiatus with the gastroesophageal junction in its normal position.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Recommend surgical repair for any hiatal hernia seen on barium swallow"}, {"letter": "B", "text": "Recommend surgical repair for a sliding hernia that is causing reflux symptoms"}, {"letter": "C", "text": "Recommend surgical repair for a paraesophageal hernia that is causing symptoms"}, {"letter": "D", "text": "Recommend surgical repair for any hernia larger than 2 cm on barium swallow"}, {"letter": "E", "text": "Recommend surgical repair only if reflux persists on a daily proton pump inhibitor"}], "answer": "C", "explanation": "A gastroesophageal junction that stays in its normal position while the stomach herniates alongside the esophagus defines a paraesophageal hernia, which causes less reflux and more mechanical and obstructive symptoms, and repair is considered once it is symptomatic and the benefit outweighs the operative risk. Sliding hernias present with reflux and are managed medically as reflux disease, so neither hernia size nor the response of heartburn to acid suppression decides the question.", "objective": "", "section": "Chronic heartburn", "pcase": "E3", "pgroup": "E", "pstack": "C"}, {"id": "27", "group": 27, "stem": "A 47-year-old woman has Plummer-Vinson syndrome. Barium swallow showed a thin web in the upper cervical esophagus, and she continues to have intermittent solid-food dysphagia with fatigue, pallor, glossitis, and angular cheilitis.\n\nWhich of the following is the most appropriate management?\n\nHemoglobin                9.6 g/dL\nMean corpuscular volume   71 fL\nFerritin                  6 ng/mL", "options": [{"letter": "A", "text": "Begin oral iron replacement only if the dysphagia does not improve"}, {"letter": "B", "text": "Begin oral iron replacement only after endoscopic dilation of the web"}, {"letter": "C", "text": "Begin oral iron replacement, giving it with each dose of any tetracycline she takes"}, {"letter": "D", "text": "Begin oral iron replacement, separating it by several hours from any tetracycline she takes"}, {"letter": "E", "text": "Begin oral iron replacement only if fecal occult blood testing becomes positive"}], "answer": "D", "explanation": "Oral iron replacement is the first-line treatment, and the web often resolves once the deficiency is corrected. Oral iron blocks the absorption of tetracyclines, so the doses must be separated rather than taken together; calcium-, magnesium-, or aluminum-containing antacids do the same to tetracyclines and fluoroquinolones. Iron should not be withheld pending dilation, a positive occult blood test, or persistence of the dysphagia, since the anemia itself requires treatment.", "objective": "", "section": "Chronic dysphagia", "pcase": "A4", "pgroup": "A", "pstack": "B"}, {"id": "27A", "group": 27, "stem": "Her dysphagia persists after oral iron replacement. Which of the following treatments should be added?", "options": [{"letter": "A", "text": "Elimination diet with a proton pump inhibitor"}, {"letter": "B", "text": "Pneumatic balloon dilation of the lower esophageal sphincter"}, {"letter": "C", "text": "A twice-daily proton pump inhibitor"}, {"letter": "D", "text": "Endoscopic dilation with a daily proton pump inhibitor"}, {"letter": "E", "text": "Endoscopic dilation of the esophageal web"}], "answer": "E", "explanation": "Endoscopic dilation is the escalation when dysphagia persists despite iron replacement. Dilation combined with a daily proton pump inhibitor is the treatment of a reflux-related peptic stricture, not of a cervical web, and the remaining options are the first-line treatments of eosinophilic esophagitis, achalasia, and diffuse esophageal spasm.", "objective": "", "section": "Chronic dysphagia", "pcase": "A4", "pgroup": "A", "pstack": "B"}, {"id": "28", "group": 28, "stem": "A 58-year-old woman with cirrhosis is recovering in the hospital after endoscopic band ligation of bleeding esophageal varices.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Screening EGD only for patients with cirrhosis who have had an episode of hematemesis"}, {"letter": "B", "text": "Screening EGD only for patients with cirrhosis and ascites"}, {"letter": "C", "text": "Screening EGD for every patient with cirrhosis, repeated annually if no varices are seen"}, {"letter": "D", "text": "Screening EGD for every patient with cirrhosis, repeated in 3 years if no varices are seen"}, {"letter": "E", "text": "Screening EGD only for patients with cirrhosis who are taking a non-selective beta blocker"}], "answer": "D", "explanation": "About half of patients with cirrhosis have varices and a third of those will bleed, and varices remain asymptomatic until the hemorrhage, so screening endoscopy is indicated in every cirrhotic rather than only in those who have already bled or who show other features of portal hypertension. When no varices are found, the examination is repeated in 3 years.", "objective": "", "section": "Hematemesis after vomiting", "pcase": "D3", "pgroup": "D", "pstack": "C"}, {"id": "29", "group": 29, "stem": "A 41-year-old man presents to the clinic because food and liquids have been sticking in his chest for the past two years. He regurgitates undigested food, sometimes onto his pillow at night, and has intermittent chest pain he describes as heartburn. He has lost about 4.5 kg (10 lb) over that time. He has no asthma or food allergies and takes no medications. His temperature is 36.8\u00b0C (98.2\u00b0F), blood pressure is 122/76 mm Hg, pulse is 74/min, and respirations are 14/min. Examination is normal apart from the weight loss, with no pallor, no glossitis, and no angular cheilitis. A barium swallow shows a dilated esophagus tapering to a smooth bird-beak narrowing at the gastroesophageal junction, and upper endoscopy shows a dilated esophagus with retained food and no mass.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Serum iron studies with a complete blood count"}, {"letter": "B", "text": "Upper endoscopy with esophageal biopsy"}, {"letter": "C", "text": "High-resolution esophageal manometry"}, {"letter": "D", "text": "Endoscopic biopsy of a narrowed distal esophageal segment"}, {"letter": "E", "text": "Upper endoscopy"}], "answer": "C", "explanation": "Barium and endoscopy have already shown a dilated esophagus with smooth distal narrowing and retained food but no mass, so what remains unanswered is whether the sphincter relaxes and whether peristalsis is present. High-resolution esophageal manometry is the gold standard for that question and is the appropriate next study. Iron studies, mucosal biopsy, and biopsy of a narrowed segment pursue nutritional and structural disease that the studies already performed did not show.", "objective": "", "section": "Chronic dysphagia", "pcase": "A1", "pgroup": "A", "pstack": "A"}, {"id": "29A", "group": 29, "stem": "Which of the following additional findings would most likely be present in this patient?", "options": [{"letter": "A", "text": "Premature, simultaneous distal contractions"}, {"letter": "B", "text": "More than 15 eosinophils per high-power field on mucosal biopsy"}, {"letter": "C", "text": "A smooth benign narrowing of the distal esophagus with biopsy negative for malignancy"}, {"letter": "D", "text": "Failure of lower esophageal sphincter relaxation with absent distal peristalsis"}, {"letter": "E", "text": "A thin web in the upper cervical esophagus with a low ferritin"}], "answer": "D", "explanation": "The lower esophageal sphincter fails to relax, resting sphincter pressure is elevated, and distal peristalsis is absent \u2014 the manometric signature of achalasia. Premature, simultaneous distal contractions define diffuse esophageal spasm instead. The eosinophil count, the proximal web with low ferritin, and the benign distal narrowing belong to mucosal and structural disease that the barium study and endoscopy did not show.", "objective": "", "section": "Chronic dysphagia", "pcase": "A1", "pgroup": "A", "pstack": "A"}, {"id": "29B", "group": 29, "stem": "Which of the following diagnoses best explains this patient's presentation?", "options": [{"letter": "A", "text": "Diffuse esophageal spasm"}, {"letter": "B", "text": "Eosinophilic esophagitis"}, {"letter": "C", "text": "Peptic esophageal stricture"}, {"letter": "D", "text": "Esophageal web (Plummer-Vinson syndrome)"}, {"letter": "E", "text": "Achalasia"}], "answer": "E", "explanation": "Dysphagia to liquids as well as solids is the most characteristic feature and strongly suggests achalasia; bird-beak narrowing with retained food and failure of sphincter relaxation with absent peristalsis complete the picture. Diffuse esophageal spasm is intermittent and non-progressive with a structurally normal esophagus. Eosinophilic esophagitis produces rings and furrows in an atopic patient, a web sits in the upper esophagus with iron deficiency, and a peptic stricture narrows the distal lumen after years of reflux.", "objective": "", "section": "Chronic dysphagia", "pcase": "A1", "pgroup": "A", "pstack": "A"}, {"id": "30", "group": 30, "stem": "A 43-year-old woman with gastroesophageal reflux disease has completed 8 weeks of a proton pump inhibitor taken on an empty stomach 30 minutes before breakfast, and her heartburn and regurgitation have resolved. She has been losing weight, elevates the head of her bed, and avoids food in the 2 to 3 hours before lying down. She takes no other medications and has no dysphagia and no bleeding.\n\nWhich of the following is the most appropriate next step in management?", "options": [{"letter": "A", "text": "Attempt discontinuation of the proton pump inhibitor and continue the lifestyle measures"}, {"letter": "B", "text": "Attempt discontinuation only after tapering the dose by 50% each week"}, {"letter": "C", "text": "Attempt discontinuation only after EGD confirms that the mucosa has healed"}, {"letter": "D", "text": "Attempt discontinuation only after a pH study shows acid exposure has normalized"}, {"letter": "E", "text": "Attempt discontinuation only after she has reached a normal body weight"}], "answer": "A", "explanation": "The first-line course is 8 weeks of a proton pump inhibitor followed by an attempt at discontinuation, with the lifestyle measures continued indefinitely. The 50% weekly taper exists because abrupt withdrawal after more than 6 months of therapy causes rebound acid hypersecretion; at 8 weeks that rule does not apply, and neither endoscopic nor pH confirmation is required in an uncomplicated responder.", "objective": "", "section": "Chronic heartburn", "pcase": "E1", "pgroup": "E", "pstack": "B"}, {"id": "30A", "group": 30, "stem": "She later returns with nocturnal heartburn that persists despite a daily proton pump inhibitor taken before breakfast and continued lifestyle measures. Which of the following is the most appropriate change in management?", "options": [{"letter": "A", "text": "Continue the daily proton pump inhibitor and begin endoscopic surveillance"}, {"letter": "B", "text": "Increase the proton pump inhibitor to twice daily and add a bedtime H2 antagonist"}, {"letter": "C", "text": "Continue the daily proton pump inhibitor and begin an elimination diet"}, {"letter": "D", "text": "Continue the daily proton pump inhibitor and refer for endoscopic dilation"}, {"letter": "E", "text": "Continue the daily proton pump inhibitor and refer for surgical repair of the hiatus"}], "answer": "B", "explanation": "Refractory or nocturnal symptoms on once-daily therapy are the indication for twice-daily dosing with an H2 antagonist added at bedtime. H2 blockers have their largest effect on nocturnal acid secretion, which is why they are given at night rather than substituted during the day; fundoplication is considered only after medical therapy has failed.", "objective": "", "section": "Chronic heartburn", "pcase": "E1", "pgroup": "E", "pstack": "B"}, {"id": "31", "group": 31, "stem": "A 47-year-old woman with Plummer-Vinson syndrome is taking oral iron replacement, and her dysphagia has improved. Her earlier fecal occult blood test was negative, and the test is to be repeated.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Stop red meat and other peroxidase-containing foods before repeat fecal occult blood testing"}, {"letter": "B", "text": "Stop the oral iron for several days before repeat fecal occult blood testing"}, {"letter": "C", "text": "Stop the oral iron before repeat testing only if the previous test was positive"}, {"letter": "D", "text": "Stop the oral iron before repeat testing only until the hemoglobin has corrected"}, {"letter": "E", "text": "Stop the oral iron before repeat testing only if the dysphagia recurs"}], "answer": "A", "explanation": "Red meat and other dietary peroxidases cause false-positive fecal occult blood tests and are what must be avoided before the study. Oral iron does not cause a false-positive result, so it does not need to be held at all \u2014 not for a previously positive test, not until the hemoglobin corrects, and not if the dysphagia returns.", "objective": "", "section": "Chronic dysphagia", "pcase": "A4", "pgroup": "A", "pstack": "C"}, {"id": "32", "group": 32, "stem": "A 61-year-old woman with a peptic esophageal stricture has undergone endoscopic dilation, and her dysphagia has resolved.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Continue a daily proton pump inhibitor after dilation only if heartburn persists"}, {"letter": "B", "text": "Continue a daily proton pump inhibitor after dilation only if the narrowed segment is longer than 2 cm"}, {"letter": "C", "text": "Continue a daily proton pump inhibitor after dilation in every patient"}, {"letter": "D", "text": "Continue a daily proton pump inhibitor after dilation only if dilation has to be repeated"}, {"letter": "E", "text": "Continue a daily proton pump inhibitor after dilation only if reflux esophagitis was documented previously"}], "answer": "C", "explanation": "Dilation opens the lumen but does nothing about the acid that scarred it, so a daily proton pump inhibitor is continued after dilation in every patient to reduce recurrence of peptic strictures and rings. Restricting it to those with persisting heartburn, a longer segment, prior esophagitis, or a second dilation leaves ongoing acid injury untreated in exactly the patients whose stricture will re-form.", "objective": "", "section": "Intermittent solid-food dysphagia", "pcase": "B2", "pgroup": "B", "pstack": "C"}, {"id": "33", "group": 33, "stem": "A 36-year-old man with HIV who has been off antiretroviral therapy for about a year is diagnosed with candida esophagitis after endoscopy shows white mucosal plaque-type lesions in the mid and distal esophagus. His CD4 count is 92 cells/\u00b5L, and he has oral thrush and pain on swallowing.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Nystatin suspension swished and swallowed"}, {"letter": "B", "text": "Oral acyclovir five times daily"}, {"letter": "C", "text": "Clotrimazole troches dissolved in the mouth"}, {"letter": "D", "text": "Oral fluconazole 200 mg daily"}, {"letter": "E", "text": "Ganciclovir or valganciclovir"}], "answer": "D", "explanation": "Esophageal candidiasis always requires systemic therapy, and oral fluconazole reaches the invaded esophageal mucosa. Nystatin swish-and-swallow and clotrimazole troches act only on the surface of the oral cavity and are never adequate for esophageal disease, which is the reflex error in a patient whose visible thrush is oral.", "objective": "", "section": "Acute odynophagia", "pcase": "C1", "pgroup": "C", "pstack": "B"}, {"id": "34", "group": 34, "stem": "A 41-year-old man is given a diagnosis of achalasia after esophageal manometry shows failure of lower esophageal sphincter relaxation with an elevated resting sphincter pressure and absent distal peristalsis. He has had dysphagia to solids and liquids for two years, regurgitation of undigested food, and a 4.5-kg (10-lb) weight loss.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Perform upper endoscopy in every patient with achalasia"}, {"letter": "B", "text": "Perform upper endoscopy only in patients who have lost weight"}, {"letter": "C", "text": "Perform upper endoscopy only in patients with dysphagia to liquids as well as solids"}, {"letter": "D", "text": "Perform upper endoscopy only when barium swallow does not show bird-beak narrowing"}, {"letter": "E", "text": "Perform upper endoscopy only in patients being considered for surgical myotomy"}], "answer": "A", "explanation": "Endoscopy is performed in every patient with achalasia to exclude pseudoachalasia from malignancy at the gastroesophageal junction. Restricting it to patients with weight loss, liquid dysphagia, atypical barium findings, or surgical plans is the common error, since a tumor at the junction can reproduce both the barium and the manometric picture. Achalasia also carries an increased risk of esophageal squamous cell carcinoma.", "objective": "", "section": "Chronic dysphagia", "pcase": "A1", "pgroup": "A", "pstack": "C"}, {"id": "35", "group": 35, "stem": "A 43-year-old woman is being treated for gastroesophageal reflux disease. Her heartburn and regurgitation have been present for 6 months and are worse when she lies down. She is overweight, has a chronic cough, and has no dysphagia, no weight loss, and no hematemesis. She asks when endoscopy should be performed.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Perform endoscopy before empiric therapy in every patient with heartburn"}, {"letter": "B", "text": "Perform endoscopy before empiric therapy only in patients whose symptoms are worse lying down or after meals"}, {"letter": "C", "text": "Perform endoscopy before empiric therapy only in patients who are overweight or have a chronic cough"}, {"letter": "D", "text": "Perform endoscopy before empiric therapy only in patients whose symptoms have lasted longer than 6 months"}, {"letter": "E", "text": "Perform endoscopy before empiric therapy only in patients with dysphagia, weight loss, or bleeding"}], "answer": "E", "explanation": "Alarm features \u2014 dysphagia, odynophagia, weight loss, gastrointestinal bleeding, anemia, vomiting, or new onset after age 60 \u2014 send the patient to endoscopy before any empiric trial, because they raise the possibility of a structural lesion. Symptom duration, body weight, positional symptoms, and cough are typical reflux features and do not change the approach.", "objective": "", "section": "Chronic heartburn", "pcase": "E1", "pgroup": "E", "pstack": "C"}, {"id": "36", "group": 36, "stem": "A 74-year-old woman is diagnosed with pill-induced esophagitis after endoscopy shows a single discrete ulcer in the mid esophagus with normal surrounding mucosa and remnants of the weekly bisphosphonate she began three days earlier. She continues to have pain on swallowing.\n\nWhich of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Sucralfate slurry given together with a bedtime H2 antagonist"}, {"letter": "B", "text": "An elimination diet with a proton pump inhibitor"}, {"letter": "C", "text": "Stopping the offending drug, with a standard-dose proton pump inhibitor"}, {"letter": "D", "text": "Oral fluconazole 200 mg daily"}, {"letter": "E", "text": "Oral acyclovir 400 mg five times daily"}], "answer": "C", "explanation": "The injury is chemical, so withdrawing or substituting the offending drug is the definitive step, with a standard-dose proton pump inhibitor to allow the ulcer to heal. Sucralfate requires an acidic environment to form its protective barrier, so giving it alongside an H2 antagonist or an antacid inactivates it, and it binds co-administered drugs and must be separated from them.", "objective": "", "section": "Acute odynophagia", "pcase": "C4", "pgroup": "C", "pstack": "B"}, {"id": "37", "group": 37, "stem": "A 57-year-old man with Barrett's esophagus and no dysplasia on his baseline biopsies is stable on a daily proton pump inhibitor and asks how often he will need repeat endoscopy.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Repeat endoscopy only if his heartburn returns despite the proton pump inhibitor"}, {"letter": "B", "text": "Stop surveillance endoscopy while he remains on a daily proton pump inhibitor"}, {"letter": "C", "text": "Repeat endoscopy every 3 years, with no confirmatory study during the first year"}, {"letter": "D", "text": "Repeat endoscopy every year for as long as he remains free of symptoms"}, {"letter": "E", "text": "Repeat endoscopy within 1 year of the baseline study, then every 3 years"}], "answer": "E", "explanation": "With no dysplasia, the baseline study is repeated within a year to confirm the finding, after which surveillance continues at 3-year intervals. Acid suppression controls symptoms but does not remove the risk of progression, so neither symptom control nor continued therapy is a reason to lengthen or abandon the interval.", "objective": "", "section": "Chronic heartburn", "pcase": "E2", "pgroup": "E", "pstack": "C"}, {"id": "38", "group": 38, "stem": "A 74-year-old woman treated for pill-induced esophagitis returns 10 days later. Her pain on swallowing has resolved, and she must continue to take oral medication.\n\nWhich of the following is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Take each pill upright with a small sip of water and remain upright for 10 minutes"}, {"letter": "B", "text": "Take each pill upright with 4 ounces of fluid and lie down immediately afterward"}, {"letter": "C", "text": "Take each pill at bedtime with 8 ounces of fluid and lie down afterward"}, {"letter": "D", "text": "Take each pill upright with 4 ounces of fluid and remain upright for 10 minutes"}, {"letter": "E", "text": "Take each pill upright with a small sip of water and remain upright for 30 minutes"}], "answer": "D", "explanation": "Patient education is the intervention that prevents recurrence: pills are swallowed upright with 4 ounces of fluid, and the patient stays upright for 10 minutes afterward, with 8 ounces and 30 minutes required for high-risk drugs. Too little fluid or lying down after the dose lets the tablet lodge and dissolve against the mucosa, which is the mechanism that produced the ulcer.", "objective": "", "section": "Acute odynophagia", "pcase": "C4", "pgroup": "C", "pstack": "C"}]};
+
+// Reshuffle-on-load for a Clinical Vignette practice exam.
+//
+// Inject this immediately after the `const EXAM_DATA = ...;` line of the
+// interactive-exam template, before the main IIFE. It reorders the stacks and
+// the options on every page load, then renumbers, so the exam cannot be
+// answered from memory of position.
+//
+// Requires three extra fields on every question, written by the exam build:
+//   pcase   the case id from the case file, e.g. "A3"
+//   pgroup  the differential group letter, e.g. "A"
+//   pstack  "A" recognition | "B" management safety | "C" counseling
+//
+// Constraints preserved on every shuffle:
+//   1. no two consecutive stacks share a differential group
+//   2. a patient's Stack A precedes their Stack B, which precedes their Stack C
+//   3. follow-up nodes never leave their parent
+(function reshuffleExam() {
+  var qs = EXAM_DATA.questions;
+  if (!qs || !qs.length || !qs[0].pcase) return;   // metadata absent: leave order alone
+
+  // ---- collect stacks, parent first ----------------------------------------
+  var map = {}, order = [];
+  qs.forEach(function (q) {
+    if (!map[q.group]) { map[q.group] = []; order.push(q.group); }
+    map[q.group].push(q);
+  });
+  var stacks = order.map(function (g) {
+    return { qs: map[g], pcase: map[g][0].pcase, pgroup: map[g][0].pgroup, pstack: map[g][0].pstack };
+  });
+  if (stacks.length < 3) return;
+
+  var RANK = { A: 0, B: 1, C: 2 };
+
+  function shuffled(a) {
+    var b = a.slice();
+    for (var i = b.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = b[i]; b[i] = b[j]; b[j] = t;
+    }
+    return b;
+  }
+
+  // Reorder one case's stacks into A→B→C at whatever positions that case holds,
+  // leaving every other position as the shuffle left it.
+  function repairCaseOrder(seq) {
+    var pend = {}, idx = {};
+    seq.forEach(function (s) { (pend[s.pcase] = pend[s.pcase] || []).push(s); });
+    Object.keys(pend).forEach(function (c) {
+      pend[c].sort(function (x, y) { return RANK[x.pstack] - RANK[y.pstack]; });
+      idx[c] = 0;
+    });
+    return seq.map(function (s) { return pend[s.pcase][idx[s.pcase]++]; });
+  }
+
+  function groupsAdjacent(seq) {
+    for (var i = 0; i < seq.length - 1; i++) {
+      if (seq[i].pgroup === seq[i + 1].pgroup) return true;
+    }
+    return false;
+  }
+
+  var seq = null;
+  for (var attempt = 0; attempt < 4000; attempt++) {
+    var cand = repairCaseOrder(shuffled(stacks));
+    if (!groupsAdjacent(cand)) { seq = cand; break; }
+  }
+  if (!seq) return;   // could not satisfy the constraints: keep the built order
+
+  // ---- shuffle the options inside each question ----------------------------
+  var LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  seq.forEach(function (s) {
+    s.qs.forEach(function (q) {
+      if (!q.options || q.options.length < 2) return;
+      var keyText = null;
+      q.options.forEach(function (o) { if (o.letter === q.answer) keyText = o.text; });
+      var texts = shuffled(q.options.map(function (o) { return o.text; }));
+      q.options = texts.map(function (t, i) { return { letter: LET[i], text: t }; });
+      for (var i = 0; i < q.options.length; i++) {
+        if (q.options[i].text === keyText) { q.answer = q.options[i].letter; break; }
+      }
+    });
+  });
+
+  // ---- renumber and write the new order back ------------------------------
+  var out = [];
+  seq.forEach(function (s, i) {
+    var n = i + 1;
+    s.qs.forEach(function (q, j) {
+      q.group = n;
+      q.id = j === 0 ? String(n) : String(n) + LET[j - 1];
+      out.push(q);
+    });
+  });
+  EXAM_DATA.questions = out;
+})();
+
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
