@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "DI 2 · Exam 1 Practice Exam — GI and Liver Diagnostics", "questions": [{"id": "1", "group": 1, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — Reading the liver panel", "stem": "A 37-year-old woman comes in for a routine physical with no complaints. BMI is 29 and BP is 145/90. A CMP shows AST 87 U/L, ALT 102 U/L, alkaline phosphatase 96 U/L, total bilirubin 0.8 mg/dL, and albumin 4.2 g/dL. Which pattern of liver injury is this?", "options": [{"letter": "A", "text": "No pattern; these values are normal"}, {"letter": "B", "text": "Hepatocellular"}, {"letter": "C", "text": "Cholestatic"}, {"letter": "D", "text": "Mixed hepatocellular and cholestatic"}], "answer": "B", "explanation": "AST and ALT elevations predominate and the AP is normal, so this is a hepatocellular pattern — the more common of the two. \"Predominates\" means relative magnitude: which value is furthest above its own upper limit of normal. Bilirubin plays no role in this decision."}, {"id": "1a", "group": 1, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — Hepatocellular branch", "stem": "Which diagnosis best fits her numbers?", "options": [{"letter": "A", "text": "Primary biliary cholangitis (formerly cirrhosis)"}, {"letter": "B", "text": "MASLD (nonalcoholic fatty liver disease)"}, {"letter": "C", "text": "Alcohol-related (steatotic) liver disease"}, {"letter": "D", "text": "Acute viral hepatitis, A or B"}], "answer": "B", "explanation": "AST/ALT is less than 1 with values 2–5× ULN, in a patient with obesity and hypertension. MASLD is the most common cause of asymptomatic mildly elevated transaminases in the US. Mnemonic: there is more ALT than AST if the Liver is infiltrated with Lipids. Before settling on it, exclude alcohol and chronic viral hepatitis B and C."}, {"id": "2", "group": 2, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — Hepatocellular branch", "stem": "A 47-year-old man is evaluated for fatigue. AST is 160 U/L, ALT is 80 U/L, and alkaline phosphatase is 88 U/L. Which additional laboratory finding would best corroborate the likely etiology?", "options": [{"letter": "A", "text": "A low serum ceruloplasmin"}, {"letter": "B", "text": "A positive anti-mitochondrial antibody"}, {"letter": "C", "text": "A transferrin saturation of 60%"}, {"letter": "D", "text": "An elevated MCV"}], "answer": "D", "explanation": "AST more than twice the ALT strongly suggests alcohol, and a ratio above 3 is 97% specific. Excess alcohol is a cause of macrocytosis, so a high MCV corroborates it. Screen consumption with the AUDIT-C; ultrasound typically shows a fatty liver, which reverses within about a month of abstinence."}, {"id": "3", "group": 3, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — Hepatocellular branch", "stem": "A 52-year-old man with known alcohol use disorder presents with jaundice and malaise. AST is 1,450 U/L, ALT is 1,890 U/L, and alkaline phosphatase is 110 U/L. What is the correct interpretation?", "options": [{"letter": "A", "text": "Diagnostic of alcohol as the sole cause"}, {"letter": "B", "text": "Too high for alcohol, suggesting viral or toxic injury"}, {"letter": "C", "text": "Entirely typical of severe alcoholic hepatitis"}, {"letter": "D", "text": "A cholestatic pattern requiring urgent biliary imaging"}], "answer": "B", "explanation": "AST rarely exceeds 400 in alcohol-related hepatitis, and transaminases above 15× ULN indicate acute hepatocellular necrosis from a viral or toxic cause such as acetaminophen. Note the ratio here is actually below 1, which further argues against alcohol."}, {"id": "4", "group": 4, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — The three rules", "stem": "An asymptomatic 58-year-old woman has an alkaline phosphatase of 310 U/L on a routine CMP. AST, ALT, bilirubin, and albumin are all normal. What is the next best test?", "options": [{"letter": "A", "text": "Right upper quadrant ultrasound"}, {"letter": "B", "text": "ERCP"}, {"letter": "C", "text": "Anti-mitochondrial antibody"}, {"letter": "D", "text": "Gamma-glutamyl transferase"}], "answer": "D", "explanation": "An isolated elevated AP earns a GGT before anything else, because AP is also produced in bone, intestine, and placenta. GGT is not part of the CMP or the hepatic function panel and must be ordered separately — so a vignette reporting a GGT means someone deliberately went looking."}, {"id": "4a", "group": 4, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — The three rules", "stem": "Her GGT returns at 22 U/L (normal 6–50). The alkaline phosphatase is coming from:", "options": [{"letter": "A", "text": "Necrotic hepatocytes"}, {"letter": "B", "text": "Obstructed bile ducts"}, {"letter": "C", "text": "Inflamed intralobular ducts"}, {"letter": "D", "text": "Bone"}], "answer": "D", "explanation": "An elevated AP with a NORMAL GGT points to a non-hepatic source — think bone. GGT is not elevated in bone disease, and that single fact is the whole point of the test. AP isoenzymes can be fractionated but this is seldom needed."}, {"id": "5", "group": 5, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — Cholestatic branch", "stem": "A 52-year-old woman reports several months of fatigue and diffuse itching. AST is 60 U/L, ALT is 75 U/L, alkaline phosphatase is 840 U/L, and total bilirubin is 1.6 mg/dL. Which antibody is most likely present in high titer?", "options": [{"letter": "A", "text": "Anti-tissue transglutaminase IgA"}, {"letter": "B", "text": "Anti-smooth muscle antibody"}, {"letter": "C", "text": "Anti-mitochondrial antibody"}, {"letter": "D", "text": "Perinuclear antineutrophil cytoplasmic antibody"}], "answer": "C", "explanation": "A markedly elevated AP with only mild transaminase elevation in a middle-aged woman with pruritus is primary biliary cholangitis, where AMA is present in 90–100% at high titer. PBC = AMA = cholestatic; AIH = ASMA = hepatocellular. Each antibody appears in the other disease at 10–20% and low titer, so titer height is the answer."}, {"id": "5a", "group": 5, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — Cholestatic branch", "stem": "Before starting treatment, what must still be done?", "options": [{"letter": "A", "text": "Liver biopsy to stage fibrosis"}, {"letter": "B", "text": "Imaging to exclude biliary obstruction"}, {"letter": "C", "text": "Bone-specific alkaline phosphatase"}, {"letter": "D", "text": "Serum ceruloplasmin"}], "answer": "B", "explanation": "A cholestatic pattern always earns imaging as part of the initial evaluation. A cholestatic pattern is not automatically PBC — first exclude obstruction and neoplasm with ultrasound, CT, or MRI, because you cannot afford to miss pancreatic cancer or cholangiocarcinoma."}, {"id": "6", "group": 6, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — Two antibody pairs", "stem": "A 45-year-old woman with autoimmune hypothyroidism has AST 280 U/L, ALT 400 U/L, and alkaline phosphatase 150 U/L. Her CMP also shows total protein 9.4 g/dL with albumin 4.0 g/dL. Which finding on this panel is the clue to her diagnosis?", "options": [{"letter": "A", "text": "Mildly elevated alkaline phosphatase"}, {"letter": "B", "text": "Normal albumin with elevated transaminases"}, {"letter": "C", "text": "AST to ALT ratio below one"}, {"letter": "D", "text": "High total protein with normal albumin"}], "answer": "D", "explanation": "More than 80% of autoimmune hepatitis patients have hypergammaglobulinemia, and the clue on a CMP is a high total protein with a normal albumin. Expect ANA and anti-smooth muscle antibody, present in about 90% at high titer; biopsy shows a periportal lymphocytic infiltrate. The lecture's AIH pattern is AST/ALT 7–10× ULN with AP only 1–3×."}, {"id": "7", "group": 7, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — Hepatocellular branch", "stem": "A 45-year-old man reports lethargy and joint stiffness. On exam his skin looks bronzed and he cannot fully flex the index and middle fingers of either hand. His brother was recently diagnosed with a liver condition. AST is 68 U/L, ALT is 74 U/L, and AP is normal. Which panel should you order?", "options": [{"letter": "A", "text": "Anti-mitochondrial antibody and viral serologies"}, {"letter": "B", "text": "Ferritin, iron, TIBC, and transferrin saturation"}, {"letter": "C", "text": "ANA, anti-smooth muscle antibody, and IgG"}, {"letter": "D", "text": "Ceruloplasmin and 24-hour urine copper"}], "answer": "B", "explanation": "Bronzing plus the \"iron fist sign\" — hemochromatosis arthropathy of the 2nd and 3rd MCP joints — plus a family history is hereditary hemochromatosis, an autosomal recessive disorder on chromosome 6. Think of it as the opposite of iron deficiency anemia: ferritin HIGH, iron HIGH, TIBC LOW, transferrin saturation HIGH."}, {"id": "7a", "group": 7, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — Hepatocellular branch", "stem": "Ferritin is 640 ng/mL and transferrin saturation is 58%. The confirmatory test is:", "options": [{"letter": "A", "text": "Liver biopsy with iron staining"}, {"letter": "B", "text": "Repeat fasting iron studies in 3 months"}, {"letter": "C", "text": "MRI with hepatic iron quantification"}, {"letter": "D", "text": "HFE gene mutation analysis"}], "answer": "D", "explanation": "A positive screen is ferritin >200 in premenopausal women or >300 in others, WITH a transferrin saturation >45%. Confirm with HFE genotyping — affected individuals are homozygotes, and variable penetrance is the rule. Note that genotyping does not establish the presence or degree of fibrosis."}, {"id": "8", "group": 8, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — The three rules", "stem": "Which value plays NO role in deciding whether a pattern of liver injury is hepatocellular or cholestatic?", "options": [{"letter": "A", "text": "Alkaline phosphatase"}, {"letter": "B", "text": "Serum ALT"}, {"letter": "C", "text": "Serum AST"}, {"letter": "D", "text": "Total bilirubin"}], "answer": "D", "explanation": "Serum bilirubin may be normal or elevated in either pattern, so disregard it when deciding. The Big Three — AST, ALT, and AP, all on the CMP — are the only pattern-deciding tests. Bilirubin is a cholestasis-associated test, not a pattern-deciding one."}, {"id": "9", "group": 9, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — The rare four", "stem": "A 22-year-old man is evaluated for a hepatocellular pattern of enzyme elevation. Over the past year his family has noticed a resting tremor, growing irritability, and a sharp decline in his school performance. Which test should you order?", "options": [{"letter": "A", "text": "Serum alpha-1 antitrypsin"}, {"letter": "B", "text": "Fasting transferrin saturation"}, {"letter": "C", "text": "Anti-hepatitis C antibody"}, {"letter": "D", "text": "Serum ceruloplasmin"}], "answer": "D", "explanation": "Suspect Wilson disease in a child or young adult with otherwise unexplained liver disease, especially with neurologic or psychiatric symptoms. Ceruloplasmin is below 20 mg/dL in about 90%. Hepatic copper on biopsy is the criterion standard, and a normal result effectively excludes the diagnosis. Kayser-Fleischer rings are seen in up to 90% of symptomatic patients."}, {"id": "10", "group": 10, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — The rare four", "stem": "A 41-year-old lifelong non-smoker was recently told he has emphysema. He is now found to have persistently elevated transaminases. Which single test best explains both problems?", "options": [{"letter": "A", "text": "Serum alpha-1 antitrypsin"}, {"letter": "B", "text": "HFE gene mutation analysis"}, {"letter": "C", "text": "Serum ceruloplasmin level"}, {"letter": "D", "text": "Anti-smooth muscle antibody"}], "answer": "A", "explanation": "Alpha-1 antitrypsin deficiency is autosomal recessive on chromosome 14; the enzyme accumulates in hepatocytes and disrupts liver function, and its absence in the lung permits emphysema. Suspect it in adults with both early liver disease and early emphysema, and in any emphysema under age 50, particularly in non-smokers."}, {"id": "11", "group": 11, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — The rare four", "stem": "A 24-year-old man notices yellowing of his eyes during a bout of influenza when he was eating very little. Total bilirubin is 2.8 mg/dL and fractionation shows it is predominantly indirect. AST, ALT, AP, albumin, CBC, reticulocyte count, and haptoglobin are all normal. What is the most likely diagnosis?", "options": [{"letter": "A", "text": "Gilbert syndrome"}, {"letter": "B", "text": "Acute hepatitis A"}, {"letter": "C", "text": "Choledocholithiasis"}, {"letter": "D", "text": "Hemolytic anemia"}], "answer": "A", "explanation": "Gilbert syndrome is the common cause of isolated mild indirect hyperbilirubinemia — an inherited deficiency of glucuronyl transferase (UGT1A1) affecting roughly 5% of the population. Jaundice appears under stress, illness, fasting, or dehydration. All other liver tests are normal and there is no evidence of hemolysis, which is what the normal CBC, retic, and haptoglobin establish."}, {"id": "12", "group": 12, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — The synthetic-function clock", "stem": "Which statement correctly describes the time course of the two tests of hepatic synthetic function?", "options": [{"letter": "A", "text": "Albumin falls in hours to days; PT rises over weeks"}, {"letter": "B", "text": "PT rises in hours to days; albumin falls over weeks"}, {"letter": "C", "text": "Both change within hours of significant injury"}, {"letter": "D", "text": "Both change only after the transaminases normalize"}], "answer": "B", "explanation": "Clotting factors have short half-lives — factor VII is about 6 hours — so PT moves fast. Albumin's half-life is about 20 days and it takes 2–3 weeks to fall, so it will not be low in acute injury. Therefore a low albumin in a jaundiced patient means the process is chronic, and a normal albumin does not rule out acute injury."}, {"id": "13", "group": 13, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — Cholestatic branch", "stem": "A 67-year-old man has three months of a dull epigastric ache radiating to his back and a 20-pound unintentional weight loss. He is jaundiced but his abdomen is non-tender. AST is 45, ALT 50, alkaline phosphatase 320, and total bilirubin 4.1 mg/dL with a direct fraction of 3.2. What is the best next step?", "options": [{"letter": "A", "text": "Anti-mitochondrial antibody testing"}, {"letter": "B", "text": "Percutaneous liver biopsy"}, {"letter": "C", "text": "Serum CA 19-9 tumor marker"}, {"letter": "D", "text": "CT abdomen with contrast"}], "answer": "D", "explanation": "Painless jaundice with weight loss is a classic presentation of pancreatic cancer, and a cholestatic pattern demands imaging early. The predominantly direct hyperbilirubinemia fits obstruction. CA 19-9 is NOT a screening test — it is used for prognostic information and to follow response to therapy, where ≥500 IU/mL predicts a worse post-operative prognosis."}, {"id": "14", "group": 14, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — Cholestatic branch", "stem": "A 35-year-old woman with a five-year history of ulcerative colitis is found to have an alkaline phosphatase of 480 U/L with AST 55 and ALT 60. Which diagnosis belongs at the top of your differential?", "options": [{"letter": "A", "text": "Autoimmune hepatitis"}, {"letter": "B", "text": "Primary sclerosing cholangitis"}, {"letter": "C", "text": "Primary biliary cholangitis"}, {"letter": "D", "text": "Alcohol-related liver disease"}], "answer": "B", "explanation": "PSC is a chronic progressive cholestasis with inflammation, fibrosis, and stricturing of intra- and extrahepatic bile ducts. It is believed autoimmune, is associated with p-ANCA, and is strongly associated with inflammatory bowel disease — mainly ulcerative colitis. It can be complicated by cholangiocarcinoma."}, {"id": "15", "group": 15, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — DILI reflex", "stem": "Which group of drugs is most associated with a CHOLESTATIC pattern of drug-induced liver injury?", "options": [{"letter": "A", "text": "Proton pump inhibitors, bismuth, fluoroquinolones"}, {"letter": "B", "text": "Beta-blockers, cephalosporins, metformin"}, {"letter": "C", "text": "Penicillins, sulfa drugs, oral contraceptives"}, {"letter": "D", "text": "Acetaminophen, statins, isoniazid"}], "answer": "C", "explanation": "Cholestatic DILI comes from penicillins and derivatives, sulfa drugs, and estrogens or oral contraceptives. Hepatocellular DILI comes from acetaminophen, statins, isoniazid, methotrexate, and amoxicillin-clavulanate. Because DILI produces either pattern, ask every patient with an abnormal LFT about prescription drugs, OTC drugs, and supplements."}, {"id": "16", "group": 16, "section": "Liver panel & pattern recognition", "objective": "Pattern Guide §1 — Synthetic function", "stem": "A previously healthy 28-year-old woman is admitted with jaundice and confusion three days after an intentional acetaminophen overdose. Her INR is 2.4 and she is disoriented to place and time. What is her diagnosis?", "options": [{"letter": "A", "text": "Acute alcoholic hepatitis"}, {"letter": "B", "text": "Decompensated alcoholic cirrhosis"}, {"letter": "C", "text": "Acute liver failure"}, {"letter": "D", "text": "Hepatorenal syndrome type 1"}], "answer": "C", "explanation": "Acute liver failure is severe acute liver injury plus significant coagulopathy (INR >1.5) plus hepatic encephalopathy, usually in a patient without preexisting liver disease and evolving in under 24–26 weeks. Drug-induced injury, especially acetaminophen, is the most common cause in the US. Transplantation is the only curative treatment."}, {"id": "17", "group": 17, "section": "Viral hepatitis serologies", "objective": "Pattern Guide §2 — The acute panel", "stem": "A 42-year-old man presents with fatigue, abdominal pain, and loss of appetite. He denies any history of viral hepatitis or hepatitis vaccination and reports one recent new sexual partner. Exam shows scleral icterus and a slightly enlarged, tender liver. Which set of tests is best for diagnosing acute viral hepatitis?", "options": [{"letter": "A", "text": "Total anti-HAV, HBsAg, anti-HBs, HBeAg"}, {"letter": "B", "text": "Total anti-HAV, anti-HBs, HCV RNA"}, {"letter": "C", "text": "IgM anti-HAV, IgM anti-HCV, HBV DNA"}, {"letter": "D", "text": "IgM anti-HAV, HBsAg, IgM anti-HBc, anti-HCV"}], "answer": "D", "explanation": "The acute viral hepatitis panel is IgM anti-HAV for acute A; HBsAg AND IgM anti-HBc for acute B; and anti-HCV for C, which is included even though C is rarely diagnosed acutely. There is no clinically recommended HCV-specific IgM assay the way there is for hepatitis A or acute B."}, {"id": "17a", "group": 17, "section": "Viral hepatitis serologies", "objective": "Pattern Guide §2 — Why two tests for acute B", "stem": "Why are both HBsAg and IgM anti-HBc sent for hepatitis B?", "options": [{"letter": "A", "text": "IgM anti-HBc separates vaccination from infection"}, {"letter": "B", "text": "HBsAg must be confirmed to exclude hepatitis D"}, {"letter": "C", "text": "IgM anti-HBc covers the window period"}, {"letter": "D", "text": "HBsAg turns positive only in chronic infection"}], "answer": "C", "explanation": "HBsAg is detectable within about 2 weeks of exposure and is usually present while the patient is clinically ill, but in a milder case with delayed testing it may already have declined. IgM anti-HBc is the second chance at the diagnosis during the window period — after HBsAg has disappeared but before anti-HBs has appeared."}, {"id": "17b", "group": 17, "section": "Viral hepatitis serologies", "objective": "Pattern Guide §2 — HBV states", "stem": "His results: HBsAg positive, IgM anti-HBc positive, IgM anti-HAV negative, anti-HCV negative. The diagnosis is:", "options": [{"letter": "A", "text": "Successful hepatitis B immunization"}, {"letter": "B", "text": "Chronic hepatitis B"}, {"letter": "C", "text": "Acute hepatitis B"}, {"letter": "D", "text": "Resolved hepatitis B"}], "answer": "C", "explanation": "HBsAg positive with IgM anti-HBc positive is acute hepatitis B. Only about 5–10% of people infected as adults develop persistent infection, so he will most likely recover with supportive care. Chronic hepatitis B is defined by HBsAg persisting beyond six months, and those patients never develop anti-HBs."}, {"id": "18", "group": 18, "section": "Viral hepatitis serologies", "objective": "Pattern Guide §2 — The two rules", "stem": "A 39-year-old man brings in lab results drawn at a health fair: HBsAg negative, anti-HBs positive, anti-HBc positive, anti-HCV positive. His hepatitis B status is best described as:", "options": [{"letter": "A", "text": "Acute infection in the window period"}, {"letter": "B", "text": "Chronic hepatitis B infection"}, {"letter": "C", "text": "Immune from a previous resolved infection"}, {"letter": "D", "text": "Immune from vaccination"}], "answer": "C", "explanation": "You cannot get the core antibody without having had the infection. Vaccination produces anti-HBs only; resolved infection produces anti-HBs AND anti-HBc of the IgG class. A negative HBsAg excludes both acute and chronic infection."}, {"id": "18a", "group": 18, "section": "Viral hepatitis serologies", "objective": "Pattern Guide §2 — The two rules", "stem": "His hepatitis C result requires which next test?", "options": [{"letter": "A", "text": "HCV-specific IgM"}, {"letter": "B", "text": "Repeat anti-HCV in six weeks"}, {"letter": "C", "text": "HCV RNA"}, {"letter": "D", "text": "HCV genotype alone"}], "answer": "C", "explanation": "False-positive anti-HCV results occur, and roughly 20% of infected people clear the virus spontaneously. A positive anti-HCV must be followed by direct measurement of viral product in serum — HCV RNA by PCR — which definitively establishes active infection. RNA is detectable as early as 2–3 weeks after exposure."}, {"id": "19", "group": 19, "section": "Viral hepatitis serologies", "objective": "Pattern Guide §2 — A, C, D, E", "stem": "A 35-year-old man has nausea, vomiting, abdominal pain, and cola-colored urine. He returned from Mexico about a month ago and had no pre-travel vaccination or immune globulin. He has icteric sclerae and RUQ tenderness. Serology shows IgM anti-HAV positive, HBsAg negative, IgM anti-HBc negative, and anti-HCV negative. What is his prognosis?", "options": [{"letter": "A", "text": "About a 10% chance of chronic infection"}, {"letter": "B", "text": "Progression to cirrhosis over several years"}, {"letter": "C", "text": "About an 80% chance of chronic infection"}, {"letter": "D", "text": "Complete recovery after several weeks of illness"}], "answer": "D", "explanation": "There is no chronic hepatitis A — the vast majority of patients recover and are immune thereafter, though it may rarely be fulminant. Selective testing of IgM anti-HAV, rather than total anti-HAV, is required for an acute diagnosis, because total anti-HAV is positive with any exposure including vaccination."}, {"id": "20", "group": 20, "section": "Viral hepatitis serologies", "objective": "Pattern Guide §2 — HBV states", "stem": "Which serologic finding defines CHRONIC hepatitis B?", "options": [{"letter": "A", "text": "HBsAg persisting beyond six months"}, {"letter": "B", "text": "Anti-HBc positive with anti-HBs positive"}, {"letter": "C", "text": "HBeAg positive with HBsAg negative"}, {"letter": "D", "text": "IgM anti-HBc persisting beyond six months"}], "answer": "A", "explanation": "Chronic hepatitis B is long-lasting persistence of HBsAg, defined as greater than six months, with anti-HBs absent. No persistent HBsAg means no chronic hepatitis B, whatever else the panel shows. Option D describes resolved infection with immunity."}, {"id": "21", "group": 21, "section": "Viral hepatitis serologies", "objective": "Pattern Guide §2 — A, C, D, E", "stem": "A 44-year-old man with stable chronic hepatitis B for many years abruptly decompensates with rising transaminases and new jaundice. He takes no new medications, drinks no alcohol, and has had no recent travel. Which test should be added?", "options": [{"letter": "A", "text": "IgM anti-HEV"}, {"letter": "B", "text": "HCV-specific IgM"}, {"letter": "C", "text": "Total anti-HDV"}, {"letter": "D", "text": "Total anti-HAV"}], "answer": "C", "explanation": "Hepatitis D always goes along with hepatitis B — you must have B to have D. Consider super-infection with D when a person with stable chronic hepatitis B decompensates. The only test for the virus is total anti-HDV, and if you clear B, you clear D."}, {"id": "22", "group": 22, "section": "Viral hepatitis serologies", "objective": "Pattern Guide §2 — HBV states", "stem": "A patient known to have chronic hepatitis B is found to be HBeAg positive. This indicates:", "options": [{"letter": "A", "text": "Coinfection with hepatitis D"}, {"letter": "B", "text": "Active replication with higher infectivity"}, {"letter": "C", "text": "Resolving infection with developing immunity"}, {"letter": "D", "text": "Immunity acquired through vaccination"}], "answer": "B", "explanation": "The HBeAg/anti-HBe system is only relevant once HBsAg is chronically positive. HBeAg positivity marks active viral replication, higher infectivity, and significant ongoing liver injury. Loss of HBeAg with appearance of anti-HBe is associated with less replication, lower AST/ALT, and less hepatic inflammation."}, {"id": "23", "group": 23, "section": "Viral hepatitis serologies", "objective": "Pattern Guide §2 — Cross-course hooks", "stem": "A 36-year-old woman with many years of injection drug use is seen at her first prenatal visit. She has never received hepatitis A or hepatitis B vaccination. Serologies return: HBsAg negative, total anti-HBc positive, anti-HBs positive, total anti-HAV negative, anti-HCV positive. Which vaccination does she need?", "options": [{"letter": "A", "text": "Neither vaccine"}, {"letter": "B", "text": "Both hepatitis A and B vaccines"}, {"letter": "C", "text": "Hepatitis B vaccine"}, {"letter": "D", "text": "Hepatitis A vaccine"}], "answer": "D", "explanation": "Her hepatitis B panel shows prior resolved infection, so she is already immune to B. Her total anti-HAV is negative, so she is susceptible to A — and you do not want someone with a probable chronic liver disease such as chronic hepatitis C to acquire another viral hepatitis on top of it."}, {"id": "23a", "group": 23, "section": "Viral hepatitis serologies", "objective": "Pattern Guide §2 — Cross-course hooks", "stem": "Which follow-up test does she need?", "options": [{"letter": "A", "text": "HBV DNA"}, {"letter": "B", "text": "HCV RNA"}, {"letter": "C", "text": "Repeat total anti-HBc"}, {"letter": "D", "text": "HBeAg"}], "answer": "B", "explanation": "She cannot have chronic hepatitis B without persistent HBsAg, and hers is negative — so no HBV DNA or HBeAg is needed. Her positive anti-HCV needs reflex HCV RNA, which will likely be positive, since roughly 80% of those exposed to HCV develop chronic infection."}, {"id": "24", "group": 24, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — Noninvasive fibrosis panel", "stem": "A 58-year-old man with chronic hepatitis C is compensated, with no ascites, encephalopathy, or known varices. You need to know how much fibrosis he has. Which is the appropriate first-line test?", "options": [{"letter": "A", "text": "MELD 3.0 score"}, {"letter": "B", "text": "FIB-4 score"}, {"letter": "C", "text": "Serum alpha-fetoprotein"}, {"letter": "D", "text": "Percutaneous liver biopsy"}], "answer": "B", "explanation": "Noninvasive assessment comes first and decides who actually needs a biopsy. FIB-4 was originally developed for hepatitis C and is thought to reduce the need for biopsy in about 70% of patients. MELD is a prognosis tool that presumes cirrhosis is already diagnosed — it is not a fibrosis test."}, {"id": "24a", "group": 24, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — Noninvasive fibrosis panel", "stem": "His FIB-4 returns at 2.4. This result calls for:", "options": [{"letter": "A", "text": "Starting HCC and variceal surveillance now"}, {"letter": "B", "text": "Repeating the FIB-4 score in five years"}, {"letter": "C", "text": "Liver biopsy or a second noninvasive test"}, {"letter": "D", "text": "Primary care monitoring with no further testing"}], "answer": "C", "explanation": "FIB-4 below 1.45 is low risk and essentially excludes advanced fibrosis; above 3.25 is high risk; 1.45 to 3.25 is indeterminate. Noninvasive tests work best at the extremes and cannot reliably distinguish intermediate stages — which is exactly why an indeterminate result is itself the indication for biopsy."}, {"id": "25", "group": 25, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — Noninvasive fibrosis panel", "stem": "Which variables make up the FIB-4 score?", "options": [{"letter": "A", "text": "Bilirubin, INR, albumin, sodium, creatinine"}, {"letter": "B", "text": "Age, BMI, diabetes, AST, ALT, platelets, albumin"}, {"letter": "C", "text": "Bilirubin, albumin, INR, ascites, encephalopathy"}, {"letter": "D", "text": "Age, AST, ALT, platelets"}], "answer": "D", "explanation": "FIB-4 uses only four variables: age, AST, ALT, and platelet count. Option B is the NAFLD Fibrosis Score, option C is MELD 3.0 (plus dialysis and age), and option D describes the Child-Turcotte-Pugh inputs, which mix serum and clinical variables."}, {"id": "26", "group": 26, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — Biopsy route", "stem": "A patient with large-volume ascites, a BMI of 46, and an INR of 1.8 needs a liver biopsy because the etiology remains unclear. Which approach is preferred?", "options": [{"letter": "A", "text": "Percutaneous biopsy with ultrasound guidance"}, {"letter": "B", "text": "Transjugular biopsy"}, {"letter": "C", "text": "Percutaneous biopsy after fresh frozen plasma"}, {"letter": "D", "text": "Laparoscopic wedge biopsy"}], "answer": "B", "explanation": "Choose transjugular for massive ascites, morbid obesity, coagulopathy, or a failed percutaneous attempt. A catheter passes from the right internal jugular through the vena cava to the hepatic vein under fluoroscopy, and a TIPS can be placed in the same sitting. Percutaneous biopsy transects the liver capsule, so coagulopathic patients risk intraperitoneal hemorrhage."}, {"id": "27", "group": 27, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — Ascites engine", "stem": "A 61-year-old woman reports two months of increasing abdominal girth and early satiety. She is afebrile with a non-tender abdomen, and ultrasound confirms moderate ascites. What is the appropriate next step?", "options": [{"letter": "A", "text": "Therapeutic large-volume paracentesis"}, {"letter": "B", "text": "Diagnostic paracentesis"}, {"letter": "C", "text": "Empiric diuretics with reassessment"}, {"letter": "D", "text": "CT abdomen and pelvis with contrast"}], "answer": "B", "explanation": "ALL patients with new-onset ascites should have a diagnostic paracentesis, as should cirrhotics at every hospital admission. Send cell count and differential, culture inoculated into blood culture bottles at the bedside, and albumin — and draw a serum albumin the SAME day so the SAAG can be calculated."}, {"id": "27a", "group": 27, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — SAAG", "stem": "Serum albumin is 3.0 g/dL and the ascitic fluid albumin is 1.2 g/dL. This indicates:", "options": [{"letter": "A", "text": "Peritoneal malignancy"}, {"letter": "B", "text": "Nephrotic syndrome"}, {"letter": "C", "text": "Tuberculous peritonitis"}, {"letter": "D", "text": "Portal hypertension"}], "answer": "D", "explanation": "SAAG is serum albumin minus ascitic albumin, here 1.8 g/dL. A SAAG of 1.1 or greater indicates portal hypertension with about 97% accuracy — cirrhosis of any etiology, or cardiac ascites from right heart failure or constrictive pericarditis. It is a gradient, a subtraction, not a ratio."}, {"id": "27b", "group": 27, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — SAAG", "stem": "She returns two months later for a repeat tap. What should be sent?", "options": [{"letter": "A", "text": "Cytology and a repeat SAAG"}, {"letter": "B", "text": "Cell count, culture, and a repeat SAAG"}, {"letter": "C", "text": "Cell count and culture only"}, {"letter": "D", "text": "A repeat SAAG only"}], "answer": "C", "explanation": "The SAAG does not need to be repeated after the initial measurement — it is used once to categorize the ascites. Repeat paracenteses are for cell count and culture, to look for spontaneous bacterial peritonitis."}, {"id": "28", "group": 28, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — SBP", "stem": "A 55-year-old man with cirrhosis is admitted confused and febrile with diffuse abdominal tenderness. Ascitic fluid returns a PMN count of 480 cells/mm³. Cultures are pending and the Gram stain is negative. What is the next step?", "options": [{"letter": "A", "text": "Repeat the paracentesis in 24 hours"}, {"letter": "B", "text": "Start a third-generation cephalosporin now"}, {"letter": "C", "text": "Obtain CT to find the intra-abdominal source"}, {"letter": "D", "text": "Await culture results before treating"}], "answer": "B", "explanation": "An ascitic PMN count of 250 cells/mm³ or greater, OR a positive culture, diagnoses SBP. Without early antibiotics mortality is high — treat off the PMN count and do not wait for cultures. Gram stain of ascitic fluid is low yield and a negative one must not reassure you. Empiric therapy is cefotaxime 2 g q8h or ceftriaxone."}, {"id": "28a", "group": 28, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — SBP", "stem": "His ascitic fluid culture grows three different enteric organisms. This suggests:", "options": [{"letter": "A", "text": "Bowel perforation"}, {"letter": "B", "text": "Specimen contamination"}, {"letter": "C", "text": "Unusually severe SBP"}, {"letter": "D", "text": "Concurrent hepatorenal syndrome"}], "answer": "A", "explanation": "A single organism is isolated in most cases of SBP; multiple organisms suggest bowel perforation or secondary peritonitis. By definition SBP is infection of ascitic fluid with NO identifiable intra-abdominal source. Usual SBP organisms are E. coli and Klebsiella, and anaerobes are uncommon."}, {"id": "29", "group": 29, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — SAAG", "stem": "A 64-year-old woman with new-onset ascites has a SAAG of 0.6 g/dL. Which set of causes should you now investigate?", "options": [{"letter": "A", "text": "Cirrhosis, right heart failure, constrictive pericarditis"}, {"letter": "B", "text": "Budd-Chiari syndrome, portal vein thrombosis"}, {"letter": "C", "text": "Peritoneal malignancy, pancreatitis, tuberculosis"}, {"letter": "D", "text": "Hepatorenal syndrome, SBP, hepatic encephalopathy"}], "answer": "C", "explanation": "A SAAG below 1.1 means the ascites is NOT from portal hypertension — serum and ascitic albumin are nearly equal, denoting an extra-hepatic source. Think peritoneal malignancy such as ovarian cancer spread into the peritoneum, a bad case of pancreatitis, or tuberculous peritonitis. A low SAAG is an answer, not a normal result."}, {"id": "30", "group": 30, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — Surveillance machine", "stem": "What is the recommended hepatocellular carcinoma surveillance program for a patient with established cirrhosis?", "options": [{"letter": "A", "text": "Triple-phase CT every 12 months"}, {"letter": "B", "text": "Serum AFP every 6 months"}, {"letter": "C", "text": "Liver ultrasound every 12 months"}, {"letter": "D", "text": "Liver ultrasound every 6 months"}], "answer": "D", "explanation": "All cirrhotics warrant liver ultrasound every 6 months, with or without AFP. The interval is 6 months, not annually — a common distractor. AFP alone is not recommended because of poor sensitivity and specificity compared with imaging. Surveillance is cost-effective once annual HCC risk reaches 0.2%, which is why all cirrhotics qualify."}, {"id": "31", "group": 31, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — Surveillance machine", "stem": "A 60-year-old woman is newly diagnosed with cirrhosis from MASH. She is compensated and feels well. Besides HCC surveillance, what should be arranged?", "options": [{"letter": "A", "text": "Screening MRCP"}, {"letter": "B", "text": "Screening EGD"}, {"letter": "C", "text": "Screening colonoscopy"}, {"letter": "D", "text": "Screening paracentesis"}], "answer": "B", "explanation": "EGD to screen for esophageal and gastric varices is recommended for all patients when the diagnosis of cirrhosis is made, and repeated every 2–3 years depending on findings. About 30% of compensated and 60% of decompensated cirrhotics have varices at diagnosis, and each variceal hemorrhage carries roughly 20% mortality."}, {"id": "31a", "group": 31, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — Surveillance machine", "stem": "Her EGD shows small varices without red wale signs. Prophylaxis is:", "options": [{"letter": "A", "text": "A nonselective beta-blocker"}, {"letter": "B", "text": "Endoscopic variceal ligation"}, {"letter": "C", "text": "A portosystemic shunt procedure"}, {"letter": "D", "text": "A proton pump inhibitor"}], "answer": "A", "explanation": "Small varices get a nonselective beta-blocker — carvedilol, nadolol, or propranolol; large varices get endoscopic variceal ligation. NSBBs block beta-2 receptors in the GI tract, producing splanchnic vasoconstriction that lowers portal and collateral flow. A red wale sign marks recent or impending bleeding."}, {"id": "32", "group": 32, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — Decompensation cascade", "stem": "A cirrhotic patient undergoes a large-volume therapeutic paracentesis. Two days later his creatinine has risen from 0.9 to 2.6 mg/dL. He is euvolemic on exam, the urinalysis is bland, and renal ultrasound is normal. What has most likely happened?", "options": [{"letter": "A", "text": "Hepatorenal syndrome"}, {"letter": "B", "text": "Acute tubular necrosis"}, {"letter": "C", "text": "Obstructive uropathy"}, {"letter": "D", "text": "Contrast-associated kidney injury"}], "answer": "A", "explanation": "Hepatorenal syndrome is kidney injury in a patient with cirrhosis and ascites in the ABSENCE of hypovolemia or other kidney pathology, likely from splanchnic vasodilation dropping renal arterial flow. The three named triggers are large-volume ascites drainage, GI bleeding, and SBP."}, {"id": "33", "group": 33, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §3 — Prognosis", "stem": "A patient with established cirrhosis has a MELD 3.0 score of 17. This indicates that he:", "options": [{"letter": "A", "text": "Should be referred for transplant evaluation"}, {"letter": "B", "text": "Has Child-Turcotte-Pugh class A disease"}, {"letter": "C", "text": "Requires an urgent diagnostic paracentesis"}, {"letter": "D", "text": "Has biopsy-proven stage F2 hepatic fibrosis"}], "answer": "A", "explanation": "MELD of 15 or greater triggers referral for transplant evaluation; the average national MELD at transplant is about 20. MELD 3.0 predicts roughly 3-month mortality on a range of 6 to 40, using bilirubin, INR, albumin, sodium, and creatinine plus dialysis status and age. Refer regardless of score if the patient is decompensated."}, {"id": "34", "group": 34, "section": "Cirrhosis, fibrosis & surveillance", "objective": "Pattern Guide §2/§3 — Cross-course hook", "stem": "A 44-year-old man has chronic hepatitis B. Noninvasive testing places him well below the threshold for advanced fibrosis and he has no cirrhosis. Which statement about his hepatocellular carcinoma risk is correct?", "options": [{"letter": "A", "text": "Surveillance applies only to hepatitis C patients"}, {"letter": "B", "text": "Surveillance depends on his alpha-fetoprotein level"}, {"letter": "C", "text": "HCC risk begins only once cirrhosis develops"}, {"letter": "D", "text": "Hepatitis B confers HCC risk without cirrhosis"}], "answer": "D", "explanation": "Patients with most forms of chronic hepatitis are not at increased HCC risk until cirrhosis develops — except chronic hepatitis B, which can cause HCC in the ABSENCE of cirrhosis. The highest overall risk is cirrhosis from hepatitis B, hepatitis C, NASH, and hemochromatosis."}, {"id": "35", "group": 35, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Red flags gate the workup", "stem": "A 24-year-old woman has two days of watery, non-bloody diarrhea and mild cramping. She is afebrile and well hydrated, has had no recent antibiotics or hospitalization, and is not immunosuppressed. What testing is indicated?", "options": [{"letter": "A", "text": "Stool C. difficile toxins A and B"}, {"letter": "B", "text": "Stool culture, leukocytes, and O&P"}, {"letter": "C", "text": "No testing"}, {"letter": "D", "text": "A multipathogen molecular stool panel"}], "answer": "C", "explanation": "Acute diarrhea without red flags needs no testing — most is self-limited viral gastroenteritis or preformed-toxin food poisoning. Red flags that trigger a workup: fever ≥100.4°F, bloody or FOBT-positive stool, immunosuppression, hospitalization or recent antibiotics, prominent pain, profuse diarrhea with dehydration, or failure to improve."}, {"id": "36", "group": 36, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Exposure to organism", "stem": "A 9-year-old boy develops bloody diarrhea and severe cramping three days after a family cookout where hamburgers were served. He is afebrile. Beyond a routine stool culture, what must be specifically requested?", "options": [{"letter": "A", "text": "Stool C. difficile toxin B by NAAT"}, {"letter": "B", "text": "Culture for Vibrio parahaemolyticus"}, {"letter": "C", "text": "Culture for E. coli O157:H7"}, {"letter": "D", "text": "Stool ova and parasites, three specimens"}], "answer": "C", "explanation": "The CDC recommends submitting for EHEC whenever a routine stool culture is ordered, and it should ALWAYS be ordered with bloody diarrhea. These organisms will grow on routine culture but are frequently overlooked unless their isolation is specified. Exposure is undercooked beef or contaminated water, and patients are frequently afebrile."}, {"id": "36a", "group": 36, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Exposure to organism", "stem": "The culture is positive. Management of the infection is:", "options": [{"letter": "A", "text": "Oral azithromycin"}, {"letter": "B", "text": "Supportive care alone"}, {"letter": "C", "text": "Metronidazole and loperamide"}, {"letter": "D", "text": "Intravenous ceftriaxone"}], "answer": "B", "explanation": "Antibiotics are NOT helpful for EHEC and may increase the risk of hemolytic uremic syndrome; care is supportive. About 10–20% develop HUS, usually children, typically 7–10 days after the diarrhea starts — often as the diarrhea is improving."}, {"id": "36b", "group": 36, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Exposure to organism", "stem": "On day 8 he is pale and oliguric: hemoglobin 7.2 g/dL, platelets 48,000, creatinine 2.9 mg/dL, schistocytes on smear. Which result separates this from DIC?", "options": [{"letter": "A", "text": "The presence of schistocytes"}, {"letter": "B", "text": "A normal PT and PTT"}, {"letter": "C", "text": "A positive direct Coombs test"}, {"letter": "D", "text": "The degree of thrombocytopenia"}], "answer": "B", "explanation": "HUS is microangiopathic hemolytic anemia, thrombocytopenia, and acute kidney injury, with a NEGATIVE Coombs because destruction is non-immune. PT/INR and PTT are typically normal in HUS and TTP, which is what separates them from DIC. If HUS is suspected, send stool culture for O157:H7 and stool for Shiga toxin."}, {"id": "37", "group": 37, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Exposure to organism", "stem": "A 78-year-old hospitalized man develops watery diarrhea 10 to 15 times daily with lower abdominal cramping, low-grade fever, and a WBC of 16,000. He finished a course of ceftriaxone eight days ago. What should be sent?", "options": [{"letter": "A", "text": "Flexible sigmoidoscopy looking for pseudomembranes"}, {"letter": "B", "text": "Stool C. difficile toxins A/B"}, {"letter": "C", "text": "Stool calprotectin and lactoferrin levels"}, {"letter": "D", "text": "Stool ova and parasites, three specimens"}], "answer": "B", "explanation": "Test any hospitalized patient who develops diarrhea, and any patient with significant diarrhea during or after antibiotics — usually within 2 weeks but up to 12 weeks after. Assays include NAAT for toxin B, EIA for toxins A and B, and EIA for GDH antigen. Endoscopy is not needed to make the diagnosis."}, {"id": "37a", "group": 37, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Critical pitfall", "stem": "A positive result obtained from a FORMED stool specimen would most likely reflect:", "options": [{"letter": "A", "text": "A false negative result"}, {"letter": "B", "text": "Early fulminant colitis"}, {"letter": "C", "text": "Asymptomatic colonization"}, {"letter": "D", "text": "Toxin degradation in transit"}], "answer": "C", "explanation": "Test only diarrheal, unformed stool. Stool studies may be positive in patients with asymptomatic colonization, so testing formed stool produces a meaningless positive. Perform the test only when there is clinical suspicion for CDI."}, {"id": "38", "group": 38, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Exposure to organism", "stem": "A 31-year-old man has three weeks of foul-smelling diarrhea, bloating, and flatulence that began after a backpacking trip on which he drank from untreated streams. Which test has the best sensitivity and specificity for the likely organism?", "options": [{"letter": "A", "text": "Stool Giardia antigen immunoassay"}, {"letter": "B", "text": "Stool ova and parasites, one specimen"}, {"letter": "C", "text": "Routine bacterial stool culture"}, {"letter": "D", "text": "Serum Giardia IgG antibody"}], "answer": "A", "explanation": "Stool antigen tests and PCR have better sensitivity and specificity than the O&P exam, with faster turnaround — use them when available. Giardia is classic for hikers and campers drinking untreated water, international travelers, daycare outbreaks, and chronic diarrhea. Symptoms usually appear 7–14 days after exposure."}, {"id": "38a", "group": 38, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Exposure to organism", "stem": "If an O&P exam is sent instead, the required collection is:", "options": [{"letter": "A", "text": "Two specimens twelve hours apart"}, {"letter": "B", "text": "Three specimens on three separate days"}, {"letter": "C", "text": "One specimen at any time"}, {"letter": "D", "text": "Three specimens on the same day"}], "answer": "B", "explanation": "Send specimens on three consecutive days, or each separated by at least 24 hours, because parasite excretion is intermittent. This contrasts with bacterial pathogens, where a single specimen suffices and repeats are rarely required."}, {"id": "39", "group": 39, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Exposure to organism", "stem": "A previously healthy 30-year-old man has several weeks of severe, high-volume watery diarrhea. Stool Cryptosporidium antigen is positive. Beyond treating the parasite, what should be done?", "options": [{"letter": "A", "text": "Screen him for celiac disease"}, {"letter": "B", "text": "Perform a hydrogen breath test"}, {"letter": "C", "text": "Screen him for HIV"}, {"letter": "D", "text": "Perform colonoscopy with biopsy"}], "answer": "C", "explanation": "The rule is bidirectional: check for Cryptosporidium in HIV patients with diarrhea, and screen for HIV in any patient with severe Cryptosporidium diarrhea. Cryptosporidium causes self-limited diarrhea in immunocompetent hosts but chronic, severe diarrhea in the immunocompromised."}, {"id": "40", "group": 40, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Paired-result reflexes", "stem": "A 26-year-old woman has six weeks of diarrhea with intermittent blood, crampy pain, and a 12-pound weight loss. Fecal leukocytes are positive; routine and special-order stool cultures are negative; C. difficile toxin is negative. What should you suspect?", "options": [{"letter": "A", "text": "An undetected parasitic infection"}, {"letter": "B", "text": "Irritable bowel syndrome"}, {"letter": "C", "text": "Lactose intolerance"}, {"letter": "D", "text": "Inflammatory bowel disease"}], "answer": "D", "explanation": "Positive fecal leukocytes with NEGATIVE stool cultures should make you think of acute onset of IBD. Fecal leukocytes indicate bowel-wall inflammation but do not distinguish infectious from non-infectious causes. Blood, anemia, weight loss, and nocturnal diarrhea are not features of IBS."}, {"id": "40a", "group": 40, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Paired-result reflexes", "stem": "Which stool biomarker best separates those first two diagnoses?", "options": [{"letter": "A", "text": "Fecal calprotectin"}, {"letter": "B", "text": "Fecal occult blood"}, {"letter": "C", "text": "Fecal fat by Sudan stain"}, {"letter": "D", "text": "Fecal elastase-1"}], "answer": "A", "explanation": "Fecal calprotectin, a neutrophil-derived calcium- and zinc-binding protein, is 92% sensitive and 82% specific for IBD in patients with chronic diarrhea, and is used to distinguish IBD from IBS. Lactoferrin is the other neutrophil marker and is more sensitive and less variable than the fecal leukocyte smear."}, {"id": "41", "group": 41, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Enzyme cutoffs", "stem": "A 44-year-old woman has sudden severe epigastric pain radiating to the back, worse lying flat and better leaning forward, with prominent vomiting. Serum lipase is 1,240 U/L with an upper limit of normal of 60. Which statement is correct?", "options": [{"letter": "A", "text": "She meets diagnostic criteria without imaging"}, {"letter": "B", "text": "This level indicates necrotizing disease"}, {"letter": "C", "text": "CT is required to confirm before treatment"}, {"letter": "D", "text": "Daily lipase levels should be followed"}], "answer": "A", "explanation": "Diagnosis requires 2 of 3: characteristic abdominal pain, lipase and/or amylase at least 3× ULN, and characteristic inflammation on imaging — and imaging is not routinely needed to establish the diagnosis. Classic presentation plus an elevated lipase is usually all you need."}, {"id": "41a", "group": 41, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Enzyme cutoffs", "stem": "Her family asks whether the very high lipase means severe disease. The level:", "options": [{"letter": "A", "text": "Predicts pancreatic necrosis"}, {"letter": "B", "text": "Is scored in the Ranson criteria"}, {"letter": "C", "text": "Does not correlate with severity"}, {"letter": "D", "text": "Predicts the need for ERCP"}], "answer": "C", "explanation": "The degree of enzyme elevation does not correlate with severity, and no severity score — Ranson's or BISAP — includes the lipase level. Severity markers are a rising hematocrit or WBC, elevated LDH, CRP above 150 mg/L at 48–72 hours, and SIRS on day 1."}, {"id": "42", "group": 42, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Enzyme cutoffs", "stem": "A 58-year-old man with many years of heavy alcohol use has months of large, greasy, foul-smelling stools and a 25-pound weight loss. His serum lipase is normal. Which test best supports the likely diagnosis?", "options": [{"letter": "A", "text": "Repeat lipase and amylase"}, {"letter": "B", "text": "Serum CA 19-9"}, {"letter": "C", "text": "Fecal pancreatic elastase-1"}, {"letter": "D", "text": "Lactose hydrogen breath test"}], "answer": "C", "explanation": "Lipase may be NORMAL in advanced chronic pancreatitis, because parenchymal atrophy and fibrosis leave less enzyme to release. Fecal elastase-1 is a direct marker of exocrine function: normal is above 200 μg/g and below 100 μg/g indicates severe exocrine insufficiency. Enzyme supplementation does not interfere with the result."}, {"id": "42a", "group": 42, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Enzyme cutoffs", "stem": "His steatorrhea implies loss of at least how much exocrine function?", "options": [{"letter": "A", "text": "50%"}, {"letter": "B", "text": "75%"}, {"letter": "C", "text": "25%"}, {"letter": "D", "text": "90%"}], "answer": "D", "explanation": "In chronic pancreatitis, steatorrhea appears only once about 90% of exocrine function has been lost — it is a LATE manifestation, along with weight loss. Expect fat-soluble vitamin A, D, E, and K deficiencies, and remember that vitamin K deficiency can prolong the PT."}, {"id": "43", "group": 43, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — H. pylori", "stem": "A 34-year-old woman has three months of gnawing epigastric pain. She has no weight loss, anemia, vomiting, or family history of GI cancer, and she has been taking omeprazole daily for the past month. What is the preferred initial approach?", "options": [{"letter": "A", "text": "H. pylori serology now, while she is on the PPI"}, {"letter": "B", "text": "Hold the PPI two weeks, then stool antigen testing"}, {"letter": "C", "text": "Stool antigen testing now, while she is on the PPI"}, {"letter": "D", "text": "EGD with biopsy and a rapid urease test now"}], "answer": "B", "explanation": "Non-invasive testing is preferred for a patient this age with no alarm features — but PPIs cause false NEGATIVES, so hold them for 2 weeks first, and hold antibiotics or bismuth for 4 weeks. Serology is discouraged for lower sensitivity and specificity. Ideally the patient is also off PPIs for 2 weeks before a rapid urease test."}, {"id": "43a", "group": 43, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — H. pylori", "stem": "She completes eradication therapy. Cure should be confirmed with:", "options": [{"letter": "A", "text": "Serology immediately after therapy"}, {"letter": "B", "text": "Urea breath test four weeks after therapy"}, {"letter": "C", "text": "Serology four weeks after therapy"}, {"letter": "D", "text": "Repeat EGD with biopsy at six months"}], "answer": "B", "explanation": "Confirm eradication at least 4 weeks after completing therapy, using stool antigen or urea breath testing and documenting a negative result. Serology absolutely cannot be used to confirm eradication because antibodies remain positive for years."}, {"id": "44", "group": 44, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Alarm features", "stem": "A 66-year-old man reports new epigastric burning over the past two months, along with a 15-pound unintentional weight loss and dark, tarry stools. What is the appropriate initial approach?", "options": [{"letter": "A", "text": "Empiric high-dose PPI for eight weeks"}, {"letter": "B", "text": "EGD with biopsy"}, {"letter": "C", "text": "Stool antigen testing and empiric therapy"}, {"letter": "D", "text": "Upper GI series with double contrast"}], "answer": "B", "explanation": "Alarm features mandate EGD up front: age 60 or older per the ACG, unintentional weight loss or anorexia, iron deficiency anemia or melena, persistent vomiting, a palpable mass or Virchow node, or a family history of upper GI cancer. The purpose is to avoid missing gastric malignancy and to allow therapy in the same sitting."}, {"id": "45", "group": 45, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Paired-result reflexes", "stem": "A 29-year-old woman has chronic diarrhea, bloating, unexplained iron deficiency anemia, and an intensely itchy vesicular rash on her elbows. Six weeks ago she started a strict gluten-free diet on her own and reports feeling much better. What is the appropriate next step?", "options": [{"letter": "A", "text": "Proceed directly to duodenal biopsy at EGD"}, {"letter": "B", "text": "Resume a gluten-containing diet, then test tTG IgA"}, {"letter": "C", "text": "Accept the dietary response as diagnostic"}, {"letter": "D", "text": "Test tTG IgA now, while she remains gluten-free"}], "answer": "B", "explanation": "Do ALL celiac testing — serology AND biopsy — while the patient is eating gluten; a patient already gluten-free will test falsely negative on both. A definitive diagnosis matters because treatment is a lifelong gluten-free diet, and because compliance mitigates the increased risk of celiac-associated malignancy."}, {"id": "46", "group": 46, "section": "GI labs, stool & pancreas", "objective": "Pattern Guide §4 — Enzyme cutoffs", "stem": "On a lactose hydrogen breath test, which rise in breath hydrogen above baseline is diagnostic of lactose malabsorption?", "options": [{"letter": "A", "text": "More than 50 ppm"}, {"letter": "B", "text": "More than 35 ppm"}, {"letter": "C", "text": "More than 20 ppm"}, {"letter": "D", "text": "More than 10 ppm"}], "answer": "C", "explanation": "An increase over 20 ppm is diagnostic; 10–20 ppm is indeterminate unless accompanied by symptoms; up to 10 ppm is normal. Remember the breath test is not the first step — a 2-week lactose elimination diet with rechallenge makes the presumptive diagnosis in an otherwise healthy patient."}, {"id": "47", "group": 47, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Dysphagia engine", "stem": "A 63-year-old woman is three days out from a left middle cerebral artery stroke. Nursing reports that she coughs during meals, and she has spiked a fever to 100.8°F. Which study is most appropriate?", "options": [{"letter": "A", "text": "Upper endoscopy (EGD)"}, {"letter": "B", "text": "Modified barium swallow"}, {"letter": "C", "text": "Standard barium esophagram"}, {"letter": "D", "text": "High-resolution esophageal manometry"}], "answer": "B", "explanation": "Coughing with meals after a CVA is oropharyngeal or \"transfer\" dysphagia, most often due to CNS disorders. The modified barium swallow uses varying consistencies with a speech-language pathologist, and is ordered not only to name a diagnosis but to determine optimal feeding techniques and minimize aspiration risk."}, {"id": "48", "group": 48, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Dysphagia engine", "stem": "A 74-year-old man says food sticks \"in his throat.\" He regurgitates undigested food hours after meals, has noticeable halitosis, and finds food on his pillow in the morning. Which lesion is most likely?", "options": [{"letter": "A", "text": "Zenker diverticulum"}, {"letter": "B", "text": "Esophageal carcinoma"}, {"letter": "C", "text": "Schatzki ring"}, {"letter": "D", "text": "Achalasia"}], "answer": "A", "explanation": "Zenker diverticulum is an outpouching posteriorly, proximal to the upper esophageal sphincter at Killian's triangle. The classic story is a middle-aged or elderly patient with regurgitation of undigested food, halitosis, cough after eating, aspiration pneumonia, and food on the pillow in the morning."}, {"id": "48a", "group": 48, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — EGD vs barium", "stem": "Why is a barium study preferred over endoscopy here?", "options": [{"letter": "A", "text": "Only barium can obtain tissue for histology"}, {"letter": "B", "text": "Barium can size the lesion and endoscopy cannot"}, {"letter": "C", "text": "Only barium measures sphincter pressures"}, {"letter": "D", "text": "The scope may miss it and risks perforating it"}], "answer": "D", "explanation": "Barium swallow beats endoscopy for diverticula: small-mouthed diverticula are missed endoscopically, and there is a real risk of diverticular perforation with the scope. Upper endoscopy is in fact the most common cause of esophageal perforation, with higher risk in patients with esophageal diverticula."}, {"id": "49", "group": 49, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Dysphagia engine", "stem": "A 52-year-old man describes three episodes over the past year of meat lodging in his chest at a restaurant, each clearing after a few minutes. Between episodes he swallows normally, including liquids. He has lost no weight and has no anemia. Which diagnosis fits best?", "options": [{"letter": "A", "text": "Esophageal carcinoma"}, {"letter": "B", "text": "Peptic stricture"}, {"letter": "C", "text": "Schatzki ring"}, {"letter": "D", "text": "Diffuse esophageal spasm"}], "answer": "C", "explanation": "Intermittent, non-progressive, solid-food-only dysphagia in a patient over 40, with weeks between episodes and no bleeding or weight loss, is a Schatzki ring — \"steakhouse syndrome.\" Rings 13 mm or smaller are more likely symptomatic and meat impaction is a common complication. A peptic stricture causes progressively worsening dysphagia."}, {"id": "50", "group": 50, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Sign lexicon", "stem": "A 46-year-old woman has two years of slowly progressive difficulty swallowing both solids and liquids, with regurgitation of undigested food and a nocturnal cough. Barium swallow shows a dilated esophagus with abrupt distal narrowing. This appearance is called:", "options": [{"letter": "A", "text": "Corkscrew"}, {"letter": "B", "text": "Apple core"}, {"letter": "C", "text": "String sign"}, {"letter": "D", "text": "Bird's beak"}], "answer": "D", "explanation": "Dysphagia to both solids and liquids points to a motility disorder, and the bird's beak is achalasia — progressive dysphagia to solids in 91% and liquids in 85%, with chest pain, regurgitation, and cough from aspiration. Patients usually have mild symptoms for several years before seeking evaluation."}, {"id": "50a", "group": 50, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Related tests", "stem": "Which study confirms the diagnosis?", "options": [{"letter": "A", "text": "Repeat barium with a 13 mm tablet"}, {"letter": "B", "text": "Esophageal manometry"}, {"letter": "C", "text": "CT chest with contrast"}, {"letter": "D", "text": "Esophagogastroduodenoscopy"}], "answer": "B", "explanation": "Manometry measures pressure and contraction patterns while barium swallow assesses structure and movement. Aperistalsis plus incomplete LES relaxation without mechanical obstruction solidifies the diagnosis of achalasia. Manometry is also ordered for persistent dysphagia with no explanation on endoscopy, and for non-cardiac chest pain."}, {"id": "51", "group": 51, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Dysphagia engine", "stem": "A 55-year-old woman has episodes of severe retrosternal chest pain accompanied by difficulty swallowing both solids and liquids. A full cardiac workup including stress testing is negative. Which barium finding would you expect?", "options": [{"letter": "A", "text": "An annular constricting lesion"}, {"letter": "B", "text": "A bird's beak narrowing"}, {"letter": "C", "text": "A smooth tapered distal narrowing"}, {"letter": "D", "text": "A corkscrew esophagus"}], "answer": "D", "explanation": "Diffuse esophageal spasm produces the corkscrew esophagus and causes dysphagia to solids and liquids with severe retrosternal chest pain that can mimic cardiac pain. On manometry it shows simultaneous high-pressure non-peristaltic contractions."}, {"id": "52", "group": 52, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Dysphagia engine", "stem": "A 58-year-old man with a long smoking history reports dysphagia to solids that has worsened rapidly over eight weeks. He now has pain on swallowing, a 22-pound weight loss, and heme-positive stools. What is the best next step?", "options": [{"letter": "A", "text": "Barium esophagram"}, {"letter": "B", "text": "Esophageal manometry"}, {"letter": "C", "text": "EGD with biopsy"}, {"letter": "D", "text": "CT chest with contrast"}], "answer": "C", "explanation": "Rapidly progressive dysphagia with odynophagia, weight loss, anemia, and heme-positive stool is esophageal carcinoma until proven otherwise. Barium may show the apple-core lesion, but you still need tissue — so go to EGD with biopsy, which diagnoses and can palliate in the same sitting."}, {"id": "53", "group": 53, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Sign lexicon", "stem": "A 24-year-old man has months of crampy right lower quadrant pain, non-bloody diarrhea, and weight loss. Which study and finding would best support small bowel Crohn disease?", "options": [{"letter": "A", "text": "Capsule endoscopy showing an apple-core lesion"}, {"letter": "B", "text": "Upper GI series showing linitis plastica"}, {"letter": "C", "text": "Barium enema showing extensive pseudopolyposis"}, {"letter": "D", "text": "Small bowel follow-through showing a string sign"}], "answer": "D", "explanation": "SBFT is ordered for suspected small bowel Crohn disease and partial SBO. The string sign is a markedly narrowed terminal ileum; the \"proud loop\" stands apart from the other loops because transmural inflammation and creeping fat separate it. Enteric fistulae are a common complication of Crohn."}, {"id": "54", "group": 54, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Contrast rule", "stem": "A patient two days after esophagectomy develops fever and chest pain, and an anastomotic leak is suspected. A contrast study is ordered. Which agent should be used, and why?", "options": [{"letter": "A", "text": "Gastrografin, because barium is directly nephrotoxic"}, {"letter": "B", "text": "Barium with air, because subtle leaks need double contrast"}, {"letter": "C", "text": "Gastrografin, because barium causes mediastinitis"}, {"letter": "D", "text": "Barium, because it coats mucosa and shows small leaks"}], "answer": "C", "explanation": "Barium is contraindicated when perforation or anastomotic leak is suspected because it causes mediastinitis in the chest and peritonitis in the abdomen. Use water-soluble, iodine-based Gastrografin — and you must request it by name, because the default will be barium. Endoscopy is also contraindicated with suspected perforation."}, {"id": "55", "group": 55, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Contrast rule", "stem": "A patient with a suspected high-grade small bowel obstruction needs a contrast study; there is no concern for perforation. Why is Gastrografin still preferred over barium?", "options": [{"letter": "A", "text": "Barium is systemically absorbed in obstruction"}, {"letter": "B", "text": "Barium may inspissate proximal to the block"}, {"letter": "C", "text": "Gastrografin gives better mucosal detail"}, {"letter": "D", "text": "Barium cannot be given to a vomiting patient"}], "answer": "B", "explanation": "Barium is a poor choice with suspected high-grade obstruction because it is constipating and may inspissate proximal to the block. Gastrografin is water-soluble and can be therapeutic in SBO or partial SBO, although it more commonly causes diarrhea."}, {"id": "56", "group": 56, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Screening ladder", "stem": "A healthy 48-year-old man with no family history of colorectal cancer asks about screening. Which test does the American College of Gastroenterology prefer when available?", "options": [{"letter": "A", "text": "Flexible sigmoidoscopy every 5 years"}, {"letter": "B", "text": "Annual fecal immunochemical test"}, {"letter": "C", "text": "Barium enema every 5 years"}, {"letter": "D", "text": "Colonoscopy"}], "answer": "D", "explanation": "Colonoscopy is the ACG-preferred screening test when available, because it has the highest sensitivity for CRC and adenomatous polyps and allows diagnosis, biopsy, and polypectomy in one procedure. USPSTF 2021 alternatives include sigmoidoscopy every 5 years, or every 10 years with annual FIT."}, {"id": "56a", "group": 56, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Screening ladder", "stem": "He chooses sigmoidoscopy and a 7 mm sigmoid polyp is found. The next step is:", "options": [{"letter": "A", "text": "Repeat sigmoidoscopy in five years"}, {"letter": "B", "text": "Full colonoscopy"}, {"letter": "C", "text": "Annual fecal immunochemical testing"}, {"letter": "D", "text": "Double-contrast barium enema"}], "answer": "B", "explanation": "A polyp found at flexible sigmoidoscopy — or a positive FIT — mandates a full colonoscopy. Sigmoidoscopy reaches only the splenic flexure, the distal third of the colon, and is a triage test rather than a definitive one. FIT is also less sensitive for right-sided lesions."}, {"id": "57", "group": 57, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Scope facts", "stem": "A 71-year-old woman has recurrent iron deficiency anemia with no overt bleeding. EGD and colonoscopy are both normal. Which test comes next?", "options": [{"letter": "A", "text": "Video capsule endoscopy"}, {"letter": "B", "text": "Small bowel follow-through"}, {"letter": "C", "text": "Repeat colonoscopy in six months"}, {"letter": "D", "text": "Double-contrast barium enema"}], "answer": "A", "explanation": "For obscure GI bleeding with normal EGD and colonoscopy, use video capsule endoscopy — visualization only, no biopsy, retention 1–3% — or push/balloon enteroscopy if biopsy or therapy is needed. SBFT is not the study for GI bleeding. For acute brisk bleeding use CT angiography; for slow bleeding, tagged-RBC scintigraphy."}, {"id": "58", "group": 58, "section": "Contrast studies & endoscopy", "objective": "Pattern Guide §5 — Scope facts", "stem": "During EGD for an upper GI bleed, which ulcer finding does NOT require endoscopic therapy?", "options": [{"letter": "A", "text": "A non-bleeding visible vessel"}, {"letter": "B", "text": "Active bleeding from the ulcer"}, {"letter": "C", "text": "An adherent clot"}, {"letter": "D", "text": "A clean-based ulcer"}], "answer": "D", "explanation": "Endoscopic predictors of persistent or recurrent bleeding — active bleeding, a non-bleeding visible vessel, or an adherent clot — benefit from endoscopic therapy. Clean-based ulcers do not. Rebleeding is about 5% for clean-based ulcers versus up to 43% with a non-bleeding visible vessel."}, {"id": "59", "group": 59, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Gas patterns", "stem": "A 72-year-old woman with a prior hysterectomy and appendectomy presents with 18 hours of vomiting, abdominal distension, and obstipation. Bowel sounds are hyperactive and high-pitched. The upright film shows dilated central loops measuring 4.2 cm with valvulae crossing the full lumen, multiple air–fluid levels at staggered heights, and almost no gas in the rectum. What is the diagnosis?", "options": [{"letter": "A", "text": "Generalized adynamic ileus"}, {"letter": "B", "text": "Sigmoid volvulus"}, {"letter": "C", "text": "Mechanical large bowel obstruction"}, {"letter": "D", "text": "Mechanical small bowel obstruction"}], "answer": "D", "explanation": "The classic triad is dilated small bowel above 3 cm, multiple air–fluid levels, and a paucity or absence of distal and rectal gas. Central loops with valvulae conniventes crossing the full lumen confirm small bowel, and hyperactive high-pitched sounds fit peristalsis fighting a block. Differential level heights of 20–25 mm within one loop are most specific for mechanical obstruction."}, {"id": "59a", "group": 59, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Gas patterns", "stem": "The most likely underlying cause is:", "options": [{"letter": "A", "text": "Incarcerated inguinal hernia"}, {"letter": "B", "text": "Colon cancer"}, {"letter": "C", "text": "Intussusception"}, {"letter": "D", "text": "Post-operative adhesions"}], "answer": "D", "explanation": "Post-operative adhesions cause up to 70% of bowel obstructions in developed countries. Risk factors include prior colorectal, appendiceal, and gynecologic surgery, and each prior episode of obstruction raises the odds of another. Colon cancer is the most common cause of LARGE bowel obstruction."}, {"id": "59b", "group": 59, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Test of choice", "stem": "The appropriate next imaging step is:", "options": [{"letter": "A", "text": "CT with both IV and oral contrast"}, {"letter": "B", "text": "Upper GI series with small bowel follow-through"}, {"letter": "C", "text": "Double-contrast barium enema of the colon"}, {"letter": "D", "text": "CT with IV contrast and no oral contrast"}], "answer": "D", "explanation": "Do the plain film first, then CT with IV contrast, which is most sensitive for confirming obstruction and identifying the transition point, cause, and complications — and IV contrast is what detects ischemia and strangulation. Oral contrast should generally be avoided in suspected high-grade SBO because it worsens discomfort and risks aspiration."}, {"id": "60", "group": 60, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Gas patterns", "stem": "A 68-year-old man is one day out from a sigmoid colectomy. His abdomen is distended and tympanitic with absent bowel sounds. The supine film shows gaseous distension of both small and large bowel with no transition point, and gas is present in the rectum. What is the diagnosis and management?", "options": [{"letter": "A", "text": "Adynamic ileus — supportive care and electrolyte repletion"}, {"letter": "B", "text": "Mechanical SBO — urgent operative exploration"}, {"letter": "C", "text": "Mechanical LBO — urgent endoscopic decompression"}, {"letter": "D", "text": "Toxic megacolon — steroids and broad antibiotics"}], "answer": "A", "explanation": "Generalized ileus is failure of peristalsis, not a blockage: diffuse dilation of BOTH small and large bowel, no transition point, and gas down to the rectum, with absent or hypoactive sounds. The most common cause is recent abdominal or pelvic surgery, generally lasting 48–72 hours. Also consider hypokalemia, hypomagnesemia, opioids, and anticholinergics."}, {"id": "60a", "group": 60, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Gas patterns", "stem": "Overnight he develops severe pain out of proportion to his exam. This raises concern for:", "options": [{"letter": "A", "text": "Bowel ischemia"}, {"letter": "B", "text": "A resolving ileus"}, {"letter": "C", "text": "A new mechanical obstruction"}, {"letter": "D", "text": "Inadequate analgesic dosing"}], "answer": "A", "explanation": "An ileus with no transition point is not a mechanical obstruction to be relieved surgically — but reassess if pain becomes severe, since significant bowel ischemia can also cause a functional ileus and severe abdominal pain is part of that picture."}, {"id": "61", "group": 61, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Named signs", "stem": "An 81-year-old nursing home resident with chronic constipation presents with massive abdominal distension. The plain film shows an enormously dilated U-shaped loop arising from the pelvis toward the right upper quadrant, with opposed medial walls. What is the diagnosis?", "options": [{"letter": "A", "text": "Cecal volvulus"}, {"letter": "B", "text": "Sigmoid volvulus"}, {"letter": "C", "text": "Toxic megacolon"}, {"letter": "D", "text": "Intussusception"}], "answer": "B", "explanation": "This is the coffee bean sign of sigmoid volvulus, a closed-loop obstruction in which an air-filled sigmoid twists on its mesentery, occluding both lumen and blood supply. It classically occurs in older, institutionalized, or chronically constipated men, and untreated it progresses rapidly to ischemia and perforation, so prompt detorsion is essential."}, {"id": "62", "group": 62, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Free air", "stem": "A 59-year-old man with a history of peptic ulcer disease develops sudden severe epigastric pain and now has a rigid abdomen. He is able to sit upright. Which single film is most sensitive for the finding you are looking for?", "options": [{"letter": "A", "text": "Supine abdomen"}, {"letter": "B", "text": "Upright abdomen"}, {"letter": "C", "text": "Upright PA chest"}, {"letter": "D", "text": "Right lateral decubitus abdomen"}], "answer": "C", "explanation": "The upright PA chest detects as little as 1–2 mL of free air after 5–10 minutes upright, while a plain abdominal film needs about 5 mL. Free air rises beneath the diaphragm and is easiest to see under the right hemidiaphragm, where the liver gives a solid background. Free air in an acute abdomen is a surgical emergency."}, {"id": "62a", "group": 62, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Free air", "stem": "If he could not be positioned upright, the alternative would be:", "options": [{"letter": "A", "text": "Prone abdominal film after 5 minutes"}, {"letter": "B", "text": "Left lateral decubitus for at least 5 minutes"}, {"letter": "C", "text": "Supine cross-table lateral abdomen"}, {"letter": "D", "text": "Right lateral decubitus for at least 5 minutes"}], "answer": "B", "explanation": "The patient lies on the LEFT side for at least 5 minutes so free air rises to the highest point on the patient's right — a black crescent over the outer edge of the liver where no bowel gas normally lies. Left is preferred because gas normally present in the stomach and descending colon makes a right decubitus film harder to read."}, {"id": "63", "group": 63, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Free-air mimics", "stem": "A chest film in an asymptomatic patient shows a lucency between the liver and the right hemidiaphragm. On close inspection the lucency contains haustral markings and a visible bowel wall. This is:", "options": [{"letter": "A", "text": "Football sign"}, {"letter": "B", "text": "Chilaiditi sign"}, {"letter": "C", "text": "Free air from a perforation"}, {"letter": "D", "text": "Rigler sign"}], "answer": "B", "explanation": "Chilaiditi sign is colon, usually the hepatic flexure, interposed between the liver and the right hemidiaphragm. The lucency contains haustra and bowel-wall markings, so it is inside the colon, not free. With symptoms it is called Chilaiditi syndrome. Rigler sign is gas on both sides of the bowel wall on a supine film."}, {"id": "64", "group": 64, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — RUQ US vs HIDA", "stem": "A 44-year-old woman has 8 hours of constant right upper quadrant pain that began after a fried meal. Her temperature is 100.9°F and she has maximal tenderness with inspiratory arrest on palpation of the RUQ. Which imaging study should be ordered first?", "options": [{"letter": "A", "text": "Magnetic resonance cholangiopancreatography"}, {"letter": "B", "text": "CT abdomen and pelvis with contrast"}, {"letter": "C", "text": "Right upper quadrant ultrasound"}, {"letter": "D", "text": "Hepatobiliary iminodiacetic acid scan"}], "answer": "C", "explanation": "Ultrasound is first for RUQ pain, every time — bedside-capable, no absolute contraindications, safe in pregnancy and children, and more sensitive than CT for gallstones and biliary dilatation. HIDA is the follow-up question, not the opening move."}, {"id": "64a", "group": 64, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — RUQ US vs HIDA", "stem": "Which ultrasound combination gives a positive predictive value near 90–95%?", "options": [{"letter": "A", "text": "Stones, wall over 3 mm, sonographic Murphy sign"}, {"letter": "B", "text": "Duct dilation with a contracted gallbladder"}, {"letter": "C", "text": "Echogenic material without acoustic shadowing"}, {"letter": "D", "text": "Stones alone with a normal gallbladder wall"}], "answer": "A", "explanation": "Gallstones plus wall thickening plus a positive sonographic Murphy sign together give a PPV of about 90–95% for acute cholecystitis. Option B is the picture of biliary colic. Option D describes sludge, which is echogenic but casts no acoustic shadow, while stones do."}, {"id": "64b", "group": 64, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — RUQ US vs HIDA", "stem": "Her ultrasound is equivocal, so a HIDA is done. Acute cholecystitis is shown by:", "options": [{"letter": "A", "text": "Ejection fraction below 35% after CCK"}, {"letter": "B", "text": "Tracer pooling outside the biliary tree"}, {"letter": "C", "text": "Gallbladder non-visualization at one hour"}, {"letter": "D", "text": "Gallbladder filling within 45 minutes"}], "answer": "C", "explanation": "Non-visualization of the gallbladder within about 1 hour, while the CBD and small bowel fill normally, indicates cystic duct obstruction — a photopenic area in the gallbladder fossa. A low ejection fraction after CCK is chronic cholecystitis or dyskinesia; tracer outside the tree is a bile leak; filling by 45 minutes is normal."}, {"id": "65", "group": 65, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — RUQ US vs HIDA", "stem": "A 39-year-old woman has 18 months of recurrent post-prandial right upper quadrant pain. Ultrasound has been repeatedly normal and her liver chemistries are normal. Which test and result would establish the likely diagnosis?", "options": [{"letter": "A", "text": "CT showing pericholecystic fat stranding"}, {"letter": "B", "text": "HIDA with CCK showing ejection fraction below 35%"}, {"letter": "C", "text": "MRCP showing a dilated common bile duct"}, {"letter": "D", "text": "HIDA showing gallbladder non-visualization at one hour"}], "answer": "B", "explanation": "HIDA is also indicated for chronic cholecystitis and biliary dyskinesia, where the finding is delayed filling or a low gallbladder ejection fraction below 35% after CCK stimulation. CCK is secreted by small-intestinal I cells after a meal and contracts the gallbladder, which is why it is used to measure ejection fraction."}, {"id": "66", "group": 66, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Test of choice", "stem": "A 28-year-old woman who is 22 weeks pregnant presents with 12 hours of right lower quadrant pain, anorexia, and a low-grade fever. Which imaging should be obtained first?", "options": [{"letter": "A", "text": "Abdominal ultrasound"}, {"letter": "B", "text": "Three-view acute abdominal series"}, {"letter": "C", "text": "CT abdomen and pelvis with contrast"}, {"letter": "D", "text": "MRI abdomen with gadolinium"}], "answer": "A", "explanation": "For suspected appendicitis in children and in pregnancy, ultrasound comes first to spare radiation, with CT or MRI only if the US is nondiagnostic. Ultrasound has no absolute contraindications and is safe in pregnancy and children. MRI is preferred in the second and third trimesters, but gadolinium is contraindicated in pregnancy."}, {"id": "67", "group": 67, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Test of choice", "stem": "A 62-year-old man has three days of left lower quadrant pain, a fever of 101.2°F, and a WBC of 14,500. What is the imaging study of choice?", "options": [{"letter": "A", "text": "Colonoscopy with biopsy"}, {"letter": "B", "text": "Graded-compression abdominal ultrasound"}, {"letter": "C", "text": "Double-contrast barium enema"}, {"letter": "D", "text": "CT with IV contrast"}], "answer": "D", "explanation": "CT with IV contrast is the test of choice for diverticulitis, showing inflamed diverticula, segmental colonic wall thickening with enhancement, and pericolic fat stranding with or without fluid or gas locules. These patients are usually older than 50, so know their renal function before ordering IV contrast."}, {"id": "67a", "group": 67, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §7 — Contraindication cluster", "stem": "A colleague suggests colonoscopy now to confirm it. Colonoscopy and barium enema are:", "options": [{"letter": "A", "text": "Acceptable, with barium enema the safer choice"}, {"letter": "B", "text": "Acceptable if performed without insufflation"}, {"letter": "C", "text": "Both contraindicated during the acute episode"}, {"letter": "D", "text": "Acceptable if limited to flexible sigmoidoscopy"}], "answer": "C", "explanation": "Suspected acute diverticulitis and fulminant colitis or toxic megacolon are contraindications to colonoscopy and flexible sigmoidoscopy, and the same logic forbids distending an acutely inflamed colon with barium and air. Image with CT instead."}, {"id": "68", "group": 68, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Test of choice", "stem": "A 41-year-old man has sudden severe left flank pain radiating to the groin, with gross hematuria. Which imaging is preferred?", "options": [{"letter": "A", "text": "Noncontrast helical CT"}, {"letter": "B", "text": "CT with IV and oral contrast"}, {"letter": "C", "text": "Plain abdominal radiograph"}, {"letter": "D", "text": "CT with IV contrast"}], "answer": "A", "explanation": "Noncontrast helical CT — the \"stone protocol\" — has replaced KUB as the preferred test for suspected nephrolithiasis, with a negative predictive value of about 98%. KUB is only 50–60% sensitive and misses small stones and radiolucent uric acid stones. The kidney stone is the exception to the CT-with-IV-contrast rule."}, {"id": "69", "group": 69, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Calcifications", "stem": "A KUB obtained to evaluate constipation shows amorphous, popcorn-like calcifications scattered across the epigastrium. These represent:", "options": [{"letter": "A", "text": "Gallstones"}, {"letter": "B", "text": "Renal calculi"}, {"letter": "C", "text": "Aortic atherosclerosis"}, {"letter": "D", "text": "Chronic pancreatitis"}], "answer": "D", "explanation": "Pancreatic calcification is a reliable sign of chronic pancreatitis and can frequently be picked up on plain film, appearing amorphous or popcorn-like in the epigastrium — the head projects into the RUQ and the tail into the LUQ. Laminated means a stone, track-like means an artery, and rim-like means the wall of something."}, {"id": "69a", "group": 69, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Calcifications", "stem": "The same film shows small round pelvic calcifications with lucent centers. These are:", "options": [{"letter": "A", "text": "Appendicoliths"}, {"letter": "B", "text": "Phleboliths"}, {"letter": "C", "text": "Calcified uterine fibroids"}, {"letter": "D", "text": "Distal ureteral stones"}], "answer": "B", "explanation": "Phleboliths are small, rounded calcifications with a lucent center, representing calcified venous thrombi. They occur with age, most often in the pelvic veins of women, and are NORMAL. An appendicolith is laminated and sits in the right iliac fossa; fibroids are large and round."}, {"id": "70", "group": 70, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — The numbers", "stem": "Which set of measurements gives the upper limits of normal bowel caliber on an abdominal plain film, for small bowel, colon, and cecum respectively?", "options": [{"letter": "A", "text": "3 cm, 6 cm, 9 cm"}, {"letter": "B", "text": "6 cm, 3 cm, 9 cm"}, {"letter": "C", "text": "2 cm, 4 cm, 6 cm"}, {"letter": "D", "text": "5 cm, 9 cm, 12 cm"}], "answer": "A", "explanation": "The 3/6/9 rule: small bowel above 3 cm, colon above 6 cm, and cecum above 9 cm are dilated, and a cecum over 9 cm carries a high risk of perforation. Distended — enough air to outline the lumen — is normal; dilated, exceeding normal caliber, is abnormal."}, {"id": "71", "group": 71, "section": "Acute abdomen & plain film", "objective": "Pattern Guide §6 — Named signs", "stem": "A supine abdominal film shows a single persistently dilated loop of small bowel in the left upper quadrant on multiple views, with the rest of the bowel normal and gas present throughout the colon and rectum. Which diagnosis does this point to?", "options": [{"letter": "A", "text": "Acute pancreatitis"}, {"letter": "B", "text": "Acute diverticulitis"}, {"letter": "C", "text": "Acute appendicitis"}, {"letter": "D", "text": "Acute cholecystitis"}], "answer": "A", "explanation": "This is a sentinel loop — a localized ileus in which focal irritation from an adjacent inflamed organ paralyzes one or two loops while the rest of the bowel looks normal. Read the quadrant: LUQ or epigastrium means pancreatitis, RUQ cholecystitis, RLQ appendicitis, LLQ diverticulitis. Gas still reaching the rectum separates it from obstruction."}, {"id": "72", "group": 72, "section": "Cross-cutting rules", "objective": "Pattern Guide §7 — Contrast safety", "stem": "A 74-year-old man with diabetes and an eGFR of 24 mL/min needs a CT with IV contrast for a suspected abdominal abscess. He takes metformin daily. The metformin should be:", "options": [{"letter": "A", "text": "Replaced permanently with a sulfonylurea agent"}, {"letter": "B", "text": "Held for 48 hours after contrast"}, {"letter": "C", "text": "Held for seven days before the scan"}, {"letter": "D", "text": "Continued without any interruption or monitoring"}], "answer": "B", "explanation": "If eGFR is below 30 or there is acute kidney injury, hold metformin at the time of contrast and for 48 hours, restarting once renal function is stable. Contrast-associated AKI risk is lower than once thought, but be cautious below eGFR 30; at stable CKD with eGFR 30 or above, contrast is usually acceptable with hydration."}, {"id": "73", "group": 73, "section": "Cross-cutting rules", "objective": "Pattern Guide §7 — Contrast safety", "stem": "During a contrast-enhanced CT a patient reports a wave of warmth and a metallic taste. She is hemodynamically stable with no rash, wheeze, or swelling. This is:", "options": [{"letter": "A", "text": "An early anaphylactoid reaction"}, {"letter": "B", "text": "A common non-allergic reaction"}, {"letter": "C", "text": "A true contrast allergy"}, {"letter": "D", "text": "An early sign of contrast nephropathy"}], "answer": "B", "explanation": "Warmth, metallic taste, and brief nausea are common and non-allergic — reassure the patient, and no premedication is needed for future studies. True allergy means prior hives, bronchospasm, hypotension, or anaphylaxis, and those patients get a steroid and antihistamine premedication protocol."}, {"id": "74", "group": 74, "section": "Cross-cutting rules", "objective": "Pattern Guide §7 — Radiation", "stem": "Which pair of imaging modalities involves NO ionizing radiation?", "options": [{"letter": "A", "text": "MRI and fluoroscopy"}, {"letter": "B", "text": "Ultrasound and HIDA scan"}, {"letter": "C", "text": "Plain radiography and MRCP"}, {"letter": "D", "text": "Ultrasound and MRI"}], "answer": "D", "explanation": "Ultrasound and MRI/MRCP use no ionizing radiation. Plain films, CT (by far the largest dose), fluoroscopy, and nuclear medicine studies such as HIDA, gastric emptying, and tagged-RBC scintigraphy all do. Nuclear medicine dose is modest and involves no iodinated contrast, so reactions are rare."}, {"id": "75", "group": 75, "section": "Cross-cutting rules", "objective": "Pattern Guide §7 — Seven reflexes to suppress", "stem": "A 33-year-old man has typical heartburn that partially improved with lifestyle changes. He has no epigastric pain, weight loss, anemia, or vomiting. He asks to be tested for H. pylori. Testing is:", "options": [{"letter": "A", "text": "Recommended, using a stool antigen test"}, {"letter": "B", "text": "Not recommended in typical GERD"}, {"letter": "C", "text": "Recommended, using serology"}, {"letter": "D", "text": "Recommended, using EGD with biopsy"}], "answer": "B", "explanation": "H. pylori testing is NOT recommended in the workup of typical GERD — a patient without epigastric pain in whom neither PUD nor gastritis is suspected. Typical GERD without red flags is a clinical diagnosis managed with lifestyle modification and a PPI. Always keep cardiac ischemia on the differential of \"heartburn.\""}]};
+
+
+  // --- Reshuffle on every open: stack order and answer options ---
+  (function reshuffle() {
+    function shuf(a) {
+      for (var i = a.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var t = a[i]; a[i] = a[j]; a[j] = t;
+      }
+      return a;
+    }
+    var LET = ['A', 'B', 'C', 'D', 'E', 'F'];
+    EXAM_DATA.questions.forEach(function (q) {
+      var correct = null;
+      q.options.forEach(function (o) { if (o.letter === q.answer) correct = o.text; });
+      var texts = shuf(q.options.map(function (o) { return o.text; }));
+      q.options = texts.map(function (txt, i) { return { letter: LET[i], text: txt }; });
+      q.options.forEach(function (o) { if (o.text === correct) q.answer = o.letter; });
+    });
+    // shuffle the order of the stacks, keeping each stack's internal order intact
+    var byGroup = {}, order = [];
+    EXAM_DATA.questions.forEach(function (q) {
+      if (!byGroup[q.group]) { byGroup[q.group] = []; order.push(q.group); }
+      byGroup[q.group].push(q);
+    });
+    shuf(order);
+    var out = [];
+    order.forEach(function (g) { byGroup[g].forEach(function (q) { out.push(q); }); });
+    EXAM_DATA.questions = out;
+  })();
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
