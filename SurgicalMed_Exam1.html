@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Surgical Medicine Exam 1 — Combined Pattern Guide Practice Exam", "questions": [{"id": "1", "group": 1, "stem": "Postoperative day 6 after sigmoid colectomy: fever, tachycardia, prolonged ileus, leukocytosis → Diagnosis:", "options": [{"letter": "A", "text": "Anastomotic leak"}, {"letter": "B", "text": "Incisional hernia"}, {"letter": "C", "text": "Urinary tract infection"}, {"letter": "D", "text": "C. difficile colitis"}, {"letter": "E", "text": "Atelectasis"}], "answer": "A", "explanation": "Anastomotic leak classically declares on POD 5–7 with fever, tachycardia, ileus and leukocytosis → CT with rectal contrast; drain a contained leak, reoperate with washout and diversion for a free leak.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "2", "group": 2, "stem": "The team is about to incise; music is playing and no verification has been done → Next step:", "options": [{"letter": "A", "text": "Have the resident verify alone"}, {"letter": "B", "text": "Stop and perform the timeout"}, {"letter": "C", "text": "Ask the circulator to document it"}, {"letter": "D", "text": "Proceed — consent is on the chart"}, {"letter": "E", "text": "Confirm the site after incision"}], "answer": "B", "explanation": "Before incision all activity stops for the timeout: everyone states name and role; patient, procedure, site, side, consent, antibiotics, imaging and blood are confirmed. Skipping the timeout is a reportable event.", "objective": "Combined Pattern Guide — 1 · The Surgical Patient", "section": "1 · The Surgical Patient"}, {"id": "3", "group": 3, "stem": "Painless bright red blood with bowel movements and a prolapse that protrudes with straining but reduces on its own → Grade:", "options": [{"letter": "A", "text": "Grade III"}, {"letter": "B", "text": "Not gradable — external"}, {"letter": "C", "text": "Grade IV"}, {"letter": "D", "text": "Grade I"}, {"letter": "E", "text": "Grade II"}], "answer": "E", "explanation": "Grade I bleeds without prolapse; II protrudes with straining and reduces spontaneously; III requires manual reduction; IV is chronically prolapsed and irreducible.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "3A", "group": 3, "stem": "What is the preferred office treatment?", "options": [{"letter": "A", "text": "Operative hemorrhoidectomy"}, {"letter": "B", "text": "Hemorrhoid artery ligation"}, {"letter": "C", "text": "Rubber band ligation"}, {"letter": "D", "text": "Stapled hemorrhoidopexy"}, {"letter": "E", "text": "Incision and drainage"}], "answer": "C", "explanation": "Office procedures — rubber band ligation, infrared coagulation, sclerotherapy — for internal hemorrhoids only: no anesthesia, 1% complications, 60–80% long-term success.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "4", "group": 4, "stem": "A 35-year-old man has 24 hours of acute, severe anal pain and a tender purple lump at the anal verge. What is the management?", "options": [{"letter": "A", "text": "Fiber and warm baths only"}, {"letter": "B", "text": "Incision and drainage of abscess"}, {"letter": "C", "text": "Excision"}, {"letter": "D", "text": "Rubber band ligation"}, {"letter": "E", "text": "Stapled hemorrhoidopexy"}], "answer": "C", "explanation": "Thrombosed external hemorrhoid — excision helps most in the first 48–72 hours of severe pain; after that the pain is already improving (resolves in 1–2 weeks, leaving skin tags).", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "5", "group": 5, "stem": "PPP SAFE DISC is the template for →", "options": [{"letter": "A", "text": "Post-op / procedure note"}, {"letter": "B", "text": "Discharge summary"}, {"letter": "C", "text": "Pre-op note"}, {"letter": "D", "text": "Admission orders"}, {"letter": "E", "text": "Consult note"}], "answer": "A", "explanation": "PPP SAFE DISC: Pre-op dx, Post-op dx, Procedure, Surgeon + assistants, Anesthesia, Fluids, EBL, Drains, IVFs, Specimen, Complications. ADC VANDALISM is admission and post-op orders.", "objective": "Combined Pattern Guide — 7 · Documentation", "section": "7 · Documentation"}, {"id": "6", "group": 6, "stem": "A 79-year-old woman on hemodialysis had a hypotensive episode during her session; 12 hours later she developed crampy left-sided abdominal pain followed by bloody diarrhea. She has mild left-sided tenderness without peritonitis. What is the diagnosis?", "options": [{"letter": "A", "text": "Ischemic colitis"}, {"letter": "B", "text": "Diverticulitis"}, {"letter": "C", "text": "Ulcerative colitis"}, {"letter": "D", "text": "Infectious colitis"}, {"letter": "E", "text": "Acute mesenteric ischemia"}], "answer": "A", "explanation": "Ischemic colitis: non-occlusive low flow in a watershed after hypotension/dialysis; crampy left pain → bloody diarrhea within 24 h; tenderness proportionate to exam, unlike mesenteric ischemia.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "6A", "group": 6, "stem": "Which segment is most likely involved?", "options": [{"letter": "A", "text": "Hepatic flexure"}, {"letter": "B", "text": "Terminal ileum"}, {"letter": "C", "text": "Rectum"}, {"letter": "D", "text": "Cecum"}, {"letter": "E", "text": "Splenic flexure"}], "answer": "E", "explanation": "Watershed zones: splenic flexure (Griffiths' point) and rectosigmoid (Sudeck's point), where the SMA–IMA marginal artery is weakest. The rectum is spared (internal iliac dual supply).", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "7", "group": 7, "stem": "A 26-year-old woman has 4 months of diarrhea, weight loss and right lower quadrant pain, and a draining perianal fistula. Colonoscopy shows skip lesions with rectal sparing and deep ulcers in the terminal ileum. What is the diagnosis?", "options": [{"letter": "A", "text": "Ischemic colitis"}, {"letter": "B", "text": "C. difficile colitis"}, {"letter": "C", "text": "Ulcerative colitis"}, {"letter": "D", "text": "Diverticulitis"}, {"letter": "E", "text": "Crohn's disease"}], "answer": "E", "explanation": "Transmural inflammation with skip lesions, rectal sparing and perianal fistula/abscess = Crohn's. UC does not do perianal disease and always involves the rectum.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "7A", "group": 7, "stem": "She later develops a small-bowel stricture. Which operation preserves bowel length?", "options": [{"letter": "A", "text": "Ileostomy"}, {"letter": "B", "text": "Stricturoplasty"}, {"letter": "C", "text": "Total colectomy"}, {"letter": "D", "text": "Bypass"}, {"letter": "E", "text": "Segmental resection"}], "answer": "B", "explanation": "Stricturoplasty widens a stricture without removing bowel — bowel length is the currency in Crohn's, and surgery is never curative.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "8", "group": 8, "stem": "Teenager with hundreds of colonic polyps → Syndrome:", "options": [{"letter": "A", "text": "FAP"}, {"letter": "B", "text": "Peutz-Jeghers"}, {"letter": "C", "text": "MYH-associated polyposis"}, {"letter": "D", "text": "Juvenile polyposis"}, {"letter": "E", "text": "HNPCC / Lynch"}], "answer": "A", "explanation": "FAP: autosomal dominant APC defect, 2nd decade, 100s–1000s of polyps, 93% risk of CRC by age 50 → early prophylactic surgery and frequent upper endoscopy. HNPCC is young, right-sided, mucinous, mismatch repair, 80% lifetime risk.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "9", "group": 9, "stem": "A 70-year-old man with a prior open colectomy has 1 day of colicky abdominal pain, bilious vomiting and distension, and has passed no flatus. Abdominal X-ray shows air-fluid levels. Lactate is normal and there is no peritonitis. What is the initial management?", "options": [{"letter": "A", "text": "Immediate exploratory laparotomy"}, {"letter": "B", "text": "Small bowel follow-through then laparotomy"}, {"letter": "C", "text": "Oral antibiotics and discharge"}, {"letter": "D", "text": "NG decompression, IV fluids, bowel rest"}, {"letter": "E", "text": "Colonoscopic decompression"}], "answer": "D", "explanation": "Conservative first: bowel rest, IV fluids, NGT decompression, serial exams, antibiotics only if complicated; nonoperative management succeeds in ~75%.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "9A", "group": 9, "stem": "How long may the nonoperative trial continue?", "options": [{"letter": "A", "text": "7–10 days"}, {"letter": "B", "text": "Until flatus returns, however long"}, {"letter": "C", "text": "24 hours"}, {"letter": "D", "text": "3–5 days"}, {"letter": "E", "text": "14 days"}], "answer": "D", "explanation": "Do not extend nonoperative management beyond 3–5 days — it increases morbidity and mortality. Rising lactate, fever, tachycardia, peritonitis or a closed loop on CT → operate now.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "10", "group": 10, "stem": "Which medication should be stopped 1 week before surgery?", "options": [{"letter": "A", "text": "Omeprazole"}, {"letter": "B", "text": "Sertraline"}, {"letter": "C", "text": "Ginkgo"}, {"letter": "D", "text": "Metoprolol"}, {"letter": "E", "text": "Levothyroxine"}], "answer": "C", "explanation": "NSAIDs, aspirin, vitamin E and herbals (ginkgo, garlic, ginseng, ginger, turmeric, feverfew, dong quai, ephedra, green tea) disrupt coagulation — stop 1 week pre-op. Chronic β-blockers, thyroid, GERD and psychotropic meds are taken.", "objective": "Combined Pattern Guide — 3 · Medication Engine", "section": "3 · Medication Engine"}, {"id": "11", "group": 11, "stem": "During laparoscopic cholecystectomy, inflammation prevents visualization of the anatomy → Action:", "options": [{"letter": "A", "text": "Continue with intraoperative cholangiogram only"}, {"letter": "B", "text": "Clip what can be seen and finish"}, {"letter": "C", "text": "Abort and place a cholecystostomy tube"}, {"letter": "D", "text": "Convert to open"}, {"letter": "E", "text": "Switch to robotic approach"}], "answer": "D", "explanation": "Conversion to open is a judgment call, not a complication — triggers are inflammation preventing visualization of the anatomy and bleeding. The complication is the injury (bile duct), not the conversion.", "objective": "Combined Pattern Guide — 6 · Named Operations & MIS", "section": "6 · Named Operations & MIS"}, {"id": "12", "group": 12, "stem": "Opening the electronic record of a patient you are not treating →", "options": [{"letter": "A", "text": "Permitted for education"}, {"letter": "B", "text": "Permitted with verbal consent"}, {"letter": "C", "text": "Permitted if the record is public"}, {"letter": "D", "text": "HIPAA violation — federal crime"}, {"letter": "E", "text": "Permitted on your own service"}], "answer": "D", "explanation": "HIPAA (1996): without a specific written release the record may never be viewed by an outside party; opening a chart you are not caring for is a federal crime and fireable.", "objective": "Combined Pattern Guide — 7 · Documentation", "section": "7 · Documentation"}, {"id": "13", "group": 13, "stem": "Truncal vagotomy performed for complicated PUD → Must be added:", "options": [{"letter": "A", "text": "A drainage procedure"}, {"letter": "B", "text": "Nothing further"}, {"letter": "C", "text": "A fundoplication"}, {"letter": "D", "text": "A Roux-en-Y bypass"}, {"letter": "E", "text": "A gastrostomy tube"}], "answer": "A", "explanation": "Truncal vagotomy denervates (paralyzes) the pylorus — pair it with a drainage procedure; historically pyloroplasty or antrectomy + vagotomy.", "objective": "Combined Pattern Guide — 6 · Named Operations & MIS", "section": "6 · Named Operations & MIS"}, {"id": "14", "group": 14, "stem": "Perforated diverticulitis with generalized feculent peritonitis → Operation:", "options": [{"letter": "A", "text": "Sigmoid colectomy with primary anastomosis"}, {"letter": "B", "text": "Diverting loop ileostomy only"}, {"letter": "C", "text": "Hartmann's procedure"}, {"letter": "D", "text": "Percutaneous drainage"}, {"letter": "E", "text": "Total proctocolectomy"}], "answer": "C", "explanation": "Hinchey IV → OR: Hartmann's procedure (sigmoid resection, end colostomy, rectal stump) avoids an anastomosis in a septic, unprepped, contaminated field.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "15", "group": 15, "stem": "Post-bariatric patient with nausea and vomiting → Treatment to consider first:", "options": [{"letter": "A", "text": "Vitamin B12 injection"}, {"letter": "B", "text": "Thiamine (banana bag)"}, {"letter": "C", "text": "Proton pump inhibitor"}, {"letter": "D", "text": "Iron infusion"}, {"letter": "E", "text": "Ondansetron"}], "answer": "B", "explanation": "All bariatric patients risk vitamin deficiency (thiamine, B12, vitamin D). Post-op N/V → consider thiamine as the culprit and give a banana bag — Wernicke's is being prevented.", "objective": "Combined Pattern Guide — 3 · Medication Engine", "section": "3 · Medication Engine"}, {"id": "16", "group": 16, "stem": "A 47-year-old obese woman has 2 days of right upper quadrant pain, fever to 38.3 °C and nausea. Deep palpation of the right upper quadrant produces inspiratory arrest. WBC is 13,000; bilirubin is 1.4 mg/dL and alkaline phosphatase is mildly elevated. What is the test of choice?", "options": [{"letter": "A", "text": "HIDA scan"}, {"letter": "B", "text": "Ultrasound"}, {"letter": "C", "text": "MRCP"}, {"letter": "D", "text": "ERCP"}, {"letter": "E", "text": "CT abdomen/pelvis"}], "answer": "B", "explanation": "Ultrasound is the test of choice for gallbladder disease: stones, wall thickening, pericholecystic fluid, distension, impacted stone, sonographic Murphy's. Mild LFT elevation fits cholecystitis; marked elevation would push toward choledocholithiasis/cholangitis.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "16A", "group": 16, "stem": "What is the definitive management?", "options": [{"letter": "A", "text": "Early laparoscopic cholecystectomy"}, {"letter": "B", "text": "Elective cholecystectomy in 6 weeks"}, {"letter": "C", "text": "Ursodiol and diet change"}, {"letter": "D", "text": "Cholecystostomy tube"}, {"letter": "E", "text": "ERCP with sphincterotomy"}], "answer": "A", "explanation": "Early cholecystectomy, laparoscopic much preferred (lower morbidity, shorter stay, faster return to work). A cholecystostomy tube with delayed cholecystectomy is for the patient too sick for an operation.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "17", "group": 17, "stem": "Pyloroplasty that bypasses the pylorus without dividing it →", "options": [{"letter": "A", "text": "Jaboulay"}, {"letter": "B", "text": "Heineke-Mikulicz"}, {"letter": "C", "text": "Gastrojejunostomy"}, {"letter": "D", "text": "Finney"}, {"letter": "E", "text": "Billroth I"}], "answer": "A", "explanation": "Heineke-Mikulicz = short segment (cuts the pylorus, closes transversely); Finney = longer segment (U-shaped); Jaboulay = worst duodenum, side-to-side gastroduodenostomy without cutting the pyloric ring.", "objective": "Combined Pattern Guide — 6 · Named Operations & MIS", "section": "6 · Named Operations & MIS"}, {"id": "18", "group": 18, "stem": "Consultation requested for a patient with heart disease before surgery → What you ask the consultant for:", "options": [{"letter": "A", "text": "Choice of operation"}, {"letter": "B", "text": "Surgical clearance"}, {"letter": "C", "text": "Permission to operate"}, {"letter": "D", "text": "A routine stress test"}, {"letter": "E", "text": "Risk estimate and optimization"}], "answer": "E", "explanation": "Consultants define the degree of risk and how to optimize — never \"clearance.\" Order a test only if the result will change management.", "objective": "Combined Pattern Guide — 8 · Cross-Cutting Rules", "section": "8 · Cross-Cutting Rules"}, {"id": "19", "group": 19, "stem": "Resection of an abdominal/pelvic malignancy → VTE prophylaxis plan:", "options": [{"letter": "A", "text": "Aspirin for 4 weeks"}, {"letter": "B", "text": "Early ambulation alone"}, {"letter": "C", "text": "LMWH until discharge only"}, {"letter": "D", "text": "IPC plus LMWH, extended 4 weeks"}, {"letter": "E", "text": "IPC devices alone"}], "answer": "D", "explanation": "High-risk tier: IPC plus LMWH or low-dose heparin, with extended 4-week LMWH after resection of an abdominal/pelvic malignancy.", "objective": "Combined Pattern Guide — 2 · Preoperative Risk", "section": "2 · Preoperative Risk"}, {"id": "20", "group": 20, "stem": "Large ventral hernia repair; now high airway pressures and oliguria → Diagnosis:", "options": [{"letter": "A", "text": "Postoperative ileus"}, {"letter": "B", "text": "Abdominal compartment syndrome"}, {"letter": "C", "text": "Anastomotic leak"}, {"letter": "D", "text": "Pulmonary embolism"}, {"letter": "E", "text": "Mesh infection"}], "answer": "B", "explanation": "Abdominal compartment syndrome is the complication unique to large ventral hernia repair — a big volume of viscera forced back into a small abdominal domain.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "21", "group": 21, "stem": "A 32-year-old man with ulcerative colitis has 8 bloody stools a day, temperature 39 °C, heart rate 125, WBC 16,000, hemoglobin 9 g/dL, blood pressure 95/60 and confusion. Abdominal X-ray shows the transverse colon dilated to 8 cm with loss of haustra. What is the diagnosis?", "options": [{"letter": "A", "text": "Toxic megacolon"}, {"letter": "B", "text": "Colonic volvulus"}, {"letter": "C", "text": "C. difficile colitis"}, {"letter": "D", "text": "Ischemic colitis"}, {"letter": "E", "text": "Fulminant colitis without megacolon"}], "answer": "A", "explanation": "Toxic megacolon: colon >6 cm with loss of haustra/thumbprinting plus ≥3 of (T >38.6, HR >120, WBC >10.5 K, anemia) plus ≥1 of (volume depletion, mental-status change, electrolyte abnormality, hypotension).", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "21A", "group": 21, "stem": "If he fails medical therapy, what is the operation?", "options": [{"letter": "A", "text": "Total proctocolectomy with IPAA"}, {"letter": "B", "text": "Segmental colectomy"}, {"letter": "C", "text": "Total colectomy with end ileostomy"}, {"letter": "D", "text": "Hartmann's procedure"}, {"letter": "E", "text": "Diverting loop ileostomy"}], "answer": "C", "explanation": "Urgent/emergent UC: total abdominal colectomy with end ileostomy — the rectum is left in place; no pelvic dissection on a septic, steroid-loaded patient. IPAA is the elective, staged operation.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "22", "group": 22, "stem": "A 56-year-old man with hypertension, BMI 38 and a 42-cm neck snores loudly and is tired during the day. He is scheduled for elective ventral hernia repair. Which screening tool is positive?", "options": [{"letter": "A", "text": "STOP-Bang"}, {"letter": "B", "text": "Duke Activity Status Index"}, {"letter": "C", "text": "ARISCAT"}, {"letter": "D", "text": "RCRI"}, {"letter": "E", "text": "ASA class"}], "answer": "A", "explanation": "STOP-Bang: Snoring, Tiredness, Observed apnea, Pressure, BMI >35, Age >50, Neck >40 cm, male Gender. OSA is an independent risk factor for postoperative pulmonary complications.", "objective": "Combined Pattern Guide — 2 · Preoperative Risk", "section": "2 · Preoperative Risk"}, {"id": "23", "group": 23, "stem": "A 62-year-old obese woman has an asymptomatic, reducible bulge in the right groin located below the inguinal ligament. What is the appropriate management?", "options": [{"letter": "A", "text": "Truss and follow-up"}, {"letter": "B", "text": "Repair only if it becomes painful"}, {"letter": "C", "text": "Surgical repair"}, {"letter": "D", "text": "Reduce and observe 6 months"}, {"letter": "E", "text": "Watchful waiting"}], "answer": "C", "explanation": "Femoral hernias proceed to surgery — watchful waiting is not appropriate.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "24", "group": 24, "stem": "A 66-year-old woman with end-stage renal disease on hemodialysis (Monday/Wednesday/Friday) presents Thursday for hernia repair. Her BUN is markedly elevated and she is oozing from IV sites. What is the mechanism of her bleeding?", "options": [{"letter": "A", "text": "Thrombocytopenia"}, {"letter": "B", "text": "Uremic platelet dysfunction"}, {"letter": "C", "text": "Vitamin K deficiency"}, {"letter": "D", "text": "Hepatic factor deficiency"}, {"letter": "E", "text": "Heparin from dialysis"}], "answer": "B", "explanation": "Renal failure → uremia (undialyzed, markedly elevated BUN) → interferes with platelet aggregation → diffuse bleeding diathesis.", "objective": "Combined Pattern Guide — 2 · Preoperative Risk", "section": "2 · Preoperative Risk"}, {"id": "24A", "group": 24, "stem": "What best corrects it?", "options": [{"letter": "A", "text": "Vitamin K"}, {"letter": "B", "text": "Plasma transfusion"}, {"letter": "C", "text": "Dialysis"}, {"letter": "D", "text": "Platelet transfusion"}, {"letter": "E", "text": "Protamine"}], "answer": "C", "explanation": "Uremic platelet dysfunction is best corrected by dialysis. The dialysis patient's must-know list: last session, dry weight, K⁺, access arm, next session.", "objective": "Combined Pattern Guide — 2 · Preoperative Risk", "section": "2 · Preoperative Risk"}, {"id": "25", "group": 25, "stem": "Groin bulge lateral to the inferior epigastric vessels extending into the scrotum → Hernia type:", "options": [{"letter": "A", "text": "Obturator"}, {"letter": "B", "text": "Indirect inguinal"}, {"letter": "C", "text": "Direct inguinal"}, {"letter": "D", "text": "Femoral"}, {"letter": "E", "text": "Spigelian"}], "answer": "B", "explanation": "Indirect = lateral to the inferior epigastrics, follows the canal into the scrotum, ~⅔ of inguinal hernias. Direct = medial, through Hesselbach's triangle.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "26", "group": 26, "stem": "A 52-year-old man with no symptoms is found to have iron-deficiency anemia on routine labs. What is the next step?", "options": [{"letter": "A", "text": "CT colonography"}, {"letter": "B", "text": "Stool antigen for H. pylori"}, {"letter": "C", "text": "Upper endoscopy only"}, {"letter": "D", "text": "Iron supplementation and recheck in 3 months"}, {"letter": "E", "text": "Colonoscopy"}], "answer": "E", "explanation": "Iron-deficiency anemia in a man or postmenopausal woman → colonoscopy — right-sided colon cancer until proven otherwise (right-sided cancers bleed occultly; left-sided obstruct).", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "26A", "group": 26, "stem": "Colonoscopy finds a cecal adenocarcinoma; staging shows a T3 tumor, one positive node and no metastases. What is the stage?", "options": [{"letter": "A", "text": "Stage IIIB only if T4"}, {"letter": "B", "text": "Stage II"}, {"letter": "C", "text": "Stage III"}, {"letter": "D", "text": "Stage IV"}, {"letter": "E", "text": "Stage I"}], "answer": "C", "explanation": "Nodes make it stage III; distant metastasis makes it stage IV; depth alone never passes stage II. Stage I = T1–2 N0; II = T3–4 N0; III = any T N1–2; IV = M1.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "27", "group": 27, "stem": "A 58-year-old healthy man with no medications is scheduled for elective inguinal hernia repair. A CBC and metabolic panel drawn 2 months ago at his physician's office were normal. He asks the pre-op clinic to draw \"baseline labs\" and to \"get cardiology to clear him\" before the operation. Which pre-op lab plan is most appropriate?", "options": [{"letter": "A", "text": "PT/INR and PTT"}, {"letter": "B", "text": "Full panel with ECG"}, {"letter": "C", "text": "No routine labs"}, {"letter": "D", "text": "Repeat CBC only"}, {"letter": "E", "text": "Repeat CBC and CMP"}], "answer": "C", "explanation": "Baseline labs are not recommended for the asymptomatic patient, and normal results within 4 months of elective surgery are not repeated — abnormalities can be predicted from the history.", "objective": "Combined Pattern Guide — 1 · The Surgical Patient", "section": "1 · The Surgical Patient"}, {"id": "27A", "group": 27, "stem": "What is the consultant's role if cardiology is asked to see him?", "options": [{"letter": "A", "text": "Sign the surgical consent"}, {"letter": "B", "text": "Clear the patient for surgery"}, {"letter": "C", "text": "Choose the anesthetic technique"}, {"letter": "D", "text": "Define risk and how to optimize"}, {"letter": "E", "text": "Order the routine stress test"}], "answer": "D", "explanation": "Consultants define the degree of perioperative risk and recommend preparation — they should never be asked to \"clear\" a patient. \"Obtain cardiology clearance\" is the distractor.", "objective": "Combined Pattern Guide — 1 · The Surgical Patient", "section": "1 · The Surgical Patient"}, {"id": "28", "group": 28, "stem": "Patient on apixaban for atrial fibrillation, low-bleeding-risk procedure → Bridging:", "options": [{"letter": "A", "text": "Bridge with IV heparin"}, {"letter": "B", "text": "Bridge with LMWH"}, {"letter": "C", "text": "Not recommended routinely"}, {"letter": "D", "text": "Switch to warfarin first"}, {"letter": "E", "text": "Continue apixaban through surgery"}], "answer": "C", "explanation": "Routine bridging is NOT recommended for most DOAC patients; interrupt per the DOAC pathway and document the restart. Bridging reduces time off anticoagulation but increases bleeding.", "objective": "Combined Pattern Guide — 3 · Medication Engine", "section": "3 · Medication Engine"}, {"id": "29", "group": 29, "stem": "Suspected colonic necrosis → Contrast study to avoid:", "options": [{"letter": "A", "text": "Barium enema"}, {"letter": "B", "text": "Gastrografin enema"}, {"letter": "C", "text": "CT with IV contrast"}, {"letter": "D", "text": "CT angiography"}, {"letter": "E", "text": "MRI with gadolinium"}], "answer": "A", "explanation": "Avoid barium if necrosis is suspected — barium peritonitis in a perforated colon is a catastrophe.", "objective": "Combined Pattern Guide — 8 · Cross-Cutting Rules", "section": "8 · Cross-Cutting Rules"}, {"id": "30", "group": 30, "stem": "A 72-year-old man is scheduled for elective colectomy for sigmoid cancer. Over 2 weeks he has developed worsening exertional dyspnea, orthopnea and a 10-lb weight gain. He has hypertension and insulin-requiring diabetes; creatinine is 1.1 mg/dL. Exam shows bibasilar crackles and jugular venous distension. What is the most appropriate next step?", "options": [{"letter": "A", "text": "Start a β-blocker the morning of surgery"}, {"letter": "B", "text": "Obtain cardiology clearance"}, {"letter": "C", "text": "Proceed with surgery as scheduled"}, {"letter": "D", "text": "Obtain a pre-op stress test"}, {"letter": "E", "text": "Delay surgery and optimize heart failure"}], "answer": "E", "explanation": "Decompensated heart failure is an active cardiac condition — delay elective surgery and evaluate/optimize (the deck's answer to this exact case was optimize HF, not stress test, not proceed).", "objective": "Combined Pattern Guide — 2 · Preoperative Risk", "section": "2 · Preoperative Risk"}, {"id": "31", "group": 31, "stem": "Bariatric procedure that is restrictive AND malabsorptive with ~70% excess weight loss →", "options": [{"letter": "A", "text": "Gastric banding"}, {"letter": "B", "text": "Duodenal switch"}, {"letter": "C", "text": "Sleeve gastrectomy"}, {"letter": "D", "text": "Intragastric balloon"}, {"letter": "E", "text": "Roux-en-Y gastric bypass"}], "answer": "E", "explanation": "Roux-en-Y = restrictive and malabsorptive, 70% EBWL in 12–18 months. Sleeve = restrictive only, 60% EBWL. Banding is no longer done.", "objective": "Combined Pattern Guide — 6 · Named Operations & MIS", "section": "6 · Named Operations & MIS"}, {"id": "32", "group": 32, "stem": "A 68-year-old man on apixaban for atrial fibrillation has brisk red blood per rectum without abdominal pain. Heart rate is 118 and blood pressure 92/60. He is resuscitated. What must be excluded before committing to a colonic source?", "options": [{"letter": "A", "text": "Colon cancer"}, {"letter": "B", "text": "An upper GI source"}, {"letter": "C", "text": "Infectious colitis"}, {"letter": "D", "text": "Hemorrhoids"}, {"letter": "E", "text": "Ischemic colitis"}], "answer": "B", "explanation": "~10% of apparent LGIB is an upper GI source — a brisk UGI bleed presents as red blood per rectum. Place an NG tube / consider EGD before any colon operation.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "32A", "group": 32, "stem": "A tagged-RBC scan is positive. What is the next step?", "options": [{"letter": "A", "text": "Capsule endoscopy"}, {"letter": "B", "text": "Repeat the scan in 24 hours"}, {"letter": "C", "text": "Colonoscopy"}, {"letter": "D", "text": "Empiric total colectomy"}, {"letter": "E", "text": "Angiography"}], "answer": "E", "explanation": "The tagged-RBC scan's real role is to trigger angiography — it raises angiographic detection from 22% to 53%. Angiography needs ≥1 mL/min and is therapeutic via vasoconstrictor or embolization.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "32B", "group": 32, "stem": "Bleeding is localized to the sigmoid but continues after 6 units of blood. What operation is indicated?", "options": [{"letter": "A", "text": "Diverting ileostomy only"}, {"letter": "B", "text": "Empiric total abdominal colectomy"}, {"letter": "C", "text": "Segmental colectomy based on localization"}, {"letter": "D", "text": "Hartmann's procedure"}, {"letter": "E", "text": "Blind left hemicolectomy"}], "answer": "C", "explanation": "Continued bleeding despite localization, maximal management and 6 units PRBC → segmental colectomy based on localization. Blind segmental colectomy rebleeds >50%.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "33", "group": 33, "stem": "A 78-year-old woman with atrial fibrillation not on anticoagulation develops sudden, severe, diffuse abdominal pain. Her abdomen is soft with minimal tenderness. Lactate is 4.5 mmol/L and WBC is 18,000. What is the most likely diagnosis?", "options": [{"letter": "A", "text": "Acute mesenteric ischemia"}, {"letter": "B", "text": "Small bowel obstruction"}, {"letter": "C", "text": "Perforated ulcer"}, {"letter": "D", "text": "Diverticulitis"}, {"letter": "E", "text": "Ischemic colitis"}], "answer": "A", "explanation": "Pain out of proportion to exam with a soft belly + AFib = embolic acute mesenteric ischemia; mortality >60%, driven by delayed diagnosis.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "33A", "group": 33, "stem": "What is the initial imaging study?", "options": [{"letter": "A", "text": "Abdominal ultrasound"}, {"letter": "B", "text": "Plain CT abdomen"}, {"letter": "C", "text": "Abdominal X-ray"}, {"letter": "D", "text": "CT angiography"}, {"letter": "E", "text": "Colonoscopy"}], "answer": "D", "explanation": "CT angiography is the initial test — not a plain CT and not an ultrasound; arteriography if the diagnosis is still in question.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "33B", "group": 33, "stem": "Along with resuscitation, what is the first therapeutic step?", "options": [{"letter": "A", "text": "Oral vasodilators"}, {"letter": "B", "text": "NG tube and observation"}, {"letter": "C", "text": "Broad-spectrum antibiotics alone"}, {"letter": "D", "text": "Systemic anticoagulation"}, {"letter": "E", "text": "Colonoscopic decompression"}], "answer": "D", "explanation": "Goal: restore blood flow rapidly — resuscitation, systemic anticoagulation, mesenteric revascularization (embolectomy, bypass, stent, thrombolysis, vasodilator infusion), then bowel exploration.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "34", "group": 34, "stem": "Which agent is in the ulcerative colitis algorithm but not the Crohn's algorithm?", "options": [{"letter": "A", "text": "Certolizumab pegol"}, {"letter": "B", "text": "Golimumab"}, {"letter": "C", "text": "Infliximab"}, {"letter": "D", "text": "Natalizumab"}, {"letter": "E", "text": "Adalimumab"}], "answer": "B", "explanation": "UC-specific: golimumab, ozanimod, tofacitinib. Crohn's-specific: certolizumab pegol, natalizumab, risankizumab-rzaa. Infliximab and adalimumab are shared.", "objective": "Combined Pattern Guide — 3 · Medication Engine", "section": "3 · Medication Engine"}, {"id": "35", "group": 35, "stem": "Family history of a fatal reaction to general anesthesia → Pre-op action:", "options": [{"letter": "A", "text": "Proceed with standard OR setup"}, {"letter": "B", "text": "Order a baseline coagulation panel"}, {"letter": "C", "text": "Routine pre-op ECG and CXR"}, {"letter": "D", "text": "Hold all medications the morning of surgery"}, {"letter": "E", "text": "Anesthesia consult for malignant hyperthermia"}], "answer": "E", "explanation": "A family history of malignant hyperthermia requires a dedicated pre-op anesthesia consult and a different OR setup.", "objective": "Combined Pattern Guide — 1 · The Surgical Patient", "section": "1 · The Surgical Patient"}, {"id": "36", "group": 36, "stem": "A 75-year-old man with known coronary artery disease is asymptomatic and walks 3 miles daily. He is scheduled for open AAA repair. Should a pre-op stress test be obtained?", "options": [{"letter": "A", "text": "Yes — he has known CAD"}, {"letter": "B", "text": "No — management would not change"}, {"letter": "C", "text": "Yes — the surgery is high risk"}, {"letter": "D", "text": "Yes — age over 70"}, {"letter": "E", "text": "No — he needs a cath instead"}], "answer": "B", "explanation": "Stress testing is avoided when functional capacity is good and results would not change management — even before high-risk surgery. Testing is considered only when elevated surgical risk, poor/unknown capacity, and clinical risk coincide and results will affect decisions.", "objective": "Combined Pattern Guide — 2 · Preoperative Risk", "section": "2 · Preoperative Risk"}, {"id": "37", "group": 37, "stem": "A 24-year-old woman has 18 hours of periumbilical pain that has migrated to the right lower quadrant, with anorexia and nausea that began after the pain. Her last menstrual period was 3 weeks ago. Temperature is 38.1 °C; there is right lower quadrant tenderness with guarding, and palpation of the left lower quadrant produces right-sided pain. WBC is 14,000. What is the next step before imaging?", "options": [{"letter": "A", "text": "PT/INR and PTT"}, {"letter": "B", "text": "Urine pregnancy test"}, {"letter": "C", "text": "Blood cultures"}, {"letter": "D", "text": "Abdominal X-ray"}, {"letter": "E", "text": "Serum lipase"}], "answer": "B", "explanation": "Always get a βhCG in a woman of childbearing age before imaging or the OR; the lecturer's appendicitis workup was CBC, CRP, UA ± pregnancy test — not a full panel with PT/PTT.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "37A", "group": 37, "stem": "What is the name of the exam finding elicited on the left?", "options": [{"letter": "A", "text": "Murphy's sign"}, {"letter": "B", "text": "McBurney's sign"}, {"letter": "C", "text": "Rovsing sign"}, {"letter": "D", "text": "Obturator sign"}, {"letter": "E", "text": "Iliopsoas sign"}], "answer": "C", "explanation": "Rovsing sign = LLQ palpation causing RLQ pain. Obturator = pain on internal rotation of the right hip (pelvic appendix); iliopsoas = pain on right hip extension (retrocecal appendix).", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "38", "group": 38, "stem": "Three days after laparoscopic cholecystectomy: worsening pain, jaundice and rising LFTs → Next test:", "options": [{"letter": "A", "text": "Diagnostic laparoscopy"}, {"letter": "B", "text": "Repeat ultrasound"}, {"letter": "C", "text": "CT abdomen"}, {"letter": "D", "text": "MRCP"}, {"letter": "E", "text": "HIDA scan"}], "answer": "D", "explanation": "The single flagged post-op rule: worsening pain, jaundice, or rising LFTs/bilirubin after lap chole → get an MRCP — retained stone or bile duct injury until proven otherwise.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "39", "group": 39, "stem": "A 60-year-old man with type 2 diabetes on empagliflozin is scheduled for elective knee replacement in one week. When should the empagliflozin be stopped?", "options": [{"letter": "A", "text": "It does not need to be stopped"}, {"letter": "B", "text": "The morning of surgery"}, {"letter": "C", "text": "24 hours before surgery"}, {"letter": "D", "text": "3 days before surgery"}, {"letter": "E", "text": "7 days before surgery"}], "answer": "D", "explanation": "SGLT2 inhibitors (canagliflozin, dapagliflozin, empagliflozin) are stopped 3 days before scheduled surgery — ertugliflozin 4 days — to reduce euglycemic DKA.", "objective": "Combined Pattern Guide — 2 · Preoperative Risk", "section": "2 · Preoperative Risk"}, {"id": "39A", "group": 39, "stem": "If he instead required emergency surgery today, which labs would you check?", "options": [{"letter": "A", "text": "Magnesium and phosphate"}, {"letter": "B", "text": "Lactate and lipase"}, {"letter": "C", "text": "Troponin and BNP"}, {"letter": "D", "text": "Anion gap, bicarbonate, ketones"}, {"letter": "E", "text": "PT/INR and PTT"}], "answer": "D", "explanation": "Emergency surgery on an SGLT2-i: assess for euglycemic DKA with anion gap, bicarbonate and ketones; treat with fluids, insulin and electrolytes; restart only after recovery and oral intake.", "objective": "Combined Pattern Guide — 2 · Preoperative Risk", "section": "2 · Preoperative Risk"}, {"id": "40", "group": 40, "stem": "Type 1 diabetic NPO since midnight for elective surgery → Insulin plan:", "options": [{"letter": "A", "text": "Continue basal insulin"}, {"letter": "B", "text": "Half-dose basal, no correction"}, {"letter": "C", "text": "Correction-scale insulin only"}, {"letter": "D", "text": "Switch to an oral agent"}, {"letter": "E", "text": "Hold all insulin until eating"}], "answer": "A", "explanation": "Type 1 diabetes requires continued basal insulin to prevent DKA — correction-only insulin is not a substitute for a basal strategy.", "objective": "Combined Pattern Guide — 2 · Preoperative Risk", "section": "2 · Preoperative Risk"}, {"id": "41", "group": 41, "stem": "Distal gastrectomy with the remaining stomach connected to the jejunum →", "options": [{"letter": "A", "text": "Nissen fundoplication"}, {"letter": "B", "text": "Billroth I"}, {"letter": "C", "text": "Roux-en-Y"}, {"letter": "D", "text": "Heineke-Mikulicz"}, {"letter": "E", "text": "Billroth II"}], "answer": "E", "explanation": "Billroth I → duodenum (gastroduodenostomy); Billroth II → jejunum (gastrojejunostomy) with a duodenal stump. \"One = duodenum, Two = jejunum.\"", "objective": "Combined Pattern Guide — 6 · Named Operations & MIS", "section": "6 · Named Operations & MIS"}, {"id": "42", "group": 42, "stem": "Stricture found in long-standing ulcerative colitis → Assume:", "options": [{"letter": "A", "text": "Benign fibrous stricture"}, {"letter": "B", "text": "Ischemic stricture"}, {"letter": "C", "text": "Medication effect"}, {"letter": "D", "text": "Crohn's disease"}, {"letter": "E", "text": "Cancer until proven otherwise"}], "answer": "E", "explanation": "Stricture in UC = think cancer. Stricture in Crohn's = expected → stricturoplasty.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "43", "group": 43, "stem": "Sterile, always at the field, hands instruments in anticipation, responsible for all counts → Role:", "options": [{"letter": "A", "text": "Scrub tech"}, {"letter": "B", "text": "First assistant"}, {"letter": "C", "text": "Perfusionist"}, {"letter": "D", "text": "Circulating nurse"}, {"letter": "E", "text": "Anesthesia assistant"}], "answer": "A", "explanation": "The scrub tech is sterile, hands instruments, and owns the sponge, needle and instrument counts — effectively running the room. Never touch the scrub tech. The circulator is not scrubbed and documents the case.", "objective": "Combined Pattern Guide — 1 · The Surgical Patient", "section": "1 · The Surgical Patient"}, {"id": "44", "group": 44, "stem": "Patient climbs two flights of stairs without stopping → Functional capacity:", "options": [{"letter": "A", "text": "≥4 METs — acceptable"}, {"letter": "B", "text": "<4 METs — poor"}, {"letter": "C", "text": "1 MET — resting"}, {"letter": "D", "text": ">10 METs — athletic"}, {"letter": "E", "text": "≥7 METs — excellent"}], "answer": "A", "explanation": "4 METs = walking up two flights of stairs or walking briskly = acceptable functional capacity. 1 MET is resting; >10 METs is running.", "objective": "Combined Pattern Guide — 2 · Preoperative Risk", "section": "2 · Preoperative Risk"}, {"id": "45", "group": 45, "stem": "Absolute contraindication to colonoscopy →", "options": [{"letter": "A", "text": "Severe coagulopathy"}, {"letter": "B", "text": "Pregnancy"}, {"letter": "C", "text": "Acute diverticulitis"}, {"letter": "D", "text": "Recent myocardial infarction"}, {"letter": "E", "text": "Toxic megacolon"}], "answer": "E", "explanation": "Absolute: unwilling competent patient, inadequate sedation, toxic megacolon, fulminant colitis, known free perforation. Relative: acute diverticulitis, large AAA, immediate post-op, recent MI/PE, instability, severe coagulopathy.", "objective": "Combined Pattern Guide — 8 · Cross-Cutting Rules", "section": "8 · Cross-Cutting Rules"}, {"id": "46", "group": 46, "stem": "Diverting loop ileostomy placed above a low rectal anastomosis → Effect on an anastomotic leak:", "options": [{"letter": "A", "text": "Prevents the leak"}, {"letter": "B", "text": "Eliminates the need for bowel prep"}, {"letter": "C", "text": "Limits consequences, does not prevent it"}, {"letter": "D", "text": "Doubles the leak rate"}, {"letter": "E", "text": "Makes the anastomosis unnecessary"}], "answer": "C", "explanation": "The loop ileostomy is \"protective\" — it diverts the fecal stream from the pelvis. It does not prevent a leak; it minimizes the consequences of one.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "47", "group": 47, "stem": "Invasive breast cancer with axillary lymph node involvement → Operation:", "options": [{"letter": "A", "text": "Prophylactic mastectomy"}, {"letter": "B", "text": "Radical (Halsted) mastectomy"}, {"letter": "C", "text": "Lumpectomy with radiation"}, {"letter": "D", "text": "Modified radical mastectomy"}, {"letter": "E", "text": "Simple mastectomy"}], "answer": "D", "explanation": "Modified radical = breast, nipple, areola + axillary nodes — treats and stages. Nodes = modified radical; muscle = radical (now rarely performed).", "objective": "Combined Pattern Guide — 6 · Named Operations & MIS", "section": "6 · Named Operations & MIS"}, {"id": "48", "group": 48, "stem": "Cirrhotic with INR 1.8, not bleeding, scheduled for a minor procedure → Management of the INR:", "options": [{"letter": "A", "text": "Do not transfuse plasma"}, {"letter": "B", "text": "Cancel the procedure"}, {"letter": "C", "text": "Give vitamin K and recheck"}, {"letter": "D", "text": "Transfuse plasma to normalize the INR"}, {"letter": "E", "text": "Transfuse platelets empirically"}], "answer": "A", "explanation": "The INR trap: INR reflects selected procoagulant deficiency, not the rebalanced hemostatic system. Do not reflexively transfuse plasma to normalize INR in a non-bleeding patient — it worsens portal pressure and volume overload.", "objective": "Combined Pattern Guide — 2 · Preoperative Risk", "section": "2 · Preoperative Risk"}, {"id": "49", "group": 49, "stem": "On the morning of surgery a 44-year-old woman took her usual metoprolol, lisinopril, atorvastatin and levothyroxine with sips of water. Which medication should have been held?", "options": [{"letter": "A", "text": "Metoprolol"}, {"letter": "B", "text": "Atorvastatin"}, {"letter": "C", "text": "None of them"}, {"letter": "D", "text": "Levothyroxine"}, {"letter": "E", "text": "Lisinopril"}], "answer": "E", "explanation": "ACE inhibitors and ARBs are held the day of surgery (refractory hypotension under general anesthesia) and resumed shortly after. β-blockers, statins and levothyroxine are taken with sips of water.", "objective": "Combined Pattern Guide — 1 · The Surgical Patient", "section": "1 · The Surgical Patient"}, {"id": "50", "group": 50, "stem": "Elective operation tomorrow; the PA first-assist offers to save time by marking the surgical site in holding → Who may mark the site:", "options": [{"letter": "A", "text": "Chief resident"}, {"letter": "B", "text": "Anesthesiologist"}, {"letter": "C", "text": "Circulating nurse"}, {"letter": "D", "text": "PA first-assist"}, {"letter": "E", "text": "Attending surgeon"}], "answer": "E", "explanation": "Only the attending surgeon marks the site — a PA who marks it risks their license. Marking must be visible after prep and drape at the timeout.", "objective": "Combined Pattern Guide — 1 · The Surgical Patient", "section": "1 · The Surgical Patient"}, {"id": "51", "group": 51, "stem": "Patient leaves the operating room → Status of the pre-op orders:", "options": [{"letter": "A", "text": "Continue for 24 hours"}, {"letter": "B", "text": "Transferred automatically to PACU"}, {"letter": "C", "text": "Continue until countermanded"}, {"letter": "D", "text": "Continue except medications"}, {"letter": "E", "text": "All cancelled — rewrite them"}], "answer": "E", "explanation": "When the patient leaves the OR the slate is wiped clean — all prior orders are cancelled; write a brand-new complete set (ADC VANDALISM) as if newly admitted.", "objective": "Combined Pattern Guide — 7 · Documentation", "section": "7 · Documentation"}, {"id": "52", "group": 52, "stem": "Recurrent polymicrobial UTI with pneumaturia in a patient with diverticular disease → Diagnosis:", "options": [{"letter": "A", "text": "Colovesical fistula"}, {"letter": "B", "text": "Rectovaginal fistula"}, {"letter": "C", "text": "Interstitial cystitis"}, {"letter": "D", "text": "Pyelonephritis"}, {"letter": "E", "text": "Bladder cancer"}], "answer": "A", "explanation": "Urinary symptoms in diverticular disease → colovesical fistula (pneumaturia, fecaluria, recurrent polymicrobial UTI) — the most common fistula and a surgical indication.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "53", "group": 53, "stem": "Which of the following is a contraindication to elective surgery?", "options": [{"letter": "A", "text": "Compensated Child A cirrhosis"}, {"letter": "B", "text": "Stage 3 chronic kidney disease"}, {"letter": "C", "text": "Acute viral hepatitis"}, {"letter": "D", "text": "Myocardial infarction 5 years ago"}, {"letter": "E", "text": "Well-controlled asthma"}], "answer": "C", "explanation": "Contraindications to elective surgery: acute liver failure, acute renal failure, acute viral hepatitis, alcoholic hepatitis, severe coagulopathy.", "objective": "Combined Pattern Guide — 2 · Preoperative Risk", "section": "2 · Preoperative Risk"}, {"id": "54", "group": 54, "stem": "Fever on postoperative day 2 after appendectomy → Most likely cause:", "options": [{"letter": "A", "text": "Urinary tract infection"}, {"letter": "B", "text": "Atelectasis"}, {"letter": "C", "text": "DVT/PE"}, {"letter": "D", "text": "Drug fever"}, {"letter": "E", "text": "Surgical site infection"}], "answer": "B", "explanation": "The 5 Ws: Wind (atelectasis/pneumonia POD 1–2), Water (UTI POD 3–5), Walking (DVT/PE POD 4–6), Wound (POD 5–7), Wonder drugs (POD 7+).", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "55", "group": 55, "stem": "Unexpected surgical complication or medical error → Disclose to the patient within:", "options": [{"letter": "A", "text": "Only if asked"}, {"letter": "B", "text": "Before discharge"}, {"letter": "C", "text": "1 week"}, {"letter": "D", "text": "24 hours"}, {"letter": "E", "text": "After Risk Management review"}], "answer": "D", "explanation": "State the facts, disclose within 24 hours (most surgeons' practice), take responsibility and apologize, contact Risk Management, explain next steps, meet the family with anesthesia, keep the patient updated.", "objective": "Combined Pattern Guide — 7 · Documentation", "section": "7 · Documentation"}, {"id": "56", "group": 56, "stem": "Persistent non-bilious vomiting in a patient with a history of peptic ulcer → Expected acid-base disturbance:", "options": [{"letter": "A", "text": "Hypochloremic metabolic alkalosis"}, {"letter": "B", "text": "Hyperkalemic acidosis"}, {"letter": "C", "text": "Respiratory alkalosis"}, {"letter": "D", "text": "Hyperchloremic metabolic acidosis"}, {"letter": "E", "text": "Anion-gap metabolic acidosis"}], "answer": "A", "explanation": "Persistent vomiting without bile → pyloric stenosis from a benign ulcer → hypochloremic alkalosis. Correct chloride before anesthesia — a low-chloride patient \"won't extubate.\"", "objective": "Combined Pattern Guide — 1 · The Surgical Patient", "section": "1 · The Surgical Patient"}, {"id": "57", "group": 57, "stem": "Which of the following is a National Quality Forum \"never event\"?", "options": [{"letter": "A", "text": "Postoperative ileus"}, {"letter": "B", "text": "Surgical site infection"}, {"letter": "C", "text": "Retained sponge after surgery"}, {"letter": "D", "text": "Postoperative DVT"}, {"letter": "E", "text": "Anastomotic leak"}], "answer": "C", "explanation": "Never events include wrong site/patient surgery, retained foreign object, ABO-incompatible transfusion, medication-error death, air embolism, burns, falls, restraints, impersonation and abduction.", "objective": "Combined Pattern Guide — 1 · The Surgical Patient", "section": "1 · The Surgical Patient"}, {"id": "58", "group": 58, "stem": "A 58-year-old woman has 3 days of left lower quadrant pain and fever to 38.4 °C; WBC is 15,000. CT with contrast shows sigmoid wall thickening, pericolic fat stranding, and a 4-cm walled-off pelvic abscess with no free air. What is the Hinchey class?", "options": [{"letter": "A", "text": "II"}, {"letter": "B", "text": "III"}, {"letter": "C", "text": "I"}, {"letter": "D", "text": "Not classifiable without colonoscopy"}, {"letter": "E", "text": "IV"}], "answer": "A", "explanation": "Hinchey I = phlegmon or localized pericolic abscess; II = walled-off pelvic, intra-abdominal or retroperitoneal abscess; III = purulent peritonitis; IV = feculent peritonitis.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "58A", "group": 58, "stem": "What is the appropriate management?", "options": [{"letter": "A", "text": "IV antibiotics alone"}, {"letter": "B", "text": "Colonoscopic drainage"}, {"letter": "C", "text": "Sigmoid colectomy"}, {"letter": "D", "text": "Hartmann's procedure"}, {"letter": "E", "text": "Percutaneous drainage plus antibiotics"}], "answer": "E", "explanation": "Abscess >2 cm → percutaneous drainage is often helpful; smaller abscesses usually resolve with antibiotics alone. Hinchey I–II are treated; III–IV go to the OR.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "58B", "group": 58, "stem": "After the attack resolves, what is needed?", "options": [{"letter": "A", "text": "Nothing further"}, {"letter": "B", "text": "Lifelong low-fiber diet"}, {"letter": "C", "text": "Interval colonoscopy"}, {"letter": "D", "text": "Elective sigmoid colectomy"}, {"letter": "E", "text": "Repeat CT in 6 weeks"}], "answer": "C", "explanation": "Interval colonoscopy after resolution if no recent colon evaluation — to exclude the cancer that mimicked the attack. Never during the attack: acute diverticulitis is a relative contraindication.", "objective": "Combined Pattern Guide — 5 · Colorectal", "section": "5 · Colorectal"}, {"id": "59", "group": 59, "stem": "A 30-year-old man is brought in after a motor vehicle collision with left lower rib fractures and left upper quadrant pain. Blood pressure is 82/50 and heart rate 128 despite 2 L of crystalloid. Bedside FAST shows free fluid. What is the next step?", "options": [{"letter": "A", "text": "Admit for serial hematocrits"}, {"letter": "B", "text": "CT abdomen with contrast"}, {"letter": "C", "text": "Exploratory laparotomy"}, {"letter": "D", "text": "Diagnostic laparoscopy"}, {"letter": "E", "text": "IR angioembolization"}], "answer": "C", "explanation": "Stability decides everything: unstable → OR (or FAST); stable → CT. Do not put an unstable trauma patient in the scanner. Up to 20% of left lower rib fractures have a splenic injury.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "59A", "group": 59, "stem": "In the OR, what is the first-choice management of the injured spleen?", "options": [{"letter": "A", "text": "Repair (splenorrhaphy)"}, {"letter": "B", "text": "Packing and close"}, {"letter": "C", "text": "Splenectomy"}, {"letter": "D", "text": "Observation"}, {"letter": "E", "text": "Partial embolization"}], "answer": "A", "explanation": "1st choice is to repair capsular lacerations (splenorrhaphy); 2nd is splenectomy for extensive injury or uncontrolled hemorrhage. Repair before you remove.", "objective": "Combined Pattern Guide — 4 · Acute Abdomen", "section": "4 · Acute Abdomen"}, {"id": "60", "group": 60, "stem": "Cardiology recommends a β-blocker for a high-risk patient whose surgery is tomorrow → Appropriate response:", "options": [{"letter": "A", "text": "Give one IV dose at induction"}, {"letter": "B", "text": "Start it the morning of surgery"}, {"letter": "C", "text": "Do not start it before surgery"}, {"letter": "D", "text": "Start it and delay surgery one day"}, {"letter": "E", "text": "Start it tonight at a low dose"}], "answer": "C", "explanation": "Continue chronic β-blockers; never start one immediately before surgery — if initiating, begin weeks before.", "objective": "Combined Pattern Guide — 3 · Medication Engine", "section": "3 · Medication Engine"}, {"id": "61", "group": 61, "stem": "Perforated duodenal ulcer repaired → Post-op medication plan to prevent recurrence:", "options": [{"letter": "A", "text": "Octreotide infusion"}, {"letter": "B", "text": "Misoprostol daily"}, {"letter": "C", "text": "PPI plus H. pylori eradication"}, {"letter": "D", "text": "Prophylactic antibiotics for 1 month"}, {"letter": "E", "text": "Sucralfate for 6 weeks"}], "answer": "C", "explanation": "After repair of a perforated ulcer add PPI therapy and H. pylori eradication to prevent recurrence.", "objective": "Combined Pattern Guide — 3 · Medication Engine", "section": "3 · Medication Engine"}, {"id": "62", "group": 62, "stem": "You performed the appendectomy but the hospitalist admitted the patient → Document you do NOT write:", "options": [{"letter": "A", "text": "Operative note"}, {"letter": "B", "text": "Post-op orders"}, {"letter": "C", "text": "Post-op note"}, {"letter": "D", "text": "Progress note"}, {"letter": "E", "text": "Discharge summary"}], "answer": "E", "explanation": "If you only did the surgery but did not admit, you do not write the admission H&P, the discharge order, or the discharge summary — the admitting team does.", "objective": "Combined Pattern Guide — 7 · Documentation", "section": "7 · Documentation"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
