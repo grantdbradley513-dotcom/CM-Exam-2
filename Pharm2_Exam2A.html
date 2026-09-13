@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Pharm II Exam 2 Practice Exam A — Headaches, Seizures, CVA/TIA", "questions": [{"id": "H1", "group": 1, "stem": "A 34-year-old man who smokes presents with a 2-week history of excruciating right periorbital stabbing pain that wakes him at about 1 AM most nights, lasts about 45 minutes, and is accompanied by tearing of the right eye, nasal congestion, and drooping of the right eyelid. During attacks he paces the room. Neurologic examination between attacks is normal. Which of the following is the most appropriate abortive treatment for his attacks?", "options": [{"letter": "A", "text": "Naproxen sodium (Aleve)"}, {"letter": "B", "text": "100% oxygen via non-rebreather mask"}, {"letter": "C", "text": "Butorphanol (Stadol) nasal spray"}, {"letter": "D", "text": "Fioricet (butalbital/APAP/caffeine)"}, {"letter": "E", "text": "Acetaminophen (Tylenol) with caffeine"}], "answer": "B", "explanation": "Brief, severe unilateral periorbital pain with ipsilateral lacrimation, congestion, and ptosis, occurring nightly in a smoker who paces, is cluster headache. 100% oxygen via non-rebreather (with or without sumatriptan SQ) is the abortive drug of choice; acetaminophen, NSAIDs, and opioids are ineffective in cluster.", "objective": "Objective 2: Pharmacologic treatment options for each headache type (acute cluster headache)", "section": "Treatment of Headaches", "kind": "second"}, {"id": "H1a", "group": 1, "stem": "His attacks are recurring several times a day. Which of the following is most appropriate to prevent further attacks during this period?", "options": [{"letter": "A", "text": "Propranolol"}, {"letter": "B", "text": "Amitriptyline (Elavil)"}, {"letter": "C", "text": "Verapamil"}, {"letter": "D", "text": "Erenumab (Aimovig)"}, {"letter": "E", "text": "Topiramate (Topamax)"}], "answer": "C", "explanation": "Cluster prophylaxis is started at the onset of every cluster period because attacks recur 1-8 times daily, and verapamil (off-label) is the first-line preventive. Topiramate and lithium are second-line if verapamil fails; propranolol and amitriptyline are migraine/tension preventives.", "objective": "Objective 6: Indications for and agents used in cluster headache prophylaxis", "section": "Treatment of Headaches", "kind": "second"}, {"id": "H1b", "group": 1, "stem": "Before this preventive is titrated to higher doses, which of the following should be obtained?", "options": [{"letter": "A", "text": "Serum bicarbonate"}, {"letter": "B", "text": "Liver function tests and platelets"}, {"letter": "C", "text": "Renal function panel"}, {"letter": "D", "text": "Fasting blood glucose"}, {"letter": "E", "text": "Electrocardiogram"}], "answer": "E", "explanation": "Verapamil can cause heart block, so an ECG is monitored during titration to higher doses. Bicarbonate is for topiramate, and LFTs/platelets are for valproate.", "objective": "Objective 5: Primary parameters monitored when treating headaches (verapamil in cluster)", "section": "Treatment of Headaches", "kind": "second"}, {"id": "H2", "group": 2, "stem": "A 29-year-old woman presents to the emergency department with a throbbing left-sided headache with nausea, vomiting, and photophobia that has persisted for 4 days. She has had similar but shorter headaches monthly since her teens. Oral naproxen and a single dose of oral sumatriptan taken on day 1 gave no relief, and she has been unable to keep pills down since day 2. BP 128/78 mm Hg, afebrile, neurologic examination normal. Which of the following is the most appropriate initial regimen?", "options": [{"letter": "A", "text": "Ketorolac, metoclopramide, and diphenhydramine IV"}, {"letter": "B", "text": "Morphine, ondansetron, and normal saline IV"}, {"letter": "C", "text": "Fioricet with codeine and promethazine PO"}, {"letter": "D", "text": "Butorphanol nasal spray and ondansetron ODT"}, {"letter": "E", "text": "Ergotamine and prochlorperazine PO"}], "answer": "A", "explanation": "A migraine lasting more than 72 hours that has failed oral therapy is status migrainosus, treated in the ED with IV fluids plus the migraine cocktail: ketorolac (Toradol) + metoclopramide (Reglan) + diphenhydramine (Benadryl), where diphenhydramine prevents metoclopramide EPS. Opioids should not be used and oral agents are unsuitable with vomiting.", "objective": "Objective 7: Case-based plan - the migraine cocktail (what is in it and when it is used)", "section": "Treatment of Headaches", "kind": "second"}, {"id": "H2a", "group": 2, "stem": "Her headache improves. Which of the following should be added to reduce the chance of recurrence over the next 24-72 hours?", "options": [{"letter": "A", "text": "Morphine IV"}, {"letter": "B", "text": "Ondansetron IV"}, {"letter": "C", "text": "Propranolol PO"}, {"letter": "D", "text": "Dexamethasone IV"}, {"letter": "E", "text": "Naproxen sodium PO"}], "answer": "D", "explanation": "Dexamethasone 10 mg IV/IM is the optional cocktail add-on given specifically to reduce early headache recurrence within 24-72 hours. Ondansetron treats nausea only, and opioids are not part of ED migraine care.", "objective": "Objective 1: Therapeutic categories - ED migraine cocktail components and add-ons", "section": "Treatment of Headaches", "kind": "second"}, {"id": "H3", "group": 3, "stem": "A 41-year-old woman with a 15-year history of migraine reports that her headaches have become nearly daily over the past 6 months, now occurring about 20 days per month. She takes sumatriptan (Imitrex) on roughly 14 days each month. She has no systemic symptoms or neurologic deficits, and examination is normal. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Switch sumatriptan to eletriptan"}, {"letter": "B", "text": "Stop sumatriptan and bridge with naproxen (Aleve)"}, {"letter": "C", "text": "Add Fioricet for breakthrough headaches"}, {"letter": "D", "text": "Add butorphanol (Stadol) nasal spray for rescue"}, {"letter": "E", "text": "Increase the sumatriptan dose per attack"}], "answer": "B", "explanation": "Triptan use on 10 or more days per month for more than 3 months with headache on 15 or more days per month is medication-overuse headache. Management is to withdraw the overused agent, bridge with naproxen 550 mg BID for 2-4 weeks, and start a preventive; adding butalbital or opioid products carries the highest MOH risk.", "objective": "Objective 2: Treatment options by headache type - medication-overuse headache thresholds and management", "section": "Treatment of Headaches", "kind": "second"}, {"id": "H4", "group": 4, "stem": "A 58-year-old man who had a myocardial infarction 2 years ago (now taking aspirin, atorvastatin, and metoprolol) reports two attacks per month of unilateral pulsating headache with nausea and photophobia that force him to lie down in a dark room. Acetaminophen has given inadequate relief. Which of the following is the most appropriate acute agent?", "options": [{"letter": "A", "text": "Sumatriptan (Imitrex)"}, {"letter": "B", "text": "Dihydroergotamine (Migranal)"}, {"letter": "C", "text": "Ubrogepant (Ubrelvy)"}, {"letter": "D", "text": "Ergotamine"}, {"letter": "E", "text": "Fioricet with codeine"}], "answer": "C", "explanation": "Prior MI is a contraindication to all vasoconstrictors (triptans and ergots). Gepants such as ubrogepant are non-vasoconstrictive and are the second-line acute choice after acetaminophen in patients with cardiovascular disease.", "objective": "Objective 4: Advantages of gepants - non-vasoconstrictive, usable when triptans/ergots are contraindicated", "section": "Treatment of Headaches", "kind": "second"}, {"id": "H5", "group": 5, "stem": "A 34-year-old woman has six days per month of pulsating unilateral headache with photophobia; the attacks respond to sumatriptan but still cost her work days. She reports difficulty falling asleep and a persistently low mood. BMI 22, BP 112/70 mm Hg, no other medical problems. Which of the following is the most appropriate preventive agent?", "options": [{"letter": "A", "text": "Propranolol"}, {"letter": "B", "text": "Topiramate (Topamax)"}, {"letter": "C", "text": "Valproate (Depakote)"}, {"letter": "D", "text": "Amitriptyline (Elavil)"}, {"letter": "E", "text": "Erenumab (Aimovig)"}], "answer": "D", "explanation": "Six or more migraine days per month meets the threshold for prophylaxis, and the first-line oral preventive is chosen by comorbidity: amitriptyline at bedtime for comorbid insomnia and depression. Propranolol can worsen depression, and erenumab is reserved for failure of two or more oral preventives.", "objective": "Objective 7: Case-based plan - choosing the migraine preventive by comorbidity (amitriptyline)", "section": "Treatment of Headaches", "kind": "second"}, {"id": "H6", "group": 6, "stem": "A 38-year-old woman with a BMI of 34 has five days per month of throbbing headache with nausea and phonophobia that keep her from working. She uses a levonorgestrel IUD and is not planning pregnancy. She has no history of kidney stones. Which of the following is the most appropriate preventive agent?", "options": [{"letter": "A", "text": "Amitriptyline (Elavil)"}, {"letter": "B", "text": "Valproate (Depakote)"}, {"letter": "C", "text": "Propranolol"}, {"letter": "D", "text": "Atogepant (Qulipta)"}, {"letter": "E", "text": "Topiramate (Topamax)"}], "answer": "E", "explanation": "Disabling migraine at four or more days per month warrants prophylaxis, and topiramate is the first-line preventive preferred in overweight patients because it causes weight loss; reliable contraception is in place. Amitriptyline and valproate cause weight gain, and atogepant is reserved for failure of traditional oral preventives.", "objective": "Objective 7: Case-based plan - topiramate selection in the overweight migraineur", "section": "Treatment of Headaches", "kind": "second"}, {"id": "H7", "group": 7, "stem": "A 27-year-old woman reports a throbbing unilateral headache with nausea that reliably begins 1-2 days before each menstrual period and lasts about 3 days; she is otherwise headache-free. Sumatriptan relieves each attack. She asks whether the headaches can be prevented. Which of the following is the most appropriate approach?", "options": [{"letter": "A", "text": "Naproxen sodium (Aleve) BID starting 1-2 days before menses"}, {"letter": "B", "text": "Propranolol taken daily throughout the month"}, {"letter": "C", "text": "Topiramate (Topamax) taken daily throughout the month"}, {"letter": "D", "text": "Erenumab (Aimovig) injected subcutaneously monthly"}, {"letter": "E", "text": "Fioricet taken at headache onset each cycle"}], "answer": "A", "explanation": "A predictable menstrual migraine pattern is an indication for mini-prophylaxis rather than daily prevention: naproxen 500 mg BID (or a long-acting triptan such as frovatriptan) started 1-2 days before expected onset and continued 5-7 days. Daily preventives are unnecessary for a patient headache-free the rest of the month.", "objective": "Objective 6: Indications for prophylaxis - menstrual migraine mini-prophylaxis", "section": "Treatment of Headaches", "kind": "second"}, {"id": "H8", "group": 8, "stem": "A 31-year-old woman with no cardiovascular history has recurrent severe unilateral throbbing headaches with photophobia and repeated vomiting; she vomits within minutes of swallowing any tablet. She wants an option she can use at home for future attacks. Which of the following is most appropriate?", "options": [{"letter": "A", "text": "Sumatriptan (Imitrex) oral tablet"}, {"letter": "B", "text": "Sumatriptan (Imitrex) SQ injection"}, {"letter": "C", "text": "Naproxen sodium (Aleve) oral tablet"}, {"letter": "D", "text": "Fioricet oral capsule with codeine"}, {"letter": "E", "text": "Ondansetron (Zofran) ODT alone"}], "answer": "B", "explanation": "Moderate-severe migraine with vomiting calls for a migraine-specific agent in a non-oral form: subcutaneous sumatriptan bypasses the gut and gives rapid onset. Oral tablets will not be absorbed, and ondansetron treats nausea only, not pain.", "objective": "Objective 7: Case-based plan - dosage form suitability for sumatriptan", "section": "Treatment of Headaches", "kind": "second"}, {"id": "H9", "group": 9, "stem": "A 25-year-old man is treated in the emergency department for a severe migraine with IV fluids, ketorolac, and metoclopramide. Thirty minutes later he is intensely restless, cannot sit still, and his neck is twisting involuntarily to one side. Which of the following is the most appropriate treatment?", "options": [{"letter": "A", "text": "Diphenhydramine (Benadryl) IV"}, {"letter": "B", "text": "Prochlorperazine (Compazine) IV"}, {"letter": "C", "text": "Ondansetron (Zofran) IV"}, {"letter": "D", "text": "Dexamethasone IV"}, {"letter": "E", "text": "Sumatriptan (Imitrex) SQ"}], "answer": "A", "explanation": "Restlessness and involuntary neck twisting after metoclopramide are akathisia and dystonia (EPS from dopamine antagonism), treated with diphenhydramine, which is why it is included in the migraine cocktail. Prochlorperazine is another dopamine antagonist and would worsen the reaction.", "objective": "Objective 3: Antiemetics - adverse effects (EPS) and management", "section": "Treatment of Headaches", "kind": "second"}, {"id": "H10", "group": 10, "stem": "A 30-year-old woman at 12 weeks' gestation with a history of migraine without aura has a moderate attack that has not responded to rest in a dark room. Which of the following is the most appropriate first-line acute agent?", "options": [{"letter": "A", "text": "Naproxen sodium (Aleve)"}, {"letter": "B", "text": "Dihydroergotamine (Migranal)"}, {"letter": "C", "text": "Acetaminophen (Tylenol)"}, {"letter": "D", "text": "Fioricet (butalbital/APAP/caffeine)"}, {"letter": "E", "text": "Ibuprofen (Advil)"}], "answer": "C", "explanation": "In pregnancy, non-pharmacologic measures come first, then acetaminophen is the first-line acute agent (triptans cautiously with OB input). Ergots such as DHE are contraindicated in pregnancy.", "objective": "Objective 2: Treatment options by headache type - migraine in pregnancy", "section": "Treatment of Headaches", "kind": "first"}, {"id": "H11", "group": 11, "stem": "A 36-year-old man with episodic migraine is started on topiramate (Topamax) for prophylaxis. Which of the following laboratory parameters should be monitored?", "options": [{"letter": "A", "text": "Liver function tests"}, {"letter": "B", "text": "Platelet count"}, {"letter": "C", "text": "Serum creatinine"}, {"letter": "D", "text": "Serum bicarbonate"}, {"letter": "E", "text": "Fasting glucose"}], "answer": "D", "explanation": "Topiramate inhibits carbonic anhydrase and can cause metabolic acidosis, so serum bicarbonate is monitored (along with kidney-stone symptoms, cognition, and weight). LFTs and platelets are the valproate monitoring parameters.", "objective": "Objective 5: Primary parameters monitored when treating headaches (topiramate)", "section": "Treatment of Headaches", "kind": "first"}, {"id": "H12", "group": 12, "stem": "A 45-year-old woman with migraine without aura has three attacks per month that respond fully to sumatriptan within 2 hours, with no missed work. Which of the following findings would be the strongest indication to start prophylactic therapy?", "options": [{"letter": "A", "text": "Presence of visual aura"}, {"letter": "B", "text": "Nausea during attacks"}, {"letter": "C", "text": "Unilateral pain location"}, {"letter": "D", "text": "Attacks lasting up to 24 hours"}, {"letter": "E", "text": "Six or more migraine days per month"}], "answer": "E", "explanation": "Migraine prophylaxis is indicated at 3 or more migraine days per month with severe disability, 4 or more with moderate disability, or 6 or more regardless of disability, as well as for abortive failure/contraindication or MOH risk. Aura, nausea, and typical attack features do not by themselves justify prevention.", "objective": "Objective 6: Indications for migraine prophylaxis versus abortive therapy", "section": "Treatment of Headaches", "kind": "first"}, {"id": "H13", "group": 13, "stem": "A 40-year-old woman with episodic migraine (10 migraine days per month) has had inadequate benefit from adequate trials of propranolol, topiramate (Topamax), and amitriptyline (Elavil). She has no cardiovascular disease and strongly prefers not to use injections. Which of the following is the most appropriate preventive agent?", "options": [{"letter": "A", "text": "Erenumab (Aimovig)"}, {"letter": "B", "text": "Atogepant (Qulipta)"}, {"letter": "C", "text": "Verapamil"}, {"letter": "D", "text": "Ubrogepant (Ubrelvy)"}, {"letter": "E", "text": "Onabotulinumtoxin A (Botox)"}], "answer": "B", "explanation": "After failure of two or more oral preventives, CGRP-targeted prevention is indicated; atogepant is the once-daily oral CGRP preventive for patients who prefer a pill over monthly erenumab injections. Ubrogepant is abortive only, and Botox requires chronic migraine (15 or more headache days per month).", "objective": "Objective 2: Treatment options - CGRP-targeted prevention after failure of oral preventives", "section": "Treatment of Headaches", "kind": "first"}, {"id": "H14", "group": 14, "stem": "A 29-year-old woman with moderate persistent asthma and six migraine days per month needs preventive therapy. Which of the following agents should be AVOIDED?", "options": [{"letter": "A", "text": "Propranolol"}, {"letter": "B", "text": "Topiramate (Topamax)"}, {"letter": "C", "text": "Amitriptyline (Elavil)"}, {"letter": "D", "text": "Atogepant (Qulipta)"}, {"letter": "E", "text": "Erenumab (Aimovig)"}], "answer": "A", "explanation": "Propranolol is a nonselective beta blocker that can provoke bronchospasm and is avoided in asthma/COPD (also in bradycardia/heart block, decompensated HF, uncontrolled depression, and brittle diabetes). When a beta blocker is contraindicated, switch class to a TCA, topiramate, or a CGRP agent.", "objective": "Objective 3: Beta blockers - cautions and contraindications", "section": "Treatment of Headaches", "kind": "aeci"}, {"id": "H15", "group": 15, "stem": "A 24-year-old woman with migraine and bipolar disorder who is sexually active and uses no contraception is being considered for preventive therapy. Which of the following agents is contraindicated?", "options": [{"letter": "A", "text": "Propranolol"}, {"letter": "B", "text": "Amitriptyline (Elavil)"}, {"letter": "C", "text": "Valproate (Depakote)"}, {"letter": "D", "text": "Erenumab (Aimovig)"}, {"letter": "E", "text": "Verapamil"}], "answer": "C", "explanation": "Valproate is Pregnancy Category X for migraine prophylaxis and is contraindicated in a woman who may become pregnant, despite its appeal for comorbid bipolar disorder. Propranolol or amitriptyline are the preferred preventives in women of childbearing potential.", "objective": "Objective 3: Anticonvulsants - contraindications (valproate in pregnancy)", "section": "Treatment of Headaches", "kind": "aeci"}, {"id": "H16", "group": 16, "stem": "A 52-year-old woman with a prior ischemic stroke is prescribed lasmiditan (Reyvow) for acute migraine. Which of the following counseling points is most important?", "options": [{"letter": "A", "text": "Take each dose with food"}, {"letter": "B", "text": "Avoid grapefruit juice"}, {"letter": "C", "text": "Do not use within 24 hours of an ergot"}, {"letter": "D", "text": "Do not drive for at least 8 hours after a dose"}, {"letter": "E", "text": "Report cold or numb fingers immediately"}], "answer": "D", "explanation": "Lasmiditan causes dizziness and somnolence, and patients must not drive or operate machinery for at least 8 hours after each dose even if they feel fine. The 24-hour ergot separation applies to triptans, grapefruit avoidance to gepants, and cold extremities to DHE.", "objective": "Objective 3: Serotonin 5-HT1F agonists (lasmiditan) - cautions and patient education", "section": "Treatment of Headaches", "kind": "aeci"}, {"id": "H17", "group": 17, "stem": "A 19-year-old woman is started on amitriptyline (Elavil) at bedtime for migraine prevention. Which of the following is the black box warning most relevant to this patient?", "options": [{"letter": "A", "text": "Hepatotoxicity"}, {"letter": "B", "text": "Metabolic acidosis"}, {"letter": "C", "text": "Myocardial infarction and stroke"}, {"letter": "D", "text": "Respiratory depression"}, {"letter": "E", "text": "Increased suicidal thoughts and behavior"}], "answer": "E", "explanation": "TCAs carry a black box warning for increased suicidal thoughts and behavior in young patients, and amitriptyline is also dangerous in intentional overdose (QT prolongation/fatal arrhythmia), so quantities are limited in at-risk patients. MI/stroke is the NSAID black box and hepatotoxicity belongs to valproate/acetaminophen.", "objective": "Objective 3: TCAs - black box warning and cautions", "section": "Treatment of Headaches", "kind": "aeci"}, {"id": "S1", "group": 18, "stem": "A 34-year-old man is brought in by EMS after his roommate found him with generalized stiffening followed by rhythmic jerking of all four limbs. The convulsion has now continued for 8 minutes without any return of consciousness. His airway is being protected, oxygen is on, an IV has been placed, and point-of-care glucose is 104 mg/dL. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Fosphenytoin (Cerebyx) IV loading dose"}, {"letter": "B", "text": "Lorazepam (Ativan) IV bolus"}, {"letter": "C", "text": "Levetiracetam (Keppra) PO loading dose"}, {"letter": "D", "text": "Lamotrigine (Lamictal) PO started now"}, {"letter": "E", "text": "Pentobarbital continuous IV infusion"}], "answer": "B", "explanation": "A convulsion lasting 5 minutes or more without recovery is status epilepticus, and a benzodiazepine (lorazepam IV) is first line once the airway, IV, and glucose are addressed. Fosphenytoin is the second-line load given after the benzodiazepine, and oral or slowly titrated agents have no role acutely.", "objective": "Objective 5: Status epilepticus treatment algorithm", "section": "Treatment of Seizures", "kind": "second"}, {"id": "S1a", "group": 18, "stem": "The convulsion stops after the first-line agent. Which of the following should be given next to prevent recurrence?", "options": [{"letter": "A", "text": "Ethosuximide (Zarontin) IV"}, {"letter": "B", "text": "Lamotrigine (Lamictal) PO"}, {"letter": "C", "text": "Gabapentin (Neurontin) PO"}, {"letter": "D", "text": "Fosphenytoin (Cerebyx) IV"}, {"letter": "E", "text": "Propofol continuous IV infusion"}], "answer": "D", "explanation": "Benzodiazepines are short-acting, so a loading dose of phenytoin or fosphenytoin is given after the benzodiazepine to prevent seizure recurrence. Propofol is reserved for refractory status; oral agents are useless for acute control.", "objective": "Objective 5: Status epilepticus treatment algorithm", "section": "Treatment of Seizures", "kind": "second"}, {"id": "S1b", "group": 18, "stem": "Despite both agents, seizure activity continues 50 minutes after onset. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "ICU admission with a midazolam infusion"}, {"letter": "B", "text": "Oral lamotrigine (Lamictal) titration"}, {"letter": "C", "text": "Oral valproate (Depakote) loading dose"}, {"letter": "D", "text": "Ethosuximide (Zarontin) by feeding tube"}, {"letter": "E", "text": "Observation with continued oxygen only"}], "answer": "A", "explanation": "Seizures persisting after a benzodiazepine plus a second-line load define refractory status epilepticus, which is treated in the ICU with intubation, continuous EEG, and an anesthetic infusion such as midazolam, propofol, or pentobarbital. Oral agents, especially slowly titrated lamotrigine, cannot control status.", "objective": "Objective 5: Status epilepticus treatment algorithm", "section": "Treatment of Seizures", "kind": "second"}, {"id": "S2", "group": 19, "stem": "A 7-year-old girl is brought in by her mother because her teacher reports that she 'zones out' many times a day. Episodes last about 10 seconds with a blank stare and fluttering eyelids, after which she immediately resumes her activity with no confusion. She has never had a convulsion, and her neurologic exam is normal. Which of the following is the most appropriate initial agent?", "options": [{"letter": "A", "text": "Carbamazepine (Tegretol)"}, {"letter": "B", "text": "Phenytoin (Dilantin)"}, {"letter": "C", "text": "Ethosuximide (Zarontin)"}, {"letter": "D", "text": "Oxcarbazepine (Trileptal)"}, {"letter": "E", "text": "Phenobarbital"}], "answer": "C", "explanation": "Brief staring spells with eyelid flutter and no postictal period in a young child are absence seizures; ethosuximide is the drug of choice (especially under age 10) because it matches valproate's efficacy with a better adverse-effect profile. Valproate is preferred only when tonic-clonic seizures coexist.", "objective": "Objective 6: Best agents and agents to avoid by seizure type", "section": "Treatment of Seizures", "kind": "second"}, {"id": "S2a", "group": 19, "stem": "Her mother asks about a medication a relative takes for seizures. Which of the following agents should be avoided because it can increase the frequency of her seizures?", "options": [{"letter": "A", "text": "Levetiracetam (Keppra)"}, {"letter": "B", "text": "Valproate (Depakote)"}, {"letter": "C", "text": "Lamotrigine (Lamictal)"}, {"letter": "D", "text": "Zonisamide (Zonegran)"}, {"letter": "E", "text": "Carbamazepine (Tegretol)"}], "answer": "E", "explanation": "Carbamazepine and phenytoin worsen absence seizures and must be avoided in this patient. Valproate, lamotrigine, and the other broad-spectrum agents do not aggravate absence seizures.", "objective": "Objective 6: Best agents and agents to avoid by seizure type", "section": "Treatment of Seizures", "kind": "second"}, {"id": "S3", "group": 20, "stem": "A 27-year-old woman has her second unprovoked episode in 3 months: she fell, stiffened, then had rhythmic jerking of all limbs for about 90 seconds with a lateral tongue bite and urinary incontinence, followed by 20 minutes of confusion. She takes a combined oral contraceptive and hopes to become pregnant within 2 years. Which of the following is the most appropriate agent?", "options": [{"letter": "A", "text": "Levetiracetam (Keppra)"}, {"letter": "B", "text": "Valproate (Depakote)"}, {"letter": "C", "text": "Carbamazepine (Tegretol)"}, {"letter": "D", "text": "Phenytoin (Dilantin)"}, {"letter": "E", "text": "Topiramate (Topamax)"}], "answer": "A", "explanation": "Two unprovoked generalized tonic-clonic seizures warrant an ASM, and in a woman of childbearing age on oral contraceptives levetiracetam is preferred: it is not teratogenic like valproate and, unlike enzyme inducers such as carbamazepine, phenytoin, and topiramate, it does not lower contraceptive efficacy.", "objective": "Objective 7: Treatment in older adults, children, and women of childbearing age", "section": "Treatment of Seizures", "kind": "second"}, {"id": "S4", "group": 21, "stem": "A 61-year-old man reports 3 weeks of brief, severe, electric-shock-like pain in his right cheek and jaw, triggered by chewing, shaving, and brushing his teeth. Each attack lasts seconds and recurs many times a day. His neurologic exam is normal. Which of the following is the most appropriate agent?", "options": [{"letter": "A", "text": "Ethosuximide (Zarontin)"}, {"letter": "B", "text": "Levetiracetam (Keppra)"}, {"letter": "C", "text": "Phenobarbital"}, {"letter": "D", "text": "Carbamazepine (Tegretol)"}, {"letter": "E", "text": "Lacosamide (Vimpat)"}], "answer": "D", "explanation": "Paroxysmal, trigger-evoked, shock-like unilateral facial pain is trigeminal neuralgia, and carbamazepine is the classic board answer; oxcarbazepine is the alternative. Ethosuximide and levetiracetam have no role in neuralgia.", "objective": "Objective 2: Indications, adverse effects, contraindications, DI, and education for ASMs and benzodiazepines", "section": "Treatment of Seizures", "kind": "second"}, {"id": "S5", "group": 22, "stem": "A 19-year-old man reports sudden shock-like jerks of his shoulders and arms shortly after waking that make him drop his toothbrush; he stays fully aware during them. They are worse after late nights, and last week one episode progressed to a full-body convulsion. Which of the following is the most appropriate agent?", "options": [{"letter": "A", "text": "Carbamazepine (Tegretol)"}, {"letter": "B", "text": "Valproate (Depakote)"}, {"letter": "C", "text": "Phenytoin (Dilantin)"}, {"letter": "D", "text": "Oxcarbazepine (Trileptal)"}, {"letter": "E", "text": "Ethosuximide (Zarontin)"}], "answer": "B", "explanation": "Brief shock-like jerks on waking with preserved consciousness that can progress to a tonic-clonic seizure are myoclonic seizures; a broad-spectrum agent such as valproate (appropriate in a male patient) is best. Narrow-spectrum sodium-channel blockers like carbamazepine, phenytoin, and oxcarbazepine can worsen myoclonic seizures.", "objective": "Objective 6: Best agents and agents to avoid by seizure type", "section": "Treatment of Seizures", "kind": "second"}, {"id": "S6", "group": 23, "stem": "A 76-year-old woman on warfarin for atrial fibrillation has had three episodes over 2 months in which she stares, smacks her lips, and picks at her clothing for about 90 seconds, then is confused and has no memory of the event. Her family also reports mild forgetfulness. Which of the following is the most appropriate initial agent?", "options": [{"letter": "A", "text": "Phenobarbital"}, {"letter": "B", "text": "Topiramate (Topamax)"}, {"letter": "C", "text": "Phenytoin (Dilantin)"}, {"letter": "D", "text": "Carbamazepine (Tegretol)"}, {"letter": "E", "text": "Levetiracetam (Keppra)"}], "answer": "E", "explanation": "Automatisms with impaired awareness and amnesia are focal impaired-awareness seizures; in an older adult, levetiracetam (like lamotrigine or lacosamide) is preferred because it has no CYP interactions with warfarin and little cognitive effect. Phenobarbital, topiramate, and high-dose phenytoin or carbamazepine impair cognition, and the inducers interact with anticoagulants.", "objective": "Objective 7: Treatment in older adults, children, and women of childbearing age", "section": "Treatment of Seizures", "kind": "second"}, {"id": "S7", "group": 24, "stem": "A 22-year-old man had a single witnessed generalized convulsion the morning after staying awake for 36 hours studying and drinking heavily. He has no prior seizures, no family history, a normal neurologic exam, a normal head CT, and a normal EEG. Which of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Start levetiracetam (Keppra) daily"}, {"letter": "B", "text": "Start valproate (Depakote) daily"}, {"letter": "C", "text": "Counsel on triggers without starting an ASM"}, {"letter": "D", "text": "Start lamotrigine (Lamictal) with slow titration"}, {"letter": "E", "text": "Start phenytoin (Dilantin) with drug levels"}], "answer": "C", "explanation": "A single seizure provoked by sleep deprivation and alcohol, with a normal exam, imaging, and EEG, carries low recurrence risk, so a chronic ASM is probably not indicated; the patient should be counseled to avoid sleep deprivation (a board-flagged trigger) and alcohol. ASMs are started after two or more unprovoked seizures or one seizure with high-risk features.", "objective": "Objective 1: Major categories of agents and when to start an ASM", "section": "Treatment of Seizures", "kind": "second"}, {"id": "S8", "group": 25, "stem": "A 36-year-old woman with newly diagnosed focal epilepsy also has about 12 days per month of throbbing unilateral headache with nausea and photophobia. She is overweight and says she would refuse any medication that causes weight gain. Which of the following is the most appropriate single agent?", "options": [{"letter": "A", "text": "Valproate (Depakote)"}, {"letter": "B", "text": "Carbamazepine (Tegretol)"}, {"letter": "C", "text": "Gabapentin (Neurontin)"}, {"letter": "D", "text": "Topiramate (Topamax)"}, {"letter": "E", "text": "Phenytoin (Dilantin)"}], "answer": "D", "explanation": "Frequent migraines plus epilepsy in a patient who wants to avoid weight gain point to topiramate, which treats focal seizures, prevents migraine, and causes weight loss. Valproate also covers migraine but causes weight gain, and carbamazepine causes weight gain without migraine benefit.", "objective": "Objective 7: Treatment in older adults, children, and women of childbearing age", "section": "Treatment of Seizures", "kind": "second"}, {"id": "S11", "group": 26, "stem": "A 33-year-old woman with focal seizures has a history of alternating episodes of elevated mood with little need for sleep and episodes of low mood; she is currently depressed. She has no cardiac history. Which of the following is the most appropriate agent?", "options": [{"letter": "A", "text": "Lamotrigine (Lamictal)"}, {"letter": "B", "text": "Levetiracetam (Keppra)"}, {"letter": "C", "text": "Topiramate (Topamax)"}, {"letter": "D", "text": "Phenobarbital"}, {"letter": "E", "text": "Ethosuximide (Zarontin)"}], "answer": "A", "explanation": "Focal epilepsy with comorbid bipolar disorder and depression favors lamotrigine, which is mood-stabilizing and preferred in women of childbearing age. Levetiracetam and topiramate can worsen mood, phenobarbital impairs cognition, and ethosuximide has no efficacy in focal seizures.", "objective": "Objective 7: Treatment in older adults, children, and women of childbearing age", "section": "Treatment of Seizures", "kind": "second"}, {"id": "S9", "group": 27, "stem": "A 6-year-old boy with known epilepsy has a generalized convulsion at school that has lasted 6 minutes. The school nurse has no IV access. Which of the following is the most appropriate rescue treatment?", "options": [{"letter": "A", "text": "Oral levetiracetam (Keppra)"}, {"letter": "B", "text": "Rectal diazepam (Diastat)"}, {"letter": "C", "text": "Oral lamotrigine (Lamictal)"}, {"letter": "D", "text": "Oral phenytoin (Dilantin)"}, {"letter": "E", "text": "Oral valproate (Depakote)"}], "answer": "B", "explanation": "When no IV access is available, a prolonged seizure is treated with rectal diazepam (Diastat) or nasal, buccal, or IM midazolam. Oral maintenance ASMs cannot terminate an active seizure.", "objective": "Objective 7: Treatment in older adults, children, and women of childbearing age", "section": "Treatment of Seizures", "kind": "first"}, {"id": "S10", "group": 28, "stem": "A 45-year-old man with generalized tonic-clonic seizures is started on valproate (Depakote). Which of the following should be monitored?", "options": [{"letter": "A", "text": "Serum sodium"}, {"letter": "B", "text": "ECG PR interval"}, {"letter": "C", "text": "Serum bicarbonate"}, {"letter": "D", "text": "Bone mineral density only"}, {"letter": "E", "text": "Liver function tests"}], "answer": "E", "explanation": "Valproate carries a black box warning for hepatic failure (and pancreatitis), so LFTs are monitored along with CBC with platelets, PT/PTT, and serum levels. Serum sodium is the key parameter for oxcarbazepine, the PR interval for lacosamide, and bicarbonate for topiramate and zonisamide.", "objective": "Objective 4: Monitoring parameters for antiseizure agents", "section": "Treatment of Seizures", "kind": "first"}, {"id": "S12", "group": 29, "stem": "A 29-year-old woman with focal epilepsy is well controlled on carbamazepine (Tegretol). She uses a low-dose combined oral contraceptive and wants to avoid pregnancy. Which of the following is the most appropriate advice?", "options": [{"letter": "A", "text": "Continue the current contraceptive unchanged"}, {"letter": "B", "text": "Switch carbamazepine to ethosuximide (Zarontin)"}, {"letter": "C", "text": "Use a higher-dose pill plus a barrier method"}, {"letter": "D", "text": "Stop the oral contraceptive during seizure-free periods"}, {"letter": "E", "text": "Double the carbamazepine dose during her cycle"}], "answer": "C", "explanation": "Carbamazepine is a strong enzyme inducer that causes oral contraceptive failure, so she needs a moderate- or high-dose pill plus a supplemental barrier method, or a non-hormonal method. Ethosuximide is ineffective for focal seizures.", "objective": "Objective 7: Treatment in older adults, children, and women of childbearing age", "section": "Treatment of Seizures", "kind": "first"}, {"id": "S13", "group": 30, "stem": "A 24-year-old woman with epilepsy well controlled on lamotrigine (Lamictal) tells you she plans to become pregnant next year. Which of the following should be prescribed now?", "options": [{"letter": "A", "text": "Vitamin K daily"}, {"letter": "B", "text": "Calcium carbonate daily"}, {"letter": "C", "text": "Iron sulfate daily"}, {"letter": "D", "text": "Folic acid daily"}, {"letter": "E", "text": "Vitamin B12 daily"}], "answer": "D", "explanation": "All women of childbearing potential on an ASM should take folic acid 1-4 mg daily to reduce neural tube defect risk. Vitamin K is added only in the 8th month of pregnancy for women on enzyme-inducing ASMs.", "objective": "Objective 7: Treatment in older adults, children, and women of childbearing age", "section": "Treatment of Seizures", "kind": "first"}, {"id": "S14", "group": 31, "stem": "A 48-year-old man taking a single ASM for focal seizures develops headache, nausea, and confusion. Serum Na⁺ is 121 mEq/L. Which of the following agents is most likely responsible?", "options": [{"letter": "A", "text": "Levetiracetam (Keppra)"}, {"letter": "B", "text": "Lacosamide (Vimpat)"}, {"letter": "C", "text": "Oxcarbazepine (Trileptal)"}, {"letter": "D", "text": "Ethosuximide (Zarontin)"}, {"letter": "E", "text": "Gabapentin (Neurontin)"}], "answer": "C", "explanation": "Hyponatremia on an ASM points to oxcarbazepine, which causes more hyponatremia than carbamazepine and requires serum sodium monitoring. Levetiracetam, lacosamide, ethosuximide, and gabapentin do not lower sodium.", "objective": "Objective 2: Indications, adverse effects, contraindications, DI, and education for ASMs and benzodiazepines", "section": "Treatment of Seizures", "kind": "aeci"}, {"id": "S15", "group": 32, "stem": "A 24-year-old woman on valproate (Depakote) had lamotrigine (Lamictal) added 3 weeks ago. She calls reporting a new spreading rash on her trunk. Which of the following is the most appropriate action?", "options": [{"letter": "A", "text": "Discontinue lamotrigine immediately"}, {"letter": "B", "text": "Reassure her and continue both agents"}, {"letter": "C", "text": "Reduce the lamotrigine dose by half"}, {"letter": "D", "text": "Add an oral antihistamine and recheck"}, {"letter": "E", "text": "Switch lamotrigine to carbamazepine"}], "answer": "A", "explanation": "Lamotrigine carries a black box warning for rash progressing to SJS/TEN, and the risk is highest in the first 1-2 months and when valproate is co-administered (it raises lamotrigine levels about 50%). Any rash means the drug is stopped immediately, not dose-reduced or watched.", "objective": "Objective 2: Indications, adverse effects, contraindications, DI, and education for ASMs and benzodiazepines", "section": "Treatment of Seizures", "kind": "aeci"}, {"id": "S16", "group": 33, "stem": "A 40-year-old man with focal seizures uncontrolled on monotherapy needs an adjunctive agent. His chart lists a severe allergic reaction to sulfamethoxazole-trimethoprim. Agent to AVOID:", "options": [{"letter": "A", "text": "Levetiracetam (Keppra)"}, {"letter": "B", "text": "Lacosamide (Vimpat)"}, {"letter": "C", "text": "Lamotrigine (Lamictal)"}, {"letter": "D", "text": "Gabapentin (Neurontin)"}, {"letter": "E", "text": "Zonisamide (Zonegran)"}], "answer": "E", "explanation": "Zonisamide is a sulfonamide derivative and must be avoided in patients with a sulfa allergy. The other adjunctive options carry no sulfa cross-reactivity.", "objective": "Objective 2: Indications, adverse effects, contraindications, DI, and education for ASMs and benzodiazepines", "section": "Treatment of Seizures", "kind": "aeci"}, {"id": "S17", "group": 34, "stem": "A 52-year-old man on long-term ASM therapy for focal seizures presents with overgrown gums, coarsened facial features, and increased body hair. Which of the following agents is most likely responsible?", "options": [{"letter": "A", "text": "Levetiracetam (Keppra)"}, {"letter": "B", "text": "Phenytoin (Dilantin)"}, {"letter": "C", "text": "Lacosamide (Vimpat)"}, {"letter": "D", "text": "Oxcarbazepine (Trileptal)"}, {"letter": "E", "text": "Ethosuximide (Zarontin)"}], "answer": "B", "explanation": "Gingival hyperplasia, hirsutism, and coarsened features are the signature cosmetic adverse effects of phenytoin, which also causes osteoporosis and folate deficiency. The other listed agents do not produce these findings.", "objective": "Objective 2: Indications, adverse effects, contraindications, DI, and education for ASMs and benzodiazepines", "section": "Treatment of Seizures", "kind": "aeci"}, {"id": "C1", "group": 35, "stem": "A 68-year-old woman is brought to the emergency department with sudden right arm and leg weakness and inability to speak that began 2 hours ago while she was talking with her husband. BP 170/95 mm Hg, fingerstick glucose 110 mg/dL, NIHSS 14. Non-contrast head CT shows no hemorrhage. She has no history of bleeding or recent surgery. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Aspirin 325 mg PO now"}, {"letter": "B", "text": "IV heparin infusion"}, {"letter": "C", "text": "IV alteplase 0.9 mg/kg"}, {"letter": "D", "text": "Labetalol to lower BP first"}, {"letter": "E", "text": "Apixaban (Eliquis) 5 mg BID"}], "answer": "C", "explanation": "She meets every tPA card criterion: acute ischemic stroke, within 4.5 h of last known normal, disabling deficit, glucose checked, CT without hemorrhage, and BP already below 185/110. Antiplatelets and anticoagulants are withheld until the 24-hour post-tPA CT, and BP does not need lowering because it is already under the pre-tPA cutoff.", "objective": "Objective 3: Indication and role of thrombolytic therapy (tPA eligibility card)", "section": "CVA / TIA", "kind": "second"}, {"id": "C1a", "group": 35, "stem": "Twelve hours after the infusion, the nurse asks whether to give the patient her first dose of aspirin. Which of the following is the most appropriate response?", "options": [{"letter": "A", "text": "Give aspirin 325 mg now"}, {"letter": "B", "text": "Give clopidogrel 300 mg load"}, {"letter": "C", "text": "Start IV heparin instead"}, {"letter": "D", "text": "Start apixaban 5 mg BID"}, {"letter": "E", "text": "Withhold until the 24-h head CT"}], "answer": "E", "explanation": "No antithrombotic agent, antiplatelet or anticoagulant, is given for 24 hours after thrombolysis, and a repeat non-contrast CT at 24 hours must exclude hemorrhage before any of them starts. The 24-hour CT is the gate into secondary prevention.", "objective": "Objective 3: Post-thrombolysis rules in the first 24 hours", "section": "CVA / TIA", "kind": "second"}, {"id": "C2", "group": 36, "stem": "A 63-year-old man had 30 minutes of left-hand clumsiness and slurred speech this morning that fully resolved before arrival. BP 150/92 mm Hg; his ABCD2 score is calculated at 5. Head CT is normal and ECG shows sinus rhythm. Which of the following is the most appropriate antithrombotic regimen to start now?", "options": [{"letter": "A", "text": "Aspirin 325 mg daily alone"}, {"letter": "B", "text": "Aspirin plus clopidogrel (Plavix)"}, {"letter": "C", "text": "Apixaban (Eliquis) 5 mg BID"}, {"letter": "D", "text": "Clopidogrel (Plavix) 75 mg alone"}, {"letter": "E", "text": "Aspirin/ER-dipyridamole (Aggrenox)"}], "answer": "B", "explanation": "A high-risk TIA (ABCD2 greater than 4) in sinus rhythm is a non-cardioembolic event that earns short-course dual antiplatelet therapy with aspirin plus clopidogrel (both loaded), not a single agent. Anticoagulation is reserved for cardioembolic events such as atrial fibrillation.", "objective": "Objective 4: Antiplatelet plan for high-risk TIA / minor stroke", "section": "CVA / TIA", "kind": "second"}, {"id": "C2a", "group": 36, "stem": "How long should this two-drug combination be continued before stepping down to a single agent?", "options": [{"letter": "A", "text": "21 days"}, {"letter": "B", "text": "7 days"}, {"letter": "C", "text": "90 days"}, {"letter": "D", "text": "6 months"}, {"letter": "E", "text": "Indefinitely"}], "answer": "A", "explanation": "DAPT for a high-risk TIA or minor stroke runs 21 days, then one agent indefinitely. Ninety days is the duration reserved for intracranial large-artery stenosis, and DAPT beyond 90 days adds bleeding without benefit (MATCH trial).", "objective": "Objective 4: Duration of DAPT (21 days vs 90 days vs single agent forever)", "section": "CVA / TIA", "kind": "second"}, {"id": "C3", "group": 37, "stem": "A 74-year-old woman with hypertension and type 2 diabetes presents with 20 minutes of right facial droop and word-finding difficulty that resolved before arrival. Her pulse is irregularly irregular, and the ECG shows no discernible P waves. MRI shows no infarct. Which of the following is most appropriate for long-term prevention of recurrence?", "options": [{"letter": "A", "text": "Aspirin 325 mg daily"}, {"letter": "B", "text": "Clopidogrel (Plavix) 75 mg daily"}, {"letter": "C", "text": "Aspirin plus clopidogrel x 21 d"}, {"letter": "D", "text": "Apixaban (Eliquis) 5 mg BID"}, {"letter": "E", "text": "Warfarin (Coumadin) to INR 2-3"}], "answer": "D", "explanation": "A TIA in a patient with atrial fibrillation is cardioembolic, so the plan is anticoagulation, and a DOAC is preferred over warfarin. Aspirin or DAPT is not a substitute for anticoagulation in atrial fibrillation.", "objective": "Objective 4: Anticoagulation plan for cardioembolic TIA/stroke with AF", "section": "CVA / TIA", "kind": "second"}, {"id": "C3a", "group": 37, "stem": "Before finalizing the dose of this agent, which of the following must be assessed?", "options": [{"letter": "A", "text": "INR"}, {"letter": "B", "text": "aPTT"}, {"letter": "C", "text": "Renal function"}, {"letter": "D", "text": "CYP2C19 genotype"}, {"letter": "E", "text": "Anti-Xa level"}], "answer": "C", "explanation": "DOACs are renally cleared and apixaban is dose-reduced by age, weight, and creatinine, so renal function drives the dose. No INR is needed with a DOAC; CYP2C19 genotype matters for clopidogrel, not apixaban.", "objective": "Objective 2: DOAC cautions and monitoring (renal dosing)", "section": "CVA / TIA", "kind": "second"}, {"id": "C4", "group": 38, "stem": "A 70-year-old man completed a 1-hour fibrinolytic infusion for an acute ischemic stroke 6 hours ago and is in the ICU with neuro checks every 15 minutes. BP is now 192/108 mm Hg with no change in his neurologic exam. Which of the following blood pressure targets is most appropriate for the next 24 hours?", "options": [{"letter": "A", "text": "Below 185/110"}, {"letter": "B", "text": "Below 140/90"}, {"letter": "C", "text": "Below 130/80"}, {"letter": "D", "text": "No treatment; permissive HTN"}, {"letter": "E", "text": "Below 180/105"}], "answer": "E", "explanation": "After thrombolysis, BP is kept below 180/105 for 24 hours to reduce hemorrhagic transformation; 185/110 is the pre-tPA eligibility cutoff, a different number. The chronic goal of 130/80 belongs to long-term prevention, not the acute post-tPA period.", "objective": "Objective 3: Post-thrombolysis BP rule (180/105 vs 185/110)", "section": "CVA / TIA", "kind": "second"}, {"id": "C5", "group": 39, "stem": "A 66-year-old man woke at 7 AM with left-sided weakness and neglect. His wife last saw him normal when they went to bed at 10 PM. It is now 8 AM. Head CT shows no hemorrhage; BP 160/90 mm Hg. Which of the following is the most appropriate management?", "options": [{"letter": "A", "text": "IV alteplase 0.9 mg/kg"}, {"letter": "B", "text": "IV tenecteplase bolus"}, {"letter": "C", "text": "Lower BP, then IV alteplase"}, {"letter": "D", "text": "Supportive care; thrombectomy eval"}, {"letter": "E", "text": "IV heparin infusion"}], "answer": "D", "explanation": "The clock starts at last known normal, not when symptoms were noticed, so this wake-up stroke is 10 hours out and fails the 4.5-hour window for any IV thrombolytic. Management is supportive care with evaluation for mechanical thrombectomy.", "objective": "Objective 3: tPA window measured from last known normal (wake-up stroke)", "section": "CVA / TIA", "kind": "second"}, {"id": "C6", "group": 40, "stem": "A 59-year-old woman develops acute aphasia and right hemiparesis; she was last known normal 90 minutes ago. Glucose 118 mg/dL; head CT shows no bleed. BP is 204/116 mm Hg on repeat measurement. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Give IV alteplase immediately"}, {"letter": "B", "text": "Lower BP below 185/110, then alteplase"}, {"letter": "C", "text": "Aspirin 325 mg; no thrombolysis"}, {"letter": "D", "text": "Thrombolysis is contraindicated"}, {"letter": "E", "text": "Wait for BP to fall on its own"}], "answer": "B", "explanation": "Uncontrolled BP above 185/110 is a contraindication only until it is corrected: lower the pressure first, then give tPA if she is still within the window. Hypertension that cannot be brought below 185/110 is what makes thrombolysis contraindicated.", "objective": "Objective 3: tPA eligibility - BP must be below 185/110 before treatment", "section": "CVA / TIA", "kind": "second"}, {"id": "C7", "group": 41, "stem": "A 64-year-old man with a non-cardioembolic ischemic stroke 3 months ago has completed his short course of dual antiplatelet therapy. He has a documented aspirin allergy (hives). Which of the following is the most appropriate long-term single agent?", "options": [{"letter": "A", "text": "Clopidogrel (Plavix) 75 mg daily"}, {"letter": "B", "text": "Aspirin/ER-dipyridamole (Aggrenox)"}, {"letter": "C", "text": "Warfarin (Coumadin) to INR 2-3"}, {"letter": "D", "text": "Apixaban (Eliquis) 5 mg BID"}, {"letter": "E", "text": "Aspirin 81 mg daily with food"}], "answer": "A", "explanation": "Clopidogrel is the alternative to aspirin for aspirin allergy or intolerance and is an acceptable indefinite single agent after non-cardioembolic stroke. Aggrenox contains aspirin, and anticoagulants are for cardioembolic events.", "objective": "Objective 2: Clopidogrel indication (aspirin allergy/intolerance)", "section": "CVA / TIA", "kind": "first"}, {"id": "C8", "group": 42, "stem": "A 55-year-old man with no prior medical care has BP 160/100 mm Hg confirmed on two visits, BMI 35, LDL 190 mg/dL, and no history of stroke or TIA. Which of the following is the most appropriate initial antihypertensive strategy?", "options": [{"letter": "A", "text": "Lisinopril alone, titrate to max"}, {"letter": "B", "text": "Lisinopril plus amlodipine"}, {"letter": "C", "text": "Metoprolol alone"}, {"letter": "D", "text": "Lisinopril plus losartan"}, {"letter": "E", "text": "Aspirin 81 mg plus lisinopril"}], "answer": "B", "explanation": "His BP is more than 20/10 above the 130/80 goal, so two first-line agents (ACEi plus DHP-CCB or thiazide) are started at once. Beta-blockers are not first-line, ACEi plus ARB is never combined, and aspirin is not for routine primary prevention.", "objective": "Objective 1/4: Primary prevention BP plan - two drugs when >20/10 above goal", "section": "CVA / TIA", "kind": "second"}, {"id": "C9", "group": 43, "stem": "A 79-year-old woman with atrial fibrillation on dabigatran (Pradaxa) presents with a massive upper GI bleed and hypotension. Which of the following reversal agents is most appropriate?", "options": [{"letter": "A", "text": "Vitamin K"}, {"letter": "B", "text": "Protamine sulfate"}, {"letter": "C", "text": "Andexanet alfa"}, {"letter": "D", "text": "Idarucizumab"}, {"letter": "E", "text": "Fresh frozen plasma"}], "answer": "D", "explanation": "Idarucizumab reverses dabigatran, the direct thrombin inhibitor. Andexanet alfa is for the factor Xa inhibitors, vitamin K for warfarin, and protamine for heparin.", "objective": "Objective 2: Anticoagulant reversal agents", "section": "CVA / TIA", "kind": "first"}, {"id": "C10", "group": 44, "stem": "A 62-year-old woman is being discharged after an ischemic stroke. She takes no lipid-lowering therapy. Fasting lipids: LDL 96 mg/dL, HDL 48 mg/dL, TG 140 mg/dL; her calculated 10-year ASCVD risk before this event was 6%. Which of the following is the most appropriate lipid therapy?", "options": [{"letter": "A", "text": "No statin; LDL is at goal"}, {"letter": "B", "text": "Atorvastatin (Lipitor) 80 mg"}, {"letter": "C", "text": "Pravastatin 40 mg"}, {"letter": "D", "text": "Atorvastatin (Lipitor) 10 mg"}, {"letter": "E", "text": "Ezetimibe (Zetia) 10 mg"}], "answer": "B", "explanation": "Any stroke or TIA is clinical ASCVD (Group 1), so a patient under 75 gets a high-intensity statin regardless of baseline LDL: atorvastatin 40-80 mg or rosuvastatin 20-40 mg. Moderate-intensity options are reserved for intolerance, and ezetimibe is an add-on, not a starting agent.", "objective": "Objective 4: Lipid plan after stroke/TIA - high-intensity statin regardless of LDL", "section": "CVA / TIA", "kind": "second"}, {"id": "C11", "group": 45, "stem": "A 67-year-old man presents with a small left MCA-territory infarct. MR angiography shows 80% stenosis of the left middle cerebral artery. ECG shows sinus rhythm and the echocardiogram is unremarkable. Which of the following is the most appropriate antithrombotic plan?", "options": [{"letter": "A", "text": "Aspirin + clopidogrel for 21 days"}, {"letter": "B", "text": "Aspirin + clopidogrel indefinitely"}, {"letter": "C", "text": "Angioplasty and stenting + aspirin"}, {"letter": "D", "text": "Apixaban (Eliquis) 5 mg BID"}, {"letter": "E", "text": "Aspirin + clopidogrel for 90 days"}], "answer": "E", "explanation": "Symptomatic intracranial large-artery stenosis of 70-99% earns DAPT for 90 days, then a single agent, and DAPT is preferred over angioplasty or stenting. Twenty-one days is the duration for high-risk TIA or minor stroke without stenosis.", "objective": "Objective 4: DAPT 90 days for intracranial stenosis 70-99%, not stenting", "section": "CVA / TIA", "kind": "second"}, {"id": "C12", "group": 46, "stem": "A 60-year-old man with type 2 diabetes and a prior ischemic stroke has an A1c of 8.4% on metformin alone. He has no heart failure or kidney disease. Which of the following is the most appropriate agent to add for stroke risk reduction?", "options": [{"letter": "A", "text": "Pioglitazone (Actos)"}, {"letter": "B", "text": "SGLT2 inhibitor"}, {"letter": "C", "text": "GLP-1 receptor agonist"}, {"letter": "D", "text": "Sulfonylurea"}, {"letter": "E", "text": "Basal insulin"}], "answer": "C", "explanation": "In diabetes with established cardiovascular disease, the type of glucose-lowering drug matters more than the A1c drop; GLP-1 receptor agonists are the preferred add-on to metformin and cut stroke risk 15-27%. SGLT2 inhibitors are favored when heart failure or CKD is present, and pioglitazone raises heart-failure risk.", "objective": "Objective 2/4: Glucose-lowering agents with CV benefit - GLP-1 RA preferred", "section": "CVA / TIA", "kind": "first"}, {"id": "C13", "group": 47, "stem": "A 58-year-old woman with a prior TIA has taken atorvastatin (Lipitor) 80 mg for 3 months with good adherence. Her LDL fell from 150 to 100 mg/dL. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Add ezetimibe (Zetia)"}, {"letter": "B", "text": "Add evolocumab (Repatha)"}, {"letter": "C", "text": "Add cholestyramine"}, {"letter": "D", "text": "Switch to rosuvastatin 40 mg"}, {"letter": "E", "text": "Continue current regimen"}], "answer": "A", "explanation": "A maximal-dose statin that produces less than a 50% LDL reduction with LDL still above 70 gets ezetimibe added first. A PCSK9 inhibitor comes only after statin plus ezetimibe fails, and cholestyramine is considered when triglycerides exceed 300.", "objective": "Objective 4: Lipid escalation - ezetimibe, then PCSK9 inhibitor", "section": "CVA / TIA", "kind": "first"}, {"id": "C14", "group": 48, "stem": "A 66-year-old man on clopidogrel (Plavix) after a stroke reports daily heartburn and asks for something stronger than his antacid. Which of the following should be AVOIDED?", "options": [{"letter": "A", "text": "Omeprazole"}, {"letter": "B", "text": "Calcium carbonate (TUMS)"}, {"letter": "C", "text": "Pantoprazole"}, {"letter": "D", "text": "Famotidine"}, {"letter": "E", "text": "Sucralfate"}], "answer": "A", "explanation": "Clopidogrel is a prodrug activated by CYP2C19; omeprazole and esomeprazole inhibit that enzyme and blunt its antiplatelet effect. Pantoprazole is the safer PPI, and antacids such as TUMS are fine.", "objective": "Objective 2: Clopidogrel drug interaction (CYP2C19 / omeprazole)", "section": "CVA / TIA", "kind": "aeci"}, {"id": "C15", "group": 49, "stem": "A 70-year-old woman with hypertension and known bilateral renal artery stenosis needs additional blood pressure control for stroke prevention. Which of the following agents should be AVOIDED?", "options": [{"letter": "A", "text": "Amlodipine"}, {"letter": "B", "text": "Chlorthalidone"}, {"letter": "C", "text": "Hydrochlorothiazide"}, {"letter": "D", "text": "Lisinopril"}, {"letter": "E", "text": "Nifedipine"}], "answer": "D", "explanation": "ACE inhibitors (and ARBs) can precipitate acute kidney failure in bilateral renal artery stenosis. A DHP-CCB or thiazide is a safe first-line choice and carries the best stroke-reduction data.", "objective": "Objective 2: ACEi/ARB cautions - bilateral renal artery stenosis", "section": "CVA / TIA", "kind": "aeci"}, {"id": "C16", "group": 50, "stem": "A 61-year-old man started on aspirin/ER-dipyridamole (Aggrenox) after a TIA calls 4 days later because of pounding headaches and wants to stop the drug. Which of the following is the most appropriate counseling?", "options": [{"letter": "A", "text": "Stop it; switch to warfarin"}, {"letter": "B", "text": "Take it once daily instead of twice"}, {"letter": "C", "text": "Add ibuprofen for the headache"}, {"letter": "D", "text": "Stop it; this signals a bleed"}, {"letter": "E", "text": "Headache usually fades in 1-2 weeks"}], "answer": "E", "explanation": "Headache is the classic dipyridamole adverse effect that limits adherence, and it usually fades within 1-2 weeks, so the patient should be encouraged to continue. NSAIDs stack GI bleeding risk with aspirin and blunt its antiplatelet effect, and the BID schedule should not be altered.", "objective": "Objective 2: Aspirin/ER-dipyridamole adverse effects and education", "section": "CVA / TIA", "kind": "aeci"}, {"id": "C17", "group": 51, "stem": "A 72-year-old man presents with acute left hemiparesis, last known normal 2 hours ago. Head CT shows no hemorrhage, BP is 168/94 mm Hg, and glucose is 105 mg/dL. His history includes an intracerebral hemorrhage 3 years ago. Which of the following makes thrombolysis contraindicated?", "options": [{"letter": "A", "text": "Time from last known normal"}, {"letter": "B", "text": "Current blood pressure"}, {"letter": "C", "text": "Prior intracranial hemorrhage"}, {"letter": "D", "text": "Age over 70 years"}, {"letter": "E", "text": "Current CT findings"}], "answer": "C", "explanation": "Prior intracranial hemorrhage is a listed contraindication to alteplase or tenecteplase (identical contraindications), alongside active bleeding, recent surgery, uncontrolled severe hypertension, and bleeding diathesis. His time window, BP, glucose, and CT would otherwise all qualify him.", "objective": "Objective 3: Thrombolytic contraindications", "section": "CVA / TIA", "kind": "aeci"}]};
+
+(function shuffleExam() {
+  function shuf(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  const qs = EXAM_DATA.questions;
+  const order = []; const map = {};
+  qs.forEach(q => { if (!map[q.group]) { map[q.group] = []; order.push(q.group); } map[q.group].push(q); });
+  shuf(order);
+  const out = []; let n = 0;
+  order.forEach(g => {
+    n++;
+    map[g].forEach((q, i) => {
+      q.id = i === 0 ? String(n) : String(n) + String.fromCharCode(96 + i);
+      q.group = n;
+      const correctText = q.options.find(o => o.letter === q.answer).text;
+      const opts = shuf(q.options.slice());
+      opts.forEach((o, k) => { o.letter = String.fromCharCode(65 + k); });
+      q.options = opts;
+      q.answer = opts.find(o => o.text === correctText).letter;
+      out.push(q);
+    });
+  });
+  EXAM_DATA.questions = out;
+})();
+
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

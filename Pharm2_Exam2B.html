@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Pharm II Exam 2 Practice Exam B — CNS Infections, Parkinson's, IV Fluids", "questions": [{"id": "N1", "group": 1, "stem": "A 19-year-old man living in a college dormitory presents with 12 hours of fever, severe generalized headache, vomiting, and neck stiffness. Temp 39.6 °C, HR 118, BP 100/62. Exam shows nuchal rigidity, photophobia, and a diffuse petechial rash over the trunk and legs; there are no focal deficits and no papilledema. Blood cultures have been drawn and a lumbar puncture is under way. He has no drug allergies and no immunocompromising conditions. Which of the following is the most appropriate empiric regimen to start now?", "options": [{"letter": "A", "text": "Ceftriaxone (Rocephin) + vancomycin + ampicillin"}, {"letter": "B", "text": "Ceftriaxone (Rocephin) + vancomycin"}, {"letter": "C", "text": "Ampicillin + gentamicin + vancomycin"}, {"letter": "D", "text": "Vancomycin + cefepime + metronidazole"}, {"letter": "E", "text": "Rifampin + ciprofloxacin + penicillin G"}], "answer": "B", "explanation": "An immunocompetent patient aged 2–50 with suspected bacterial meningitis gets a 3rd-generation cephalosporin plus vancomycin (with dexamethasone at the first dose). Ampicillin is added only for Listeria risk groups (>50, pregnant, immunocompromised), which he is not.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "second"}, {"id": "N1a", "group": 1, "stem": "Dexamethasone was given with the first antibiotic dose. CSF culture now grows Neisseria meningitidis. Which of the following is the most appropriate adjustment to therapy?", "options": [{"letter": "A", "text": "Continue dexamethasone for the full 4 days"}, {"letter": "B", "text": "Add ampicillin and continue vancomycin"}, {"letter": "C", "text": "Switch to oral amoxicillin to finish the course"}, {"letter": "D", "text": "Stop dexamethasone and narrow to ceftriaxone alone"}, {"letter": "E", "text": "Add rifampin and extend therapy to 14 days"}], "answer": "D", "explanation": "Once N. meningitidis is identified, therapy is narrowed to a 3rd-generation cephalosporin alone for 7 days and the steroid is stopped, because dexamethasone benefits only pneumococcal meningitis. Bacterial meningitis is never stepped down to oral therapy.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "second"}, {"id": "N1b", "group": 1, "stem": "His roommate, who received the MenACWY (Menveo) booster at age 16, is seen 18 hours after the diagnosis. Which of the following is most appropriate for the roommate?", "options": [{"letter": "A", "text": "Rifampin 600 mg PO twice daily for 2 days"}, {"letter": "B", "text": "Observation without antibiotic prophylaxis"}, {"letter": "C", "text": "Ceftriaxone (Rocephin) IV for 7 days"}, {"letter": "D", "text": "Amoxicillin PO three times daily for 10 days"}, {"letter": "E", "text": "MenACWY (Menveo) booster given today"}], "answer": "A", "explanation": "Roommates are close contacts and receive chemoprophylaxis as soon as possible (within 24 h) regardless of vaccination status; rifampin, single-dose IM ceftriaxone, or single-dose ciprofloxacin are the accepted agents. Prior vaccination does not remove the need for prophylaxis.", "objective": "Objective 2: recall when meningitis post-exposure prophylaxis is needed and which agents to give", "section": "CNS Infections", "kind": "second"}, {"id": "N2", "group": 2, "stem": "A 68-year-old man with long-standing heavy alcohol use is brought in with one day of fever, headache, and confusion. Temp 39.2 °C. He has nuchal rigidity, no rash, and no focal deficits. Blood cultures are drawn; CSF shows WBC 2,400/µL (neutrophil-predominant), glucose 28 mg/dL, and protein 310 mg/dL. He has no drug allergies. Which of the following is the most appropriate empiric regimen?", "options": [{"letter": "A", "text": "Ceftriaxone (Rocephin) + vancomycin"}, {"letter": "B", "text": "Penicillin G + gentamicin + vancomycin IV"}, {"letter": "C", "text": "Ceftriaxone (Rocephin) + vancomycin + ampicillin"}, {"letter": "D", "text": "Vancomycin + meropenem + metronidazole IV"}, {"letter": "E", "text": "Ampicillin + gentamicin + dexamethasone IV"}], "answer": "C", "explanation": "Patients over 50, alcoholics, pregnant, or immunocompromised patients are at risk for Listeria, and cephalosporins have no activity against it, so ampicillin is added to the 3rd-generation cephalosporin plus vancomycin. Ceftriaxone + vancomycin alone is the classic wrong answer in an older alcoholic.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "second"}, {"id": "N2a", "group": 2, "stem": "CSF culture grows Listeria monocytogenes. Which of the following is the most appropriate targeted regimen?", "options": [{"letter": "A", "text": "Ceftriaxone (Rocephin) alone"}, {"letter": "B", "text": "Vancomycin + ceftriaxone (Rocephin)"}, {"letter": "C", "text": "Trimethoprim/sulfamethoxazole + vancomycin"}, {"letter": "D", "text": "Meropenem plus vancomycin"}, {"letter": "E", "text": "Ampicillin plus gentamicin"}], "answer": "E", "explanation": "Listeria is treated with ampicillin (or penicillin G) plus gentamicin for synergy; TMP-SMX is the alternative only for penicillin-allergic patients. Cephalosporins do not cover Listeria.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "second"}, {"id": "N2b", "group": 2, "stem": "He improves on the targeted regimen. For how long should IV therapy be continued?", "options": [{"letter": "A", "text": "7 days total"}, {"letter": "B", "text": "10 to 14 days total"}, {"letter": "C", "text": "4 to 6 weeks total"}, {"letter": "D", "text": "At least 9 months"}, {"letter": "E", "text": "2 to 3 weeks total"}], "answer": "E", "explanation": "Listeria meningitis is treated for 2–3 weeks, longer than meningococcal (7 days) or pneumococcal (10–14 days) disease; the 9-month course belongs to tuberculous meningitis.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "second"}, {"id": "N3", "group": 3, "stem": "A 41-year-old man with HIV (CD4 180 cells/µL) who emigrated from India 2 years ago reports 6 weeks of progressively worsening headache, low-grade fevers, and night sweats, and now has mild confusion. CSF shows a lymphocytic pleocytosis, low glucose, and markedly elevated protein; bacterial cultures are negative, and the CSF smear shows acid-fast bacilli. Which of the following is the most appropriate initial regimen?", "options": [{"letter": "A", "text": "Isoniazid + rifampin + pyrazinamide + ethambutol"}, {"letter": "B", "text": "Ceftriaxone (Rocephin) + vancomycin + ampicillin"}, {"letter": "C", "text": "Amphotericin B + flucytosine, then fluconazole"}, {"letter": "D", "text": "Isoniazid + rifampin + pyridoxine for 6 months"}, {"letter": "E", "text": "Acyclovir (Zovirax) IV + dexamethasone IV"}], "answer": "A", "explanation": "A subacute (weeks-to-months) meningitis with acid-fast bacilli is tuberculous meningitis, treated with 4-drug RIPE therapy for at least 9 months, plus pyridoxine to prevent isoniazid neuropathy. Two-drug or 6-month regimens are inadequate for CNS TB.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "second"}, {"id": "N4", "group": 4, "stem": "A 34-year-old woman has 3 days of fever and headache and today became confused and had a witnessed seizure that began with lip-smacking and staring. Head CT shows no mass. CSF is lymphocyte-predominant with red blood cells, normal glucose, and a negative Gram stain. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Start IV ganciclovir (Cytovene) now"}, {"letter": "B", "text": "Supportive care and await PCR result"}, {"letter": "C", "text": "Ceftriaxone (Rocephin) + vancomycin"}, {"letter": "D", "text": "Start IV acyclovir (Zovirax) now"}, {"letter": "E", "text": "Start IV foscarnet (Foscavir) now"}], "answer": "D", "explanation": "Fever, altered mental status, and temporal-lobe seizures with a lymphocytic CSF point to HSV encephalitis, which gets empiric IV acyclovir immediately rather than waiting for confirmation. Ganciclovir is for CMV and foscarnet for resistant HSV/CMV.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "second"}, {"id": "N5", "group": 5, "stem": "A 55-year-old woman presents with fever, headache, and nuchal rigidity. On exam she has new right-arm weakness and papilledema on fundoscopy. She has no known immunocompromise or allergies. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Obtain head CT, then LP, then antibiotics"}, {"letter": "B", "text": "Draw blood cultures and start empiric antibiotics, then CT"}, {"letter": "C", "text": "Perform LP immediately, then start antibiotics"}, {"letter": "D", "text": "Give dexamethasone and wait for CT before antibiotics"}, {"letter": "E", "text": "Start antibiotics only after the CSF Gram stain returns"}], "answer": "B", "explanation": "Focal deficits and papilledema require CT before LP, but imaging must never delay treatment: draw blood cultures, give empiric antibiotics (with dexamethasone), then CT, then LP if safe. Any delay in antibiotics means higher fatality and worse neurologic sequelae.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "second"}, {"id": "N6", "group": 6, "stem": "A 38-year-old man with AIDS (CD4 40 cells/µL) who is not taking antiretrovirals reports 3 weeks of headache, fever, and malaise. Lumbar puncture shows a markedly elevated opening pressure, and India ink preparation of the CSF reveals encapsulated budding yeast. Which of the following is the most appropriate induction regimen?", "options": [{"letter": "A", "text": "Fluconazole PO monotherapy"}, {"letter": "B", "text": "Isoniazid + rifampin + ethambutol"}, {"letter": "C", "text": "Ceftriaxone (Rocephin) + vancomycin"}, {"letter": "D", "text": "Acyclovir (Zovirax) IV + fluconazole"}, {"letter": "E", "text": "Amphotericin B + flucytosine"}], "answer": "E", "explanation": "Encapsulated yeast in an AIDS patient is cryptococcal meningitis; induction is amphotericin B plus flucytosine, followed by fluconazole suppression that may be lifelong. Fluconazole alone is the consolidation/suppression phase, not induction.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "second"}, {"id": "N7", "group": 7, "stem": "A 52-year-old man is 2 months into a four-drug regimen for tuberculous meningitis. He reports new tingling and numbness in both feet and his fingertips. Vision and color perception are normal, and liver enzymes are at baseline. Which of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Give pyridoxine and continue the regimen"}, {"letter": "B", "text": "Stop ethambutol and check color vision"}, {"letter": "C", "text": "Stop pyrazinamide and check uric acid"}, {"letter": "D", "text": "Stop rifampin and check liver enzymes"}, {"letter": "E", "text": "Stop isoniazid and switch to rifabutin"}], "answer": "A", "explanation": "Symmetric distal paresthesias on TB therapy are isoniazid-induced peripheral neuritis from vitamin B6 depletion; the fix is to give or increase pyridoxine, not to abandon the first-line drug. Red-green color loss, not paresthesias, would point to ethambutol.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "second"}, {"id": "N8", "group": 8, "stem": "A 30-year-old female nurse delivered a meal tray to and started a peripheral IV on a patient who was later confirmed to have meningococcal meningitis. She did not intubate, suction, or perform mouth-to-mouth on the patient. She asks whether she needs treatment. Which of the following is most appropriate?", "options": [{"letter": "A", "text": "Rifampin PO twice daily for 2 days"}, {"letter": "B", "text": "Ciprofloxacin 500 mg PO single dose"}, {"letter": "C", "text": "Ceftriaxone (Rocephin) IM single dose"}, {"letter": "D", "text": "MenACWY (Menveo) vaccine given now"}, {"letter": "E", "text": "No chemoprophylaxis is indicated"}], "answer": "E", "explanation": "Brief non-face-to-face contact (tray delivery, starting an IV, routine exam) is not an exposure. Only healthcare workers with close contact such as intubation, suctioning, or mouth-to-mouth before or within 24 h of antibiotics need prophylaxis.", "objective": "Objective 2: recall when meningitis post-exposure prophylaxis is needed and which agents to give", "section": "CNS Infections", "kind": "second"}, {"id": "N9", "group": 9, "stem": "A 63-year-old man with culture-confirmed Streptococcus pneumoniae meningitis is on day 2 of vancomycin plus ceftriaxone (Rocephin). Dexamethasone was started with the first antibiotic dose. Which of the following is most appropriate regarding the dexamethasone?", "options": [{"letter": "A", "text": "Give one additional dose, then stop"}, {"letter": "B", "text": "Discontinue it after today's dose"}, {"letter": "C", "text": "Continue it for a total of 4 days"}, {"letter": "D", "text": "Switch to an oral prednisone taper"}, {"letter": "E", "text": "Continue it for the full 10–14 days"}], "answer": "C", "explanation": "S. pneumoniae is the one organism in which dexamethasone reduces mortality and neurologic sequelae, so it is continued for the full 4-day course (10 mg IV q6h). It is stopped if another organism is identified.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "first"}, {"id": "N10", "group": 10, "stem": "A 26-year-old woman who is 20 weeks pregnant is a household contact of a patient hospitalized yesterday with confirmed meningococcal meningitis. Which of the following is the most appropriate prophylaxis for her?", "options": [{"letter": "A", "text": "Ciprofloxacin 500 mg PO single dose"}, {"letter": "B", "text": "Rifampin 600 mg PO BID for 2 days"}, {"letter": "C", "text": "Amoxicillin 500 mg PO TID for 7 days"}, {"letter": "D", "text": "Ceftriaxone (Rocephin) 250 mg IM once"}, {"letter": "E", "text": "No prophylaxis until after delivery"}], "answer": "D", "explanation": "Household contacts need prophylaxis within 24 h; in pregnancy single-dose IM ceftriaxone is preferred because ciprofloxacin is avoided and rifampin is less preferred when an alternative exists.", "objective": "Objective 2: recall when meningitis post-exposure prophylaxis is needed and which agents to give", "section": "CNS Infections", "kind": "first"}, {"id": "N11", "group": 11, "stem": "A 48-year-old woman with Meniere's disease continues to have recurrent attacks of vertigo with tinnitus and ear fullness despite a strict low-sodium diet and avoidance of caffeine, nicotine, and alcohol. Which of the following is the most appropriate maintenance agent?", "options": [{"letter": "A", "text": "Meclizine scheduled twice daily"}, {"letter": "B", "text": "Triamterene/hydrochlorothiazide"}, {"letter": "C", "text": "Lorazepam scheduled nightly"}, {"letter": "D", "text": "Ondansetron scheduled daily"}, {"letter": "E", "text": "Prednisone daily oral course"}], "answer": "B", "explanation": "When diet alone fails, triamterene/HCTZ is the maintenance drug for Meniere's (reduces endolymph volume). Meclizine and lorazepam are PRN agents for acute attacks only; chronic meclizine blocks central compensation.", "objective": "Appendix A: Meniere's disease pharmacotherapy (maintenance vs. acute-attack agents)", "section": "CNS Infections", "kind": "first"}, {"id": "N12", "group": 12, "stem": "A 35-year-old man's unvaccinated 3-year-old child is hospitalized with culture-confirmed Haemophilus influenzae type b meningitis. Which of the following is most appropriate for the father and other household contacts?", "options": [{"letter": "A", "text": "Rifampin oral course"}, {"letter": "B", "text": "Ceftriaxone (Rocephin) IM"}, {"letter": "C", "text": "Ciprofloxacin single dose"}, {"letter": "D", "text": "Hib vaccine catch-up only"}, {"letter": "E", "text": "No prophylaxis needed"}], "answer": "A", "explanation": "Close-contact prophylaxis is generally recommended for H. influenzae meningitis, and rifampin is the agent usually used. Ceftriaxone IM and ciprofloxacin are the meningococcal alternatives.", "objective": "Objective 2: recall when meningitis post-exposure prophylaxis is needed and which agents to give", "section": "CNS Infections", "kind": "first"}, {"id": "N13", "group": 13, "stem": "A 60-year-old woman being treated for tuberculous meningitis reports that she can no longer tell red from green traffic lights and that her vision seems blurred. Which agent is most likely responsible?", "options": [{"letter": "A", "text": "Isoniazid"}, {"letter": "B", "text": "Rifampin"}, {"letter": "C", "text": "Ethambutol"}, {"letter": "D", "text": "Pyrazinamide"}, {"letter": "E", "text": "Pyridoxine"}], "answer": "C", "explanation": "Ethambutol causes optic (retrobulbar) neuritis with decreased visual acuity and loss of red-green discrimination; the drug is stopped and the change usually reverses. Baseline and periodic vision and color testing are required.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "aeci"}, {"id": "N14", "group": 14, "stem": "A 24-year-old woman who takes a combined oral contraceptive is prescribed rifampin for 2 days after her roommate is diagnosed with meningococcal meningitis. Which counseling point is most important?", "options": [{"letter": "A", "text": "Take each dose with a high-fat meal"}, {"letter": "B", "text": "Use a backup method of contraception"}, {"letter": "C", "text": "Avoid sun exposure for 2 weeks"}, {"letter": "D", "text": "Expect tooth discoloration with each dose"}, {"letter": "E", "text": "Avoid dairy products for 2 hours"}], "answer": "B", "explanation": "Rifampin is a potent CYP3A4 inducer that can cause oral-contraceptive failure, so backup contraception is essential; she should also be told the orange-red urine, tears, and sweat (which stain contact lenses) are harmless.", "objective": "Objective 2: recall when meningitis post-exposure prophylaxis is needed and which agents to give", "section": "CNS Infections", "kind": "aeci"}, {"id": "N15", "group": 15, "stem": "A 45-year-old man receiving IV amphotericin B for fungal meningitis develops a rising serum creatinine with K⁺ 2.9 mEq/L and low magnesium. Which of the following measures reduces this toxicity?", "options": [{"letter": "A", "text": "Premedication with hydrocortisone each dose"}, {"letter": "B", "text": "Add ibuprofen for infusion-related fever"}, {"letter": "C", "text": "Add a small amount of heparin to the infusion"}, {"letter": "D", "text": "Saline bolus before and after each infusion"}, {"letter": "E", "text": "Switch to oral flucytosine monotherapy"}], "answer": "D", "explanation": "Amphotericin nephrotoxicity with potassium and magnesium wasting is reduced by a saline bolus before and after each infusion (a liposomal formulation also lowers renal toxicity). Premedication prevents infusion fever/chills, heparin prevents thrombophlebitis, and NSAIDs add nephrotoxicity.", "objective": "Objective 1: formulate a treatment plan for a CNS infection (agent, duration, education, compliance)", "section": "CNS Infections", "kind": "aeci"}, {"id": "N16", "group": 16, "stem": "A 29-year-old man develops 4 days of progressive, symmetric weakness that began in his feet and now involves his thighs, with absent knee and ankle reflexes, 2 weeks after a diarrheal illness. Vital capacity is being monitored. Which of the following agents should be AVOIDED because it is ineffective?", "options": [{"letter": "A", "text": "IVIG"}, {"letter": "B", "text": "Plasmapheresis"}, {"letter": "C", "text": "Oral corticosteroids"}, {"letter": "D", "text": "Pyridostigmine (Mestinon)"}, {"letter": "E", "text": "Gabapentin"}], "answer": "C", "explanation": "Ascending symmetric weakness with areflexia after an infection is Guillain-Barré syndrome; IVIG or plasma exchange are the two effective (and equivalent) treatments, whereas steroids are ineffective and oral steroids may even slow recovery.", "objective": "Appendix B: Guillain-Barré syndrome treatment (IVIG or PLEX; steroids ineffective)", "section": "CNS Infections", "kind": "aeci"}, {"id": "P1", "group": 17, "stem": "A 68-year-old man is brought in by his wife for a 6-month history of a right-hand tremor that is present at rest and lessens when he reaches for objects. He has become slower dressing and buttoning shirts, his handwriting has shrunk, and his wife notes he \"rarely smiles anymore.\" He has had a reduced sense of smell for several years. He takes lisinopril for hypertension and no other medications. Exam shows a resting tremor, cogwheel rigidity of the right arm, bradykinesia, and reduced facial expression. Neurology confirms the diagnosis, and his symptoms are now interfering with daily activities. Which of the following is the most appropriate initial pharmacologic agent?", "options": [{"letter": "A", "text": "pramipexole (Mirapex)"}, {"letter": "B", "text": "entacapone (Comtan)"}, {"letter": "C", "text": "carbidopa/levodopa (Sinemet)"}, {"letter": "D", "text": "selegiline"}, {"letter": "E", "text": "amantadine"}], "answer": "C", "explanation": "This is Parkinson's disease in an older patient (≥60–65 y) whose motor symptoms limit ADLs, so carbidopa/levodopa, the most effective agent for motor symptoms, is the preferred initial treatment. Pramipexole and selegiline are less effective initially, entacapone is never monotherapy, and amantadine gives modest, short-lived benefit.", "objective": "Objective 4: case-based treatment plan — initial agent and reasons to add on", "section": "Parkinson's Disease", "kind": "second"}, {"id": "P1a", "group": 17, "stem": "Which of the following instructions about taking this medication is most appropriate?", "options": [{"letter": "A", "text": "Take 1 hour before or 2 hours after meals"}, {"letter": "B", "text": "Take with a high-protein meal to limit nausea"}, {"letter": "C", "text": "Take only at bedtime"}, {"letter": "D", "text": "Take with a full glass of milk"}, {"letter": "E", "text": "Stop the medication if nausea develops"}], "answer": "A", "explanation": "Levodopa is a large neutral amino acid that competes with dietary protein for gut absorption and BBB transport, so it is taken on an empty stomach (1 h before or 2 h after meals). Transient nausea is managed with a non-protein snack such as crackers, not by stopping the drug.", "objective": "Objective 1: MOA, indications, cautions, and patient education for the PD drug classes", "section": "Parkinson's Disease", "kind": "second"}, {"id": "P2", "group": 18, "stem": "A 74-year-old woman with a 7-year history of resting tremor, rigidity, and bradykinesia has been well controlled on carbidopa/levodopa 25/100 (Sinemet) three times daily. Over the past several months she notes that stiffness, tremor, and fatigue return about 45 minutes before each scheduled dose and improve within an hour of taking it. She has no involuntary writhing movements. Which of the following is the most appropriate first adjustment?", "options": [{"letter": "A", "text": "Increase each dose and keep the same frequency"}, {"letter": "B", "text": "Switch to pramipexole (Mirapex) monotherapy"}, {"letter": "C", "text": "Add haloperidol (Haldol) at bedtime"}, {"letter": "D", "text": "Decrease each dose and increase dosing frequency"}, {"letter": "E", "text": "Stop carbidopa/levodopa for a drug holiday"}], "answer": "D", "explanation": "Symptoms returning before the next dose is \"wearing-off\" (too little dopaminergic stimulation). The first move is to match the dosing interval to the short-duration response: smaller doses given more often, which smooths troughs (wearing-off) and peaks (dyskinesia). PD meds are never stopped abruptly.", "objective": "Objective 4: case-based treatment plan — initial agent and reasons to add on", "section": "Parkinson's Disease", "kind": "second"}, {"id": "P2a", "group": 18, "stem": "The adjustment gives only partial relief and end-of-dose symptoms persist. Which of the following agents is most appropriate to add?", "options": [{"letter": "A", "text": "amantadine ER"}, {"letter": "B", "text": "entacapone (Comtan)"}, {"letter": "C", "text": "haloperidol (Haldol)"}, {"letter": "D", "text": "clonazepam (Klonopin)"}, {"letter": "E", "text": "metoclopramide (Reglan)"}], "answer": "B", "explanation": "Entacapone, a COMT inhibitor taken with each levodopa dose, prolongs levodopa's half-life and extends \"on\" time — the targeted add-on for wearing-off. Amantadine targets dyskinesia, and haloperidol and metoclopramide block central D2 receptors and worsen parkinsonism.", "objective": "Objective 4: case-based treatment plan — initial agent and reasons to add on", "section": "Parkinson's Disease", "kind": "second"}, {"id": "P2b", "group": 18, "stem": "After the add-on is started, which of the following changes to her regimen should be made at the same time?", "options": [{"letter": "A", "text": "Increase the carbidopa/levodopa dose"}, {"letter": "B", "text": "Add a tyramine-restricted diet"}, {"letter": "C", "text": "Switch to tolcapone"}, {"letter": "D", "text": "Add prochlorperazine (Compazine) for nausea"}, {"letter": "E", "text": "Reduce the carbidopa/levodopa dose"}], "answer": "E", "explanation": "Any add-on that boosts dopaminergic tone (COMT inhibitor, MAO-B inhibitor, or dopamine agonist) can amplify dyskinesias and psychiatric symptoms, so the carbidopa/levodopa dose is lowered (entacapone allows up to ~30% reduction). Prochlorperazine is a dopamine blocker and is avoided in PD.", "objective": "Objective 4: case-based treatment plan — initial agent and reasons to add on", "section": "Parkinson's Disease", "kind": "second"}, {"id": "P3", "group": 19, "stem": "A 54-year-old man has a 1-year history of a mild resting tremor of the left hand and mild slowness that has begun to affect his work as a draftsman. He wishes to delay the most effective agent because he is concerned about long-term involuntary movements. His history is notable for compulsive gambling that required treatment 5 years ago. Which of the following is the most appropriate initial agent?", "options": [{"letter": "A", "text": "pramipexole (Mirapex)"}, {"letter": "B", "text": "rasagiline (Azilect)"}, {"letter": "C", "text": "ropinirole (Requip)"}, {"letter": "D", "text": "entacapone (Comtan)"}, {"letter": "E", "text": "amantadine"}], "answer": "B", "explanation": "In a younger patient with mild PD who wants to defer levodopa, initial monotherapy is a dopamine agonist or an MAO-B inhibitor; a history of gambling or addiction tips the choice to the MAO-B inhibitor because dopamine agonists cause impulse-control disorders. Entacapone is never used alone.", "objective": "Objective 3: advantages and disadvantages of the pharmacologic agents for PD", "section": "Parkinson's Disease", "kind": "second"}, {"id": "P4", "group": 20, "stem": "A 58-year-old man with a 4-year history of resting tremor and bradykinesia takes carbidopa/levodopa (Sinemet) and rasagiline (Azilect). Yesterday his primary care provider started sertraline for low mood. He now presents with agitation, diaphoresis, temperature 39.1 °C, HR 118, BP 168/98 mm Hg, dilated pupils, hyperreflexia, and sustained clonus at both ankles. Which of the following is the most appropriate immediate step?", "options": [{"letter": "A", "text": "Discontinue carbidopa/levodopa"}, {"letter": "B", "text": "Add haloperidol (Haldol)"}, {"letter": "C", "text": "Increase rasagiline (Azilect)"}, {"letter": "D", "text": "Discontinue sertraline"}, {"letter": "E", "text": "Add metoclopramide (Reglan)"}], "answer": "D", "explanation": "Acute onset within 24 h of adding a serotonergic drug with hyperthermia, autonomic instability, hyperreflexia, and clonus (\"HAHA\") is serotonin syndrome from combining an SSRI with an MAO-B inhibitor; the offending serotonergic agent is stopped. NMS, by contrast, develops over days with lead-pipe rigidity and no clonus.", "objective": "Objective 2: major adverse effects of agents used to treat PD", "section": "Parkinson's Disease", "kind": "second"}, {"id": "P5", "group": 21, "stem": "A 66-year-old woman with a 3-year history of resting tremor and bradykinesia has taken ropinirole (Requip) for 18 months. Her husband reports that over the past 4 months she has spent thousands of dollars on online shopping, visits a casino several nights a week, and last week described seeing children in the living room who were not there. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Reduce or stop ropinirole (Requip)"}, {"letter": "B", "text": "Add haloperidol (Haldol) at bedtime"}, {"letter": "C", "text": "Add risperidone at bedtime"}, {"letter": "D", "text": "Increase ropinirole (Requip) dose"}, {"letter": "E", "text": "Add amantadine extended-release"}], "answer": "A", "explanation": "Compulsive shopping and gambling plus visual hallucinations are the impulse-control and psychiatric effects of dopamine agonists; the first response to hallucinations in PD is to review and reduce dopaminergic drugs (amantadine and dopamine agonists first). Haloperidol and risperidone block D2 receptors and worsen parkinsonism.", "objective": "Objective 2: major adverse effects of agents used to treat PD", "section": "Parkinson's Disease", "kind": "second"}, {"id": "P6", "group": 22, "stem": "A 63-year-old man taking carbidopa/levodopa (Sinemet) had a second medication added 2 weeks ago to lengthen how long each dose lasts. He now reports that his urine has turned bright orange and asks whether he should stop the new drug. Which of the following is the most appropriate response?", "options": [{"letter": "A", "text": "Stop the new medication and recheck in 1 week"}, {"letter": "B", "text": "Order liver function tests and bilirubin"}, {"letter": "C", "text": "Order urinalysis and urine culture"}, {"letter": "D", "text": "Reduce the carbidopa/levodopa dose by half"}, {"letter": "E", "text": "Reassure that the discoloration is harmless"}], "answer": "E", "explanation": "The wearing-off add-on is entacapone, which causes a benign orange discoloration of urine in about 10% of patients; the patient is reassured and continues therapy. Hepatotoxicity is a concern with tolcapone, not entacapone.", "objective": "Objective 1: MOA, indications, cautions, and patient education for the PD drug classes", "section": "Parkinson's Disease", "kind": "second"}, {"id": "P7", "group": 23, "stem": "A 59-year-old woman presents with a 1-year history of a mild intermittent tremor of the right hand at rest and slight slowness when typing. She has had a reduced sense of smell and constipation for several years. She works full time, exercises regularly, and states the symptoms do not interfere with her daily activities. Exam shows a mild resting tremor and mild bradykinesia on the right. Neurology confirms the diagnosis. Which of the following is the most appropriate management at this time?", "options": [{"letter": "A", "text": "Start carbidopa/levodopa (Sinemet) 25/100 TID"}, {"letter": "B", "text": "Start rasagiline (Azilect) monotherapy"}, {"letter": "C", "text": "Exercise and physical therapy, defer medication"}, {"letter": "D", "text": "Start pramipexole (Mirapex) monotherapy"}, {"letter": "E", "text": "Start amantadine extended-release nightly"}], "answer": "C", "explanation": "Early PD whose symptoms do not yet disrupt daily life is managed with exercise, PT, and education; medication is started only when symptoms significantly disrupt daily life, because no drug slows progression and there is no benefit to starting early.", "objective": "Objective 4: case-based treatment plan — initial agent and reasons to add on", "section": "Parkinson's Disease", "kind": "second"}, {"id": "P8", "group": 24, "stem": "A 71-year-old man with a 2-year history of resting tremor, rigidity, and bradykinesia was started on carbidopa/levodopa (Sinemet) 6 weeks ago with good motor improvement. He now reports lightheadedness on standing and nearly fainted getting out of bed. He also takes lisinopril and amlodipine for hypertension. Seated BP 138/84 mm Hg; standing BP 104/66 mm Hg. Which of the following is the most appropriate first step?", "options": [{"letter": "A", "text": "Discontinue carbidopa/levodopa (Sinemet)"}, {"letter": "B", "text": "Reduce his antihypertensive medications"}, {"letter": "C", "text": "Start droxidopa (Northera)"}, {"letter": "D", "text": "Start fludrocortisone daily"}, {"letter": "E", "text": "Start midodrine three times daily"}], "answer": "B", "explanation": "Orthostatic hypotension is an early levodopa effect layered on PD dysautonomia; the first step is to reduce or stop antihypertensives and increase salt and fluids. Droxidopa, midodrine, or fludrocortisone are reserved for severe cases, and effective PD therapy is not stopped abruptly.", "objective": "Objective 4: case-based treatment plan — initial agent and reasons to add on", "section": "Parkinson's Disease", "kind": "second"}, {"id": "P9", "group": 25, "stem": "A 62-year-old man with a 5-year history of resting tremor and bradykinesia takes carbidopa/levodopa (Sinemet) and rasagiline (Azilect). He reports 3 months of low mood, anhedonia, and poor sleep. He also describes an uncomfortable urge to move his legs in the evening that is relieved by walking. Counseling has been started. Which of the following antidepressants is most appropriate?", "options": [{"letter": "A", "text": "venlafaxine extended-release"}, {"letter": "B", "text": "sertraline"}, {"letter": "C", "text": "amitriptyline"}, {"letter": "D", "text": "bupropion (Wellbutrin)"}, {"letter": "E", "text": "St. John's wort"}], "answer": "D", "explanation": "SSRIs, SNRIs, TCAs, and St. John's wort all carry serotonin syndrome risk with an MAO-B inhibitor, and SSRIs/SNRIs worsen coexisting restless legs syndrome; bupropion is the guide's choice when PD depression coexists with RLS.", "objective": "Objective 4: case-based treatment plan — initial agent and reasons to add on", "section": "Parkinson's Disease", "kind": "second"}, {"id": "P10", "group": 26, "stem": "A 67-year-old woman with Parkinson's disease has taken carbidopa/levodopa (Sinemet) for 8 years. Despite reducing each dose and increasing the frequency, she has troublesome choreiform movements of the arms and trunk about 1 hour after each dose. She has no cardiac history and her ECG is normal. Which of the following is the most appropriate agent to add?", "options": [{"letter": "A", "text": "amantadine extended-release"}, {"letter": "B", "text": "entacapone (Comtan)"}, {"letter": "C", "text": "tolcapone"}, {"letter": "D", "text": "metoclopramide (Reglan)"}, {"letter": "E", "text": "haloperidol (Haldol)"}], "answer": "A", "explanation": "Peak-dose choreiform dyskinesia reflects too much dopamine; amantadine (NMDA antagonist, once-nightly ER) is the add-on that reduces levodopa-induced dyskinesia once cardiac/QT risk is excluded. COMT inhibitors extend levodopa action and would worsen dyskinesia.", "objective": "Objective 3: advantages and disadvantages of the pharmacologic agents for PD", "section": "Parkinson's Disease", "kind": "first"}, {"id": "P11", "group": 27, "stem": "A 55-year-old man with early Parkinson's disease is started on rasagiline (Azilect) as monotherapy. He asks whether he must avoid aged cheese and red wine, as a relative taking an antidepressant was told. Which of the following is the most appropriate counseling?", "options": [{"letter": "A", "text": "Strict tyramine restriction is required"}, {"letter": "B", "text": "Avoid all dietary protein at dose times"}, {"letter": "C", "text": "Take only with a high-fat meal to limit nausea"}, {"letter": "D", "text": "Avoid all alcohol for the duration of therapy"}, {"letter": "E", "text": "No tyramine restriction is needed at usual doses"}], "answer": "E", "explanation": "Rasagiline is selective for MAO-B at therapeutic doses and spares MAO-A, which metabolizes tyramine, so the tyramine (\"cheese\") diet required with nonselective MAOIs is generally not needed. Protein timing matters for levodopa, not MAO-B inhibitors.", "objective": "Objective 1: MOA, indications, cautions, and patient education for the PD drug classes", "section": "Parkinson's Disease", "kind": "first"}, {"id": "P12", "group": 28, "stem": "A 69-year-old woman with Parkinson's disease on carbidopa/levodopa (Sinemet) reports that for the past year she shouts and kicks during sleep and once struck her husband while dreaming. Sleep hygiene measures have not helped. Which of the following is the most appropriate treatment?", "options": [{"letter": "A", "text": "haloperidol (Haldol) at bedtime"}, {"letter": "B", "text": "sertraline at bedtime"}, {"letter": "C", "text": "clonazepam (Klonopin) low dose"}, {"letter": "D", "text": "amantadine at bedtime"}, {"letter": "E", "text": "add an evening dose of levodopa"}], "answer": "C", "explanation": "Dream enactment is REM sleep behavior disorder, a non-motor symptom that does not respond to levodopa; after sleep hygiene, low-dose clonazepam (titrated slowly) or melatonin is used. Haloperidol worsens parkinsonism.", "objective": "Objective 4: case-based treatment plan — initial agent and reasons to add on", "section": "Parkinson's Disease", "kind": "first"}, {"id": "P13", "group": 29, "stem": "A 72-year-old man diagnosed with Parkinson's disease was started on carbidopa/levodopa (Sinemet) 4 months ago and has been titrated to 600 mg of levodopa daily, taken correctly on an empty stomach. He reports no improvement whatsoever in tremor, rigidity, or bradykinesia. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Add entacapone (Comtan) with each dose"}, {"letter": "B", "text": "Add amantadine extended-release"}, {"letter": "C", "text": "Switch to pramipexole (Mirapex)"}, {"letter": "D", "text": "Increase to the maximum levodopa dose"}, {"letter": "E", "text": "Reconsider the diagnosis"}], "answer": "E", "explanation": "Levodopa reliably improves bradykinesia, tremor, and rigidity in true PD; an absent response to an adequate, correctly taken dose suggests the diagnosis is wrong and should be reconsidered rather than adding on or switching agents.", "objective": "Objective 1: MOA, indications, cautions, and patient education for the PD drug classes", "section": "Parkinson's Disease", "kind": "first"}, {"id": "P14", "group": 30, "stem": "A 70-year-old man with Parkinson's disease on carbidopa/levodopa (Sinemet) is admitted with pneumonia and has persistent nausea and vomiting. Which of the following antiemetics is most appropriate?", "options": [{"letter": "A", "text": "ondansetron"}, {"letter": "B", "text": "metoclopramide (Reglan)"}, {"letter": "C", "text": "prochlorperazine (Compazine)"}, {"letter": "D", "text": "promethazine (Phenergan)"}, {"letter": "E", "text": "haloperidol (Haldol)"}], "answer": "A", "explanation": "Ondansetron and other 5-HT3 antagonists do not block dopamine receptors. Metoclopramide, prochlorperazine, and promethazine cross the BBB and block central D2 receptors, significantly worsening parkinsonism, as do antipsychotics such as haloperidol.", "objective": "Objective 5: medications that can exacerbate PD symptoms", "section": "Parkinson's Disease", "kind": "aeci"}, {"id": "P15", "group": 31, "stem": "A 73-year-old man with Parkinson's disease, coronary artery disease, and a prolonged QTc on ECG has troublesome levodopa-induced dyskinesia. Add-on agent to AVOID:", "options": [{"letter": "A", "text": "rasagiline (Azilect)"}, {"letter": "B", "text": "amantadine extended-release"}, {"letter": "C", "text": "pramipexole (Mirapex)"}, {"letter": "D", "text": "entacapone (Comtan)"}, {"letter": "E", "text": "ropinirole (Requip)"}], "answer": "B", "explanation": "Amantadine, the usual add-on for levodopa-induced dyskinesia, prolongs the QT interval and is avoided in patients with cardiac disorders; the other listed agents do not carry this warning.", "objective": "Objective 2: major adverse effects of agents used to treat PD", "section": "Parkinson's Disease", "kind": "aeci"}, {"id": "P16", "group": 32, "stem": "A 65-year-old woman with Parkinson's disease started a COMT inhibitor for wearing-off 3 months ago. She now has jaundice and markedly elevated transaminases. Which of the following agents was most likely prescribed?", "options": [{"letter": "A", "text": "entacapone (Comtan)"}, {"letter": "B", "text": "rasagiline (Azilect)"}, {"letter": "C", "text": "tolcapone"}, {"letter": "D", "text": "amantadine"}, {"letter": "E", "text": "safinamide"}], "answer": "C", "explanation": "Tolcapone, the centrally and peripherally acting COMT inhibitor, causes liver toxicity, which is why it is not favored and the class is effectively limited to entacapone. Entacapone's notable effects are nausea, diarrhea, and benign orange urine.", "objective": "Objective 2: major adverse effects of agents used to treat PD", "section": "Parkinson's Disease", "kind": "aeci"}, {"id": "P17", "group": 33, "stem": "A 74-year-old man with Parkinson's disease has severe orthostatic hypotension despite stopping his antihypertensives and increasing salt and fluids. Droxidopa (Northera) is started. Which of the following boxed-warning adverse effects should he be counseled about?", "options": [{"letter": "A", "text": "QT prolongation"}, {"letter": "B", "text": "hepatotoxicity"}, {"letter": "C", "text": "serotonin syndrome"}, {"letter": "D", "text": "supine hypertension"}, {"letter": "E", "text": "impulse-control disorder"}], "answer": "D", "explanation": "Droxidopa, a norepinephrine prodrug used for neurogenic orthostatic hypotension, carries a boxed warning for supine hypertension (midodrine causes it as well). QT prolongation is amantadine's concern and hepatotoxicity is tolcapone's.", "objective": "Objective 4: case-based treatment plan — initial agent and reasons to add on", "section": "Parkinson's Disease", "kind": "aeci"}, {"id": "F1", "group": 34, "stem": "A 55-year-old man with chronic kidney disease presents with lethargy and nausea. BP 100/55 mm Hg, HR 55/min. ECG shows a wide-complex bradycardia. K⁺ 7.9 mEq/L. Which of the following is the most appropriate first intervention?", "options": [{"letter": "A", "text": "regular insulin IV with D50"}, {"letter": "B", "text": "calcium gluconate IV"}, {"letter": "C", "text": "albuterol nebulized"}, {"letter": "D", "text": "furosemide (Lasix) IV"}, {"letter": "E", "text": "hemodialysis via catheter"}], "answer": "B", "explanation": "Wide-complex bradycardia with K⁺ 7.9 means the myocardium is unstable, so IV calcium (gluconate or chloride) is given first to stabilize the heart within minutes. Calcium does not lower potassium; insulin/D50 and albuterol (shift) and Lasix, binders or dialysis (removal) follow.", "objective": "Objective 8: Causes and treatment of hyperkalemia (Case 5)", "section": "IV Fluids & Electrolytes", "kind": "second"}, {"id": "F1a", "group": 34, "stem": "Membrane stabilization has been given. Which of the following lowers his serum potassium by shifting it into cells?", "options": [{"letter": "A", "text": "calcium chloride IV"}, {"letter": "B", "text": "sodium zirconium cyclosilicate (Lokelma)"}, {"letter": "C", "text": "regular insulin IV with D50"}, {"letter": "D", "text": "furosemide (Lasix) IV"}, {"letter": "E", "text": "hemodialysis via catheter"}], "answer": "C", "explanation": "Regular insulin drives potassium into cells within 15–30 minutes; D50 is given alongside to prevent hypoglycemia. Lokelma, Lasix and dialysis are definitive measures that remove potassium from the body rather than shifting it.", "objective": "Objective 8: Causes and treatment of hyperkalemia (temporary vs definitive measures)", "section": "IV Fluids & Electrolytes", "kind": "second"}, {"id": "F1b", "group": 34, "stem": "Which of the following removes potassium from the body rather than temporarily shifting it?", "options": [{"letter": "A", "text": "calcium gluconate IV"}, {"letter": "B", "text": "regular insulin with D50"}, {"letter": "C", "text": "albuterol nebulized"}, {"letter": "D", "text": "sodium bicarbonate IV"}, {"letter": "E", "text": "patiromer (Veltassa) PO"}], "answer": "E", "explanation": "GI potassium binders (patiromer, Lokelma, Kayexalate), loop diuretics and hemodialysis are the definitive measures that eliminate potassium. Calcium protects the heart, and insulin/D50, albuterol and bicarbonate only shift potassium into cells for a few hours.", "objective": "Objective 8: Causes and treatment of hyperkalemia (definitive measures)", "section": "IV Fluids & Electrolytes", "kind": "second"}, {"id": "F2", "group": 35, "stem": "A 65-year-old woman (50 kg) with hypertension and diabetes presents with fever and cough. Chest x-ray shows right lower lobe consolidation. BP 90/40 mm Hg, HR 110/min, lactate 7.1 mmol/L, HCO₃⁻ 12 mEq/L. Antibiotics have been ordered. Which of the following is the most appropriate fluid order?", "options": [{"letter": "A", "text": "1.5 L D5W bolus"}, {"letter": "B", "text": "500 mL 5% albumin bolus"}, {"letter": "C", "text": "100 mL 3% NaCl bolus"}, {"letter": "D", "text": "1.5 L lactated Ringer's bolus"}, {"letter": "E", "text": "1.5 L D5½NS bolus"}], "answer": "D", "explanation": "Hypotension, tachycardia and a lactic acidosis with pneumonia is septic shock, which calls for a 30 mL/kg isotonic crystalloid bolus (1.5 L for 50 kg); LR or NS are both acceptable, with balanced LR preferred. Hypotonic fluids leave the vascular space and colloids are not routine resuscitation fluids.", "objective": "Objective 1: Types of fluids for replacement and their indications (Case 1, sepsis bolus)", "section": "IV Fluids & Electrolytes", "kind": "second"}, {"id": "F2a", "group": 35, "stem": "After the bolus, which of the following findings best indicates that she is fluid responsive?", "options": [{"letter": "A", "text": "urine output ≥0.5 mL/kg/h"}, {"letter": "B", "text": "CVP rise of 2 mm Hg without rise in CO"}, {"letter": "C", "text": "new bibasilar crackles"}, {"letter": "D", "text": "lactate rising to 9 mmol/L"}, {"letter": "E", "text": "heart rate rising further"}], "answer": "A", "explanation": "Fluid responsiveness means the vital signs get better: systolic BP rises, heart and respiratory rates normalize, and urine output reaches at least 0.5 mL/kg/h. A CVP rise without a rise in cardiac output and new crackles are stop signals for fluid overload.", "objective": "Objective 1: Prescribing fluids — signs of fluid responsiveness and stop limits", "section": "IV Fluids & Electrolytes", "kind": "second"}, {"id": "F3", "group": 36, "stem": "A 65-year-old man (50 kg) has had 4 days of diarrhea and has been sweating heavily in a home without air conditioning. He is alert but fatigued, with dry mucous membranes, BP 92/58 mm Hg and HR 118/min. Na⁺ 121 mEq/L, urine osmolality 500 mOsm/kg, urine Na⁺ 10 mEq/L, FENa 0.7%. Which of the following is the most appropriate initial treatment?", "options": [{"letter": "A", "text": "fluid restriction to 1 L/day"}, {"letter": "B", "text": "3% NaCl infusion"}, {"letter": "C", "text": "normal saline infusion"}, {"letter": "D", "text": "D5W infusion"}, {"letter": "E", "text": "5% albumin infusion"}], "answer": "C", "explanation": "Hypotension, tachycardia, dry mucosa and sodium-avid kidneys (urine Na⁺ 10, FENa <1%) identify hypovolemic hyponatremia from GI and sweat losses, so normal saline replaces both the sodium and the volume. Water restriction is for dilutional (CHF, cirrhosis, SIADH) hyponatremia, and 3% NaCl is reserved for severe symptoms such as seizures, coma, or marked altered mental status.", "objective": "Objective 1: Fluid choice by volume status — hypovolemic hyponatremia (Case 2)", "section": "IV Fluids & Electrolytes", "kind": "second"}, {"id": "F4", "group": 37, "stem": "A 75-year-old woman with a large ischemic stroke has cerebral edema with midline shift on CT. She is NPO and oliguric, and maintenance fluids are requested. Which of the following fluids is most likely to worsen her condition?", "options": [{"letter": "A", "text": "1 L normal saline"}, {"letter": "B", "text": "1 L lactated Ringer's"}, {"letter": "C", "text": "1 L 5% albumin"}, {"letter": "D", "text": "1 L D5W"}, {"letter": "E", "text": "50 mL 3% NaCl"}], "answer": "D", "explanation": "D5W becomes free water once the glucose is metabolized, drives water into brain cells and worsens cerebral edema toward herniation; hypotonic fluids are avoided in neuro and raised-ICP patients. Hypertonic 3% NaCl is a treatment for cerebral edema, and isotonic fluids stay extracellular.", "objective": "Objective 1: Contraindications of hypotonic fluids (Case 4, cerebral edema)", "section": "IV Fluids & Electrolytes", "kind": "aeci"}, {"id": "F5", "group": 38, "stem": "A 65-year-old woman with hypertension and diabetes on glyburide, metformin and lisinopril presents with 3 days of nausea, vomiting and diarrhea and altered mental status. Fingerstick glucose 35 mg/dL, K⁺ 5.6 mEq/L, HCO₃⁻ 16 mEq/L, creatinine 2.4 mg/dL. Which of the following is the most appropriate first step?", "options": [{"letter": "A", "text": "1 L lactated Ringer's bolus"}, {"letter": "B", "text": "1 L normal saline bolus"}, {"letter": "C", "text": "calcium gluconate IV"}, {"letter": "D", "text": "regular insulin IV with D50"}, {"letter": "E", "text": "50 mL of 50% dextrose IV"}], "answer": "E", "explanation": "Sulfonylurea hypoglycemia with AKI is the immediate threat, so an amp of D50 comes first; fluids (LR preferred over NS to avoid adding a hyperchloremic acidosis) follow. Glyburide is renally cleared and lingers, so glucose must be rechecked frequently.", "objective": "Objective 1: Indications for concentrated dextrose and fluid choice (Case 6)", "section": "IV Fluids & Electrolytes", "kind": "second"}, {"id": "F6", "group": 39, "stem": "A 65-year-old woman admitted with acute kidney injury and hypoglycemia from her oral diabetes medication is nauseated and remains NPO 12 hours later. Glucose is 55 mg/dL. Which of the following maintenance fluids is most appropriate?", "options": [{"letter": "A", "text": "normal saline"}, {"letter": "B", "text": "D5LR"}, {"letter": "C", "text": "lactated Ringer's"}, {"letter": "D", "text": "0.45% NaCl"}, {"letter": "E", "text": "5% albumin"}], "answer": "B", "explanation": "An NPO patient who is still hypoglycemic needs a sugar-containing maintenance fluid (D5LR or D5NS) to keep the glucose up and prevent starvation ketoacidosis. Plain isotonic or hypotonic fluids supply no calories.", "objective": "Objective 1: Mixed dextrose crystalloids for the NPO patient (Case 6, starvation ketosis)", "section": "IV Fluids & Electrolytes", "kind": "second"}, {"id": "F7", "group": 40, "stem": "A 58-year-old man with small cell lung cancer is brought in after a generalized seizure. He is euvolemic with normal BP and moist mucous membranes. Na⁺ 114 mEq/L, serum osmolality low, urine osmolality 480 mOsm/kg, urine Na⁺ 60 mEq/L. Which of the following is the most appropriate initial treatment?", "options": [{"letter": "A", "text": "water restriction"}, {"letter": "B", "text": "1 L normal saline"}, {"letter": "C", "text": "1 L D5W"}, {"letter": "D", "text": "100 mL of 3% NaCl"}, {"letter": "E", "text": "furosemide (Lasix) IV"}], "answer": "D", "explanation": "Euvolemic hyponatremia with concentrated urine in a cancer patient is SIADH, and a seizure makes it severe, so hypertonic saline is started at 100 mL with a sodium recheck. Water restriction is the treatment only when symptoms are not severe, and NS is for the dry SIADH patient.", "objective": "Objective 2: When to use hypertonic saline (symptomatic SIADH, Na⁺ <120)", "section": "IV Fluids & Electrolytes", "kind": "second"}, {"id": "F8", "group": 41, "stem": "A 70-year-old woman on furosemide for heart failure reports leg cramps, generalized weakness and polyuria; ECG changes are noted. K⁺ 2.9 mEq/L. She is eating normally with no GI complaints. Which of the following is the most appropriate treatment?", "options": [{"letter": "A", "text": "potassium chloride PO"}, {"letter": "B", "text": "potassium chloride IV via central line"}, {"letter": "C", "text": "potassium phosphate IV"}, {"letter": "D", "text": "potassium bicarbonate IV"}, {"letter": "E", "text": "magnesium sulfate IV"}], "answer": "A", "explanation": "Cramps, weakness, polyuria and ECG changes in a patient on a loop diuretic point to hypokalemia; potassium chloride is the salt used most often and the oral route is preferred over IV whenever the gut works. Concentrated IV potassium via a central line is reserved for severe, life-threatening hypokalemia.", "objective": "Objective 5: Causes and treatment options for hypokalemia", "section": "IV Fluids & Electrolytes", "kind": "second"}, {"id": "F9", "group": 42, "stem": "A 45-year-old man with severe diarrhea presents with palpitations and profound weakness. K⁺ 1.9 mEq/L; ECG shows frequent ventricular ectopy. He is vomiting and cannot take oral medication, and a concentrated potassium chloride infusion is ordered. Which of the following is the most appropriate way to administer it?", "options": [{"letter": "A", "text": "via a peripheral line as IV push"}, {"letter": "B", "text": "as an intramuscular injection"}, {"letter": "C", "text": "mixed into a D5W bag peripherally"}, {"letter": "D", "text": "as an oral liquid concentrate"}, {"letter": "E", "text": "via a central line on a cardiac monitor"}], "answer": "E", "explanation": "Life-threatening hypokalemia (K⁺ <2.5) needs parenteral potassium as an intermittent infusion with continuous cardiac monitoring, and the high concentrations required are so caustic to veins that they must go through a central line. Peripheral lines tolerate only dilute solutions, and potassium is never given IV push.", "objective": "Objective 6: Rate and route of parenteral potassium replacement", "section": "IV Fluids & Electrolytes", "kind": "second"}, {"id": "F10", "group": 43, "stem": "An 82-year-old intubated man in the ICU has hypernatremia (Na⁺ 162 mEq/L) with dry mucous membranes from inadequate free-water intake. Which of the following fluids is most appropriate?", "options": [{"letter": "A", "text": "normal saline"}, {"letter": "B", "text": "lactated Ringer's"}, {"letter": "C", "text": "D5W"}, {"letter": "D", "text": "3% NaCl"}, {"letter": "E", "text": "5% albumin"}], "answer": "C", "explanation": "Hypernatremia is a free-water deficit and is corrected with hypotonic fluids such as D5W or ½NS (or enteral water). Correct slowly — about half the deficit in the first 24 hours and no more than 10 mEq/L per day — because rapid correction causes cerebral edema.", "objective": "Objective 4: Treatment of hypernatremia and complications of too-rapid correction", "section": "IV Fluids & Electrolytes", "kind": "first"}, {"id": "F11", "group": 44, "stem": "A 30-year-old woman with diabetic ketoacidosis (glucose 480 mg/dL, pH 7.12, anion gap 24) is expected to need 5–7 L of fluid. Which of the following is the preferred resuscitation fluid?", "options": [{"letter": "A", "text": "normal saline"}, {"letter": "B", "text": "lactated Ringer's"}, {"letter": "C", "text": "D5½NS"}, {"letter": "D", "text": "3% NaCl"}, {"letter": "E", "text": "5% albumin"}], "answer": "B", "explanation": "Several liters of normal saline convert the high-anion-gap acidosis of DKA into a hyperchloremic non-gap acidosis, so the lecturer prefers balanced LR for large-volume resuscitation. Dextrose and potassium are added later as the glucose falls.", "objective": "Objective 1: Isotonic crystalloid selection — NS vs LR (DKA pearl)", "section": "IV Fluids & Electrolytes", "kind": "first"}, {"id": "F12", "group": 45, "stem": "A 48-year-old woman develops hypocalcemia (Ca²⁺ 6.4 mg/dL) after total thyroidectomy, with tetany and carpopedal spasm. Which of the following is the most appropriate treatment?", "options": [{"letter": "A", "text": "calcium carbonate (Tums) PO"}, {"letter": "B", "text": "calcium acetate (PhosLo) PO"}, {"letter": "C", "text": "vitamin D PO alone"}, {"letter": "D", "text": "calcitonin injection"}, {"letter": "E", "text": "calcium gluconate 10% IV"}], "answer": "E", "explanation": "Tetany, arrhythmias or seizures make hypocalcemia symptomatic, which calls for IV calcium gluconate (or calcium chloride), usually followed by a calcium infusion. Asymptomatic hypocalcemia is treated with oral calcium plus vitamin D.", "objective": "Objective 11: Causes and treatment of hypocalcemia", "section": "IV Fluids & Electrolytes", "kind": "first"}, {"id": "F13", "group": 46, "stem": "A 74-year-old woman started on hydrochlorothiazide 3 weeks ago for hypertension reports mild fatigue and nausea. She is euvolemic, alert and oriented. Na⁺ 126 mEq/L. Which of the following is the most appropriate management?", "options": [{"letter": "A", "text": "discontinue the hydrochlorothiazide"}, {"letter": "B", "text": "3% NaCl infusion"}, {"letter": "C", "text": "extended water restriction"}, {"letter": "D", "text": "normal saline bolus"}, {"letter": "E", "text": "switch to furosemide (Lasix)"}], "answer": "A", "explanation": "A thiazide is the classic drug cause of chronic hyponatremia, and the treatment is to stop it; the guide notes that extended water restriction is not appropriate for thiazide-induced cases. Hypertonic saline is reserved for severe symptoms such as seizures or marked altered mental status.", "objective": "Objective 3: Drugs that may cause chronic hyponatremia", "section": "IV Fluids & Electrolytes", "kind": "second"}, {"id": "F14", "group": 47, "stem": "A 52-year-old man with chronic alcohol use and ongoing diarrhea has hypomagnesemia (Mg²⁺ 0.9 mg/dL) with tremor and hyperreflexia. Which of the following is most appropriate for acute repletion?", "options": [{"letter": "A", "text": "magnesium oxide PO"}, {"letter": "B", "text": "magnesium hydroxide PO"}, {"letter": "C", "text": "magnesium sulfate IV"}, {"letter": "D", "text": "calcium chloride IV"}, {"letter": "E", "text": "potassium chloride IV"}], "answer": "C", "explanation": "Symptomatic hypomagnesemia from alcoholism and GI loss is repleted with IV magnesium sulfate infused over 30–60 minutes. Oral magnesium oxide is the agent for chronic, milder deficits.", "objective": "Objective 9: Causes and treatment of hypomagnesemia", "section": "IV Fluids & Electrolytes", "kind": "first"}, {"id": "F15", "group": 48, "stem": "A 40-year-old woman with long-standing hyponatremia (Na⁺ 112 mEq/L) was treated with 3% NaCl, and her sodium rose to 134 mEq/L within 24 hours. Three days later she develops dysarthria, dysphagia and spastic quadriparesis. Which of the following best explains her new findings?", "options": [{"letter": "A", "text": "cerebral edema"}, {"letter": "B", "text": "fluid overload"}, {"letter": "C", "text": "hypernatremia-related seizure"}, {"letter": "D", "text": "osmotic demyelination syndrome"}, {"letter": "E", "text": "hypokalemic paralysis"}], "answer": "D", "explanation": "A 22 mEq/L rise in one day far exceeds the limit of 10–12 mEq/L per 24 hours (and 1 mEq/L per hour), and the chronically adapted brain responds 2–6 days later with osmotic demyelination (central pontine myelinolysis): dysarthria, dysphagia, quadriparesis, locked-in state. Cerebral edema is the complication of over-rapid correction of hypernatremia, not hyponatremia.", "objective": "Objective 2: Adverse effects of hypertonic saline and the sodium correction limits", "section": "IV Fluids & Electrolytes", "kind": "aeci"}, {"id": "F16", "group": 49, "stem": "A 60-year-old man with a K⁺ of 3.2 mEq/L is being considered for potassium chloride supplementation. Which of the following in his history is a contraindication?", "options": [{"letter": "A", "text": "untreated Addison's disease"}, {"letter": "B", "text": "well-controlled hypertension"}, {"letter": "C", "text": "osteoarthritis of the knee"}, {"letter": "D", "text": "type 2 diabetes on metformin"}, {"letter": "E", "text": "chronic loop diuretic use"}], "answer": "A", "explanation": "Potassium chloride is contraindicated in untreated Addison's disease, severe renal impairment and severe tissue trauma, all of which raise potassium on their own. Loop diuretic use is a cause of hypokalemia and a reason to supplement, not to withhold.", "objective": "Objective 7: Contraindications and adverse effects of potassium supplementation", "section": "IV Fluids & Electrolytes", "kind": "aeci"}, {"id": "F17", "group": 50, "stem": "A 68-year-old woman with a postoperative ileus and K⁺ 3.1 mEq/L is to receive potassium chloride. Which of the following formulations should be AVOIDED?", "options": [{"letter": "A", "text": "dilute peripheral IV infusion"}, {"letter": "B", "text": "extended-release oral tablets"}, {"letter": "C", "text": "oral liquid solution"}, {"letter": "D", "text": "concentrated central IV infusion"}, {"letter": "E", "text": "potassium added to maintenance IV fluid"}], "answer": "B", "explanation": "Potassium chloride tablets and capsules are contraindicated in GI disorders that could delay or arrest their transit, such as an ileus, because a stalled tablet can ulcerate the gut. The oral liquid form or an IV route is used instead.", "objective": "Objective 7: Contraindications of potassium supplementation (solid oral forms in GI transit disorders)", "section": "IV Fluids & Electrolytes", "kind": "aeci"}]};
+
+(function shuffleExam() {
+  function shuf(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  const qs = EXAM_DATA.questions;
+  const order = []; const map = {};
+  qs.forEach(q => { if (!map[q.group]) { map[q.group] = []; order.push(q.group); } map[q.group].push(q); });
+  shuf(order);
+  const out = []; let n = 0;
+  order.forEach(g => {
+    n++;
+    map[g].forEach((q, i) => {
+      q.id = i === 0 ? String(n) : String(n) + String.fromCharCode(96 + i);
+      q.group = n;
+      const correctText = q.options.find(o => o.letter === q.answer).text;
+      const opts = shuf(q.options.slice());
+      opts.forEach((o, k) => { o.letter = String.fromCharCode(65 + k); });
+      q.options = opts;
+      q.answer = opts.find(o => o.text === correctText).letter;
+      out.push(q);
+    });
+  });
+  EXAM_DATA.questions = out;
+})();
+
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
