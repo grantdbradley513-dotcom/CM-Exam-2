@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+
+const EXAM_DATA = (function (raw) {
+  // Reshuffle stack order and option order on every open; renumber ids.
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  const groups = {}; const order = [];
+  raw.questions.forEach(q => { if (!groups[q.group]) { groups[q.group] = []; order.push(q.group); } groups[q.group].push(q); });
+  shuffle(order);
+  const out = []; const letters = ['A','B','C','D','E','F'];
+  order.forEach((g, gi) => {
+    groups[g].forEach((q, qi) => {
+      const correct = q.options.find(o => o.letter === q.answer).text;
+      const opts = shuffle(q.options.map(o => o.text)).map((t, i) => ({ letter: letters[i], text: t }));
+      const ans = opts.find(o => o.text === correct).letter;
+      out.push(Object.assign({}, q, { id: String(gi + 1) + (qi === 0 ? '' : letters[qi - 1]), group: gi + 1, options: opts, answer: ans }));
+    });
+  });
+  return { title: raw.title, questions: out };
+})({"title": "Neuro Exam 2 Practice A — Sample Cases", "questions": [{"id": "1", "group": 1, "stem": "A 16-year-old boy has had two episodes of arm jerking in the morning shortly after waking, plus occasional \"absence spells\" at school over the past year; he dropped his breakfast bowl just before the shaking began. EEG shows 4–6 Hz polyspike-and-wave discharges; MRI is normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Mesial temporal lobe epilepsy"}, {"letter": "B", "text": "Juvenile myoclonic epilepsy"}, {"letter": "C", "text": "Lennox-Gastaut syndrome"}, {"letter": "D", "text": "Childhood absence epilepsy"}, {"letter": "E", "text": "Focal motor seizures"}], "answer": "B", "explanation": "Adolescent with normal intelligence, morning myoclonic jerks, absence spells, and generalized polyspike-and-wave = JME.", "objective": "Seizures — Epilepsy syndromes", "section": "Seizures & Epilepsy"}, {"id": "1A", "group": 1, "stem": "How does Lennox-Gastaut syndrome differ from this patient's syndrome?", "options": [{"letter": "A", "text": "Adolescent onset with normal intelligence and photic-triggered myoclonus"}, {"letter": "B", "text": "Onset at age 4–10 with 3-Hz spike-and-wave and no postictal state"}, {"letter": "C", "text": "Adult onset with automatisms and hippocampal sclerosis on MRI"}, {"letter": "D", "text": "Childhood onset with developmental delay, multiple seizure types, and slow spike-and-wave"}, {"letter": "E", "text": "Infantile onset with hypsarrhythmia and flexor spasms"}], "answer": "D", "explanation": "LGS is an epileptic encephalopathy of a delayed child with tonic-clonic, atonic (drop), and atypical absence seizures and slow spike-and-wave on EEG.", "objective": "Seizures — Epilepsy syndromes", "section": "Seizures & Epilepsy"}, {"id": "1B", "group": 1, "stem": "What is the expected course for this patient?", "options": [{"letter": "A", "text": "Outgrows the syndrome by early adulthood"}, {"letter": "B", "text": "Refractory to drugs but cured by surgical resection"}, {"letter": "C", "text": "Self-limited once the precipitant is corrected"}, {"letter": "D", "text": "Resolves after two seizure-free years off therapy"}, {"letter": "E", "text": "Remission is rare — lifelong antiseizure medication"}], "answer": "E", "explanation": "JME responds well to medication but full remission is rare, so therapy is lifelong. Surgery cures mesial temporal lobe epilepsy, not JME.", "objective": "Seizures — Epilepsy syndromes", "section": "Seizures & Epilepsy"}, {"id": "2", "group": 2, "stem": "A 68-year-old retired teacher has a right-hand resting tremor that disappears when he reaches for objects, short shuffling steps, difficulty initiating movement, an expressionless face, and very small handwriting. Exam shows cogwheel rigidity of the right arm and bradykinesia. No hallucinations or early falls. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Progressive supranuclear palsy"}, {"letter": "B", "text": "Dementia with Lewy bodies"}, {"letter": "C", "text": "Essential tremor"}, {"letter": "D", "text": "Idiopathic Parkinson's disease"}, {"letter": "E", "text": "Drug-induced parkinsonism"}], "answer": "D", "explanation": "Asymmetric rest tremor, bradykinesia, cogwheel rigidity, masked face, micrographia, shuffling gait, without early dementia, falls, or a dopamine-blocking drug = idiopathic PD.", "objective": "Movement Disorders — Parkinson's disease", "section": "Movement Disorders"}, {"id": "2A", "group": 2, "stem": "What is the underlying pathophysiology?", "options": [{"letter": "A", "text": "Degeneration of upper and lower motor neurons"}, {"letter": "B", "text": "Loss of dopaminergic neurons in the substantia nigra"}, {"letter": "C", "text": "Autoimmune destruction of acetylcholine receptors"}, {"letter": "D", "text": "Caudate atrophy from a CAG repeat expansion"}, {"letter": "E", "text": "Demyelination of periventricular white matter"}], "answer": "B", "explanation": "PD = degeneration of dopaminergic neurons in the substantia nigra pars compacta (Lewy bodies), reducing striatal dopamine.", "objective": "Movement Disorders — Parkinson's disease", "section": "Movement Disorders"}, {"id": "2B", "group": 2, "stem": "What is the mainstay of pharmacologic treatment for this patient?", "options": [{"letter": "A", "text": "Pramipexole"}, {"letter": "B", "text": "Selegiline"}, {"letter": "C", "text": "Carbidopa/levodopa"}, {"letter": "D", "text": "Amantadine"}, {"letter": "E", "text": "Benztropine"}], "answer": "C", "explanation": "Levodopa (with carbidopa to block peripheral conversion) is the most effective agent and preferred initial therapy, especially ≥65. Dopamine agonists/MAO-B inhibitors are considered first in younger patients to delay dyskinesia.", "objective": "Movement Disorders — Parkinson's disease", "section": "Movement Disorders"}, {"id": "2C", "group": 2, "stem": "Which feature would suggest a Parkinson-plus syndrome instead?", "options": [{"letter": "A", "text": "REM sleep behavior disorder"}, {"letter": "B", "text": "Early falls with vertical gaze palsy"}, {"letter": "C", "text": "Unilateral onset of rest tremor"}, {"letter": "D", "text": "Improvement with levodopa"}, {"letter": "E", "text": "Hyposmia preceding motor symptoms"}], "answer": "B", "explanation": "Early falls + vertical gaze palsy = PSP; early severe autonomic failure = MSA; dementia within 3 years = Lewy body dementia; poor levodopa response also points away from idiopathic PD.", "objective": "Movement Disorders — Parkinson's disease", "section": "Movement Disorders"}, {"id": "3", "group": 3, "stem": "A 45-year-old woman is brought in after a witnessed episode in which she stared blankly, picked repetitively at her clothing, and did not respond for about 90 seconds, followed by several minutes of confusion; she has no memory of it. Using ILAE terminology, which of the following best classifies this event?", "options": [{"letter": "A", "text": "Generalized onset tonic-clonic seizure"}, {"letter": "B", "text": "Focal onset seizure with intact awareness"}, {"letter": "C", "text": "Focal onset seizure with impaired awareness"}, {"letter": "D", "text": "Psychogenic nonepileptic event"}, {"letter": "E", "text": "Generalized onset absence seizure"}], "answer": "C", "explanation": "Motionless stare with automatisms, unresponsiveness, amnesia for the event, and postictal confusion = focal impaired-awareness seizure (formerly complex partial).", "objective": "Seizures — Focal vs generalized onset", "section": "Seizures & Epilepsy"}, {"id": "3A", "group": 3, "stem": "A 22-year-old man in the same ED had sudden loss of consciousness with bilateral stiffening then rhythmic jerking of all four limbs for 2 minutes and postictal lethargy. What is the significance of the postictal state?", "options": [{"letter": "A", "text": "It indicates status epilepticus requiring IV lorazepam"}, {"letter": "B", "text": "It suggests a psychogenic nonepileptic event"}, {"letter": "C", "text": "It proves the seizure had a focal onset"}, {"letter": "D", "text": "It indicates a structural lesion is present"}, {"letter": "E", "text": "It supports a true tonic-clonic seizure over syncope or an absence seizure"}], "answer": "E", "explanation": "Prolonged postictal confusion/lethargy follows generalized tonic-clonic seizures; absence seizures and syncope lack it. Status is >5 min or no recovery between seizures.", "objective": "Seizures — Focal vs generalized onset", "section": "Seizures & Epilepsy"}, {"id": "3B", "group": 3, "stem": "Which initial workup is appropriate for both patients with a first seizure?", "options": [{"letter": "A", "text": "Anticonvulsant levels and discharge"}, {"letter": "B", "text": "Lumbar puncture before any imaging"}, {"letter": "C", "text": "EEG alone; imaging only if EEG is abnormal"}, {"letter": "D", "text": "Glucose, electrolytes, tox screen, CT head, and EEG"}, {"letter": "E", "text": "MRI brain only, no labs"}], "answer": "D", "explanation": "New-onset seizure: glucose, lytes, BUN/Cr, Ca/Mg, hCG, tox/EtOH, CT head (MRI more sensitive later), EEG; LP only if febrile, immunocompromised, or SAH suspected.", "objective": "Seizures — Focal vs generalized onset", "section": "Seizures & Epilepsy"}, {"id": "4", "group": 4, "stem": "A 42-year-old man is brought in by his wife for a year of worsening \"fidgety\" involuntary jerking of the arms and face, irritability, and impulsive behavior. His father died in a psychiatric facility in his 50s after years of similar movements and cognitive decline. Exam shows irregular choreiform movements of the upper extremities, facial grimacing, and mild executive dysfunction. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Sydenham chorea"}, {"letter": "B", "text": "Wilson disease"}, {"letter": "C", "text": "Tardive dyskinesia"}, {"letter": "D", "text": "Parkinson's disease"}, {"letter": "E", "text": "Huntington's disease"}], "answer": "E", "explanation": "Adult-onset chorea plus psychiatric change and cognitive decline with an affected parent is Huntington's disease.", "objective": "Movement Disorders — Huntington's disease", "section": "Movement Disorders"}, {"id": "4A", "group": 4, "stem": "What is the inheritance pattern and the genetic abnormality?", "options": [{"letter": "A", "text": "X-linked recessive; dystrophin deletion on chromosome X"}, {"letter": "B", "text": "Autosomal dominant; PMP22 duplication on chromosome 17"}, {"letter": "C", "text": "Autosomal dominant; CAG repeat expansion in HTT on chromosome 4"}, {"letter": "D", "text": "Mitochondrial; point mutation in a mitochondrial tRNA gene"}, {"letter": "E", "text": "Autosomal recessive; ATP7B mutation on chromosome 13"}], "answer": "C", "explanation": "HD is autosomal dominant with anticipation (earlier onset with paternal transmission); ≥40 CAG repeats in HTT confirms it.", "objective": "Movement Disorders — Huntington's disease", "section": "Movement Disorders"}, {"id": "4B", "group": 4, "stem": "Which test confirms the diagnosis?", "options": [{"letter": "A", "text": "DaT scan showing reduced striatal uptake"}, {"letter": "B", "text": "Genetic testing for CAG trinucleotide repeat expansion"}, {"letter": "C", "text": "MRI brain showing caudate atrophy"}, {"letter": "D", "text": "Anti-streptolysin O titer"}, {"letter": "E", "text": "Serum ceruloplasmin and 24-hour urine copper"}], "answer": "B", "explanation": "Genetic testing (PCR for CAG repeats, ≥40 = HD) is the gold standard; imaging may show caudate atrophy but is supportive only. Genetic counseling comes before testing.", "objective": "Movement Disorders — Huntington's disease", "section": "Movement Disorders"}, {"id": "4C", "group": 4, "stem": "Which medication is used to reduce his chorea?", "options": [{"letter": "A", "text": "Tetrabenazine"}, {"letter": "B", "text": "Pramipexole"}, {"letter": "C", "text": "Propranolol"}, {"letter": "D", "text": "Carbidopa/levodopa"}, {"letter": "E", "text": "Benztropine"}], "answer": "A", "explanation": "No disease-modifying therapy exists; tetrabenazine (VMAT2 inhibitor) treats chorea — black box warning for depression/suicidality, so screen mood.", "objective": "Movement Disorders — Huntington's disease", "section": "Movement Disorders"}, {"id": "5", "group": 5, "stem": "A 45-year-old man woke with right facial drooping; he cannot close the right eye or raise the right eyebrow, and had mild pain behind the right ear yesterday. No hearing loss, rash, or recent illness. Which cranial nerve is affected, and what distinguishes this from a central facial palsy?", "options": [{"letter": "A", "text": "CN V; preserved forehead movement indicates a central lesion"}, {"letter": "B", "text": "CN III; ptosis indicates a peripheral lesion"}, {"letter": "C", "text": "CN VII; forehead sparing indicates a peripheral lesion"}, {"letter": "D", "text": "CN VII; forehead involvement indicates a peripheral lesion"}, {"letter": "E", "text": "CN V; loss of corneal sensation indicates a peripheral lesion"}], "answer": "D", "explanation": "Bell's palsy is a lower motor neuron CN VII lesion, so the forehead is weak; a central (stroke) lesion spares the forehead because it has bilateral cortical input.", "objective": "ALS & PN — Bell's palsy and trigeminal neuralgia", "section": "ALS & Peripheral Neuropathy"}, {"id": "5A", "group": 5, "stem": "What is the first-line treatment for this patient?", "options": [{"letter": "A", "text": "Valacyclovir alone for 7–10 days"}, {"letter": "B", "text": "Carbamazepine titrated to pain relief"}, {"letter": "C", "text": "IV acyclovir 10 mg/kg every 8 hours"}, {"letter": "D", "text": "Surgical facial nerve decompression"}, {"letter": "E", "text": "Prednisone started within 3–5 days plus eye protection"}], "answer": "E", "explanation": "Prednisone 60–80 mg × 5–7 days then taper, started within 72 h; add valacyclovir/acyclovir for severe or complete palsy or vesicles (Ramsay Hunt). Tape the eye at night and use artificial tears.", "objective": "ALS & PN — Bell's palsy and trigeminal neuralgia", "section": "ALS & Peripheral Neuropathy"}, {"id": "5B", "group": 5, "stem": "A 62-year-old woman has brief, severe, electric-shock pain on the right side of the face triggered by eating, talking, and tooth brushing, lasting seconds and recurring many times daily. Which division(s) of CN V are most commonly affected?", "options": [{"letter": "A", "text": "V3 only with bilateral involvement"}, {"letter": "B", "text": "V1 and V2 (ophthalmic and maxillary)"}, {"letter": "C", "text": "All three divisions equally"}, {"letter": "D", "text": "V2 and V3 (maxillary and mandibular)"}, {"letter": "E", "text": "V1 only (ophthalmic)"}], "answer": "D", "explanation": "Classic trigeminal neuralgia involves V2/V3 unilaterally; V1 or bilateral involvement suggests a secondary cause (MS in a young patient).", "objective": "ALS & PN — Bell's palsy and trigeminal neuralgia", "section": "ALS & Peripheral Neuropathy"}, {"id": "5C", "group": 5, "stem": "What is the first-line pharmacologic treatment for her?", "options": [{"letter": "A", "text": "Gabapentin"}, {"letter": "B", "text": "Prednisone"}, {"letter": "C", "text": "Carbamazepine"}, {"letter": "D", "text": "Amitriptyline"}, {"letter": "E", "text": "Sumatriptan"}], "answer": "C", "explanation": "Carbamazepine is first-line (response is nearly diagnostic); monitor CBC and screen HLA-B*1502 in Asian patients. Microvascular decompression for refractory cases.", "objective": "ALS & PN — Bell's palsy and trigeminal neuralgia", "section": "ALS & Peripheral Neuropathy"}, {"id": "6", "group": 6, "stem": "A 52-year-old man with no medical history has 6 weeks of progressive right-sided weakness, new seizures, and personality change. MRI with contrast shows a ring-enhancing left frontal lesion with surrounding edema and mass effect. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Pituitary macroadenoma"}, {"letter": "B", "text": "Glioblastoma"}, {"letter": "C", "text": "Brain abscess"}, {"letter": "D", "text": "Meningioma"}, {"letter": "E", "text": "Primary CNS lymphoma"}], "answer": "B", "explanation": "Adult with progressive focal deficit, seizures, and personality change plus a heterogeneously ring-enhancing intra-axial mass = high-grade glioma; glioblastoma is the most common primary malignant brain tumor in adults.", "objective": "CNS Neoplasms — Gliomas, pituitary, meningeal, auditory nerve tumors", "section": "CNS Neoplasms"}, {"id": "6A", "group": 6, "stem": "A 35-year-old woman has amenorrhea, galactorrhea, and bitemporal hemianopsia; MRI shows a sellar mass with suprasellar extension. What causes the visual field defect and which tumor type is most likely?", "options": [{"letter": "A", "text": "Compression of the optic nerve; craniopharyngioma"}, {"letter": "B", "text": "Compression of the optic tract; GH-secreting adenoma"}, {"letter": "C", "text": "Compression of the optic chiasm; prolactinoma"}, {"letter": "D", "text": "Raised intracranial pressure; non-functioning adenoma"}, {"letter": "E", "text": "Invasion of the cavernous sinus; ACTH-secreting adenoma"}], "answer": "C", "explanation": "Suprasellar growth compresses the crossing nasal fibers at the chiasm → bitemporal hemianopsia. Galactorrhea/amenorrhea = prolactinoma, the most common functioning adenoma.", "objective": "CNS Neoplasms — Gliomas, pituitary, meningeal, auditory nerve tumors", "section": "CNS Neoplasms"}, {"id": "6B", "group": 6, "stem": "What is the first-line treatment for the second patient's tumor?", "options": [{"letter": "A", "text": "Stereotactic radiosurgery"}, {"letter": "B", "text": "Temozolomide"}, {"letter": "C", "text": "Cabergoline"}, {"letter": "D", "text": "Transsphenoidal resection"}, {"letter": "E", "text": "Octreotide"}], "answer": "C", "explanation": "Prolactinomas are treated medically with dopamine agonists (cabergoline preferred, bromocriptine) even when large — check prolactin before any surgery.", "objective": "CNS Neoplasms — Gliomas, pituitary, meningeal, auditory nerve tumors", "section": "CNS Neoplasms"}, {"id": "6C", "group": 6, "stem": "How does a meningioma typically differ from the first patient's tumor?", "options": [{"letter": "A", "text": "Intra-axial infiltrating mass with rapid progression"}, {"letter": "B", "text": "Sellar mass with hormonal excess"}, {"letter": "C", "text": "Extra-axial dural-based mass, usually benign and slow-growing, often incidental"}, {"letter": "D", "text": "Cerebellopontine angle mass with unilateral hearing loss"}, {"letter": "E", "text": "Multiple rounded lesions at the gray-white junction"}], "answer": "C", "explanation": "Meningioma: most common benign intracranial tumor, arises from the meninges (extra-axial, displaces rather than infiltrates brain), homogeneous enhancement with dural tail, often asymptomatic; resection is usually curative.", "objective": "CNS Neoplasms — Gliomas, pituitary, meningeal, auditory nerve tumors", "section": "CNS Neoplasms"}, {"id": "7", "group": 7, "stem": "Two patients present with dizziness. Patient A, 28, developed sudden severe spinning after sitting up in bed; symptoms worsen with head movement, and Dix-Hallpike is positive with brief latency and fatigable nystagmus. Patient B, 67, with hypertension, reports dizziness, double vision, and difficulty walking, with direction-changing nystagmus that does not fatigue. Which of the following best classifies the two patients?", "options": [{"letter": "A", "text": "A peripheral (Ménière's); B peripheral (BPPV)"}, {"letter": "B", "text": "A peripheral (BPPV); B central"}, {"letter": "C", "text": "Both peripheral — BPPV and Ménière's"}, {"letter": "D", "text": "Both central — vestibular migraine and stroke"}, {"letter": "E", "text": "A central; B peripheral (vestibular neuritis)"}], "answer": "B", "explanation": "Positional seconds-long spells with latent, fatigable nystagmus = BPPV (peripheral). Diplopia, gait failure, and direction-changing non-fatiguing nystagmus in an older vascular patient = central.", "objective": "Vertigo — Central vs peripheral", "section": "Vertigo"}, {"id": "7A", "group": 7, "stem": "Which nystagmus feature points to a central cause?", "options": [{"letter": "A", "text": "Fatigues with repeated positioning"}, {"letter": "B", "text": "Suppresses when the patient fixates on a target"}, {"letter": "C", "text": "Appears after a brief latency of a few seconds"}, {"letter": "D", "text": "Unidirectional horizontal with a torsional component"}, {"letter": "E", "text": "Direction-changing or vertical, not suppressed by fixation"}], "answer": "E", "explanation": "Peripheral nystagmus is regular, unidirectional, often torsional, fatigable, and suppresses with fixation; central nystagmus is bidirectional/vertical and does not suppress.", "objective": "Vertigo — Central vs peripheral", "section": "Vertigo"}, {"id": "7B", "group": 7, "stem": "What imaging is appropriate for Patient B?", "options": [{"letter": "A", "text": "Carotid duplex ultrasound"}, {"letter": "B", "text": "No imaging — Epley maneuver"}, {"letter": "C", "text": "CT temporal bone"}, {"letter": "D", "text": "Non-contrast CT then MRI brain with diffusion-weighted imaging"}, {"letter": "E", "text": "Audiometry and MRI of the internal auditory canal"}], "answer": "D", "explanation": "Central vertigo with the \"D's\" requires stroke imaging: CT to exclude hemorrhage, then DWI-MRI for posterior-circulation ischemia (CT misses the posterior fossa).", "objective": "Vertigo — Central vs peripheral", "section": "Vertigo"}, {"id": "8", "group": 8, "stem": "A 34-year-old office administrator has a 6-hour headache described as a \"tight band around my head\" — bilateral, pressure-like, 5/10, without nausea, vomiting, photophobia, or phonophobia. Similar headaches occur 2–3 times a month after long workdays. Neuro exam and vitals are normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Migraine without aura"}, {"letter": "B", "text": "Idiopathic intracranial hypertension"}, {"letter": "C", "text": "Tension-type headache"}, {"letter": "D", "text": "Medication-overuse headache"}, {"letter": "E", "text": "Cluster headache"}], "answer": "C", "explanation": "Bilateral, pressure/band-like, non-throbbing, mild-moderate, no N/V and minimal photo/phonophobia, not worsened by activity = tension-type headache.", "objective": "Headaches — Tension-type headache", "section": "Headaches"}, {"id": "8A", "group": 8, "stem": "Which feature most reliably separates this headache from migraine?", "options": [{"letter": "A", "text": "Frequency of 2–3 episodes per month"}, {"letter": "B", "text": "Age and sex of the patient"}, {"letter": "C", "text": "Duration of 6 hours"}, {"letter": "D", "text": "Onset after long workdays"}, {"letter": "E", "text": "Bilateral pressure quality without nausea or photophobia"}], "answer": "E", "explanation": "Migraine is unilateral, throbbing, worse with activity, with N/V and photo/phonophobia (POUND); TTH is bilateral, pressing, and lacks those features.", "objective": "Headaches — Tension-type headache", "section": "Headaches"}, {"id": "8B", "group": 8, "stem": "What is the first-line pharmacologic treatment for the acute episode?", "options": [{"letter": "A", "text": "High-flow oxygen by non-rebreather"}, {"letter": "B", "text": "Butalbital-acetaminophen-caffeine"}, {"letter": "C", "text": "Subcutaneous sumatriptan"}, {"letter": "D", "text": "Low-dose amitriptyline nightly"}, {"letter": "E", "text": "OTC acetaminophen or an NSAID"}], "answer": "E", "explanation": "Simple analgesics PRN, capped at <15 days/month to avoid medication-overuse headache. Amitriptyline is prevention for frequent TTH; triptans and O2 are migraine/cluster therapies.", "objective": "Headaches — Tension-type headache", "section": "Headaches"}, {"id": "9", "group": 9, "stem": "A 58-year-old man has 6 months of progressive right-hand weakness (trouble buttoning shirts), muscle twitching in the arms and legs, and a month of slurred speech. No sensory change, bowel/bladder symptoms, or pain. Exam: atrophy and fasciculations of the right hand and forearm, bilateral lower-extremity hyperreflexia, extensor plantar responses, and dysarthria. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Guillain-Barré syndrome"}, {"letter": "B", "text": "Amyotrophic lateral sclerosis"}, {"letter": "C", "text": "Multifocal motor neuropathy"}, {"letter": "D", "text": "Myasthenia gravis"}, {"letter": "E", "text": "Cervical spondylotic myelopathy"}], "answer": "B", "explanation": "Mixed upper (hyperreflexia, Babinski) and lower (atrophy, fasciculations) motor neuron signs with bulbar involvement and no sensory findings = ALS.", "objective": "ALS & PN — ALS", "section": "ALS & Peripheral Neuropathy"}, {"id": "9A", "group": 9, "stem": "Why is the absence of sensory findings important?", "options": [{"letter": "A", "text": "It suggests a better prognosis"}, {"letter": "B", "text": "It separates a pure motor neuron disease from neuropathy and myelopathy"}, {"letter": "C", "text": "It confirms a familial rather than sporadic form"}, {"letter": "D", "text": "It indicates the disease is still in an early stage"}, {"letter": "E", "text": "It rules out bulbar involvement"}], "answer": "B", "explanation": "ALS affects motor neurons only; sensory loss points to peripheral neuropathy, radiculopathy, or cord compression instead.", "objective": "ALS & PN — ALS", "section": "ALS & Peripheral Neuropathy"}, {"id": "9B", "group": 9, "stem": "Which test is essential in the workup?", "options": [{"letter": "A", "text": "Acetylcholine receptor antibody"}, {"letter": "B", "text": "EMG/nerve conduction studies"}, {"letter": "C", "text": "DaT scan"}, {"letter": "D", "text": "Lumbar puncture"}, {"letter": "E", "text": "Muscle biopsy"}], "answer": "B", "explanation": "EMG shows active and chronic denervation in multiple regions with NCS lacking conduction block; MRI (cervical spine) and labs exclude mimics. Diagnosis is clinical (El Escorial).", "objective": "ALS & PN — ALS", "section": "ALS & Peripheral Neuropathy"}, {"id": "9C", "group": 9, "stem": "Which disease-modifying therapy is offered?", "options": [{"letter": "A", "text": "High-dose prednisone"}, {"letter": "B", "text": "Riluzole"}, {"letter": "C", "text": "Pyridostigmine"}, {"letter": "D", "text": "Natalizumab"}, {"letter": "E", "text": "IVIG"}], "answer": "B", "explanation": "Riluzole (glutamate release inhibitor; monitor LFTs) for all patients; edaravone and tofersen (SOD1) are additional options. Median survival 3–5 years; respiratory failure is the terminal event (serial FVC, BiPAP).", "objective": "ALS & PN — ALS", "section": "ALS & Peripheral Neuropathy"}, {"id": "10", "group": 10, "stem": "Patient A, a 72-year-old man with atrial fibrillation, develops sudden right-sided weakness and expressive aphasia; non-contrast CT head is negative. Patient B, 58, with poorly controlled hypertension, develops sudden severe headache then right-sided weakness; CT shows a hyperdense lesion in the left basal ganglia. Which of the following correctly identifies the two strokes?", "options": [{"letter": "A", "text": "A intracerebral hemorrhage; B ischemic stroke"}, {"letter": "B", "text": "A cardioembolic ischemic stroke; B hypertensive intracerebral hemorrhage"}, {"letter": "C", "text": "A subarachnoid hemorrhage; B lacunar infarct"}, {"letter": "D", "text": "Both ischemic strokes of the left MCA"}, {"letter": "E", "text": "A lacunar infarct; B subarachnoid hemorrhage"}], "answer": "B", "explanation": "AFib with a negative CT = embolic ischemic stroke; headache with hyperdense basal ganglia blood in a hypertensive = hemorrhagic stroke.", "objective": "CVA/TIA — Ischemic vs hemorrhagic stroke", "section": "CVA / TIA"}, {"id": "10A", "group": 10, "stem": "Why is non-contrast CT the initial imaging of choice?", "options": [{"letter": "A", "text": "It is the most sensitive test for early ischemic change"}, {"letter": "B", "text": "It identifies the occluded vessel for thrombectomy"}, {"letter": "C", "text": "It detects posterior-fossa infarcts better than MRI"}, {"letter": "D", "text": "It rapidly excludes hemorrhage, which determines eligibility for thrombolysis"}, {"letter": "E", "text": "It defines the salvageable penumbra"}], "answer": "D", "explanation": "CT is fast and reliably shows blood; MRI DWI is more sensitive for infarct, CTA shows the occlusion, and CT perfusion defines penumbra.", "objective": "CVA/TIA — Ischemic vs hemorrhagic stroke", "section": "CVA / TIA"}, {"id": "10B", "group": 10, "stem": "What is the treatment window and BP requirement for IV thrombolysis in Patient A?", "options": [{"letter": "A", "text": "Within 4.5 h only if CTA shows large-vessel occlusion"}, {"letter": "B", "text": "Within 24 h of symptom onset with BP <220/110"}, {"letter": "C", "text": "Within 3 h only if INR is above 1.7"}, {"letter": "D", "text": "Within 6 h of onset with BP <140/90"}, {"letter": "E", "text": "Within 4.5 h of last known normal with BP <185/110"}], "answer": "E", "explanation": "Alteplase/tenecteplase within 4.5 h of last known normal, BP ≤185/110 before and ≤180/105 after; thrombectomy up to 24 h for LVO with penumbra.", "objective": "CVA/TIA — Ischemic vs hemorrhagic stroke", "section": "CVA / TIA"}, {"id": "10C", "group": 10, "stem": "What is the BP target for Patient B?", "options": [{"letter": "A", "text": "Lower SBP to 140–160 with IV nicardipine or labetalol"}, {"letter": "B", "text": "Permissive hypertension up to 220/110"}, {"letter": "C", "text": "No BP treatment until repeat CT"}, {"letter": "D", "text": "Reduce to <120/80 with IV nitroprusside"}, {"letter": "E", "text": "Maintain SBP >180 to preserve perfusion"}], "answer": "A", "explanation": "Hemorrhagic stroke: SBP 140–160, reverse anticoagulants, ICU/neurosurgery, serial CT. Permissive HTN applies only to ischemic stroke without lysis; tPA is contraindicated with hemorrhage.", "objective": "CVA/TIA — Ischemic vs hemorrhagic stroke", "section": "CVA / TIA"}, {"id": "11", "group": 11, "stem": "A 38-year-old man has excruciating 10/10 right periorbital pain that began abruptly 45 minutes ago with ipsilateral tearing, nasal congestion, and a drooping right eyelid. Identical attacks have occurred once or twice daily for 3 weeks, each 30–90 minutes, always on the right; he had a similar series last spring. He is agitated and cannot sit still. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Giant cell arteritis"}, {"letter": "B", "text": "Cluster headache"}, {"letter": "C", "text": "Acute angle-closure glaucoma"}, {"letter": "D", "text": "Migraine with aura"}, {"letter": "E", "text": "Trigeminal neuralgia"}], "answer": "B", "explanation": "Strictly unilateral periorbital pain 15 min–3 h, several times daily in bouts of weeks with remissions, ipsilateral autonomic features, and restlessness = cluster headache.", "objective": "Headaches — Cluster headache", "section": "Headaches"}, {"id": "11A", "group": 11, "stem": "Which behavioral feature distinguishes this from migraine?", "options": [{"letter": "A", "text": "Nausea and vomiting at peak intensity"}, {"letter": "B", "text": "Pacing and restlessness during the attack rather than lying still in the dark"}, {"letter": "C", "text": "Pain that builds gradually over an hour"}, {"letter": "D", "text": "Pain that improves with sleep"}, {"letter": "E", "text": "Photophobia and phonophobia during attacks"}], "answer": "B", "explanation": "Cluster patients are agitated and pace; migraineurs seek a dark quiet room and lie still.", "objective": "Headaches — Cluster headache", "section": "Headaches"}, {"id": "11B", "group": 11, "stem": "What is the first-line abortive treatment?", "options": [{"letter": "A", "text": "Oral verapamil"}, {"letter": "B", "text": "Oral prednisone taper"}, {"letter": "C", "text": "100% oxygen by non-rebreather at 10–12 L/min"}, {"letter": "D", "text": "Oral naproxen"}, {"letter": "E", "text": "IV metoclopramide with diphenhydramine"}], "answer": "C", "explanation": "High-flow O2 for 15–30 min aborts most attacks; SQ sumatriptan if O2 is unavailable. Verapamil is the prophylactic drug of choice during a cycle.", "objective": "Headaches — Cluster headache", "section": "Headaches"}, {"id": "12", "group": 12, "stem": "A 68-year-old woman has 3 weeks of new right temporal headache with jaw pain when chewing, scalp tenderness when combing her hair, fatigue, and shoulder stiffness. ESR is 88 mm/h and CRP is elevated. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Idiopathic intracranial hypertension"}, {"letter": "B", "text": "Temporomandibular joint disorder"}, {"letter": "C", "text": "Trigeminal neuralgia"}, {"letter": "D", "text": "Cluster headache"}, {"letter": "E", "text": "Giant cell (temporal) arteritis"}], "answer": "E", "explanation": "Age >50, new unilateral temporal headache, jaw claudication, scalp tenderness, polymyalgia symptoms, and high ESR = GCA. Most feared complication is permanent blindness.", "objective": "Headaches — Secondary headache syndromes", "section": "Headaches"}, {"id": "12A", "group": 12, "stem": "What is the first-line treatment, and should biopsy results be awaited?", "options": [{"letter": "A", "text": "Carbamazepine titrated to effect"}, {"letter": "B", "text": "Acetazolamide and weight loss"}, {"letter": "C", "text": "NSAIDs and rheumatology follow-up"}, {"letter": "D", "text": "High-dose corticosteroids now — do not wait for biopsy"}, {"letter": "E", "text": "High-dose corticosteroids only after biopsy confirms"}], "answer": "D", "explanation": "Start high-dose steroids immediately on suspicion to protect vision; temporal artery biopsy (gold standard) remains positive for days–weeks after steroids begin.", "objective": "Headaches — Secondary headache syndromes", "section": "Headaches"}, {"id": "12B", "group": 12, "stem": "A second patient, a 19-year-old obese woman, has daily headaches, blurred vision, pulsatile tinnitus, papilledema, and an LP opening pressure of 32 cm H₂O with normal CSF. Which secondary headache syndrome is this?", "options": [{"letter": "A", "text": "Normal pressure hydrocephalus"}, {"letter": "B", "text": "Pseudotumor cerebri (idiopathic intracranial hypertension)"}, {"letter": "C", "text": "Subarachnoid hemorrhage"}, {"letter": "D", "text": "Viral meningitis"}, {"letter": "E", "text": "Giant cell arteritis"}], "answer": "B", "explanation": "Young obese woman + papilledema + pulsatile tinnitus + opening pressure >20 cm H₂O with normal CSF composition and normal MRI = IIH. Classic risk factors: obesity, female sex, reproductive age, tetracyclines/vitamin A/OCPs.", "objective": "Headaches — Secondary headache syndromes", "section": "Headaches"}, {"id": "12C", "group": 12, "stem": "What is the first-line pharmacologic treatment for the second patient?", "options": [{"letter": "A", "text": "Furosemide"}, {"letter": "B", "text": "Prednisone"}, {"letter": "C", "text": "Topiramate"}, {"letter": "D", "text": "Sumatriptan"}, {"letter": "E", "text": "Acetazolamide"}], "answer": "E", "explanation": "IIH: weight loss 5–10% plus acetazolamide (reduces CSF production); VP shunt or optic nerve sheath fenestration if refractory or vision threatened.", "objective": "Headaches — Secondary headache syndromes", "section": "Headaches"}, {"id": "13", "group": 13, "stem": "A 20-year-old soccer player sustained a concussion 8 weeks ago. She still has persistent headaches, fatigue, poor memory and concentration, and new irritability; she failed two exams and cannot return to practice. Neuro exam is normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Chronic subdural hematoma"}, {"letter": "B", "text": "Post-concussion syndrome"}, {"letter": "C", "text": "Major depressive disorder"}, {"letter": "D", "text": "Second impact syndrome"}, {"letter": "E", "text": "Chronic traumatic encephalopathy"}], "answer": "B", "explanation": "Nonspecific cognitive, somatic, and mood symptoms persisting beyond the expected 1–3 month recovery after a concussion, with normal exam = post-concussion syndrome.", "objective": "TBI — Post-concussion syndrome", "section": "TBI"}, {"id": "13A", "group": 13, "stem": "Which factor most strongly predicts this syndrome?", "options": [{"letter": "A", "text": "Younger age"}, {"letter": "B", "text": "Duration of loss of consciousness"}, {"letter": "C", "text": "Severity of the index concussion"}, {"letter": "D", "text": "Male sex"}, {"letter": "E", "text": "Number of prior concussions"}], "answer": "E", "explanation": "PCS correlates with the number of concussions (and female sex, older age), not severity; CTE tracks with more severe injuries.", "objective": "TBI — Post-concussion syndrome", "section": "TBI"}, {"id": "13B", "group": 13, "stem": "What is the appropriate management?", "options": [{"letter": "A", "text": "Immediate full return to play to rebuild tolerance"}, {"letter": "B", "text": "Repeat non-contrast CT every week"}, {"letter": "C", "text": "Opioid analgesia for headache"}, {"letter": "D", "text": "Bed rest until all symptoms resolve"}, {"letter": "E", "text": "Specialist referral with neuropsychiatric testing and a multidisciplinary team"}], "answer": "E", "explanation": "Prolonged symptoms → concussion specialist, neuropsych testing, individualized multidisciplinary care (CBT, vestibular/ocular therapy), gradual return to learn then play; avoid opioids.", "objective": "TBI — Post-concussion syndrome", "section": "TBI"}, {"id": "14", "group": 14, "stem": "A 26-year-old woman has a 4-hour throbbing left-sided headache, 8/10, preceded by 20 minutes of zigzag lines in her visual field. She has nausea, vomited once, and is very sensitive to light and sound; she is lying still in a dark room. Similar headaches have occurred twice a month since her late teens, often with menses. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Occipital lobe seizure"}, {"letter": "B", "text": "Migraine without aura"}, {"letter": "C", "text": "Tension-type headache"}, {"letter": "D", "text": "Migraine with aura"}, {"letter": "E", "text": "Transient ischemic attack"}], "answer": "D", "explanation": "Unilateral throbbing headache with N/V and photo/phonophobia preceded by a gradually building visual scintillation lasting <60 min = migraine with aura.", "objective": "Headaches — Migraine", "section": "Headaches"}, {"id": "14A", "group": 14, "stem": "Which feature distinguishes the aura from a TIA?", "options": [{"letter": "A", "text": "Unilateral weakness accompanying the headache"}, {"letter": "B", "text": "Onset after age 40"}, {"letter": "C", "text": "Gradual build over minutes with positive visual phenomena"}, {"letter": "D", "text": "Abrupt onset that is maximal immediately"}, {"letter": "E", "text": "Persistence for more than 24 hours"}], "answer": "C", "explanation": "Aura builds over ≥5 min (positive → negative symptoms) and resolves within 1 h; TIA is abrupt and maximal at onset. Aura first after 40 or lasting >1 h → work up TIA.", "objective": "Headaches — Migraine", "section": "Headaches"}, {"id": "14B", "group": 14, "stem": "What is the first-line abortive treatment for a moderate-to-severe attack?", "options": [{"letter": "A", "text": "Oxycodone-acetaminophen"}, {"letter": "B", "text": "A triptan such as sumatriptan"}, {"letter": "C", "text": "High-flow oxygen"}, {"letter": "D", "text": "Butalbital-acetaminophen-caffeine"}, {"letter": "E", "text": "Propranolol"}], "answer": "B", "explanation": "Triptans (PO/IN/SQ) for moderate–severe migraine, taken early; NSAIDs/acetaminophen for mild–moderate; avoid opioids and butalbital. Triptans are contraindicated in CAD/vasospastic disease.", "objective": "Headaches — Migraine", "section": "Headaches"}, {"id": "14C", "group": 14, "stem": "Which of the following is an indication to start preventive therapy?", "options": [{"letter": "A", "text": "Menstrual association of the headaches"}, {"letter": "B", "text": "Frequent or disabling attacks, or overuse/failure of abortives"}, {"letter": "C", "text": "Family history of migraine"}, {"letter": "D", "text": "A single attack lasting longer than 4 hours"}, {"letter": "E", "text": "Any aura with a headache"}], "answer": "B", "explanation": "Prophylaxis (propranolol, amitriptyline, topiramate, venlafaxine, candesartan) when attacks are frequent/disabling, abortives fail or are overused (≥10 days/month), or for aura variants. Menstrual migraine: naproxen or frovatriptan starting 2 days before menses.", "objective": "Headaches — Migraine", "section": "Headaches"}, {"id": "15", "group": 15, "stem": "A 55-year-old man with no prior headache history presents with the \"worst headache of my life\" that began suddenly while lifting furniture and peaked within seconds. He is diaphoretic and mildly confused. No fever or neck stiffness; fundoscopy shows papilledema. BP 178/102, HR 98. Which of the following is the most concerning diagnosis?", "options": [{"letter": "A", "text": "Migraine with aura"}, {"letter": "B", "text": "Cluster headache"}, {"letter": "C", "text": "Hypertensive urgency"}, {"letter": "D", "text": "Subarachnoid hemorrhage"}, {"letter": "E", "text": "Bacterial meningitis"}], "answer": "D", "explanation": "Thunderclap onset with exertion, new headache after 50, confusion, and papilledema are red flags for aneurysmal SAH.", "objective": "Headaches — Red flag findings", "section": "Headaches"}, {"id": "15A", "group": 15, "stem": "What is the next step in the workup?", "options": [{"letter": "A", "text": "CT angiography of the head"}, {"letter": "B", "text": "Lumbar puncture"}, {"letter": "C", "text": "MRI brain with contrast"}, {"letter": "D", "text": "Non-contrast CT head"}, {"letter": "E", "text": "ESR and CRP"}], "answer": "D", "explanation": "Non-contrast CT head first (most sensitive within 6 h). If CT is negative, LP for RBCs/xanthochromia; CTA then finds the aneurysm.", "objective": "Headaches — Red flag findings", "section": "Headaches"}, {"id": "15B", "group": 15, "stem": "Which of the following is another red-flag headache feature that should prompt workup?", "options": [{"letter": "A", "text": "Bilateral pressure-like pain"}, {"letter": "B", "text": "Onset in the late teens"}, {"letter": "C", "text": "Headache that improves with sleep"}, {"letter": "D", "text": "New headache in a patient older than 50"}, {"letter": "E", "text": "Family history of migraine"}], "answer": "D", "explanation": "Red flags: thunderclap onset, worst-ever, new after 50, fever/meningismus, papilledema, focal deficits, change in pattern, immunocompromise/cancer, positional or Valsalva-provoked.", "objective": "Headaches — Red flag findings", "section": "Headaches"}, {"id": "16", "group": 16, "stem": "A 32-year-old woman has 3 months of intermittent bilateral eyelid drooping that is worse in the evenings, difficulty chewing tough food, and occasional nasal speech. No pain or sensory change. Exam shows bilateral ptosis that worsens with sustained upgaze and improves transiently with an ice pack; reflexes are intact. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Lambert-Eaton myasthenic syndrome"}, {"letter": "B", "text": "Guillain-Barré syndrome"}, {"letter": "C", "text": "Amyotrophic lateral sclerosis"}, {"letter": "D", "text": "Multiple sclerosis"}, {"letter": "E", "text": "Myasthenia gravis"}], "answer": "E", "explanation": "Fatigable ptosis and bulbar weakness, worse late in the day, positive ice-pack test, normal reflexes and sensation = MG.", "objective": "MS & MG — Myasthenia gravis", "section": "MS & MG"}, {"id": "16A", "group": 16, "stem": "Which antibody is most commonly associated with this condition?", "options": [{"letter": "A", "text": "Acetylcholine receptor antibody"}, {"letter": "B", "text": "Anti-MuSK antibody"}, {"letter": "C", "text": "Aquaporin-4 antibody"}, {"letter": "D", "text": "Anti-GQ1b antibody"}, {"letter": "E", "text": "Anti-P/Q voltage-gated calcium channel antibody"}], "answer": "A", "explanation": "AChR antibody is positive in ~85% of generalized MG; MuSK then LRP4 are checked if negative. P/Q Ca-channel Ab = LEMS; GQ1b = Miller Fisher; AQP4 = NMO.", "objective": "MS & MG — Myasthenia gravis", "section": "MS & MG"}, {"id": "16B", "group": 16, "stem": "Which additional study should be ordered once the diagnosis is made?", "options": [{"letter": "A", "text": "Chest CT for thymoma"}, {"letter": "B", "text": "Lumbar puncture for oligoclonal bands"}, {"letter": "C", "text": "MRI of the cervical spine"}, {"letter": "D", "text": "Muscle biopsy"}, {"letter": "E", "text": "Nerve conduction studies of the legs"}], "answer": "A", "explanation": "Every MG patient gets chest imaging (CT) for thymoma/thymic hyperplasia; thymectomy is indicated for any thymoma. RNS/single-fiber EMG confirm if antibodies are negative.", "objective": "MS & MG — Myasthenia gravis", "section": "MS & MG"}, {"id": "16C", "group": 16, "stem": "She later develops severe dyspnea and dysphagia during a respiratory infection. What is the management?", "options": [{"letter": "A", "text": "Increase pyridostigmine dose and observe on the floor"}, {"letter": "B", "text": "Intubate and start riluzole"}, {"letter": "C", "text": "High-dose IV methylprednisolone alone"}, {"letter": "D", "text": "ICU with serial FVC; plasma exchange or IVIG; hold pyridostigmine"}, {"letter": "E", "text": "Edrophonium test to confirm crisis"}], "answer": "D", "explanation": "Myasthenic crisis: airway monitoring (FVC/NIF), intubate/NIV as needed, PLEX or IVIG, treat the trigger; cholinesterase inhibitors are held (ineffective, cholinergic crisis risk).", "objective": "MS & MG — Myasthenia gravis", "section": "MS & MG"}, {"id": "17", "group": 17, "stem": "A 19-year-old college student has 12 hours of fever, severe headache, and neck stiffness with photophobia and mild confusion. Exam: positive Kernig and Brudzinski signs and a petechial rash on the trunk and limbs. T 39.8 °C, BP 88/56, HR 122; glucose normal. Which of the following is the most likely organism?", "options": [{"letter": "A", "text": "Herpes simplex virus 1"}, {"letter": "B", "text": "Enterovirus"}, {"letter": "C", "text": "Streptococcus pneumoniae"}, {"letter": "D", "text": "Neisseria meningitidis"}, {"letter": "E", "text": "Listeria monocytogenes"}], "answer": "D", "explanation": "Rapid meningitis in a young adult in close quarters with petechial/purpuric rash and shock = meningococcemia. Classic triad (fever, headache, nuchal rigidity) is present in <50%.", "objective": "CNS Infections — Bacterial meningitis", "section": "CNS Infections"}, {"id": "17A", "group": 17, "stem": "Should CT precede LP in this patient?", "options": [{"letter": "A", "text": "No — the rash is a contraindication to LP"}, {"letter": "B", "text": "Yes — CT first and hold antibiotics until CSF is obtained"}, {"letter": "C", "text": "Yes — but only after the rash is biopsied"}, {"letter": "D", "text": "Yes — altered mental status is a red flag; give blood cultures and antibiotics first, then CT, then LP"}, {"letter": "E", "text": "No — LP immediately since he is young and CT is never needed"}], "answer": "D", "explanation": "CT before LP for papilledema, focal deficit, seizure, marked AMS, immunocompromise, or age ≥60. Whenever LP is delayed: blood cultures → empiric antibiotics (+ dexamethasone) → CT → LP.", "objective": "CNS Infections — Bacterial meningitis", "section": "CNS Infections"}, {"id": "17B", "group": 17, "stem": "What empiric regimen should be started?", "options": [{"letter": "A", "text": "Acyclovir IV"}, {"letter": "B", "text": "Penicillin G IV alone"}, {"letter": "C", "text": "Ceftriaxone plus vancomycin plus ampicillin, with dexamethasone"}, {"letter": "D", "text": "Ceftriaxone plus vancomycin, with dexamethasone"}, {"letter": "E", "text": "Ampicillin plus gentamicin"}], "answer": "D", "explanation": "Age 2–50: 3rd-gen cephalosporin + vancomycin + dexamethasone (given just before/with the first dose). Ampicillin is added for >50, pregnant, or immunocompromised (Listeria).", "objective": "CNS Infections — Bacterial meningitis", "section": "CNS Infections"}, {"id": "17C", "group": 17, "stem": "His roommate is asymptomatic. What should he receive?", "options": [{"letter": "A", "text": "Empiric IV ceftriaxone and admission"}, {"letter": "B", "text": "Rifampin, ceftriaxone, or ciprofloxacin prophylaxis within 24 hours"}, {"letter": "C", "text": "MenACWY vaccination only"}, {"letter": "D", "text": "Lumbar puncture to exclude carriage"}, {"letter": "E", "text": "Observation with a repeat exam in 48 hours"}], "answer": "B", "explanation": "Close contacts of meningococcal disease get chemoprophylaxis (rifampin 600 mg BID × 2 d, ceftriaxone 250 mg IM ×1, or ciprofloxacin 500 mg ×1) regardless of vaccination status.", "objective": "CNS Infections — Bacterial meningitis", "section": "CNS Infections"}, {"id": "18", "group": 18, "stem": "A 35-year-old man has 5 days of progressive bilateral leg weakness now spreading to the arms, with tingling in the hands and feet. He had a self-limited diarrheal illness 3 weeks ago. Exam: symmetric flaccid quadriparesis, areflexia, mild distal sensory loss, no bowel/bladder dysfunction. LP shows elevated protein with a normal cell count; NCS show reduced conduction velocities. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Botulism"}, {"letter": "B", "text": "Guillain-Barré syndrome"}, {"letter": "C", "text": "Transverse myelitis"}, {"letter": "D", "text": "Chronic inflammatory demyelinating polyneuropathy"}, {"letter": "E", "text": "Myasthenia gravis"}], "answer": "B", "explanation": "Ascending symmetric flaccid weakness with areflexia after a GI infection, albuminocytologic dissociation, and demyelinating NCS = GBS (acute, <4 weeks).", "objective": "ALS & PN — Guillain-Barré syndrome", "section": "ALS & Peripheral Neuropathy"}, {"id": "18A", "group": 18, "stem": "Which organism classically precedes this condition?", "options": [{"letter": "A", "text": "Campylobacter jejuni"}, {"letter": "B", "text": "Clostridium botulinum"}, {"letter": "C", "text": "Mycoplasma pneumoniae"}, {"letter": "D", "text": "Streptococcus pyogenes"}, {"letter": "E", "text": "Borrelia burgdorferi"}], "answer": "A", "explanation": "Campylobacter jejuni enteritis is the most common antecedent in North America; also URI, CMV/EBV, HIV, and recent vaccination.", "objective": "ALS & PN — Guillain-Barré syndrome", "section": "ALS & Peripheral Neuropathy"}, {"id": "18B", "group": 18, "stem": "What is the most life-threatening complication to monitor for?", "options": [{"letter": "A", "text": "Deep vein thrombosis"}, {"letter": "B", "text": "Status epilepticus"}, {"letter": "C", "text": "Respiratory failure — serial FVC/NIF"}, {"letter": "D", "text": "Aspiration pneumonia from dysphagia"}, {"letter": "E", "text": "Hyperkalemia from muscle breakdown"}], "answer": "C", "explanation": "Respiratory muscle weakness (FVC <20 mL/kg, weak cough) and dysautonomia (arrhythmia, labile BP) are the causes of death; monitor in ICU/telemetry and intubate early.", "objective": "ALS & PN — Guillain-Barré syndrome", "section": "ALS & Peripheral Neuropathy"}, {"id": "18C", "group": 18, "stem": "Which of the following is an appropriate disease-modifying treatment?", "options": [{"letter": "A", "text": "IVIG or plasma exchange"}, {"letter": "B", "text": "Riluzole"}, {"letter": "C", "text": "IVIG followed by plasma exchange"}, {"letter": "D", "text": "High-dose IV methylprednisolone"}, {"letter": "E", "text": "Oral prednisone taper"}], "answer": "A", "explanation": "IVIG or PLEX, started as soon as GBS is strongly suspected — one or the other, not both. Corticosteroids are ineffective in GBS (unlike CIDP).", "objective": "ALS & PN — Guillain-Barré syndrome", "section": "ALS & Peripheral Neuropathy"}, {"id": "19", "group": 19, "stem": "A 40-year-old woman has sudden severe continuous room-spinning vertigo since yesterday morning, worse with any movement, with three episodes of vomiting. She had a viral URI 10 days ago. No hearing loss, tinnitus, or neurologic symptoms. HINTS: catch-up saccade on head impulse to the left, unidirectional right-beating nystagmus, no skew deviation. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Labyrinthitis"}, {"letter": "B", "text": "Benign paroxysmal positional vertigo"}, {"letter": "C", "text": "Vestibular neuritis"}, {"letter": "D", "text": "Ménière's disease"}, {"letter": "E", "text": "Posterior circulation stroke"}], "answer": "C", "explanation": "Continuous days-long vertigo after a viral illness with intact hearing and a fully peripheral HINTS (saccade present, unidirectional nystagmus, no skew) = vestibular neuritis. Hearing loss would make it labyrinthitis.", "objective": "Vertigo — Vestibular neuritis", "section": "Vertigo"}, {"id": "19A", "group": 19, "stem": "Which HINTS result would instead point to a central cause?", "options": [{"letter": "A", "text": "Corrective saccade on head impulse"}, {"letter": "B", "text": "Nystagmus that suppresses with fixation"}, {"letter": "C", "text": "Absence of skew deviation"}, {"letter": "D", "text": "Normal head impulse test with no corrective saccade"}, {"letter": "E", "text": "Unidirectional horizontal nystagmus"}], "answer": "D", "explanation": "A normal head impulse (intact VOR, no saccade), direction-changing nystagmus, or skew deviation — any one — is central until proven otherwise (100% sensitive for posterior stroke).", "objective": "Vertigo — Vestibular neuritis", "section": "Vertigo"}, {"id": "19B", "group": 19, "stem": "What is the appropriate treatment?", "options": [{"letter": "A", "text": "Stroke protocol with aspirin and statin"}, {"letter": "B", "text": "Meclizine daily for 4 weeks until fully recovered"}, {"letter": "C", "text": "Brief vestibular suppressant and antiemetic, prednisone taper, early vestibular rehabilitation"}, {"letter": "D", "text": "Epley maneuver and no medication"}, {"letter": "E", "text": "Low-sodium diet and triamterene/HCTZ"}], "answer": "C", "explanation": "Meclizine/diazepam + ondansetron for ≤3 days only (suppressants delay compensation), a prednisone taper hastens recovery, and vestibular rehab; symptoms settle over days–weeks with good prognosis.", "objective": "Vertigo — Vestibular neuritis", "section": "Vertigo"}, {"id": "20", "group": 20, "stem": "A 19-year-old man arrives after a motor vehicle collision. He opens his eyes only to painful stimulation, makes incomprehensible sounds, and withdraws his extremities from pain. What is his Glasgow Coma Scale score and TBI category?", "options": [{"letter": "A", "text": "GCS 6 — severe"}, {"letter": "B", "text": "GCS 9 — moderate"}, {"letter": "C", "text": "GCS 8 — severe"}, {"letter": "D", "text": "GCS 7 — severe"}, {"letter": "E", "text": "GCS 10 — moderate"}], "answer": "C", "explanation": "Eyes to pain 2 + incomprehensible sounds 2 + withdraws 4 = 8. Severe TBI is GCS ≤8 — the threshold for airway management.", "objective": "TBI — Glasgow Coma Scale", "section": "TBI"}, {"id": "20A", "group": 20, "stem": "A 40-year-old woman who fell down stairs opens her eyes spontaneously, is confused but conversant, and obeys commands. What is her score and category?", "options": [{"letter": "A", "text": "GCS 14 — mild"}, {"letter": "B", "text": "GCS 15 — mild"}, {"letter": "C", "text": "GCS 13 — mild"}, {"letter": "D", "text": "GCS 11 — moderate"}, {"letter": "E", "text": "GCS 12 — moderate"}], "answer": "A", "explanation": "Spontaneous 4 + confused 4 + obeys 6 = 14. Mild TBI = 13–15; moderate 9–12; severe ≤8.", "objective": "TBI — Glasgow Coma Scale", "section": "TBI"}, {"id": "20B", "group": 20, "stem": "A 55-year-old man struck by a vehicle does not open his eyes, makes no sounds, and has no motor response. What is his score?", "options": [{"letter": "A", "text": "GCS 1"}, {"letter": "B", "text": "GCS 3"}, {"letter": "C", "text": "GCS 0"}, {"letter": "D", "text": "GCS 2"}, {"letter": "E", "text": "GCS 4"}], "answer": "B", "explanation": "The minimum is 1 per component — eye 1 + verbal 1 + motor 1 = 3. GCS ranges 3–15 and can never be 0.", "objective": "TBI — Glasgow Coma Scale", "section": "TBI"}]});
+
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+
+const EXAM_DATA = (function (raw) {
+  // Reshuffle stack order and option order on every open; renumber ids.
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  const groups = {}; const order = [];
+  raw.questions.forEach(q => { if (!groups[q.group]) { groups[q.group] = []; order.push(q.group); } groups[q.group].push(q); });
+  shuffle(order);
+  const out = []; const letters = ['A','B','C','D','E','F'];
+  order.forEach((g, gi) => {
+    groups[g].forEach((q, qi) => {
+      const correct = q.options.find(o => o.letter === q.answer).text;
+      const opts = shuffle(q.options.map(o => o.text)).map((t, i) => ({ letter: letters[i], text: t }));
+      const ans = opts.find(o => o.text === correct).letter;
+      out.push(Object.assign({}, q, { id: String(gi + 1) + (qi === 0 ? '' : letters[qi - 1]), group: gi + 1, options: opts, answer: ans }));
+    });
+  });
+  return { title: raw.title, questions: out };
+})({"title": "Neuro Exam 2 Practice B", "questions": [{"id": "1", "group": 1, "stem": "A 52-year-old man has 2 years of gradually worsening hearing in the left ear — he switched the phone to his right ear a year ago — with constant left-sided tinnitus and a persistent sense of unsteadiness and veering when walking, but no spinning spells, ear pain, or discharge. Otoscopy is normal; Weber lateralizes to the right and Rinne is AC > BC bilaterally. The left corneal reflex is slightly diminished; facial strength is symmetric and there is no nystagmus. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Acoustic neuroma (vestibular schwannoma)"}, {"letter": "B", "text": "Presbycusis"}, {"letter": "C", "text": "Otosclerosis"}, {"letter": "D", "text": "Ménière's disease"}, {"letter": "E", "text": "Vestibular neuritis"}], "answer": "A", "explanation": "Progressive UNILATERAL sensorineural loss + tinnitus + imbalance = vestibular schwannoma until proven otherwise; presbycusis is symmetric, so asymmetry mandates imaging.", "objective": "CNS Neoplasms — Auditory nerve tumors", "section": "CNS Neoplasms"}, {"id": "1A", "group": 1, "stem": "What is the diagnostic workup?", "options": [{"letter": "A", "text": "Tympanometry and ENT referral"}, {"letter": "B", "text": "Dix-Hallpike maneuver"}, {"letter": "C", "text": "Audiometry and MRI brain with contrast (internal auditory canal protocol)"}, {"letter": "D", "text": "Lumbar puncture"}, {"letter": "E", "text": "CT temporal bone"}], "answer": "C", "explanation": "Audiometry shows asymmetric high-frequency SNHL with poor speech discrimination; MRI shows an enhancing 'ice-cream-cone' mass at the cerebellopontine angle/IAC.", "objective": "CNS Neoplasms — Auditory nerve tumors", "section": "CNS Neoplasms"}, {"id": "1B", "group": 1, "stem": "The tumor is small in this patient with mild symptoms. What is the appropriate management?", "options": [{"letter": "A", "text": "Temozolomide"}, {"letter": "B", "text": "Whole-brain radiation"}, {"letter": "C", "text": "Immediate translabyrinthine resection"}, {"letter": "D", "text": "Observation with serial MRI and audiometry"}, {"letter": "E", "text": "Intratympanic gentamicin"}], "answer": "D", "explanation": "Small tumors/older or minimally symptomatic patients are observed; growing or symptomatic tumors get microsurgical resection or stereotactic radiosurgery. Bilateral schwannomas = NF2.", "objective": "CNS Neoplasms — Auditory nerve tumors", "section": "CNS Neoplasms"}, {"id": "2", "group": 2, "stem": "A trauma patient responds to a sternal rub with abnormal extension of the arms and legs. What is his motor score, and where is the lesion?", "options": [{"letter": "A", "text": "Motor 2 — decerebrate, brainstem/midbrain"}, {"letter": "B", "text": "Motor 3 — decorticate, hemispheres/internal capsule"}, {"letter": "C", "text": "Motor 3 — decerebrate, brainstem"}, {"letter": "D", "text": "Motor 4 — withdrawal, cortex"}, {"letter": "E", "text": "Motor 2 — decorticate, thalamus"}], "answer": "A", "explanation": "Extension = decerebrate (2) → brainstem compression/herniation; abnormal flexion = decorticate (3) → hemispheres/internal capsule/thalamus/upper brainstem.", "objective": "TBI — Glasgow Coma Scale", "section": "TBI"}, {"id": "3", "group": 3, "stem": "A 45-year-old man reports that his rings and shoes no longer fit, his jaw and brow have become more prominent over several years, and he has developed frontal headaches, sweating, and snoring. He has new type 2 diabetes and hypertension. Exam shows coarse facial features, widely spaced teeth, and a mild bitemporal field defect on confrontation. MRI shows a 1.6-cm sellar mass with suprasellar extension. Which lab confirms the tumor type?", "options": [{"letter": "A", "text": "IGF-1"}, {"letter": "B", "text": "24-hour urine free cortisol"}, {"letter": "C", "text": "LH and FSH"}, {"letter": "D", "text": "Prolactin"}, {"letter": "E", "text": "TSH and free T4"}], "answer": "A", "explanation": "GH-secreting adenoma → acromegaly, diagnosed by elevated IGF-1; treated with transsphenoidal resection (octreotide if incomplete). Prolactinoma is the most common functioning adenoma.", "objective": "CNS Neoplasms — Pituitary tumors", "section": "CNS Neoplasms"}, {"id": "3A", "group": 3, "stem": "A woman with a known pituitary macroadenoma develops sudden severe headache, vision loss, ophthalmoplegia, and hypotension. What is the diagnosis and management?", "options": [{"letter": "A", "text": "Cavernous sinus thrombosis — heparin"}, {"letter": "B", "text": "Migraine with aura — triptan"}, {"letter": "C", "text": "Subarachnoid hemorrhage — nimodipine"}, {"letter": "D", "text": "Pituitary apoplexy — emergent corticosteroids and neurosurgery"}, {"letter": "E", "text": "Cluster headache — high-flow oxygen"}], "answer": "D", "explanation": "Hemorrhage/infarction into the adenoma causes apoplexy: sudden headache, visual loss, CN palsies, and adrenal crisis → stress-dose steroids and urgent decompression.", "objective": "CNS Neoplasms — Pituitary tumors", "section": "CNS Neoplasms"}, {"id": "4", "group": 4, "stem": "A 38-year-old woman who injects heroin has 10 days of worsening mid-thoracic back pain and fevers, and since yesterday bilateral leg weakness and difficulty starting her urine stream. Exam: T 38.9 °C, focal tenderness at T8, 4/5 strength in both legs with brisk patellar reflexes, a sensory level at the umbilicus, and 400 mL on bladder scan. WBC 16,500, ESR 92, CRP 140. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Transverse myelitis"}, {"letter": "B", "text": "Vertebral compression fracture"}, {"letter": "C", "text": "Spinal epidural abscess"}, {"letter": "D", "text": "Guillain-Barré syndrome"}, {"letter": "E", "text": "Lumbar disc herniation"}], "answer": "C", "explanation": "Back pain + fever + risk factor (IVDA, DM, epidural procedure) progressing to cord signs = spinal epidural abscess (S. aureus 60–70%).", "objective": "CNS Infections — Spinal epidural abscess", "section": "CNS Infections"}, {"id": "4A", "group": 4, "stem": "What is the best diagnostic test?", "options": [{"letter": "A", "text": "Bone scan"}, {"letter": "B", "text": "Lumbar puncture"}, {"letter": "C", "text": "MRI spine with gadolinium"}, {"letter": "D", "text": "CT spine without contrast"}, {"letter": "E", "text": "Plain radiographs"}], "answer": "C", "explanation": "MRI with gadolinium plus blood cultures, CBC, ESR, CRP. Image as soon as suspected — an elevated ESR/CRP with a risk factor is enough; do not wait for deficits.", "objective": "CNS Infections — Spinal epidural abscess", "section": "CNS Infections"}, {"id": "4B", "group": 4, "stem": "What is the management?", "options": [{"letter": "A", "text": "IV antibiotics alone for 6 weeks"}, {"letter": "B", "text": "High-dose IV methylprednisolone"}, {"letter": "C", "text": "Epidural steroid injection"}, {"letter": "D", "text": "Emergent surgical decompression plus IV vancomycin and ceftriaxone"}, {"letter": "E", "text": "Oral antibiotics and outpatient follow-up"}], "answer": "D", "explanation": "Any neuro deficit → emergent neurosurgical decompression/drainage (delay = permanent paralysis) plus 4–8 weeks IV antibiotics narrowed to cultures.", "objective": "CNS Infections — Spinal epidural abscess", "section": "CNS Infections"}, {"id": "5", "group": 5, "stem": "A 17-year-old football player took a helmet-to-helmet hit in the second quarter, lay on the field for a few seconds looking dazed, and walked off under his own power without losing consciousness. On the sideline he has a headache, feels 'foggy' and slightly dizzy, and cannot recall the play; he has not vomited. GCS is 15, pupils are equal and reactive, cranial nerves, strength, and coordination are normal, and there is no midline neck tenderness. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Subdural hematoma"}, {"letter": "B", "text": "Epidural hematoma"}, {"letter": "C", "text": "Post-concussion syndrome"}, {"letter": "D", "text": "Concussion (mild TBI)"}, {"letter": "E", "text": "Diffuse axonal injury"}], "answer": "D", "explanation": "Transient neurologic dysfunction after a blow, GCS 13–15, normal exam — loss of consciousness is NOT required for concussion.", "objective": "TBI — Concussion", "section": "TBI"}, {"id": "5A", "group": 5, "stem": "Which tool is appropriate for sideline assessment?", "options": [{"letter": "A", "text": "MACE2"}, {"letter": "B", "text": "ACE"}, {"letter": "C", "text": "SCAT-6"}, {"letter": "D", "text": "Canadian CT Head Rule"}, {"letter": "E", "text": "Glasgow Coma Scale alone"}], "answer": "C", "explanation": "SCAT-6 (sports; includes SAC), BESS for balance; ACE in clinic (no memory/balance component); MACE2 for military. No single definitive test.", "objective": "TBI — Concussion", "section": "TBI"}, {"id": "5B", "group": 5, "stem": "Does he need a CT head?", "options": [{"letter": "A", "text": "No — no decision-rule criteria are met"}, {"letter": "B", "text": "No — but he needs an MRI"}, {"letter": "C", "text": "Yes — because he was dazed"}, {"letter": "D", "text": "Yes — every concussion requires CT"}, {"letter": "E", "text": "Yes — because he is under 18"}], "answer": "A", "explanation": "Image only when a rule is positive: GCS <15 at 2 h, suspected skull fracture, ≥2 vomiting, age >65, amnesia >30 min, dangerous mechanism, anticoagulants, seizure, focal deficit. Concussion imaging is normal by definition.", "objective": "TBI — Indications for neuroimaging", "section": "TBI"}, {"id": "5C", "group": 5, "stem": "What is the initial management?", "options": [{"letter": "A", "text": "Strict bed rest for 2 weeks"}, {"letter": "B", "text": "Ibuprofen and full school load tomorrow"}, {"letter": "C", "text": "Remove from play, do not leave alone, rest ≥24 h, limit screens, acetaminophen"}, {"letter": "D", "text": "Admit for observation"}, {"letter": "E", "text": "Return to play once symptoms settle at halftime"}], "answer": "C", "explanation": "Remove from contact sport until cleared, never leave alone, physical/cognitive rest ≥24 h, screens <2 h/day, avoid triggers, acetaminophen over NSAIDs, written instructions.", "objective": "TBI — Concussion management", "section": "TBI"}, {"id": "6", "group": 6, "stem": "A 47-year-old has new anosmia, disinhibited behavior, and nonfluent speech with preserved comprehension. Which lobe is the tumor most likely in?", "options": [{"letter": "A", "text": "Occipital"}, {"letter": "B", "text": "Frontal"}, {"letter": "C", "text": "Parietal"}, {"letter": "D", "text": "Temporal"}, {"letter": "E", "text": "Cerebellum"}], "answer": "B", "explanation": "Frontal: personality change, anosmia, expressive (Broca) aphasia. Temporal: seizures with olfactory/gustatory hallucinations; parietal: contralateral sensory loss; occipital: hemianopsia; cerebellar: ataxia/nystagmus/CN palsies.", "objective": "CNS Neoplasms — Localization by lobe", "section": "CNS Neoplasms"}, {"id": "7", "group": 7, "stem": "A 7-year-old girl has brief staring spells many times a day with eyelid fluttering and no postictal confusion; her grades are slipping. What EEG finding is expected?", "options": [{"letter": "A", "text": "Hypsarrhythmia"}, {"letter": "B", "text": "Slow spike-and-wave at ≤2.5 Hz"}, {"letter": "C", "text": "Focal temporal sharp waves"}, {"letter": "D", "text": "Diffuse postictal suppression"}, {"letter": "E", "text": "Generalized 3-Hz spike-and-wave on a normal background"}], "answer": "E", "explanation": "Typical absence = 3-Hz generalized spike-and-wave with abrupt onset/offset; atypical absence (≤2.5 Hz slow spike-and-wave) has longer lapses, motor signs, and developmental delay.", "objective": "Seizures — EEG findings", "section": "Seizures & Epilepsy"}, {"id": "8", "group": 8, "stem": "A 16-year-old still having headaches 5 days after a concussion returns to play, takes a second hit, and collapses with rapidly rising intracranial pressure. Which of the following is this?", "options": [{"letter": "A", "text": "Diffuse axonal injury"}, {"letter": "B", "text": "Epidural hematoma"}, {"letter": "C", "text": "Chronic traumatic encephalopathy"}, {"letter": "D", "text": "Post-concussion syndrome"}, {"letter": "E", "text": "Second impact syndrome"}], "answer": "E", "explanation": "A second head injury while still recovering → loss of cerebral autoregulation and malignant cerebral edema; permanent disability or death, greatest risk ≤20 years. Prevented by not clearing anyone with suspected mTBI.", "objective": "TBI — Second impact syndrome", "section": "TBI"}, {"id": "9", "group": 9, "stem": "A 50-year-old mechanic who spends the day leaning on his elbows has 6 months of numbness of the right little finger and the ulnar half of the ring finger, involving both the palm and the back of the hand, with aching at the inner elbow and trouble spreading his fingers. Exam: Tinel's at the cubital tunnel is positive, finger abduction is 4/5 with early hypothenar wasting, and he cannot hold a sheet of paper between thumb and index without flexing the thumb. Sensation over digits 1–3 is normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "C8 radiculopathy"}, {"letter": "B", "text": "Carpal tunnel syndrome"}, {"letter": "C", "text": "Ulnar neuropathy at the wrist (Guyon's canal)"}, {"letter": "D", "text": "Radial neuropathy at the spiral groove"}, {"letter": "E", "text": "Ulnar neuropathy at the elbow (cubital tunnel)"}], "answer": "E", "explanation": "Dorsal-hand ulnar sensory loss means the lesion is at the elbow (the dorsal branch leaves above the wrist); Froment's sign and ulnar claw appear when advanced. C8 radiculopathy adds neck pain and median-innervated C8 muscles.", "objective": "ALS & PN — Ulnar mononeuropathy", "section": "ALS & Peripheral Neuropathy"}, {"id": "9A", "group": 9, "stem": "What is the first-line management?", "options": [{"letter": "A", "text": "Avoid elbow flexion and leaning, elbow pad or night splint in extension, NSAIDs"}, {"letter": "B", "text": "Immediate ulnar nerve transposition"}, {"letter": "C", "text": "Cock-up wrist splint"}, {"letter": "D", "text": "Corticosteroid injection at the elbow"}, {"letter": "E", "text": "Ankle-foot orthosis"}], "answer": "A", "explanation": "Conservative first; surgical decompression or transposition for progressive weakness or atrophy.", "objective": "ALS & PN — Ulnar mononeuropathy", "section": "ALS & Peripheral Neuropathy"}, {"id": "10", "group": 10, "stem": "Which statement about graduated return to play after concussion is correct?", "options": [{"letter": "A", "text": "Clearance can be given by the coach"}, {"letter": "B", "text": "Athletes may return to full contact once headache-free for 2 hours"}, {"letter": "C", "text": "Return to play precedes return to school"}, {"letter": "D", "text": "Return to learn comes first; each step of return to play requires 24 h symptom-free"}, {"letter": "E", "text": "Steps can be advanced twice daily if asymptomatic"}], "answer": "D", "explanation": "Return to learn first, return to play last: rest → sub-symptomatic activity → light aerobic → sport-specific → non-contact drills → full contact → unrestricted, each step 24 h; symptoms → stop, rest, retry same level. Clearance by a provider experienced in concussion.", "objective": "TBI — Concussion management", "section": "TBI"}, {"id": "11", "group": 11, "stem": "A 58-year-old woman is evaluated after a first generalized seizure; on questioning she reports 6 months of mild bifrontal headaches. Neuro exam is normal. MRI with contrast shows a 3-cm well-circumscribed extra-axial mass along the falx that is isointense to gray matter on T1, enhances strongly and homogeneously, and shows a dural tail; the underlying brain is displaced but not infiltrated, with mild surrounding edema. CT shows the lesion is hyperdense with adjacent skull hyperostosis. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Glioblastoma"}, {"letter": "B", "text": "Primary CNS lymphoma"}, {"letter": "C", "text": "Low-grade astrocytoma"}, {"letter": "D", "text": "Metastasis"}, {"letter": "E", "text": "Meningioma"}], "answer": "E", "explanation": "Extra-axial, dural-based, homogeneously enhancing with a dural tail (CT: hyperdense ± calcification, hyperostosis) = meningioma — the most common benign intracranial tumor, typically a middle-aged woman.", "objective": "CNS Neoplasms — Meningeal tumors", "section": "CNS Neoplasms"}, {"id": "11A", "group": 11, "stem": "What is the management for this symptomatic tumor?", "options": [{"letter": "A", "text": "Cabergoline"}, {"letter": "B", "text": "Surgical resection (usually curative) with levetiracetam for seizures"}, {"letter": "C", "text": "Observation with serial MRI only"}, {"letter": "D", "text": "Whole-brain radiation"}, {"letter": "E", "text": "Temozolomide chemotherapy"}], "answer": "B", "explanation": "Symptomatic or growing meningiomas are resected; radiosurgery for unresectable/residual/atypical tumors; small asymptomatic ones are observed with serial MRI.", "objective": "CNS Neoplasms — Meningeal tumors", "section": "CNS Neoplasms"}, {"id": "12", "group": 12, "stem": "Nerve conduction studies show markedly slowed conduction velocities with conduction block, and reflexes were lost early relative to the weakness. Which process is this?", "options": [{"letter": "A", "text": "Myopathy"}, {"letter": "B", "text": "Axonal degeneration"}, {"letter": "C", "text": "Neuromuscular junction disorder"}, {"letter": "D", "text": "Segmental demyelination"}, {"letter": "E", "text": "Anterior horn cell disease"}], "answer": "D", "explanation": "Demyelination (GBS, CIDP, CMT1, compression): slowed velocity/conduction block with early reflex loss. Axonal (metabolic, toxic — most common): reduced amplitudes, distal 'dying back,' lost ankle jerks.", "objective": "ALS & PN — Axonal vs demyelinating", "section": "ALS & Peripheral Neuropathy"}, {"id": "13", "group": 13, "stem": "A 70-year-old diabetic develops acute diplopia with complete ptosis of the right eye; the eye is deviated down and out, but the pupil is normal and reactive. What is the diagnosis and next step?", "options": [{"letter": "A", "text": "Cavernous sinus thrombosis — MRI venogram"}, {"letter": "B", "text": "Brainstem stroke — DWI-MRI"}, {"letter": "C", "text": "Diabetic (ischemic) CN III palsy — observe, expect recovery"}, {"letter": "D", "text": "Posterior communicating aneurysm — emergent CTA"}, {"letter": "E", "text": "Myasthenia gravis — ice-pack test"}], "answer": "C", "explanation": "Pupil-sparing CN III palsy is ischemic (diabetic); a dilated pupil means a compressive PCom aneurysm and requires urgent imaging.", "objective": "ALS & PN — Diabetic peripheral neuropathy (cranial neuropathy)", "section": "ALS & Peripheral Neuropathy"}, {"id": "14", "group": 14, "stem": "Which patient with suspected meningitis should have a CT head before lumbar puncture?", "options": [{"letter": "A", "text": "A 40-year-old with a positive Kernig sign"}, {"letter": "B", "text": "A 45-year-old with a new right hemiparesis"}, {"letter": "C", "text": "A 35-year-old with a petechial rash and normal mental status"}, {"letter": "D", "text": "A 30-year-old with photophobia and vomiting"}, {"letter": "E", "text": "A 22-year-old with fever, headache, and nuchal rigidity"}], "answer": "B", "explanation": "CT first for papilledema, focal deficit, seizure, marked AMS, immunocompromise/cancer, or age ≥60 (herniation risk). Without red flags, do not delay the LP.", "objective": "CNS Infections — LP indications and cautions", "section": "CNS Infections"}, {"id": "14A", "group": 14, "stem": "Which laboratory finding is a contraindication to proceeding with LP?", "options": [{"letter": "A", "text": "Glucose 250 mg/dL"}, {"letter": "B", "text": "Platelets 35,000/µL"}, {"letter": "C", "text": "Sodium 130 mEq/L"}, {"letter": "D", "text": "INR 1.2"}, {"letter": "E", "text": "WBC 18,000/µL"}], "answer": "B", "explanation": "Hemostatic disorder: platelets <50K or INR ≥1.4 (ask about anticoagulants); also local skin infection at the site and known epidural abscess.", "objective": "CNS Infections — LP indications and cautions", "section": "CNS Infections"}, {"id": "15", "group": 15, "stem": "A 31-year-old woman was diagnosed with focal epilepsy after two unprovoked focal impaired-awareness seizures 3 months apart; MRI showed a small area of cortical dysplasia and EEG showed left temporal sharp waves. She is being started on monotherapy and tells you she and her husband plan to conceive within the year. Which anticonvulsant should be avoided?", "options": [{"letter": "A", "text": "Levetiracetam"}, {"letter": "B", "text": "Topiramate"}, {"letter": "C", "text": "Gabapentin"}, {"letter": "D", "text": "Valproate"}, {"letter": "E", "text": "Lamotrigine"}], "answer": "D", "explanation": "Valproate causes neural tube defects; every woman of childbearing age on an anticonvulsant should take folic acid. Second-generation agents (lamotrigine, levetiracetam) are preferred.", "objective": "Seizures — Outpatient drug therapy", "section": "Seizures & Epilepsy"}, {"id": "15A", "group": 15, "stem": "She is later started on carbamazepine and uses a combined oral contraceptive. What is the concern?", "options": [{"letter": "A", "text": "Carbamazepine raises estrogen levels causing thrombosis"}, {"letter": "B", "text": "Enzyme induction lowers contraceptive efficacy — use an IUD or depot"}, {"letter": "C", "text": "The contraceptive lowers the seizure threshold"}, {"letter": "D", "text": "Carbamazepine is teratogenic only when combined with estrogen"}, {"letter": "E", "text": "No concern — the combination is standard"}], "answer": "B", "explanation": "Phenytoin, carbamazepine, and phenobarbital are P450 inducers that reduce hormonal contraceptive levels; valproate is an inhibitor.", "objective": "Seizures — Outpatient drug therapy", "section": "Seizures & Epilepsy"}, {"id": "16", "group": 16, "stem": "A 40-year-old man has recurrent episodes of a rising epigastric sensation and déjà vu followed by lip smacking and unresponsiveness. Seizures continue despite two anticonvulsants. MRI shows hippocampal sclerosis. What is the most appropriate next step?", "options": [{"letter": "A", "text": "Add a third anticonvulsant"}, {"letter": "B", "text": "Start valproate and repeat MRI in a year"}, {"letter": "C", "text": "Referral for surgical resection"}, {"letter": "D", "text": "Vagus nerve stimulation as first choice"}, {"letter": "E", "text": "Lumbar puncture"}], "answer": "C", "explanation": "Mesial temporal lobe epilepsy is refractory to drugs but responds well to surgery; hippocampal sclerosis on MRI is essential to the diagnosis. Neurostimulation is for non-resection candidates.", "objective": "Seizures — Focal onset seizures / temporal lobe epilepsy", "section": "Seizures & Epilepsy"}, {"id": "17", "group": 17, "stem": "A 66-year-old man with 15 years of poorly controlled type 2 diabetes (A1c 9.8%) and background retinopathy has a year of burning, numb feet that are worse at night, now with tingling in the fingertips and unsteadiness when walking in the dark. Exam: symmetric stocking loss of vibration, pinprick, and light touch to the mid-shin, absent ankle jerks with 2+ knee jerks, positive Romberg, and insensate great toes on 10-g monofilament; strength is 5/5 proximally and 4+/5 in toe extension. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Tabes dorsalis"}, {"letter": "B", "text": "Chronic inflammatory demyelinating polyneuropathy"}, {"letter": "C", "text": "Bilateral tarsal tunnel syndrome"}, {"letter": "D", "text": "Lumbar spinal stenosis"}, {"letter": "E", "text": "Diabetic distal symmetric polyneuropathy"}], "answer": "E", "explanation": "Length-dependent stocking-glove sensorimotor loss with absent ankle jerks in long-standing DM = diabetic DSPN (the most common pattern; DM is the most common cause).", "objective": "ALS & PN — Diabetic peripheral neuropathy", "section": "ALS & Peripheral Neuropathy"}, {"id": "17A", "group": 17, "stem": "Which labs should be ordered to exclude co-causes?", "options": [{"letter": "A", "text": "A1c, B12, SPEP with immunofixation, TSH, CMP"}, {"letter": "B", "text": "Heavy-metal screen and HIV"}, {"letter": "C", "text": "ANA, RPR, and anti-GM1 antibodies"}, {"letter": "D", "text": "Genetic testing for PMP22"}, {"letter": "E", "text": "CSF analysis and EMG"}], "answer": "A", "explanation": "Highest-yield neuropathy labs: glucose/A1c, B12 (metformin), SPEP/IFE; common add-ons CBC, CMP, ESR, TSH. EMG/NCS only if atypical (asymmetric, motor-predominant, rapid).", "objective": "ALS & PN — Diabetic peripheral neuropathy", "section": "ALS & Peripheral Neuropathy"}, {"id": "17B", "group": 17, "stem": "Which agent is first-line for his neuropathic pain?", "options": [{"letter": "A", "text": "Prednisone"}, {"letter": "B", "text": "Ibuprofen"}, {"letter": "C", "text": "Oxycodone"}, {"letter": "D", "text": "Carbamazepine"}, {"letter": "E", "text": "Duloxetine or pregabalin/gabapentin"}], "answer": "E", "explanation": "Duloxetine, gabapentinoids, amitriptyline (avoid TCAs with cardiac disease/urinary retention/glaucoma), topical capsaicin/lidocaine; plus glucose control, daily foot inspection, proper footwear.", "objective": "ALS & PN — Diabetic peripheral neuropathy", "section": "ALS & Peripheral Neuropathy"}, {"id": "18", "group": 18, "stem": "A 24-year-old woman presents in August with 2 days of frontal headache, fever to 38.6 °C, neck stiffness, and photophobia after several days of malaise, myalgias, and loose stools. She is uncomfortable but alert and fully oriented with no focal deficits or rash; Kernig sign is mildly positive. Lumbar puncture: opening pressure 19 cm H₂O, clear fluid, WBC 180/µL (90% lymphocytes), RBC 2, protein 70 mg/dL, glucose 60 mg/dL (serum 95), Gram stain negative. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "HSV-1 encephalitis"}, {"letter": "B", "text": "Cryptococcal meningitis"}, {"letter": "C", "text": "Viral (aseptic) meningitis"}, {"letter": "D", "text": "Tuberculous meningitis"}, {"letter": "E", "text": "Bacterial meningitis"}], "answer": "C", "explanation": "Less ill, viral prodrome, summer, lymphocytic pleocytosis <500 with mildly raised protein and normal glucose = viral meningitis (enterovirus most common).", "objective": "CNS Infections — Aseptic meningitis", "section": "CNS Infections"}, {"id": "18A", "group": 18, "stem": "Which test identifies the cause and allows antibiotics to be stopped?", "options": [{"letter": "A", "text": "CSF VDRL"}, {"letter": "B", "text": "Blood cultures"}, {"letter": "C", "text": "MRI brain with contrast"}, {"letter": "D", "text": "CSF cryptococcal antigen"}, {"letter": "E", "text": "CSF multiplex PCR panel"}], "answer": "E", "explanation": "PCR (enterovirus, HSV-1/2, VZV) definitively identifies the virus; a positive enterovirus PCR lets you stop empiric antibiotics and discharge.", "objective": "CNS Infections — Aseptic meningitis", "section": "CNS Infections"}, {"id": "18B", "group": 18, "stem": "PCR returns positive for HSV-2. What is the treatment?", "options": [{"letter": "A", "text": "Ceftriaxone plus vancomycin"}, {"letter": "B", "text": "Acyclovir IV 10 mg/kg q8h for 21 days"}, {"letter": "C", "text": "Supportive care only"}, {"letter": "D", "text": "Fluconazole for 1 year"}, {"letter": "E", "text": "Acyclovir IV then valacyclovir PO, 10–14 days total"}], "answer": "E", "explanation": "HSV-2 causes meningitis (often with genital herpes history, recurrent Mollaret's) and is treated 10–14 days; HSV-1 encephalitis needs IV acyclovir 14–21 days.", "objective": "CNS Infections — Aseptic meningitis", "section": "CNS Infections"}, {"id": "19", "group": 19, "stem": "A 40-year-old after a high-speed MVC has GCS 6 and a normal non-contrast CT head. What is the next step?", "options": [{"letter": "A", "text": "Lumbar puncture"}, {"letter": "B", "text": "Discharge with concussion precautions"}, {"letter": "C", "text": "MRI brain for diffuse axonal injury"}, {"letter": "D", "text": "Repeat CT in 6 hours only"}, {"letter": "E", "text": "Skull radiographs"}], "answer": "C", "explanation": "Severe TBI with a normal CT suggests diffuse axonal injury, which is CT-occult — MRI. GCS ≤8 also requires airway management.", "objective": "TBI — Indications for neuroimaging", "section": "TBI"}, {"id": "20", "group": 20, "stem": "A 58-year-old man has painful asymmetric numbness and weakness that began in the right foot (foot drop), then the left hand (wrist drop) weeks later, with fever and weight loss. Which neuropathy pattern is this, and what does it suggest?", "options": [{"letter": "A", "text": "Distal symmetric polyneuropathy — diabetes"}, {"letter": "B", "text": "Polyradiculopathy — Guillain-Barré"}, {"letter": "C", "text": "Plexopathy — trauma"}, {"letter": "D", "text": "Mononeuropathy — compression"}, {"letter": "E", "text": "Mononeuropathy multiplex — systemic vasculitis"}], "answer": "E", "explanation": "Two or more non-contiguous nerves, asymmetric, painful, non-length-dependent = mononeuritis multiplex → think vasculitis, sarcoid, lymphoma, Lyme, amyloid; refer to neurology.", "objective": "ALS & PN — Neuropathy patterns", "section": "ALS & Peripheral Neuropathy"}, {"id": "21", "group": 21, "stem": "A 29-year-old woman with known epilepsy on lamotrigine is brought in by EMS after a witnessed generalized tonic-clonic seizure that began 8 minutes ago and has not stopped. She is cyanotic with pooled secretions; fingerstick glucose is 96 mg/dL and O₂ saturation is 88% on a non-rebreather. The airway is being supported and IV access is obtained. What is the first-line medication?", "options": [{"letter": "A", "text": "Lorazepam 2–4 mg IV"}, {"letter": "B", "text": "Phenobarbital IV"}, {"letter": "C", "text": "Levetiracetam load IV"}, {"letter": "D", "text": "Fosphenytoin 20 mg PE/kg IV"}, {"letter": "E", "text": "Propofol infusion"}], "answer": "A", "explanation": "Status epilepticus (>5 min or no recovery between seizures): ABCs → benzodiazepine first (lorazepam IV/IM preferred; midazolam or diazepam alternatives).", "objective": "Seizures — Status epilepticus management", "section": "Seizures & Epilepsy"}, {"id": "21A", "group": 21, "stem": "The seizure continues after two doses. What is the next agent?", "options": [{"letter": "A", "text": "Fosphenytoin IV"}, {"letter": "B", "text": "Propofol infusion"}, {"letter": "C", "text": "Lamotrigine PO via NG tube"}, {"letter": "D", "text": "Phenobarbital IV"}, {"letter": "E", "text": "Diazepam IV"}], "answer": "A", "explanation": "Second line is fosphenytoin (preferred over phenytoin); third line phenobarbital or propofol with intubation.", "objective": "Seizures — Status epilepticus management", "section": "Seizures & Epilepsy"}, {"id": "21B", "group": 21, "stem": "Once stabilized, she reports missing several doses. What is the appropriate management of this breakthrough seizure?", "options": [{"letter": "A", "text": "Add a second anticonvulsant permanently"}, {"letter": "B", "text": "Discharge with no change since the cause is known"}, {"letter": "C", "text": "Switch from lamotrigine to valproate"}, {"letter": "D", "text": "EEG and MRI before any medication"}, {"letter": "E", "text": "Loading dose of her home anticonvulsant and correct the precipitant"}], "answer": "E", "explanation": "Known epilepsy with breakthrough: identify and fix the trigger (missed meds, alcohol, sleep loss, illness), check glucose and drug levels, load the home agent — monotherapy remains the goal.", "objective": "Seizures — General management", "section": "Seizures & Epilepsy"}, {"id": "22", "group": 22, "stem": "Two days after an LP a 28-year-old has a headache that is severe when upright and relieved lying flat. What is the diagnosis and initial management?", "options": [{"letter": "A", "text": "Post-dural-puncture headache — fluids, caffeine, analgesics"}, {"letter": "B", "text": "Idiopathic intracranial hypertension — acetazolamide"}, {"letter": "C", "text": "Tension-type headache — NSAIDs and reassurance"}, {"letter": "D", "text": "Subarachnoid hemorrhage — CT head"}, {"letter": "E", "text": "Bacterial meningitis — repeat LP and antibiotics"}], "answer": "A", "explanation": "Post-dural-puncture headache is the most common LP complication (10–30%): positional, worse upright; conservative therapy, with an epidural blood patch if severe or prolonged.", "objective": "CNS Infections — LP complications", "section": "CNS Infections"}, {"id": "23", "group": 23, "stem": "A 30-year-old man is brought in the morning after falling 8 feet from a ladder onto concrete; he was briefly unconscious and has vomited twice. Exam: GCS 14 (confused), bruising over the left mastoid, blood behind the left tympanic membrane, and clear fluid dripping from the nose that tests positive for glucose. Pupils are equal. What do these findings indicate?", "options": [{"letter": "A", "text": "Epidural hematoma"}, {"letter": "B", "text": "Basilar skull fracture"}, {"letter": "C", "text": "Diffuse axonal injury"}, {"letter": "D", "text": "Cervical spine injury"}, {"letter": "E", "text": "Concussion"}], "answer": "B", "explanation": "Battle sign (late, ~24 h), hemotympanum, raccoon eyes, and CSF oto-/rhinorrhea = basilar skull fracture → CT. Anisocoria suggests CN III compression from edema/bleed.", "objective": "TBI — Concussion physical exam", "section": "TBI"}, {"id": "23A", "group": 23, "stem": "His heart rate is 48, BP 190/100, and respirations are irregular. What does this triad represent?", "options": [{"letter": "A", "text": "Cushing triad — raised intracranial pressure"}, {"letter": "B", "text": "Neurogenic shock"}, {"letter": "C", "text": "Hypovolemic shock"}, {"letter": "D", "text": "Cardiac contusion"}, {"letter": "E", "text": "Vasovagal response"}], "answer": "A", "explanation": "Hypertension + bradycardia + irregular respirations = Cushing triad, a sign of raised ICP/herniation — emergent CT and neurosurgery.", "objective": "TBI — Concussion physical exam", "section": "TBI"}, {"id": "24", "group": 24, "stem": "A patient with a glioblastoma is drowsy with worsening headache and vomiting; MRI shows increased vasogenic edema and midline shift. What is the immediate treatment?", "options": [{"letter": "A", "text": "IV dexamethasone"}, {"letter": "B", "text": "Temozolomide"}, {"letter": "C", "text": "Whole-brain radiation"}, {"letter": "D", "text": "IV acyclovir"}, {"letter": "E", "text": "Mannitol alone"}], "answer": "A", "explanation": "Steroids reduce vasogenic edema from tumors; add levetiracetam for seizures and involve neurosurgery. Definitive: maximal safe resection, radiation, temozolomide.", "objective": "CNS Neoplasms — Gliomas", "section": "CNS Neoplasms"}, {"id": "25", "group": 25, "stem": "A 34-year-old man with AIDS (CD4 60) has 3 weeks of progressive headache and low-grade fever. CSF: lymphocytic pleocytosis, high protein, low glucose, India ink shows encapsulated yeast. What is the induction treatment?", "options": [{"letter": "A", "text": "Ceftriaxone IV"}, {"letter": "B", "text": "Penicillin G IV"}, {"letter": "C", "text": "Fluconazole alone"}, {"letter": "D", "text": "Amphotericin B plus flucytosine"}, {"letter": "E", "text": "Isoniazid, rifampin, pyrazinamide, ethambutol"}], "answer": "D", "explanation": "Cryptococcal meningitis: amphotericin B + flucytosine for 2 weeks, then fluconazole consolidation/maintenance for ≥1 year; check CSF and serum cryptococcal antigen.", "objective": "CNS Infections — Chronic meningitis", "section": "CNS Infections"}, {"id": "26", "group": 26, "stem": "A 17-year-old boy is brought in because he has always been a clumsy runner and now trips frequently and rolls his ankles. Symptoms have progressed very slowly over years without pain. Exam: bilateral pes cavus and hammer toes, marked atrophy of the calves with preserved thighs, weak dorsiflexion with a steppage gait, absent ankle and knee reflexes, and reduced vibration sense at the toes; the ulnar nerves are palpably thickened at the elbows. His father and paternal grandmother have 'weak ankles' and high arches. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Chronic inflammatory demyelinating polyneuropathy"}, {"letter": "B", "text": "Friedreich ataxia"}, {"letter": "C", "text": "Diabetic polyneuropathy"}, {"letter": "D", "text": "Charcot-Marie-Tooth disease"}, {"letter": "E", "text": "Guillain-Barré syndrome"}], "answer": "D", "explanation": "Indolent hereditary (AD most common) distal symmetric weakness with foot deformity and distal atrophy = CMT.", "objective": "ALS & PN — Charcot-Marie-Tooth disease", "section": "ALS & Peripheral Neuropathy"}, {"id": "26A", "group": 26, "stem": "What is the gold-standard diagnostic test?", "options": [{"letter": "A", "text": "MRI lumbar spine"}, {"letter": "B", "text": "Serum B12 and SPEP"}, {"letter": "C", "text": "Genetic testing (PMP22 duplication most common)"}, {"letter": "D", "text": "Nerve biopsy showing onion bulbs"}, {"letter": "E", "text": "Lumbar puncture"}], "answer": "C", "explanation": "Genetic testing is key; NCS shows uniform symmetric slowing (CMT1) or reduced amplitudes (CMT2). Patchy slowing/conduction block suggests acquired CIDP instead.", "objective": "ALS & PN — Charcot-Marie-Tooth disease", "section": "ALS & Peripheral Neuropathy"}, {"id": "26B", "group": 26, "stem": "Which of the following is part of his management?", "options": [{"letter": "A", "text": "Carpal tunnel release"}, {"letter": "B", "text": "AFOs, PT/OT, genetic counseling, and avoiding neurotoxic drugs such as vincristine"}, {"letter": "C", "text": "Riluzole"}, {"letter": "D", "text": "Prednisone taper"}, {"letter": "E", "text": "IVIG monthly"}], "answer": "B", "explanation": "No disease-modifying therapy — multidisciplinary supportive care, orthotics, foot care, genetic counseling; avoid neurotoxic medications.", "objective": "ALS & PN — Charcot-Marie-Tooth disease", "section": "ALS & Peripheral Neuropathy"}, {"id": "27", "group": 27, "stem": "A 30-year-old man wakes after a night of heavy drinking, having slept in a chair with his right arm draped over the back, and finds he cannot lift his wrist or straighten his fingers. Exam: complete wrist drop and finger drop, weak brachioradialis, normal triceps and deltoid, and numbness over the dorsum of the hand in the first web space; sensation in the palm is normal. Which nerve is injured and where?", "options": [{"letter": "A", "text": "Radial nerve in the axilla"}, {"letter": "B", "text": "Ulnar nerve at the elbow"}, {"letter": "C", "text": "Radial nerve at the spiral groove"}, {"letter": "D", "text": "Posterior interosseous nerve in the forearm"}, {"letter": "E", "text": "Median nerve at the wrist"}], "answer": "C", "explanation": "Saturday night palsy: wrist and finger drop with first-web-space numbness; triceps spared = spiral groove (axillary lesions involve triceps; PIN lesions have finger drop with normal sensation).", "objective": "ALS & PN — Radial mononeuropathy", "section": "ALS & Peripheral Neuropathy"}, {"id": "27A", "group": 27, "stem": "His grip also seems weak. How should this be interpreted?", "options": [{"letter": "A", "text": "Combined median and radial injury"}, {"letter": "B", "text": "C7 radiculopathy"}, {"letter": "C", "text": "Early ALS"}, {"letter": "D", "text": "Re-test with the wrist passively extended — grip is normal"}, {"letter": "E", "text": "Brachial plexopathy"}], "answer": "D", "explanation": "Grip appears weak because the wrist cannot be stabilized; with the wrist held extended, grip is normal. Treat with a cock-up wrist splint, avoid compression, PT — most recover in weeks–months.", "objective": "ALS & PN — Radial mononeuropathy", "section": "ALS & Peripheral Neuropathy"}, {"id": "28", "group": 28, "stem": "A 67-year-old man with a 50-pack-year smoking history has 3 weeks of morning headaches with nausea and a first-ever seizure, along with a 10-lb unintentional weight loss and a chronic cough. Exam shows a left pronator drift. MRI with contrast shows three rounded, well-circumscribed enhancing lesions at the gray-white junction of both hemispheres with disproportionate surrounding edema. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Multiple meningiomas"}, {"letter": "B", "text": "Glioblastoma"}, {"letter": "C", "text": "Primary CNS lymphoma"}, {"letter": "D", "text": "Brain abscesses"}, {"letter": "E", "text": "Brain metastases"}], "answer": "E", "explanation": "Multiple rounded, well-circumscribed lesions at the gray-white junction in an adult >40 = metastases, which outnumber primary tumors; lung, melanoma, and breast are the usual primaries.", "objective": "CNS Neoplasms — General concepts", "section": "CNS Neoplasms"}, {"id": "28A", "group": 28, "stem": "What is the next step after confirming metastatic disease?", "options": [{"letter": "A", "text": "Find the primary — CXR/CT chest, abdomen, pelvis, and mammogram"}, {"letter": "B", "text": "Lumbar puncture for cytology"}, {"letter": "C", "text": "Immediate whole-brain radiation without further workup"}, {"letter": "D", "text": "Temozolomide"}, {"letter": "E", "text": "Serial MRI in 3 months"}], "answer": "A", "explanation": "Search for the primary; treatment frame: steroids for edema, anticonvulsants, surgery for accessible lesions, stereotactic radiosurgery for focal disease, whole-brain RT for widespread burden.", "objective": "CNS Neoplasms — General concepts", "section": "CNS Neoplasms"}, {"id": "29", "group": 29, "stem": "A 34-year-old graduate student has a first focal seizure with secondary generalization; he has otherwise felt well and his neuro exam is normal. MRI with contrast shows a 4-cm expansile, non-enhancing lesion of the right frontal cortex and subcortical white matter that is hyperintense on T2/FLAIR and hypointense on T1, with minimal mass effect and no restricted diffusion. What does this pattern suggest?", "options": [{"letter": "A", "text": "Meningioma"}, {"letter": "B", "text": "Low-grade glioma"}, {"letter": "C", "text": "Glioblastoma"}, {"letter": "D", "text": "Metastasis"}, {"letter": "E", "text": "Primary CNS lymphoma"}], "answer": "B", "explanation": "Low-grade glioma = T2/FLAIR-hyperintense, non-enhancing; high-grade = heterogeneous ring enhancement with edema; PCNSL = homogeneous enhancement with restricted diffusion; meningioma = extra-axial dural-based.", "objective": "CNS Neoplasms — MRI signatures", "section": "CNS Neoplasms"}, {"id": "29A", "group": 29, "stem": "What is required to establish the WHO grade?", "options": [{"letter": "A", "text": "Stereotactic or intra-operative brain biopsy"}, {"letter": "B", "text": "EEG"}, {"letter": "C", "text": "PET scan"}, {"letter": "D", "text": "Lumbar puncture cytology"}, {"letter": "E", "text": "MRI spectroscopy"}], "answer": "A", "explanation": "Biopsy → histology and grade (I–IV); a single tumor can hold several grades, so biopsy samples the highest-grade region.", "objective": "CNS Neoplasms — Gliomas", "section": "CNS Neoplasms"}, {"id": "30", "group": 30, "stem": "A 45-year-old woman with hypothyroidism who works as a medical transcriptionist has 8 months of tingling and pain in the right thumb, index, and middle fingers that wakes her at night and that she shakes out for relief; the pain sometimes radiates to the forearm, and she has started dropping her coffee cup. Sensation is reduced over the palmar first three digits with a normal forearm and dorsum; Tinel's over the wrist and Phalen's at 45 seconds are positive, thumb abduction is 4/5, and there is mild thenar flattening. Neck range of motion is full and painless. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Pronator syndrome"}, {"letter": "B", "text": "Ulnar neuropathy at the elbow"}, {"letter": "C", "text": "Diabetic polyneuropathy"}, {"letter": "D", "text": "C6 radiculopathy"}, {"letter": "E", "text": "Carpal tunnel syndrome"}], "answer": "E", "explanation": "Median nerve compression at the wrist: nocturnal paresthesias in digits 1–3½, flick sign, Tinel/Phalen positive; sensory loss confined to the palmar radial 3½ digits with a normal forearm separates it from C6–C7 radiculopathy.", "objective": "ALS & PN — Carpal tunnel syndrome", "section": "ALS & Peripheral Neuropathy"}, {"id": "30A", "group": 30, "stem": "What is expected on nerve conduction studies?", "options": [{"letter": "A", "text": "Conduction block of the ulnar nerve at the elbow"}, {"letter": "B", "text": "Prolonged F-waves in all four limbs"}, {"letter": "C", "text": "Uniform slowing of all motor conduction velocities"}, {"letter": "D", "text": "Reduced amplitudes with normal velocities in all nerves"}, {"letter": "E", "text": "Prolonged median distal latency across the wrist with normal ulnar conduction"}], "answer": "E", "explanation": "Focal slowing/prolonged latency of the median nerve across the carpal tunnel; ulnar normal. NCS is used when the diagnosis is unclear or before surgery.", "objective": "ALS & PN — Carpal tunnel syndrome", "section": "ALS & Peripheral Neuropathy"}, {"id": "30B", "group": 30, "stem": "Given the thenar atrophy, what is the appropriate management?", "options": [{"letter": "A", "text": "Ulnar nerve transposition"}, {"letter": "B", "text": "Neutral wrist splint at night for 3 more months"}, {"letter": "C", "text": "NSAIDs and activity modification"}, {"letter": "D", "text": "Surgical carpal tunnel release"}, {"letter": "E", "text": "Corticosteroid injection and reassess in 6 weeks"}], "answer": "D", "explanation": "Thenar atrophy or constant numbness = axonal loss → surgical decompression of the transverse carpal ligament, not more splinting.", "objective": "ALS & PN — Carpal tunnel syndrome", "section": "ALS & Peripheral Neuropathy"}, {"id": "31", "group": 31, "stem": "A 63-year-old man is brought in by his wife after 3 days of fever and headache followed by a day of bizarre behavior — he insisted the house smelled of burning rubber — and then a generalized seizure this morning. He is disoriented to place and time with word-finding difficulty and a mild right facial droop; there is no neck stiffness or rash. T 38.9 °C, WBC 11,200. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "West Nile encephalitis"}, {"letter": "B", "text": "Brain abscess"}, {"letter": "C", "text": "HSV-1 encephalitis"}, {"letter": "D", "text": "Bacterial meningitis"}, {"letter": "E", "text": "Viral meningitis"}], "answer": "C", "explanation": "Fever plus altered mental status >24 h, personality change, seizures, and focal deficits (temporal lobe features) = encephalitis; HSV-1 is the most common sporadic cause in the US.", "objective": "CNS Infections — Encephalitis", "section": "CNS Infections"}, {"id": "31A", "group": 31, "stem": "What is the first action?", "options": [{"letter": "A", "text": "Start IV acyclovir now, before imaging or PCR results"}, {"letter": "B", "text": "Start high-dose dexamethasone"}, {"letter": "C", "text": "Wait for CSF HSV PCR before treating"}, {"letter": "D", "text": "Lumbar puncture immediately, then imaging"}, {"letter": "E", "text": "Give ceftriaxone and vancomycin and reassess"}], "answer": "A", "explanation": "Suspected HSV encephalitis → acyclovir 10 mg/kg IV q8h immediately (14–21 days); MRI precedes LP because altered mental status is a red flag.", "objective": "CNS Infections — Encephalitis", "section": "CNS Infections"}, {"id": "31B", "group": 31, "stem": "Which imaging finding is expected?", "options": [{"letter": "A", "text": "Hyperdense blood in the basal cisterns"}, {"letter": "B", "text": "Temporal lobe T2/FLAIR hyperintensity on MRI"}, {"letter": "C", "text": "Ventriculomegaly out of proportion to atrophy"}, {"letter": "D", "text": "Extra-axial dural-based enhancing mass"}, {"letter": "E", "text": "Ring-enhancing lesion with central necrosis"}], "answer": "B", "explanation": "~80% of HSV encephalitis shows temporal lobe changes on MRI and EEG; bilateral temporal abnormality is nearly pathognomonic.", "objective": "CNS Infections — Encephalitis", "section": "CNS Infections"}, {"id": "32", "group": 32, "stem": "A 55-year-old man with alcohol use disorder has had three seizures over two years, each within 24–48 hours of stopping drinking. Does he meet the definition of epilepsy?", "options": [{"letter": "A", "text": "No — these are acute symptomatic (provoked) seizures"}, {"letter": "B", "text": "No — epilepsy requires an abnormal MRI"}, {"letter": "C", "text": "Yes — any recurrent seizure in an adult is epilepsy"}, {"letter": "D", "text": "Yes — two or more seizures more than 24 hours apart"}, {"letter": "E", "text": "Yes — three seizures meets the threshold regardless of cause"}], "answer": "A", "explanation": "Epilepsy = ≥2 UNPROVOKED seizures >24 h apart (or one plus high recurrence risk). Seizures with an identified, correctable provocation (withdrawal, hypoglycemia, hyponatremia) are acute symptomatic seizures — fix the cause rather than long-term anticonvulsants.", "objective": "Seizures — Seizure vs epilepsy definitions", "section": "Seizures & Epilepsy"}, {"id": "33", "group": 33, "stem": "On lumbar puncture, tube 1 has 9,000 RBC/µL and tube 4 has 350 RBC/µL. How should this be interpreted?", "options": [{"letter": "A", "text": "Bacterial meningitis"}, {"letter": "B", "text": "Normal CSF"}, {"letter": "C", "text": "Subarachnoid hemorrhage"}, {"letter": "D", "text": "HSV encephalitis"}, {"letter": "E", "text": "Traumatic tap"}], "answer": "E", "explanation": "RBCs that fall from tube 1 to tube 4 = traumatic tap; similar or rising counts plus xanthochromia = SAH.", "objective": "CNS Infections — Routine CSF analysis", "section": "CNS Infections"}, {"id": "34", "group": 34, "stem": "A 52-year-old man from Connecticut has 6 weeks of headache, fatigue, and a bilateral facial palsy after a summer rash. CSF is lymphocytic with high protein and normal glucose. What is the treatment?", "options": [{"letter": "A", "text": "Penicillin G IV for 10–14 days"}, {"letter": "B", "text": "Prednisone for 7 days"}, {"letter": "C", "text": "Amphotericin B plus flucytosine"}, {"letter": "D", "text": "Doxycycline for 10 days"}, {"letter": "E", "text": "Ceftriaxone IV for 14–28 days"}], "answer": "E", "explanation": "Lyme neuroborreliosis (bilateral CN VII palsy, radiculitis, lymphocytic CSF with NORMAL glucose) → IV ceftriaxone with ID consult; neurosyphilis gets penicillin G.", "objective": "CNS Infections — Chronic meningitis", "section": "CNS Infections"}, {"id": "35", "group": 35, "stem": "An 8-month-old has clusters of brief truncal flexion spasms on waking. EEG shows chaotic high-amplitude slow waves with multifocal spikes. What is this EEG pattern called?", "options": [{"letter": "A", "text": "Polyspike-and-wave"}, {"letter": "B", "text": "Hypsarrhythmia"}, {"letter": "C", "text": "Burst suppression"}, {"letter": "D", "text": "Slow spike-and-wave"}, {"letter": "E", "text": "Periodic lateralized discharges"}], "answer": "B", "explanation": "Epileptic (infantile) spasms with hypsarrhythmia — must be diagnosed early; delay causes developmental and cognitive impairment.", "objective": "Seizures — EEG findings", "section": "Seizures & Epilepsy"}, {"id": "36", "group": 36, "stem": "A 62-year-old woman who lost 40 lb over 6 months and habitually sits with her legs crossed develops a right foot drop over 2 weeks — she catches her toes and lifts the knee high when walking. Exam: ankle dorsiflexion 2/5, toe extension 2/5, foot eversion 3/5, with normal inversion and plantarflexion; sensation is reduced over the dorsum of the foot and lateral lower calf; the ankle jerk is 2+ and symmetric; straight-leg raise is negative and there is no back pain. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "S1 radiculopathy"}, {"letter": "B", "text": "Charcot-Marie-Tooth disease"}, {"letter": "C", "text": "Common peroneal neuropathy at the fibular head"}, {"letter": "D", "text": "L5 radiculopathy"}, {"letter": "E", "text": "Sciatic neuropathy"}], "answer": "C", "explanation": "Weak dorsiflexion/eversion with preserved inversion (tibialis posterior, L5 via tibial nerve) and normal ankle jerk = peroneal nerve at the fibular head; weak inversion, back pain, or lost ankle jerk points to L5 or sciatic.", "objective": "ALS & PN — Common peroneal mononeuropathy", "section": "ALS & Peripheral Neuropathy"}, {"id": "36A", "group": 36, "stem": "What is the first-line management?", "options": [{"letter": "A", "text": "Lumbar MRI and epidural steroid injection"}, {"letter": "B", "text": "Ankle-foot orthosis, stop leg crossing, physical therapy"}, {"letter": "C", "text": "Surgical exploration now"}, {"letter": "D", "text": "Gabapentin"}, {"letter": "E", "text": "Corticosteroid injection at the fibular head"}], "answer": "B", "explanation": "AFO, relieve compression, PT; surgical exploration only if no improvement after ~3 months.", "objective": "ALS & PN — Common peroneal mononeuropathy", "section": "ALS & Peripheral Neuropathy"}, {"id": "37", "group": 37, "stem": "After a witnessed convulsion, a 60-year-old has weakness of the right arm that resolves over 2 hours. Which of the following best explains this?", "options": [{"letter": "A", "text": "Conversion disorder"}, {"letter": "B", "text": "Transient ischemic attack of the left MCA"}, {"letter": "C", "text": "Todd's paralysis after a focal seizure"}, {"letter": "D", "text": "Hypoglycemia"}, {"letter": "E", "text": "Migraine with hemiplegic aura"}], "answer": "C", "explanation": "Postictal Todd's paralysis is a focal paresis lasting minutes to hours after a focal seizure and points to a focal onset; vascular disease is the most common seizure cause in patients >60, so imaging is still needed.", "objective": "Seizures — Focal onset seizures", "section": "Seizures & Epilepsy"}, {"id": "38", "group": 38, "stem": "A 44-year-old man with untreated chronic frontal sinusitis has 2 weeks of a dull, persistent left frontal headache that is worse in the morning, low-grade fevers, and 3 days of new right-arm weakness and clumsiness. Exam shows right upper-extremity drift, tenderness over the left frontal sinus, and early papilledema on the left. T 38.2 °C, WBC 14,800, CRP 62. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Glioblastoma"}, {"letter": "B", "text": "Subdural empyema"}, {"letter": "C", "text": "Brain abscess"}, {"letter": "D", "text": "HSV encephalitis"}, {"letter": "E", "text": "Bacterial meningitis"}], "answer": "C", "explanation": "Headache localized to one side + fever + focal deficit with a contiguous source (sinus → frontal, ear → temporal) = brain abscess (Streptococcus most common).", "objective": "CNS Infections — Brain abscess", "section": "CNS Infections"}, {"id": "38A", "group": 38, "stem": "What is the diagnostic study of choice?", "options": [{"letter": "A", "text": "CT sinuses"}, {"letter": "B", "text": "Non-contrast CT head"}, {"letter": "C", "text": "Lumbar puncture"}, {"letter": "D", "text": "MRI brain with contrast"}, {"letter": "E", "text": "EEG"}], "answer": "D", "explanation": "MRI with contrast shows a ring-enhancing lesion with a necrotic center, surrounding edema, and central restricted diffusion. LP is contraindicated (mass effect → herniation).", "objective": "CNS Infections — Brain abscess", "section": "CNS Infections"}, {"id": "38B", "group": 38, "stem": "What is the definitive management?", "options": [{"letter": "A", "text": "Dexamethasone alone until edema resolves"}, {"letter": "B", "text": "IV antibiotics alone for 2 weeks"}, {"letter": "C", "text": "Neurosurgical drainage plus IV ceftriaxone, metronidazole, and vancomycin for 6–8 weeks"}, {"letter": "D", "text": "Oral amoxicillin-clavulanate for 6 weeks"}, {"letter": "E", "text": "Stereotactic radiosurgery"}], "answer": "C", "explanation": "Drain (culture the pus, ideally before antibiotics), treat the source, and give 6–8 weeks of IV therapy; antibiotics alone fail except for small (<2 cm) deep abscesses. Dexamethasone only for significant mass effect.", "objective": "CNS Infections — Brain abscess", "section": "CNS Infections"}, {"id": "39", "group": 39, "stem": "A patient with distal numbness also has brisk reflexes and increased tone in the legs. What does this indicate?", "options": [{"letter": "A", "text": "Severe axonal peripheral neuropathy"}, {"letter": "B", "text": "Early Guillain-Barré syndrome"}, {"letter": "C", "text": "Diabetic autonomic neuropathy"}, {"letter": "D", "text": "Mononeuropathy multiplex"}, {"letter": "E", "text": "A central (upper motor neuron) cause must be excluded — not a peripheral neuropathy"}], "answer": "E", "explanation": "Hyperreflexia and spasticity are UMN signs; peripheral neuropathy produces hyporeflexia. Look for myelopathy, MS, or ALS.", "objective": "ALS & PN — Neuropathy evaluation", "section": "ALS & Peripheral Neuropathy"}, {"id": "40", "group": 40, "stem": "A 72-year-old on warfarin trips and bumps her head; she feels fine with GCS 15. What is the appropriate step?", "options": [{"letter": "A", "text": "Skull radiographs"}, {"letter": "B", "text": "Observation at home with a family member"}, {"letter": "C", "text": "No imaging — reassure"}, {"letter": "D", "text": "Non-contrast CT head"}, {"letter": "E", "text": "MRI brain in 1 week"}], "answer": "D", "explanation": "Age >65 and anticoagulant use each independently mandate CT (NEXUS; Canadian rule excludes anticoagulated patients but they are imaged anyway).", "objective": "TBI — Indications for neuroimaging", "section": "TBI"}, {"id": "41", "group": 41, "stem": "A 24-year-old man is brought in after a witnessed 90-second tonic-clonic seizure at work, with tongue biting and 20 minutes of postictal confusion that has fully cleared. He has no prior seizures, head trauma, or drug use and slept normally last night. Neuro exam and mental status are now normal; glucose 102, Na 139, Ca 9.4, tox screen negative, and non-contrast CT head is unremarkable. What is the appropriate disposition?", "options": [{"letter": "A", "text": "Lumbar puncture before discharge"}, {"letter": "B", "text": "MRI brain before he can leave the ED"}, {"letter": "C", "text": "Discharge with seizure precautions and close neurology/PCP follow-up"}, {"letter": "D", "text": "Admit for continuous EEG monitoring"}, {"letter": "E", "text": "Start levetiracetam and admit overnight"}], "answer": "C", "explanation": "A first seizure with a normal exam, clean labs and imaging can go home with precautions and outpatient EEG/neurology; LP only if febrile, immunocompromised, or SAH suspected.", "objective": "Seizures — First-time seizure", "section": "Seizures & Epilepsy"}, {"id": "41A", "group": 41, "stem": "Which counseling point is required before discharge?", "options": [{"letter": "A", "text": "No restrictions since a single seizure is not epilepsy"}, {"letter": "B", "text": "No driving for 3–18 months per state law; avoid swimming alone, heights, and machinery"}, {"letter": "C", "text": "Avoid all caffeine permanently"}, {"letter": "D", "text": "Bed rest for 1 week"}, {"letter": "E", "text": "Take a daily benzodiazepine for 30 days"}], "answer": "B", "explanation": "Driving restriction is state-dependent (3–18 months; many states require provider reporting); avoid bathing/swimming alone, heights, and dangerous machinery.", "objective": "Seizures — General management", "section": "Seizures & Epilepsy"}, {"id": "42", "group": 42, "stem": "Which CSF profile is most consistent with bacterial meningitis?", "options": [{"letter": "A", "text": "WBC 2,400 (90% neutrophils), protein 310, glucose 25"}, {"letter": "B", "text": "WBC 3, protein 30, glucose 60"}, {"letter": "C", "text": "WBC 60 (lymphocytes), protein 120, glucose 22"}, {"letter": "D", "text": "WBC 150 (85% lymphocytes), protein 80, glucose 65"}, {"letter": "E", "text": "WBC 40 (lymphocytes), protein 90, glucose 62"}], "answer": "A", "explanation": "Bacterial: neutrophils >80%, WBC >1,000, protein >250, glucose <40 (<40% serum). Lymphocytes with normal glucose = viral/Lyme; lymphocytes with LOW glucose = fungal/TB/syphilis.", "objective": "CNS Infections — CSF profiles", "section": "CNS Infections"}, {"id": "42A", "group": 42, "stem": "Which of the above profiles best fits tuberculous or fungal meningitis?", "options": [{"letter": "A", "text": "WBC 60 (lymphocytes), protein 120, glucose 22"}, {"letter": "B", "text": "WBC 150 (85% lymphocytes), protein 80, glucose 65"}, {"letter": "C", "text": "WBC 40 (lymphocytes), protein 90, glucose 62"}, {"letter": "D", "text": "WBC 2,400 (90% neutrophils), protein 310, glucose 25"}, {"letter": "E", "text": "WBC 3, protein 30, glucose 60"}], "answer": "A", "explanation": "Chronic meningitis (crypto/TB/syphilis): lymphocytic pleocytosis, high protein, LOW glucose (TB profoundly low). Lyme is the chronic cause with normal glucose.", "objective": "CNS Infections — CSF profiles", "section": "CNS Infections"}, {"id": "43", "group": 43, "stem": "Which of the following episodes is most likely a seizure mimic rather than a seizure?", "options": [{"letter": "A", "text": "Nocturnal jerking followed by tongue laceration and incontinence"}, {"letter": "B", "text": "Brief loss of consciousness while standing with pallor and diaphoresis, rapid full recovery"}, {"letter": "C", "text": "Staring spell with lip smacking and 5 minutes of confusion afterward"}, {"letter": "D", "text": "Morning arm jerks that cause dropping objects"}, {"letter": "E", "text": "Rising epigastric sensation then unresponsiveness"}], "answer": "B", "explanation": "Syncope (vasovagal, arrhythmia) is the classic mimic — prodrome while upright, pallor, brief LOC, quick recovery; seizures typically have automatisms, tongue biting, or a postictal state.", "objective": "Seizures — Differential diagnosis of seizures", "section": "Seizures & Epilepsy"}]});
+
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
