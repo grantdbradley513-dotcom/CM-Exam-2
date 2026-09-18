@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+
+const EXAM_DATA = (function (raw) {
+  // Reshuffle stack order and option order on every open; renumber ids.
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  const groups = {}; const order = [];
+  raw.questions.forEach(q => { if (!groups[q.group]) { groups[q.group] = []; order.push(q.group); } groups[q.group].push(q); });
+  shuffle(order);
+  const out = []; const letters = ['A','B','C','D','E','F'];
+  order.forEach((g, gi) => {
+    groups[g].forEach((q, qi) => {
+      const correct = q.options.find(o => o.letter === q.answer).text;
+      const opts = shuffle(q.options.map(o => o.text)).map((t, i) => ({ letter: letters[i], text: t }));
+      const ans = opts.find(o => o.text === correct).letter;
+      out.push(Object.assign({}, q, { id: String(gi + 1) + (qi === 0 ? '' : letters[qi - 1]), group: gi + 1, options: opts, answer: ans }));
+    });
+  });
+  return { title: raw.title, questions: out };
+})({"title": "Neuro Exam 2 Practice D — Look-Alikes", "questions": [{"id": "1", "group": 1, "stem": "A 38-year-old woman has 3 months of an uncomfortable crawling sensation deep in the calves that appears in the evening when she sits to watch television and at bedtime, with an urge to move; walking relieves it temporarily. Exam, including distal sensation and reflexes, is normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Restless legs syndrome"}, {"letter": "B", "text": "Periodic limb movement disorder"}, {"letter": "C", "text": "Akathisia"}, {"letter": "D", "text": "Peripheral neuropathy"}, {"letter": "E", "text": "Nocturnal leg cramps"}], "answer": "A", "explanation": "The discriminators are the URGE TO MOVE with a CIRCADIAN evening/rest pattern RELIEVED by movement, with a normal neuro exam. Neuropathy gives constant burning with sensory loss; akathisia is all-day inner restlessness on a dopamine blocker; cramps are painful contractions.", "objective": "Look-alike discrimination", "section": "Movement Disorders"}, {"id": "2", "group": 2, "stem": "A 50-year-old man wakes with drooping of the left face. He cannot smile or close the left eye, and the left forehead does not wrinkle. Taste is altered. Arm and leg strength are normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Left MCA stroke"}, {"letter": "B", "text": "Ramsay Hunt syndrome"}, {"letter": "C", "text": "Right MCA stroke"}, {"letter": "D", "text": "Lyme facial palsy"}, {"letter": "E", "text": "Bell's palsy"}], "answer": "E", "explanation": "Facial droop is shared with stroke — the discriminator is FOREHEAD INVOLVEMENT (LMN) with no limb weakness; a cortical stroke spares the forehead. No vesicles or rash/tick exposure makes Bell's the default.", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "3", "group": 3, "stem": "A 21-year-old college student has 2 days of fever, headache, photophobia, and neck stiffness following 3 days of sore throat and diarrhea in July. He is alert and oriented. CSF: opening pressure 20 cm H₂O, clear, WBC 210/µL (88% lymphocytes), protein 68 mg/dL, glucose 62 mg/dL (serum 96). Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Tuberculous meningitis"}, {"letter": "B", "text": "Lyme meningitis"}, {"letter": "C", "text": "HSV-1 encephalitis"}, {"letter": "D", "text": "Viral (aseptic) meningitis"}, {"letter": "E", "text": "Bacterial meningitis"}], "answer": "D", "explanation": "Same meningitis triad — LYMPHOCYTIC pleocytosis <500 with mildly raised protein and NORMAL glucose in summer after a prodrome = enteroviral meningitis. Normal mental status keeps it meningitis rather than encephalitis.", "objective": "Look-alike discrimination", "section": "CNS Infections"}, {"id": "4", "group": 4, "stem": "A 21-year-old college student has 18 hours of fever, severe headache, photophobia, and neck stiffness. He is alert and oriented. CSF: opening pressure 32 cm H₂O, cloudy, WBC 2,800/µL (92% neutrophils), protein 280 mg/dL, glucose 22 mg/dL (serum 98). Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "HSV-1 encephalitis"}, {"letter": "B", "text": "Viral meningitis"}, {"letter": "C", "text": "Bacterial meningitis"}, {"letter": "D", "text": "Subarachnoid hemorrhage"}, {"letter": "E", "text": "Tuberculous meningitis"}], "answer": "C", "explanation": "Fever/headache/meningismus is shared by all — the CSF decides: NEUTROPHILIC pleocytosis >1,000 with protein >250 and glucose <40 (<40% of serum) = bacterial.", "objective": "Look-alike discrimination", "section": "CNS Infections"}, {"id": "5", "group": 5, "stem": "After a witnessed generalized convulsion, a 58-year-old man has weakness of the left arm and leg. He is drowsy. The weakness resolves completely over the next 90 minutes without treatment. Which of the following is the most likely explanation?", "options": [{"letter": "A", "text": "Ischemic stroke of the right MCA"}, {"letter": "B", "text": "Transient ischemic attack"}, {"letter": "C", "text": "Conversion disorder"}, {"letter": "D", "text": "Todd's paralysis"}, {"letter": "E", "text": "Hemiplegic migraine"}], "answer": "D", "explanation": "Focal weakness after a seizure raises stroke — the discriminator is that it FOLLOWED the seizure and RESOLVED over minutes–hours = postictal Todd's paralysis (which also implies a focal onset, so imaging is still indicated).", "objective": "Look-alike discrimination", "section": "Seizures & Epilepsy"}, {"id": "6", "group": 6, "stem": "A 60-year-old woman with a first seizure has an MRI showing FOUR small rounded, well-circumscribed enhancing lesions at the gray-white junction, each with edema out of proportion to its size. She has lost 12 lb and has a 40-pack-year smoking history. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Multiple brain abscesses"}, {"letter": "B", "text": "Multiple meningiomas"}, {"letter": "C", "text": "Primary CNS lymphoma"}, {"letter": "D", "text": "Metastases"}, {"letter": "E", "text": "Glioblastoma"}], "answer": "D", "explanation": "Multiple enhancing lesions could be abscesses (hematogenous) — the discriminators are the ROUNDED gray-white-junction lesions in a smoker with weight loss and no fever = metastases (lung, melanoma, breast).", "objective": "Look-alike discrimination", "section": "CNS Neoplasms"}, {"id": "7", "group": 7, "stem": "A 52-year-old woman has had three episodes of room-spinning vertigo with nausea over the past month, each lasting about an hour, with unsteadiness for the rest of the day. She has no ear fullness and hearing is normal on audiometry. During two of the episodes she could not tolerate the lights in the room and had a throbbing headache afterward. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Vestibular neuritis"}, {"letter": "B", "text": "Benign paroxysmal positional vertigo"}, {"letter": "C", "text": "Ménière's disease"}, {"letter": "D", "text": "Cerebellar/brainstem stroke"}, {"letter": "E", "text": "Vestibular migraine"}], "answer": "E", "explanation": "Same episodic hour-long spells — but NORMAL hearing plus photophobia/headache in ≥50% of spells = vestibular migraine. Ménière's must have fluctuating SNHL.", "objective": "Look-alike discrimination", "section": "Vertigo"}, {"id": "8", "group": 8, "stem": "A 24-year-old woman has 25 minutes of tingling that began in the left fingers and marched up the arm to the face, followed by a throbbing headache with nausea. She has had similar episodes twice before, each followed by headache. Exam is normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Conversion disorder"}, {"letter": "B", "text": "Focal seizure with intact awareness"}, {"letter": "C", "text": "Ischemic stroke"}, {"letter": "D", "text": "Transient ischemic attack"}, {"letter": "E", "text": "Migraine with sensory aura"}], "answer": "E", "explanation": "Transient focal sensory symptoms could be TIA — the discriminators are the GRADUAL MARCH over minutes (TIA is abrupt and maximal at onset) and the headache that follows. A Jacksonian seizure marches in seconds, not minutes.", "objective": "Look-alike discrimination", "section": "CVA / TIA"}, {"id": "9", "group": 9, "stem": "A 62-year-old woman has 3 days of brief, severe, electric-shock pains in the right cheek and jaw, each lasting seconds and recurring dozens of times a day. There is no tearing, nasal congestion, or eyelid drooping, and the pain is set off by chewing and brushing her teeth. Facial sensation and the corneal reflex are normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Cluster headache"}, {"letter": "B", "text": "Trigeminal neuralgia"}, {"letter": "C", "text": "Temporomandibular joint disorder"}, {"letter": "D", "text": "Giant cell arteritis"}, {"letter": "E", "text": "Migraine"}], "answer": "B", "explanation": "Unilateral facial pain in bouts — but SECONDS-long paroxysms TRIGGERED by touch/chewing in V2/V3 with no autonomic features and a normal sensory exam = trigeminal neuralgia. Cluster attacks last 15 min–3 h with tearing/rhinorrhea.", "objective": "Look-alike discrimination", "section": "Headaches"}, {"id": "10", "group": 10, "stem": "A 31-year-old woman has a 5-hour headache rated 7/10 that began gradually at work. It is bilateral and pressing, she has mild photophobia, and she has had similar headaches about twice a month. Exam is normal. On further questioning, the pain has kept her from climbing the stairs because it pounds with each step, and she felt queasy. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Cluster headache"}, {"letter": "B", "text": "Tension-type headache"}, {"letter": "C", "text": "Medication-overuse headache"}, {"letter": "D", "text": "Migraine"}, {"letter": "E", "text": "Idiopathic intracranial hypertension"}], "answer": "D", "explanation": "Bilateral pressing pain with mild photophobia reads as tension-type — but AGGRAVATION BY ACTIVITY plus nausea tips it to migraine (POUND: two of pulsating/one-day/unilateral/nausea/disabling). Migraine can be bilateral; TTH is never worsened by routine activity.", "objective": "Look-alike discrimination", "section": "Headaches"}, {"id": "11", "group": 11, "stem": "A 71-year-old man with hypertension has had severe continuous vertigo with vomiting since he woke 6 hours ago. He can walk only with two people supporting him. Spontaneous horizontal nystagmus is present; head impulse testing is normal in both directions with no corrective saccade; there is no skew deviation. Hearing is normal and there is no diplopia, dysarthria, or limb weakness. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Benign paroxysmal positional vertigo"}, {"letter": "B", "text": "Vestibular neuritis"}, {"letter": "C", "text": "Vestibular migraine"}, {"letter": "D", "text": "Cerebellar/brainstem stroke"}, {"letter": "E", "text": "Ménière's disease"}], "answer": "D", "explanation": "Everything else looks like neuritis, but a NORMAL head impulse in continuous vertigo (intact VOR) plus inability to walk = central. Any one central HINTS finding is enough — you do not need the D's.", "objective": "Look-alike discrimination", "section": "Vertigo"}, {"id": "12", "group": 12, "stem": "A 40-year-old man has 10 days of fever and a dull headache that is worse on the left, with new difficulty finding words. He had a dental abscess drained a month ago. He is alert and oriented; there is no neck stiffness. T 38.4 °C, WBC 15,000. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Bacterial meningitis"}, {"letter": "B", "text": "HSV-1 encephalitis"}, {"letter": "C", "text": "Viral meningitis"}, {"letter": "D", "text": "Brain abscess"}, {"letter": "E", "text": "Glioblastoma"}], "answer": "D", "explanation": "Fever + headache is shared — the discriminators are the LATERALIZED headache with a FOCAL deficit, a contiguous source (dental), and NO meningismus with preserved mentation. Encephalitis has altered consciousness; meningitis has nuchal rigidity. MRI, not LP.", "objective": "Look-alike discrimination", "section": "CNS Infections"}, {"id": "13", "group": 13, "stem": "A 9-year-old girl develops irregular, flowing, jerky movements of the hands and face over 2 weeks, with emotional lability. She had a sore throat treated with rest 2 months ago. There is no family history of movement disorders. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Sydenham chorea"}, {"letter": "B", "text": "Tardive dyskinesia"}, {"letter": "C", "text": "Huntington's disease"}, {"letter": "D", "text": "Juvenile myoclonic epilepsy"}, {"letter": "E", "text": "Tourette syndrome"}], "answer": "A", "explanation": "Same chorea — the discriminators are the CHILD after untreated STREP pharyngitis with no family history = Sydenham chorea (rheumatic fever). Tics are stereotyped with an urge; JME jerks are shock-like, not flowing.", "objective": "Look-alike discrimination", "section": "Movement Disorders"}, {"id": "14", "group": 14, "stem": "A 55-year-old man has 3 months of numbness of the little finger and half of the ring finger, involving both the palm and the back of the hand, with intrinsic hand weakness. He also has neck pain, and the weakness includes thumb abduction and finger flexion of the index finger. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Ulnar neuropathy at the elbow"}, {"letter": "B", "text": "Carpal tunnel syndrome"}, {"letter": "C", "text": "C8 radiculopathy"}, {"letter": "D", "text": "Radial neuropathy"}, {"letter": "E", "text": "Ulnar neuropathy at the wrist"}], "answer": "C", "explanation": "Looks like cubital tunnel — the discriminators are NECK PAIN and weakness of MEDIAN-innervated C8 muscles (thumb abduction, index flexion) alongside the ulnar ones = C8 root, not a single nerve.", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "15", "group": 15, "stem": "A 74-year-old man has 4 months of progressive difficulty walking — his feet seem stuck to the floor and he takes short shuffling steps — along with new urinary urgency and incontinence and forgetfulness his family attributes to age. He has no headache and no papilledema. CT shows enlarged ventricles out of proportion to cortical atrophy. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Idiopathic intracranial hypertension"}, {"letter": "B", "text": "Normal pressure hydrocephalus"}, {"letter": "C", "text": "Parkinson's disease"}, {"letter": "D", "text": "Chronic subdural hematoma"}, {"letter": "E", "text": "Alzheimer dementia"}], "answer": "B", "explanation": "Wet-wobbly-wacky triad with a MAGNETIC gait, no papilledema, and ventriculomegaly = NPH (opening pressure normal; high-volume tap improves gait). PD has rest tremor/rigidity and no early incontinence; IIH has papilledema and headache.", "objective": "Look-alike discrimination", "section": "Headaches"}, {"id": "16", "group": 16, "stem": "A 78-year-old man on apixaban who fell 3 weeks ago has become increasingly forgetful and unsteady over the past 10 days, with a mild constant headache. His daughter says he is 'sharper some days than others.' Exam: mild right pronator drift, no fever. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Alzheimer dementia"}, {"letter": "B", "text": "Chronic subdural hematoma"}, {"letter": "C", "text": "Normal pressure hydrocephalus"}, {"letter": "D", "text": "Epidural hematoma"}, {"letter": "E", "text": "Ischemic stroke"}], "answer": "B", "explanation": "Gradual cognitive/gait decline could be NPH or dementia — the discriminators are the ELDERLY ANTICOAGULATED patient with remote MINOR trauma, FLUCTUATING mentation, headache, and a focal sign = venous (bridging vein) subdural over days–weeks. CT: crescentic.", "objective": "Look-alike discrimination", "section": "CVA / TIA"}, {"id": "17", "group": 17, "stem": "A 70-year-old man with hypertension develops left-sided weakness at 10 AM that has become steadily worse over 2 hours; he vomited once and complains of a severe headache. He is drowsy but arousable. BP 210/120. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Intracerebral hemorrhage"}, {"letter": "B", "text": "Epidural hematoma"}, {"letter": "C", "text": "Lacunar infarct"}, {"letter": "D", "text": "Transient ischemic attack"}, {"letter": "E", "text": "Cortical ischemic stroke"}], "answer": "A", "explanation": "Same focal deficit — the discriminators are PROGRESSION over hours with HEADACHE, vomiting, and declining consciousness at very high BP = hemorrhage. Only CT distinguishes them for certain.", "objective": "Look-alike discrimination", "section": "CVA / TIA"}, {"id": "18", "group": 18, "stem": "A 50-year-old man wakes with drooping of the left lower face. He cannot smile on the left, but he can close the left eye and wrinkle the forehead symmetrically. His speech is slightly slurred and his left arm drifts. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Right MCA stroke"}, {"letter": "B", "text": "Ramsay Hunt syndrome"}, {"letter": "C", "text": "Myasthenia gravis"}, {"letter": "D", "text": "Left MCA stroke"}, {"letter": "E", "text": "Bell's palsy"}], "answer": "A", "explanation": "Same facial droop — the discriminators are FOREHEAD SPARING (UMN) with arm drift = contralateral (right) cortical stroke.", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "19", "group": 19, "stem": "A 16-year-old has slowly progressive clumsiness of the feet since childhood. Exam: high arches, hammer toes, distal calf wasting, absent ankle jerks, mild distal sensory loss. NCS show UNIFORM slowing of conduction in all nerves without conduction block. His mother has high arches and 'weak ankles.' Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Diabetic polyneuropathy"}, {"letter": "B", "text": "Friedreich ataxia"}, {"letter": "C", "text": "Guillain-Barré syndrome"}, {"letter": "D", "text": "Chronic inflammatory demyelinating polyneuropathy"}, {"letter": "E", "text": "Charcot-Marie-Tooth disease"}], "answer": "E", "explanation": "Demyelinating polyneuropathy is shared with CIDP — the discriminators are the LIFELONG course with FOOT DEFORMITY, family history, and UNIFORM slowing without conduction block (acquired CIDP is patchy with block).", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "20", "group": 20, "stem": "A 29-year-old woman has 5 days of numbness of the right leg rising to the waist and difficulty walking. She recalls an episode of blurred vision in the left eye two years ago that resolved in 3 weeks. Exam: brisk reflexes with a right Babinski, a sensory level at T8, and a left relative afferent pupillary defect. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Transverse myelitis (isolated)"}, {"letter": "B", "text": "Guillain-Barré syndrome"}, {"letter": "C", "text": "Multiple sclerosis"}, {"letter": "D", "text": "Vitamin B12 deficiency"}, {"letter": "E", "text": "Spinal epidural abscess"}], "answer": "C", "explanation": "A cord syndrome with a sensory level and UMN signs — the discriminator is the SEPARATE PRIOR optic neuritis (dissemination in time and space). GBS is areflexic and has no sensory level; isolated myelitis lacks the second lesion.", "objective": "Look-alike discrimination", "section": "MS & MG"}, {"id": "21", "group": 21, "stem": "A 38-year-old man has 4 months of slowly progressive symmetric weakness of the legs and hands with numbness in the feet. Reflexes are absent throughout. CSF protein is 140 mg/dL with 2 WBC; nerve conduction studies show patchy slowing and conduction block. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Amyotrophic lateral sclerosis"}, {"letter": "B", "text": "Chronic inflammatory demyelinating polyneuropathy"}, {"letter": "C", "text": "Charcot-Marie-Tooth disease"}, {"letter": "D", "text": "Guillain-Barré syndrome"}, {"letter": "E", "text": "Diabetic polyneuropathy"}], "answer": "B", "explanation": "Identical demyelinating findings to GBS — the discriminator is the TIME COURSE: progression beyond 8 weeks = CIDP (which, unlike GBS, responds to steroids). CMT shows UNIFORM slowing from childhood with foot deformity.", "objective": "Look-alike discrimination", "section": "MS & MG"}, {"id": "22", "group": 22, "stem": "A 66-year-old man has had three episodes this month: one of vertigo with double vision lasting 10 minutes, one of numbness of both legs, and one of slurred speech with unsteadiness. Each resolved fully. Which of the following best characterizes these events?", "options": [{"letter": "A", "text": "Lacunar TIA"}, {"letter": "B", "text": "Vestibular migraine"}, {"letter": "C", "text": "Carotid-territory TIA"}, {"letter": "D", "text": "Vertebrobasilar TIA"}, {"letter": "E", "text": "Embolic TIA"}], "answer": "D", "explanation": "NON-stereotyped episodes with vertigo, diplopia, dysarthria, and BILATERAL symptoms = posterior circulation. Carotid TIAs are stereotyped and unilateral.", "objective": "Look-alike discrimination", "section": "CVA / TIA"}, {"id": "23", "group": 23, "stem": "A 9-year-old girl has many daily episodes in which she stops mid-sentence and stares for about 10 seconds with fluttering eyelids, then resumes as if nothing happened. She has no warning and no confusion afterward. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Daydreaming (inattention)"}, {"letter": "B", "text": "Focal seizure with impaired awareness"}, {"letter": "C", "text": "Typical absence seizure"}, {"letter": "D", "text": "Complex motor tic"}, {"letter": "E", "text": "Atypical absence seizure"}], "answer": "C", "explanation": "Staring spells are shared with focal impaired-awareness seizures — the discriminators are the SECONDS-long duration, ABRUPT start/stop, NO aura, and NO postictal confusion, occurring many times a day = absence (3-Hz spike-and-wave).", "objective": "Look-alike discrimination", "section": "Seizures & Epilepsy"}, {"id": "24", "group": 24, "stem": "A 60-year-old woman with a first seizure has an MRI showing a 3-cm homogeneously enhancing mass along the convexity that appears to sit OUTSIDE the brain, pushing the cortex inward, with a tapering 'tail' of enhancement along the dura. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Meningioma"}, {"letter": "B", "text": "Primary CNS lymphoma"}, {"letter": "C", "text": "Brain abscess"}, {"letter": "D", "text": "Metastasis"}, {"letter": "E", "text": "Glioblastoma"}], "answer": "A", "explanation": "A single enhancing mass with a seizure could be any of these — the discriminator is EXTRA-AXIAL location (displaces rather than infiltrates) with a dural tail = meningioma.", "objective": "Look-alike discrimination", "section": "CNS Neoplasms"}, {"id": "25", "group": 25, "stem": "A 31-year-old woman has a 5-hour headache rated 5/10 that began gradually at work. It is bilateral and pressing, and she has had similar headaches about twice a month during stressful weeks. She finished her shift and drove home; walking does not change the pain, and she has no nausea. She notes mild sensitivity to noise. Exam is normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Tension-type headache"}, {"letter": "B", "text": "Medication-overuse headache"}, {"letter": "C", "text": "Cluster headache"}, {"letter": "D", "text": "Idiopathic intracranial hypertension"}, {"letter": "E", "text": "Migraine"}], "answer": "A", "explanation": "Same bilateral pressing pattern — the discriminators are NOT worsened by activity (she kept working) and NO nausea. One of photo- or phonophobia is allowed in TTH; both, or nausea, points to migraine.", "objective": "Look-alike discrimination", "section": "Headaches"}, {"id": "26", "group": 26, "stem": "A 66-year-old man has 2 years of hand tremor. It is present when his hands rest in his lap and disappears when he reaches for a cup. The right hand is much worse than the left. Handwriting has become small. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Parkinson's disease"}, {"letter": "B", "text": "Enhanced physiologic tremor"}, {"letter": "C", "text": "Essential tremor"}, {"letter": "D", "text": "Drug-induced parkinsonism"}, {"letter": "E", "text": "Cerebellar tremor"}], "answer": "A", "explanation": "The discriminators are REST tremor that quiets with movement, ASYMMETRY, and MICROGRAPHIA. ET is bilateral, appears with action, and produces large shaky writing.", "objective": "Look-alike discrimination", "section": "Movement Disorders"}, {"id": "27", "group": 27, "stem": "A 68-year-old woman has 3 weeks of a new right temporal headache that is present most of the day. She has felt tired and her shoulders are stiff in the morning. Her jaw becomes painful and tired after a few minutes of chewing. Fundoscopy is normal. ESR is 78 mm/h. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Cluster headache"}, {"letter": "B", "text": "Tension-type headache"}, {"letter": "C", "text": "Giant cell arteritis"}, {"letter": "D", "text": "Idiopathic intracranial hypertension"}, {"letter": "E", "text": "Temporomandibular joint disorder"}], "answer": "C", "explanation": "New headache after 50 with JAW CLAUDICATION and a high ESR = GCA; the polymyalgia symptoms support it. TMJ pain is reproduced by jaw motion and localizes preauricularly; IIH is a young obese woman with papilledema.", "objective": "Look-alike discrimination", "section": "Headaches"}, {"id": "28", "group": 28, "stem": "A 55-year-old man has 3 months of numbness of the little finger and half of the ring finger. Sensation is reduced on the palmar side of those fingers but NORMAL on the back of the hand. He has weak finger abduction. There is no elbow pain and Tinel's at the elbow is negative. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Ulnar neuropathy at the wrist (Guyon's canal)"}, {"letter": "B", "text": "C8 radiculopathy"}, {"letter": "C", "text": "Ulnar neuropathy at the elbow"}, {"letter": "D", "text": "Carpal tunnel syndrome"}, {"letter": "E", "text": "Lower trunk brachial plexopathy"}], "answer": "A", "explanation": "Ulnar-digit numbness at either level — the discriminator is SPARED DORSAL-HAND sensation (the dorsal cutaneous branch leaves above the wrist), so the lesion is at the wrist. Dorsal involvement = elbow.", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "29", "group": 29, "stem": "A 72-year-old woman has 4 months of slowed movements, a shuffling gait, and a rest tremor of both hands. Her medication list includes metoclopramide, started 6 months ago for nausea. Symptoms are symmetric. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Essential tremor"}, {"letter": "B", "text": "Idiopathic Parkinson's disease"}, {"letter": "C", "text": "Progressive supranuclear palsy"}, {"letter": "D", "text": "Lewy body dementia"}, {"letter": "E", "text": "Drug-induced parkinsonism"}], "answer": "E", "explanation": "Parkinsonism is identical clinically — the discriminators are the SYMMETRIC onset and a DOPAMINE-BLOCKING drug started before symptoms. Idiopathic PD begins asymmetrically.", "objective": "Look-alike discrimination", "section": "Movement Disorders"}, {"id": "30", "group": 30, "stem": "A 79-year-old woman on a loop diuretic who finished an 18-day course of IV gentamicin reports persistent unsteadiness, worse in the dark, and 'jumping' of the visual scene when she walks. There are no spinning spells and no ear fullness. Head impulse test is abnormal to both sides; there is no spontaneous nystagmus. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Drug-induced (ototoxic) vestibulopathy"}, {"letter": "B", "text": "Acoustic neuroma"}, {"letter": "C", "text": "Ménière's disease"}, {"letter": "D", "text": "Vestibular neuritis"}, {"letter": "E", "text": "Cerebellar stroke"}], "answer": "A", "explanation": "BILATERAL abnormal head impulse with oscillopsia and no true vertigo = bilateral vestibular loss from aminoglycoside toxicity. Neuritis and schwannoma are unilateral; stroke gives central HINTS.", "objective": "Look-alike discrimination", "section": "Vertigo"}, {"id": "31", "group": 31, "stem": "A 58-year-old man reports 8 months of a vague, persistent sense of tilting and veering when walking, worse in the dark. There have been no discrete spinning spells. Hearing in the right ear has been declining and he has constant right-sided tinnitus. Exam: Weber lateralizes left, Rinne AC>BC bilaterally, slightly reduced right corneal reflex. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Ménière's disease"}, {"letter": "B", "text": "Ototoxic vestibulopathy"}, {"letter": "C", "text": "Benign paroxysmal positional vertigo"}, {"letter": "D", "text": "Vestibular neuritis"}, {"letter": "E", "text": "Acoustic neuroma (vestibular schwannoma)"}], "answer": "E", "explanation": "Unilateral SNHL + tinnitus is shared with Ménière's — the discriminators are the INDOLENT PERSISTENT unsteadiness without spinning spells and the CN V involvement. Ménière's is episodic; ototoxicity is bilateral.", "objective": "Look-alike discrimination", "section": "Vertigo"}, {"id": "32", "group": 32, "stem": "A 68-year-old man has 2 years of shuffling gait and bradykinesia. Unlike most patients, he has fallen backward repeatedly since the first months, cannot look down to see his plate, and has had almost no benefit from carbidopa/levodopa. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Multiple system atrophy"}, {"letter": "B", "text": "Progressive supranuclear palsy"}, {"letter": "C", "text": "Essential tremor"}, {"letter": "D", "text": "Idiopathic Parkinson's disease"}, {"letter": "E", "text": "Drug-induced parkinsonism"}], "answer": "B", "explanation": "Parkinsonism plus EARLY FALLS, VERTICAL GAZE PALSY, and POOR LEVODOPA RESPONSE = PSP (Parkinson-plus). MSA would show early severe autonomic failure; PD responds to levodopa and falls come late.", "objective": "Look-alike discrimination", "section": "Movement Disorders"}, {"id": "33", "group": 33, "stem": "A 71-year-old woman has had a week of brief spells of spinning that come on when she turns over in bed to the left and last under a minute; she is fine between them, hearing is normal, and there are no other symptoms. Dix-Hallpike with the left ear down produces vertigo and torsional nystagmus after a 5-second latency that fades in 20 seconds and is weaker on repetition. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Vestibular neuritis"}, {"letter": "B", "text": "Cerebellar/brainstem stroke"}, {"letter": "C", "text": "Ménière's disease"}, {"letter": "D", "text": "Benign paroxysmal positional vertigo"}, {"letter": "E", "text": "Vestibular migraine"}], "answer": "D", "explanation": "Seconds-long, positional, latent and fatigable torsional nystagmus = BPPV of the left posterior canal (the down ear). Neither Ménière's nor neuritis is provoked by position; central positional nystagmus is non-fatiguing and often vertical.", "objective": "Look-alike discrimination", "section": "Vertigo"}, {"id": "34", "group": 34, "stem": "A 50-year-old man has 2 days of left facial droop including the forehead, with severe left ear pain. Examination of the ear canal shows a cluster of vesicles, and he reports vertigo. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Acoustic neuroma"}, {"letter": "B", "text": "Lyme facial palsy"}, {"letter": "C", "text": "Ramsay Hunt syndrome"}, {"letter": "D", "text": "Bell's palsy"}, {"letter": "E", "text": "Otitis externa"}], "answer": "C", "explanation": "LMN facial palsy like Bell's — the discriminators are VESICLES in the ear canal with severe otalgia ± vertigo/hearing change = zoster of the geniculate ganglion; add antivirals.", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "35", "group": 35, "stem": "A 48-year-old woman has 4 months of numbness and tingling in the thumb, index, and middle fingers of the right hand, worse at night. Grip is weak. Sensation is reduced in those fingers; sensation over the thenar eminence and forearm is normal, and neck movement does not provoke symptoms. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "C6 radiculopathy"}, {"letter": "B", "text": "Brachial plexopathy"}, {"letter": "C", "text": "Ulnar neuropathy"}, {"letter": "D", "text": "Carpal tunnel syndrome"}, {"letter": "E", "text": "Pronator (forearm median) syndrome"}], "answer": "D", "explanation": "Median-distribution numbness is shared with C6 radiculopathy and forearm median entrapment — the discriminators are NOCTURNAL symptoms, NORMAL sensation over the thenar eminence (palmar cutaneous branch leaves above the tunnel), and no neck provocation = carpal tunnel.", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "36", "group": 36, "stem": "A 44-year-old man has had severe continuous vertigo with vomiting for 36 hours after a cold last week. He walks unaided but veers to the right. Spontaneous left-beating horizontal nystagmus is present; head impulse to the right produces a corrective saccade; there is no skew. He reports that his right ear has felt muffled since yesterday, and Weber lateralizes to the left. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Labyrinthitis"}, {"letter": "B", "text": "Ménière's disease"}, {"letter": "C", "text": "Vestibular neuritis"}, {"letter": "D", "text": "Cerebellar/brainstem stroke"}, {"letter": "E", "text": "Benign paroxysmal positional vertigo"}], "answer": "A", "explanation": "Identical peripheral HINTS picture but with new ipsilateral sensorineural hearing loss = labyrinthitis (cochlea involved). Pure vestibular neuritis spares hearing.", "objective": "Look-alike discrimination", "section": "Vertigo"}, {"id": "37", "group": 37, "stem": "A 19-year-old collapses while standing in a hot, crowded line after feeling lightheaded and nauseated with graying of vision. Bystanders saw a few seconds of limb jerking. He was fully alert within a minute, with no confusion, no tongue bite, and no incontinence. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Psychogenic nonepileptic event"}, {"letter": "B", "text": "Vasovagal syncope"}, {"letter": "C", "text": "Cardiac arrhythmia"}, {"letter": "D", "text": "Generalized tonic-clonic seizure"}, {"letter": "E", "text": "Focal seizure evolving to bilateral tonic-clonic"}], "answer": "B", "explanation": "Brief jerking during a collapse mimics a seizure — the discriminators are the PRESYNCOPAL PRODROME while upright and the IMMEDIATE full recovery with no postictal state, tongue bite, or incontinence = convulsive syncope.", "objective": "Look-alike discrimination", "section": "Seizures & Epilepsy"}, {"id": "38", "group": 38, "stem": "A 70-year-old man with atrial fibrillation develops sudden left face and arm weakness and slurred speech at 10 AM. His wife notes that his eyes are turned to the right and that he ignores her when she stands on his left. He denies any headache. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Subarachnoid hemorrhage"}, {"letter": "B", "text": "Intracerebral hemorrhage"}, {"letter": "C", "text": "Transient ischemic attack"}, {"letter": "D", "text": "Cortical (large-vessel) ischemic stroke"}, {"letter": "E", "text": "Lacunar infarct"}], "answer": "D", "explanation": "Sudden painless deficit is shared by lacunar and cortical strokes — the discriminators are CORTICAL SIGNS (gaze preference, neglect); any cortical sign excludes lacunar. No headache and no progression argue against hemorrhage.", "objective": "Look-alike discrimination", "section": "CVA / TIA"}, {"id": "39", "group": 39, "stem": "A 22-year-old man is hit in the side of the head by a pitched ball. He is dazed for a minute, then recovers and continues playing. Two hours later he becomes confused and increasingly drowsy and vomits. His left pupil is dilated. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Subarachnoid hemorrhage"}, {"letter": "B", "text": "Diffuse axonal injury"}, {"letter": "C", "text": "Epidural hematoma"}, {"letter": "D", "text": "Concussion"}, {"letter": "E", "text": "Acute subdural hematoma"}], "answer": "C", "explanation": "Head trauma with declining consciousness fits both epidural and subdural — the discriminators are the TEMPORAL impact in a YOUNG patient and the LUCID INTERVAL followed by rapid deterioration over hours = arterial (middle meningeal) epidural. CT: biconvex.", "objective": "Look-alike discrimination", "section": "CVA / TIA"}, {"id": "40", "group": 40, "stem": "A 52-year-old woman has had three episodes of room-spinning vertigo with nausea over the past month, each lasting about an hour, with unsteadiness for the rest of the day. She has no headache and no ear fullness. Between episodes her exam is normal; audiometry shows a left low-frequency sensorineural loss. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Ménière's disease"}, {"letter": "B", "text": "Vestibular neuritis"}, {"letter": "C", "text": "Cerebellar/brainstem stroke"}, {"letter": "D", "text": "Vestibular migraine"}, {"letter": "E", "text": "Benign paroxysmal positional vertigo"}], "answer": "A", "explanation": "Spells lasting 20 min–24 h with unilateral LOW-frequency SNHL = Ménière's, even without the classic fullness/tinnitus in the stem. BPPV lasts seconds; neuritis is a single continuous days-long episode; vestibular migraine has normal hearing.", "objective": "Look-alike discrimination", "section": "Vertigo"}, {"id": "41", "group": 41, "stem": "A 24-year-old man started on haloperidol 3 days ago cannot sit still: he paces, rocks, and describes an unbearable inner restlessness throughout the day. There is no urge localized to the legs and no relief pattern with the time of day. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Restless legs syndrome"}, {"letter": "B", "text": "Acute dystonic reaction"}, {"letter": "C", "text": "Anxiety disorder"}, {"letter": "D", "text": "Akathisia"}, {"letter": "E", "text": "Tardive dyskinesia"}], "answer": "D", "explanation": "Restlessness is shared with RLS — the discriminators are the ALL-DAY inner restlessness on a DOPAMINE BLOCKER without evening/rest timing or leg-specific sensation = akathisia. Dystonia is sustained posturing; tardive dyskinesia is late orofacial writhing.", "objective": "Look-alike discrimination", "section": "Movement Disorders"}, {"id": "42", "group": 42, "stem": "A 27-year-old woman with a BMI of 36 has 6 weeks of daily headache that is worse when she lies down and on waking, with brief episodes of vision graying out when she stands. She hears a whooshing sound in her ears in time with her pulse. Neuro exam is normal except for bilateral optic disc swelling. MRI brain is normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Chronic tension-type headache"}, {"letter": "B", "text": "Migraine"}, {"letter": "C", "text": "Idiopathic intracranial hypertension"}, {"letter": "D", "text": "Normal pressure hydrocephalus"}, {"letter": "E", "text": "Giant cell arteritis"}], "answer": "C", "explanation": "Daily headache in a young obese woman with PAPILLEDEMA, pulsatile tinnitus, and transient visual obscurations, normal MRI = IIH; LP will show OP >20 cm H₂O with normal CSF. Migraine has a normal fundus.", "objective": "Look-alike discrimination", "section": "Headaches"}, {"id": "43", "group": 43, "stem": "A 66-year-old man has 2 years of hand tremor. It is absent when his hands rest in his lap and appears when he reaches for a cup or holds a newspaper, spilling soup from a spoon. Both hands are affected equally; his handwriting has become large and wavy. His father had the same. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Essential tremor"}, {"letter": "B", "text": "Cerebellar tremor"}, {"letter": "C", "text": "Dystonic tremor"}, {"letter": "D", "text": "Drug-induced parkinsonism"}, {"letter": "E", "text": "Parkinson's disease"}], "answer": "A", "explanation": "Same complaint — the discriminators are ACTION/POSTURAL tremor that is absent at rest, BILATERAL, with large handwriting and family history = essential tremor.", "objective": "Look-alike discrimination", "section": "Movement Disorders"}, {"id": "44", "group": 44, "stem": "A 49-year-old woman with a history of migraine presents with a headache that began 2 hours ago during sex and reached maximal intensity within a minute. It is the worst headache she has ever had. She has vomited once and has mild neck stiffness. She is alert with a normal neuro exam and no fever. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Cluster headache"}, {"letter": "B", "text": "Tension-type headache"}, {"letter": "C", "text": "Migraine"}, {"letter": "D", "text": "Bacterial meningitis"}, {"letter": "E", "text": "Subarachnoid hemorrhage"}], "answer": "E", "explanation": "A migraineur can still have SAH — the discriminator is the THUNDERCLAP onset (maximal within a minute) with exertion; migraine builds over minutes to an hour. CT now, LP if CT is negative.", "objective": "Look-alike discrimination", "section": "Headaches"}, {"id": "45", "group": 45, "stem": "A 43-year-old man has 18 months of irregular, flowing, unpredictable movements of the hands and face that he tries to disguise as gestures, with irritability and poor judgment at work. His father had a similar movement disorder and died in a nursing home in his 50s. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Sydenham chorea"}, {"letter": "B", "text": "Tardive dyskinesia"}, {"letter": "C", "text": "Wilson disease"}, {"letter": "D", "text": "Tourette syndrome"}, {"letter": "E", "text": "Huntington's disease"}], "answer": "E", "explanation": "Chorea is shared — the discriminators are ADULT onset with PSYCHIATRIC/cognitive change and an AFFECTED PARENT (autosomal dominant). Sydenham is a child after strep; tardive dyskinesia follows antipsychotics.", "objective": "Look-alike discrimination", "section": "Movement Disorders"}, {"id": "46", "group": 46, "stem": "A 44-year-old man has had severe continuous vertigo with vomiting for 36 hours after a cold last week. He walks unaided but veers to the right. Spontaneous left-beating horizontal nystagmus is present that lessens when he fixes on a target; head impulse to the right produces a corrective saccade; there is no skew. Hearing is normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Cerebellar/brainstem stroke"}, {"letter": "B", "text": "Ménière's disease"}, {"letter": "C", "text": "Vestibular neuritis"}, {"letter": "D", "text": "Labyrinthitis"}, {"letter": "E", "text": "Benign paroxysmal positional vertigo"}], "answer": "C", "explanation": "Continuous days-long vertigo with a fully peripheral HINTS (saccade present, unidirectional nystagmus that suppresses with fixation, no skew) and NORMAL hearing = vestibular neuritis. The same picture with hearing loss is labyrinthitis.", "objective": "Look-alike discrimination", "section": "Vertigo"}, {"id": "47", "group": 47, "stem": "A 34-year-old woman has episodes every few weeks in which she reports a rising feeling in her stomach and a sense of familiarity, then stares and smacks her lips for about 90 seconds, followed by 10 minutes of confusion. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Focal seizure with impaired awareness"}, {"letter": "B", "text": "Psychogenic nonepileptic event"}, {"letter": "C", "text": "Typical absence seizure"}, {"letter": "D", "text": "Panic attack"}, {"letter": "E", "text": "Syncope"}], "answer": "A", "explanation": "Same staring — the discriminators are the AURA, the MINUTES-long duration with AUTOMATISMS, and POSTICTAL confusion = focal impaired-awareness seizure (temporal lobe).", "objective": "Look-alike discrimination", "section": "Seizures & Epilepsy"}, {"id": "48", "group": 48, "stem": "A 60-year-old woman has 2 weeks of a right foot drop with low back pain radiating down the posterolateral leg. Dorsiflexion, eversion, AND inversion are weak; sensation is reduced over the dorsum of the foot and great toe. Ankle jerk is normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Diabetic amyotrophy"}, {"letter": "B", "text": "Common peroneal neuropathy"}, {"letter": "C", "text": "S1 radiculopathy"}, {"letter": "D", "text": "L5 radiculopathy"}, {"letter": "E", "text": "Tibial neuropathy"}], "answer": "D", "explanation": "Same foot drop — the discriminators are WEAK INVERSION and BACK PAIN with radiation = L5 root. A lost ankle jerk would point to S1 or sciatic.", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "49", "group": 49, "stem": "A 61-year-old man has 8 months of progressive weakness that began in his right hand and now involves the left leg. He reports muscle twitching and cramps. Exam: atrophy and fasciculations of the right hand, brisk reflexes in all limbs, an upgoing right toe, and NORMAL sensation. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Myasthenia gravis"}, {"letter": "B", "text": "Chronic inflammatory demyelinating polyneuropathy"}, {"letter": "C", "text": "Amyotrophic lateral sclerosis"}, {"letter": "D", "text": "Cervical spondylotic myelopathy"}, {"letter": "E", "text": "Multifocal motor neuropathy"}], "answer": "C", "explanation": "Asymmetric weakness with atrophy could be myelopathy or MMN — the discriminator is UMN + LMN signs in the SAME limbs with NO sensory loss. Cervical myelopathy adds sensory change/neck pain; MMN is LMN-only with conduction block.", "objective": "Look-alike discrimination", "section": "MS & MG"}, {"id": "50", "group": 50, "stem": "A 60-year-old woman has 2 weeks of a right foot drop after prolonged bed rest. Dorsiflexion and eversion are weak; sensation is reduced over the dorsum of the foot. Foot INVERSION is strong and the ankle jerk is normal; there is no back pain. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "S1 radiculopathy"}, {"letter": "B", "text": "Charcot-Marie-Tooth disease"}, {"letter": "C", "text": "L5 radiculopathy"}, {"letter": "D", "text": "Sciatic neuropathy"}, {"letter": "E", "text": "Common peroneal neuropathy at the fibular head"}], "answer": "E", "explanation": "Foot drop is shared with L5 radiculopathy — the discriminators are PRESERVED INVERSION (tibialis posterior is L5 via the tibial nerve), a normal ankle jerk, and no back pain = peroneal nerve.", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "51", "group": 51, "stem": "A 35-year-old man with HIV (CD4 48) has 4 weeks of gradually worsening headache, low-grade fever, and malaise. He is alert but slow. Neck stiffness is mild. CSF: opening pressure 34 cm H₂O, WBC 40/µL (lymphocytes), protein 110 mg/dL, glucose 28 mg/dL (serum 90). Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Viral (aseptic) meningitis"}, {"letter": "B", "text": "Lyme neuroborreliosis"}, {"letter": "C", "text": "Cryptococcal meningitis"}, {"letter": "D", "text": "Bacterial meningitis"}, {"letter": "E", "text": "HSV-2 meningitis"}], "answer": "C", "explanation": "Lymphocytic CSF could pass for viral — the discriminators are the SUBACUTE weeks-long course in an AIDS patient with CD4 <100 and the LOW glucose with very high opening pressure. Viral and Lyme keep a normal glucose; check CrAg/India ink.", "objective": "Look-alike discrimination", "section": "CNS Infections"}, {"id": "52", "group": 52, "stem": "A 34-year-old woman has amenorrhea and galactorrhea. MRI shows a 2.2-cm sellar mass with suprasellar extension and chiasm contact. Prolactin is 62 ng/mL (normal <25). Which of the following is the most likely explanation?", "options": [{"letter": "A", "text": "Non-functioning macroadenoma with stalk effect"}, {"letter": "B", "text": "Craniopharyngioma"}, {"letter": "C", "text": "Pituitary apoplexy"}, {"letter": "D", "text": "GH-secreting adenoma"}, {"letter": "E", "text": "Prolactinoma"}], "answer": "A", "explanation": "Galactorrhea with a sellar mass and high prolactin screams prolactinoma — the discriminator is the MODEST prolactin rise (<100) with a LARGE mass: a true macroprolactinoma runs far higher; a mild rise from a big tumor is stalk compression. Surgery, not cabergoline.", "objective": "Look-alike discrimination", "section": "CNS Neoplasms"}, {"id": "53", "group": 53, "stem": "A 70-year-old man had 25 minutes of left arm weakness and slurred speech this morning that resolved completely. Exam is normal 6 hours later. MRI with diffusion-weighted imaging shows a small area of restricted diffusion in the right corona radiata. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Focal seizure with Todd's paralysis"}, {"letter": "B", "text": "Ischemic stroke"}, {"letter": "C", "text": "Migraine with aura"}, {"letter": "D", "text": "Hypoglycemia"}, {"letter": "E", "text": "Transient ischemic attack"}], "answer": "B", "explanation": "Resolved symptoms look like TIA — the discriminator is INFARCT ON DWI: TIA is defined by absence of infarction, not by duration. A resolved deficit with a DWI lesion is a stroke.", "objective": "Look-alike discrimination", "section": "CVA / TIA"}, {"id": "54", "group": 54, "stem": "A 48-year-old woman has 4 months of numbness and tingling in the thumb, index, and middle fingers of the right hand and an aching forearm. Unlike carpal tunnel, sensation is ALSO reduced over the thenar eminence, thumb and index finger flexion are weak, and Tinel's at the wrist and Phalen's are negative. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Radial neuropathy"}, {"letter": "B", "text": "C6 radiculopathy"}, {"letter": "C", "text": "Median neuropathy in the forearm (pronator/AIN)"}, {"letter": "D", "text": "Ulnar neuropathy at the elbow"}, {"letter": "E", "text": "Carpal tunnel syndrome"}], "answer": "C", "explanation": "Same digits — the discriminators are THENAR-EMINENCE sensory loss and FLEXOR weakness of thumb/index (forearm muscles) with forearm pain = proximal median entrapment.", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "55", "group": 55, "stem": "A 63-year-old smoker has 3 months of difficulty rising from chairs and climbing stairs, a dry mouth, and lightheadedness on standing. Ptosis is minimal. Reflexes are absent in the legs but reappear briefly after 10 seconds of maximal quadriceps contraction; strength also improves with repeated effort. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Lambert-Eaton myasthenic syndrome"}, {"letter": "B", "text": "Polymyositis"}, {"letter": "C", "text": "Amyotrophic lateral sclerosis"}, {"letter": "D", "text": "Guillain-Barré syndrome"}, {"letter": "E", "text": "Myasthenia gravis"}], "answer": "A", "explanation": "Proximal weakness could be MG or myositis — the discriminators are ABSENT reflexes that FACILITATE and strength that IMPROVES with exercise, plus autonomic symptoms = LEMS (P/Q Ca-channel Ab; look for small-cell lung cancer).", "objective": "Look-alike discrimination", "section": "MS & MG"}, {"id": "56", "group": 56, "stem": "A 66-year-old man has had 5-minute episodes of right-hand weakness three times this month, each identical, and once lost vision in the right eye for a minute. Between episodes his exam is normal. Which of the following best characterizes these events?", "options": [{"letter": "A", "text": "Vertebrobasilar TIA"}, {"letter": "B", "text": "Carotid-territory (low-flow) TIA"}, {"letter": "C", "text": "Lacunar TIA"}, {"letter": "D", "text": "Focal seizures"}, {"letter": "E", "text": "Embolic TIA"}], "answer": "B", "explanation": "STEREOTYPED, minutes-long, unilateral episodes with ipsilateral AMAUROSIS FUGAX = carotid stenosis. Embolic TIAs are longer and differ each time; vertebrobasilar TIAs bring vertigo/diplopia/bilateral symptoms.", "objective": "Look-alike discrimination", "section": "CVA / TIA"}, {"id": "57", "group": 57, "stem": "A 70-year-old man with hypertension develops left face, arm, and leg weakness that fluctuated over a day before settling. He speaks normally, follows commands, attends to both sides, has full visual fields, and his eyes move normally. Sensation is intact. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Cortical (large-vessel) ischemic stroke"}, {"letter": "B", "text": "Lacunar infarct"}, {"letter": "C", "text": "Transient ischemic attack"}, {"letter": "D", "text": "Intracerebral hemorrhage"}, {"letter": "E", "text": "Todd's paralysis"}], "answer": "B", "explanation": "Same hemiparesis — the discriminators are PURE MOTOR deficit with NO cortical signs and a STUTTERING onset = small-vessel lacunar stroke.", "objective": "Look-alike discrimination", "section": "CVA / TIA"}, {"id": "58", "group": 58, "stem": "A 15-year-old with normal intelligence has had two early-morning episodes of sudden bilateral arm jerks that made him throw his toothbrush, and one generalized convulsion after a sleepover. EEG shows generalized 4–6 Hz polyspike-and-wave. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Mesial temporal lobe epilepsy"}, {"letter": "B", "text": "Childhood absence epilepsy"}, {"letter": "C", "text": "Juvenile myoclonic epilepsy"}, {"letter": "D", "text": "Lennox-Gastaut syndrome"}, {"letter": "E", "text": "Epileptic spasms"}], "answer": "C", "explanation": "Multiple seizure types could suggest Lennox-Gastaut — the discriminators are the ADOLESCENT with NORMAL cognition, MORNING myoclonus after sleep deprivation, and fast polyspike-and-wave (LGS: delayed child, drop attacks, SLOW spike-and-wave).", "objective": "Look-alike discrimination", "section": "Seizures & Epilepsy"}, {"id": "59", "group": 59, "stem": "A 48-year-old woman has 4 months of numbness in the right thumb and index finger with neck pain radiating down the lateral arm, provoked by turning her head. The biceps reflex is diminished and wrist extension is weak. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Median neuropathy in the forearm"}, {"letter": "B", "text": "Radial neuropathy"}, {"letter": "C", "text": "Carpal tunnel syndrome"}, {"letter": "D", "text": "C6 radiculopathy"}, {"letter": "E", "text": "Ulnar neuropathy"}], "answer": "D", "explanation": "Thumb/index numbness overlaps with median lesions — the discriminators are NECK PAIN provoked by head movement, a DIMINISHED BICEPS reflex, and weakness of a non-median muscle (wrist extension) = C6 root.", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "60", "group": 60, "stem": "A 33-year-old man has 3 weeks of inability to extend the fingers of the right hand; wrist extension is present but deviates radially, elbow extension is normal, and sensation over the entire hand is normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "C7 radiculopathy"}, {"letter": "B", "text": "Radial neuropathy at the spiral groove"}, {"letter": "C", "text": "Posterior interosseous neuropathy"}, {"letter": "D", "text": "Ulnar neuropathy at the elbow"}, {"letter": "E", "text": "Radial neuropathy in the axilla"}], "answer": "C", "explanation": "Finger drop with NORMAL sensation and preserved (radially deviated) wrist extension = the deep motor branch in the forearm. Spiral groove lesions add wrist drop and first-web-space numbness.", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "61", "group": 61, "stem": "A 66-year-old man has 2 years of hand tremor that appears when he reaches for a cup and becomes wildest just before his finger reaches the target, often overshooting it. He also has slurred speech and a wide-based, staggering gait. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Parkinson's disease"}, {"letter": "B", "text": "Enhanced physiologic tremor"}, {"letter": "C", "text": "Dystonic tremor"}, {"letter": "D", "text": "Essential tremor"}, {"letter": "E", "text": "Cerebellar tremor"}], "answer": "E", "explanation": "An action tremor like ET — the discriminators are worsening AT THE TARGET with DYSMETRIA, plus dysarthria and ataxic gait = cerebellar (stroke, MS, alcohol). ET never has dysmetria or ataxia.", "objective": "Look-alike discrimination", "section": "Movement Disorders"}, {"id": "62", "group": 62, "stem": "A 33-year-old man wakes with an inability to extend the wrist and fingers of the right hand after sleeping on a park bench. Elbow extension is strong. Sensation over the dorsal first web space is reduced. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Posterior interosseous neuropathy"}, {"letter": "B", "text": "C7 radiculopathy"}, {"letter": "C", "text": "Radial neuropathy at the spiral groove"}, {"letter": "D", "text": "Ulnar neuropathy"}, {"letter": "E", "text": "Radial neuropathy in the axilla"}], "answer": "C", "explanation": "Wrist drop at any radial level — the discriminators are SPARED TRICEPS (so not axilla) with SENSORY loss in the first web space (so not the pure-motor posterior interosseous branch) = spiral groove.", "objective": "Look-alike discrimination", "section": "ALS & Peripheral Neuropathy"}, {"id": "63", "group": 63, "stem": "A 31-year-old woman who injects drugs has 5 days of fever and severe back pain. Neuro exam is initially normal. Over the next day she develops leg weakness and urinary retention. There is no headache or neck stiffness. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Guillain-Barré syndrome"}, {"letter": "B", "text": "Spinal epidural abscess"}, {"letter": "C", "text": "Transverse myelitis"}, {"letter": "D", "text": "Bacterial meningitis"}, {"letter": "E", "text": "Vertebral compression fracture"}], "answer": "B", "explanation": "Fever + IVDA + BACK PAIN progressing to cord signs = epidural abscess. GBS is painless-to-mild back pain with areflexia and no fever; meningitis has headache and neck stiffness. MRI with gadolinium, decompression.", "objective": "Look-alike discrimination", "section": "CNS Infections"}, {"id": "64", "group": 64, "stem": "A 34-year-old woman has amenorrhea and galactorrhea. MRI shows a 2.2-cm sellar mass with suprasellar extension and chiasm contact. Prolactin is 1,850 ng/mL (normal <25). Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Non-functioning macroadenoma with stalk effect"}, {"letter": "B", "text": "Pituitary apoplexy"}, {"letter": "C", "text": "GH-secreting adenoma"}, {"letter": "D", "text": "Craniopharyngioma"}, {"letter": "E", "text": "Prolactinoma"}], "answer": "E", "explanation": "Same mass — the discriminator is the MARKEDLY elevated prolactin (hundreds to thousands) = true prolactinoma, treated medically with cabergoline even when it compresses the chiasm.", "objective": "Look-alike discrimination", "section": "CNS Neoplasms"}, {"id": "65", "group": 65, "stem": "A 60-year-old woman with a first seizure has an MRI showing a 3-cm irregularly RING-enhancing mass within the left frontal white matter with extensive surrounding edema. She has had 6 weeks of headache and personality change but no fever, and WBC is normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Glioblastoma"}, {"letter": "B", "text": "Meningioma"}, {"letter": "C", "text": "Metastasis"}, {"letter": "D", "text": "Brain abscess"}, {"letter": "E", "text": "Low-grade astrocytoma"}], "answer": "A", "explanation": "Ring enhancement is shared with abscess — the discriminators are NO FEVER, normal WBC, no source, and a subacute progressive course; intra-axial heterogeneous ring enhancement in an adult = high-grade glioma. Abscess shows central restricted diffusion.", "objective": "Look-alike discrimination", "section": "CNS Neoplasms"}, {"id": "66", "group": 66, "stem": "A 45-year-old woman has 2 months of double vision and drooping eyelids that are mild in the morning and pronounced by dinnertime, with trouble finishing a steak. Pupils are normal and reactive, reflexes are 2+ and symmetric, and sensation is intact. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Botulism"}, {"letter": "B", "text": "Myasthenia gravis"}, {"letter": "C", "text": "Lambert-Eaton myasthenic syndrome"}, {"letter": "D", "text": "Multiple sclerosis"}, {"letter": "E", "text": "Guillain-Barré syndrome"}], "answer": "B", "explanation": "Fatigable ocular/bulbar weakness worse late in the day with NORMAL reflexes and pupils = MG. LEMS spares the eyes early and has absent reflexes; botulism has fixed dilated pupils; MS diplopia is an INO, not fatigable ptosis.", "objective": "Look-alike discrimination", "section": "MS & MG"}, {"id": "67", "group": 67, "stem": "A 42-year-old man has had a strictly right-sided headache behind the eye for 3 days, with tearing of the right eye and a runny right nostril. The pain is severe and throbbing. He has vomited twice and lies in a dark room because light and noise are unbearable. Each headache has lasted most of the day. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Migraine"}, {"letter": "B", "text": "Tension-type headache"}, {"letter": "C", "text": "Cluster headache"}, {"letter": "D", "text": "Paroxysmal hemicrania"}, {"letter": "E", "text": "Trigeminal neuralgia"}], "answer": "A", "explanation": "Unilateral periorbital pain with tearing and rhinorrhea looks like cluster, but the DURATION (most of the day, not 15 min–3 h) and the behavior (lying still in the dark with N/V) are migraine. Mild cranial autonomic symptoms occur in migraine too — duration and behavior decide.", "objective": "Look-alike discrimination", "section": "Headaches"}, {"id": "68", "group": 68, "stem": "A 52-year-old woman with a known 6-mm posterior communicating artery aneurysm develops a severe headache that peaked instantly while lifting a suitcase, with vomiting and neck stiffness. She is drowsy. There is no focal weakness. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Intracerebral hemorrhage"}, {"letter": "B", "text": "Epidural hematoma"}, {"letter": "C", "text": "Migraine"}, {"letter": "D", "text": "Bacterial meningitis"}, {"letter": "E", "text": "Subarachnoid hemorrhage"}], "answer": "E", "explanation": "Headache + meningismus + drowsiness could be meningitis — the discriminators are the INSTANTANEOUS onset with exertion and NO fever (and the known aneurysm). ICH gives a progressive focal deficit; SAH symptoms come from the ICP spike, not a focal lesion.", "objective": "Look-alike discrimination", "section": "CVA / TIA"}, {"id": "69", "group": 69, "stem": "A 21-year-old college student has 2 days of fever and headache. CSF: clear, WBC 190/µL (90% lymphocytes), protein 72 mg/dL, glucose 60 mg/dL (serum 95). Unlike a typical case, his roommate says he has been confused since this morning, has been talking about smells that are not there, and had a brief episode of right-hand twitching. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Brain abscess"}, {"letter": "B", "text": "Tuberculous meningitis"}, {"letter": "C", "text": "Bacterial meningitis"}, {"letter": "D", "text": "HSV-1 encephalitis"}, {"letter": "E", "text": "Viral (aseptic) meningitis"}], "answer": "D", "explanation": "The CSF is IDENTICAL to viral meningitis — the discriminator is ABNORMAL BRAIN FUNCTION (altered mental status, olfactory hallucinations, focal seizure) = encephalitis; temporal lobe features point to HSV-1. Start acyclovir now.", "objective": "Look-alike discrimination", "section": "CNS Infections"}, {"id": "70", "group": 70, "stem": "A 38-year-old man has 4 days of progressive weakness that began in the feet and now involves the thighs and hands, with tingling in the toes and fingers. He had gastroenteritis 2 weeks ago. Reflexes are absent throughout; sensation is mildly reduced distally; bladder function is normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Amyotrophic lateral sclerosis"}, {"letter": "B", "text": "Myasthenia gravis"}, {"letter": "C", "text": "Transverse myelitis"}, {"letter": "D", "text": "Guillain-Barré syndrome"}, {"letter": "E", "text": "Chronic inflammatory demyelinating polyneuropathy"}], "answer": "D", "explanation": "ASCENDING symmetric weakness over days with AREFLEXIA and distal paresthesias after an infection = GBS. Myelitis has a sensory level, hyperreflexia, and bladder involvement; CIDP is the same picture over >8 weeks.", "objective": "Look-alike discrimination", "section": "MS & MG"}, {"id": "71", "group": 71, "stem": "A 42-year-old man has had a strictly right-sided headache behind the eye for 3 days, with tearing of the right eye and a runny right nostril. The pain is excruciating and stabbing. He paces the room and cannot sit still during attacks, which last about 45 minutes and recur two or three times a day, including one that wakes him at 2 AM. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Tension-type headache"}, {"letter": "B", "text": "Migraine"}, {"letter": "C", "text": "Trigeminal neuralgia"}, {"letter": "D", "text": "Cluster headache"}, {"letter": "E", "text": "Paroxysmal hemicrania"}], "answer": "D", "explanation": "Same unilateral autonomic picture — the discriminators are SHORT attacks (15 min–3 h) recurring daily, nocturnal timing, and RESTLESS PACING rather than lying still.", "objective": "Look-alike discrimination", "section": "Headaches"}]});
+
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
