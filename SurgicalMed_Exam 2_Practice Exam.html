@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Surgical Medicine Exam 2 — Practice Exam", "questions": [{"id": "1", "group": 1, "stem": "Positive drop arm test and pain/weakness on Jobe's empty-can test → Tendon torn:", "options": [{"letter": "A", "text": "Long head of biceps"}, {"letter": "B", "text": "Subscapularis"}, {"letter": "C", "text": "Infraspinatus"}, {"letter": "D", "text": "Teres minor"}, {"letter": "E", "text": "Supraspinatus"}], "answer": "E", "explanation": "Supraspinatus = drop arm/Jobe; infraspinatus = ER lag; teres minor = Hornblower; subscapularis = belly press/lift-off. MRI is diagnostic.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 5: Rotator cuff impingement and tears — exam, imaging, surgical indications", "section": "Orthopedic Surgery"}, {"id": "2", "group": 2, "stem": "A T-tube is left in the common bile duct after CBD exploration. Which complication is classic for this tube?", "options": [{"letter": "A", "text": "Intracranial placement"}, {"letter": "B", "text": "Biliary leakage"}, {"letter": "C", "text": "Aspiration pneumonia"}, {"letter": "D", "text": "Chyle leak"}, {"letter": "E", "text": "Retrograde contamination"}], "answer": "B", "explanation": "T-tube complications: biliary leak (especially on removal), bacteremia, wound infection, post-op pancreatitis.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 2: Indications and complications of T-tubes, J-tubes, Penrose drains, and Jackson-Pratt drains", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "3", "group": 3, "stem": "POD 7 after 5 days of piperacillin-tazobactam: 8 watery, green, foul-smelling stools daily, cramping, T 103°F, WBC 19,600. Diagnosis?", "options": [{"letter": "A", "text": "Ischemic colitis"}, {"letter": "B", "text": "Pseudomembranous colitis"}, {"letter": "C", "text": "Enteral feeding intolerance"}, {"letter": "D", "text": "Postoperative ileus"}, {"letter": "E", "text": "Anastomotic leak"}], "answer": "B", "explanation": "C. difficile after antibiotics alter gut flora; WBC 10K–50K and hypoalbuminemia are typical.", "objective": "SURG MED — Postoperative Complications II — Obj 4: UTI, pseudomembranous colitis, necrotizing fasciitis, clostridial myositis, and peritoneal abscess", "section": "Post-Op Complications II"}, {"id": "3A", "group": 3, "stem": "Treatment?", "options": [{"letter": "A", "text": "IV vancomycin plus fluids"}, {"letter": "B", "text": "Ceftriaxone plus fluids"}, {"letter": "C", "text": "Loperamide plus fluids"}, {"letter": "D", "text": "Urgent colonoscopy"}, {"letter": "E", "text": "Oral vancomycin plus fluids"}], "answer": "E", "explanation": "Oral vancomycin + fluid/electrolytes; stop the inciting antibiotic; avoid antidiarrheals and narcotics.", "objective": "SURG MED — Postoperative Complications II — Obj 4: UTI, pseudomembranous colitis, necrotizing fasciitis, clostridial myositis, and peritoneal abscess", "section": "Post-Op Complications II"}, {"id": "4", "group": 4, "stem": "POD 3 after open AAA repair: urine output 0.2 mL/kg/h, creatinine 1.4 → 2.3, BUN:Cr 23:1, hyaline casts, dry mucous membranes, flat neck veins. Diagnosis?", "options": [{"letter": "A", "text": "Acute interstitial nephritis"}, {"letter": "B", "text": "Prerenal acute kidney injury"}, {"letter": "C", "text": "Postrenal obstruction"}, {"letter": "D", "text": "Acute tubular necrosis"}, {"letter": "E", "text": "Contrast nephropathy"}], "answer": "B", "explanation": "BUN:Cr > 20:1 with bland sediment/hyaline casts and hypovolemic exam = prerenal; treat with isotonic fluid and stop nephrotoxins (NSAIDs, ACEi).", "objective": "SURG MED — Postoperative Complications I — Obj 5: Fat emboli syndrome, intravascular catheter risks, postoperative renal failure, and DIC", "section": "Post-Op Complications I"}, {"id": "5", "group": 5, "stem": "Anesthesia provider certified by the NCCAA who always works under an anesthesiologist's medical direction →", "options": [{"letter": "A", "text": "PACU nurse"}, {"letter": "B", "text": "Anesthesiologist"}, {"letter": "C", "text": "Surgical first assistant"}, {"letter": "D", "text": "Certified Anesthesiologist Assistant"}, {"letter": "E", "text": "Certified Registered Nurse Anesthetist"}], "answer": "D", "explanation": "CAAs work under anesthesiologist medical direction; CRNA scope and supervision vary by state.", "objective": "SURG MED — Overview of General Anesthesia — Obj 11: Roles of anesthesiologists, CRNAs, and CAAs", "section": "General Anesthesia"}, {"id": "6", "group": 6, "stem": "A soccer player pivots, hears a pop, and the knee swells within an hour. Lachman is positive and x-ray shows a Segond fracture. Diagnosis?", "options": [{"letter": "A", "text": "ACL tear"}, {"letter": "B", "text": "Medial meniscus tear"}, {"letter": "C", "text": "Patellar fracture"}, {"letter": "D", "text": "PCL tear"}, {"letter": "E", "text": "MCL tear"}], "answer": "A", "explanation": "Pop + immediate hemarthrosis + Lachman/anterior drawer/pivot shift; Segond fracture and deep sulcus sign on x-ray.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 3: Knee disorders — arthritis, OCD, fracture, meniscal tears, ACL/PCL/MCL", "section": "Orthopedic Surgery"}, {"id": "6A", "group": 6, "stem": "Surgical treatment for an active young patient?", "options": [{"letter": "A", "text": "Partial meniscectomy"}, {"letter": "B", "text": "ACL reconstruction"}, {"letter": "C", "text": "Primary ACL repair"}, {"letter": "D", "text": "Total knee arthroplasty"}, {"letter": "E", "text": "Extension casting × 4 weeks"}], "answer": "B", "explanation": "Reconstruction, not repair — individualized to demand, age, and activity. ~50% have an associated meniscal tear.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 3: Knee disorders — arthritis, OCD, fracture, meniscal tears, ACL/PCL/MCL", "section": "Orthopedic Surgery"}, {"id": "7", "group": 7, "stem": "A hypotensive trauma patient needs induction for emergency surgery. Which induction agent is preferred?", "options": [{"letter": "A", "text": "Sevoflurane"}, {"letter": "B", "text": "Dexmedetomidine"}, {"letter": "C", "text": "Etomidate"}, {"letter": "D", "text": "Propofol"}, {"letter": "E", "text": "Midazolam"}], "answer": "C", "explanation": "Etomidate offers better cardiovascular stability; a propofol bolus drops the BP.", "objective": "SURG MED — Overview of General Anesthesia — Obj 5: Medications used to achieve unconsciousness and amnesia", "section": "General Anesthesia"}, {"id": "8", "group": 8, "stem": "Hours after thyroidectomy, the neck swells rapidly and the patient develops stridor. Next step?", "options": [{"letter": "A", "text": "Nebulized racemic epinephrine"}, {"letter": "B", "text": "Open the incision and secure the airway"}, {"letter": "C", "text": "Neck CT with contrast"}, {"letter": "D", "text": "Pressure dressing and observe"}, {"letter": "E", "text": "Ultrasound-guided aspiration"}], "answer": "B", "explanation": "Expanding neck hematoma is an airway emergency — open it at the bedside if the airway is threatened; OR with airway secured.", "objective": "SURG MED — Postoperative Complications II — Obj 1: Surgical wound hematoma and seroma", "section": "Post-Op Complications II"}, {"id": "9", "group": 9, "stem": "In the post-op SOAP note, how should the Plan be organized?", "options": [{"letter": "A", "text": "By time of day"}, {"letter": "B", "text": "By consultant service"}, {"letter": "C", "text": "Chronologically by POD"}, {"letter": "D", "text": "By medication list"}, {"letter": "E", "text": "By system"}], "answer": "E", "explanation": "S = feeling, pain, nausea, passing gas; O = vitals, exam, I&Os, labs; A = brief summary; P = plan by system.", "objective": "SURG MED — Ensuring Patient Recovery — Obj 5: Postoperative SOAP progress notes", "section": "Post-Op Care & Recovery"}, {"id": "10", "group": 10, "stem": "Three hours after outpatient surgery, a patient is oriented with stable vitals but has not voided and is still vomiting. Disposition?", "options": [{"letter": "A", "text": "Discharge once vitals remain stable"}, {"letter": "B", "text": "Discharge with a Foley catheter"}, {"letter": "C", "text": "Keep in PACU — discharge criteria not met"}, {"letter": "D", "text": "Discharge with an oral antiemetic"}, {"letter": "E", "text": "Discharge with a straight cath kit"}], "answer": "C", "explanation": "Ambulatory discharge requires orientation, stable vitals, pain controlled without IV meds, no vomiting, hemostasis, tolerating PO, and ability to void.", "objective": "SURG MED — Overview of General Anesthesia — Obj 9: Define PACU and its purpose", "section": "General Anesthesia"}, {"id": "11", "group": 11, "stem": "A 72-year-old has leg pain after walking a block, relieved by bending forward over a shopping cart. Neurologic exam is normal. After 6 months of failed conservative care, which procedure?", "options": [{"letter": "A", "text": "Sacroiliac fusion"}, {"letter": "B", "text": "Vertebroplasty"}, {"letter": "C", "text": "Decompressive laminectomy"}, {"letter": "D", "text": "Anterior cervical fusion"}, {"letter": "E", "text": "Microdiscectomy"}], "answer": "C", "explanation": "Neurogenic claudication — worse with extension, better with flexion = lumbar stenosis → laminectomy ± fusion.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 6: Discectomy, laminectomy, decompression, and fusion", "section": "Orthopedic Surgery"}, {"id": "12", "group": 12, "stem": "A patient needs paralysis within 45 seconds for rapid-sequence intubation and has no MH history. Which agent?", "options": [{"letter": "A", "text": "Vecuronium"}, {"letter": "B", "text": "Propofol"}, {"letter": "C", "text": "Dexmedetomidine"}, {"letter": "D", "text": "Succinylcholine"}, {"letter": "E", "text": "Ketamine"}], "answer": "D", "explanation": "Succinylcholine: onset 30–60 s, duration < 10 min — the only depolarizing NMB and an MH trigger.", "objective": "SURG MED — Overview of General Anesthesia — Obj 7: Medications used for muscle relaxation and neuromuscular blockade", "section": "General Anesthesia"}, {"id": "12A", "group": 12, "stem": "If the patient instead had a family history of MH, which combination is safe?", "options": [{"letter": "A", "text": "Succinylcholine with desflurane"}, {"letter": "B", "text": "Succinylcholine with propofol"}, {"letter": "C", "text": "Vecuronium with isoflurane"}, {"letter": "D", "text": "Rocuronium with sevoflurane"}, {"letter": "E", "text": "Rocuronium with total IV anesthesia"}], "answer": "E", "explanation": "Avoid all volatiles and succinylcholine; non-depolarizing NMB + TIVA is the clean anesthetic.", "objective": "SURG MED — Overview of General Anesthesia — Obj 7: Medications used for muscle relaxation and neuromuscular blockade", "section": "General Anesthesia"}, {"id": "13", "group": 13, "stem": "POD 1, a Jackson-Pratt drain is putting out bright red blood at 250 mL/h and BP is falling. Next step?", "options": [{"letter": "A", "text": "Strip the drain tubing"}, {"letter": "B", "text": "Return to the OR"}, {"letter": "C", "text": "Remove the drain"}, {"letter": "D", "text": "Send drain fluid for culture"}, {"letter": "E", "text": "Transfuse and observe"}], "answer": "B", "explanation": "Sanguineous output > 200 mL/h or instability = return to the OR.", "objective": "SURG MED — Ensuring Patient Recovery — Obj 4: Modify the plan for pain, nausea, and constipation based on response", "section": "Post-Op Care & Recovery"}, {"id": "14", "group": 14, "stem": "Type 1 diabetic scheduled for elective surgery → Best way to schedule and dose insulin:", "options": [{"letter": "A", "text": "Any time slot with sliding scale only"}, {"letter": "B", "text": "First case of the day, hold all insulin"}, {"letter": "C", "text": "Afternoon case with full AM insulin"}, {"letter": "D", "text": "First case of the day with ½ the AM insulin"}, {"letter": "E", "text": "Last case of the day, hold all insulin"}], "answer": "D", "explanation": "Prevent perioperative DKA: first case, ½ AM insulin, check glucose pre-op, consider IV dextrose; A1c < 6% ideal.", "objective": "SURG MED — Postoperative Complications I — Obj 4: DKA, diabetes insipidus, adrenal insufficiency/crisis, and SIADH after surgery", "section": "Post-Op Complications I"}, {"id": "15", "group": 15, "stem": "POD 1 after open colectomy, pain is 7/10 on scheduled acetaminophen alone. Next step?", "options": [{"letter": "A", "text": "Add an extended-release opioid"}, {"letter": "B", "text": "Add a scheduled NSAID"}, {"letter": "C", "text": "Increase acetaminophen to 6 g/day"}, {"letter": "D", "text": "Add PRN IV morphine only"}, {"letter": "E", "text": "Start a hydromorphone PCA"}], "answer": "B", "explanation": "The base layer is scheduled acetaminophen + scheduled NSAID; opioids are top-up only. APAP max 4000 mg/24 h.", "objective": "SURG MED — Ensuring Patient Recovery — Obj 3: Management plan for pain, nausea, and constipation", "section": "Post-Op Care & Recovery"}, {"id": "16", "group": 16, "stem": "After inguinal hernia repair under spinal anesthesia, an older man has not voided and has suprapubic discomfort. Bladder scan shows 750 mL. Next step?", "options": [{"letter": "A", "text": "Start tamsulosin and observe"}, {"letter": "B", "text": "IV fluid bolus"}, {"letter": "C", "text": "Renal ultrasound"}, {"letter": "D", "text": "Bladder catheterization"}, {"letter": "E", "text": "Trial of void in 4 hours"}], "answer": "D", "explanation": "POUR: > 600 mL retained over 2 hours → catheterize (intermittent or indwelling).", "objective": "SURG MED — Postoperative Complications I — Obj 3: Postoperative ileus, constipation, and urinary retention", "section": "Post-Op Complications I"}, {"id": "17", "group": 17, "stem": "POD 3 after open sigmoid colectomy on IV opioids: no flatus or stool, non-bilious emesis, distended tympanic abdomen with hypoactive bowel sounds, afebrile. Diagnosis?", "options": [{"letter": "A", "text": "Opioid-induced constipation"}, {"letter": "B", "text": "Pseudomembranous colitis"}, {"letter": "C", "text": "Small bowel obstruction"}, {"letter": "D", "text": "Postoperative ileus"}, {"letter": "E", "text": "Anastomotic leak"}], "answer": "D", "explanation": "Ileus follows abdominal/pelvic surgery and resolves within ~72 h; the colon is the slow segment (3–5 days).", "objective": "SURG MED — Postoperative Complications I — Obj 3: Postoperative ileus, constipation, and urinary retention", "section": "Post-Op Complications I"}, {"id": "17A", "group": 17, "stem": "Management?", "options": [{"letter": "A", "text": "Bisacodyl suppository"}, {"letter": "B", "text": "Emergent exploratory laparotomy"}, {"letter": "C", "text": "NPO, NG suction, reduce opioids"}, {"letter": "D", "text": "Start metronidazole"}, {"letter": "E", "text": "Advance diet and add antiemetic"}], "answer": "C", "explanation": "NPO, NG decompression if dilated/nauseated, correct electrolytes, cut the opioids, image if SBO is suspected.", "objective": "SURG MED — Postoperative Complications I — Obj 3: Postoperative ileus, constipation, and urinary retention", "section": "Post-Op Complications I"}, {"id": "18", "group": 18, "stem": "A hypotensive patient with a ruptured AAA is taken straight from the ED to the OR. ASA class?", "options": [{"letter": "A", "text": "ASA IV-E"}, {"letter": "B", "text": "ASA V"}, {"letter": "C", "text": "ASA V-E"}, {"letter": "D", "text": "ASA VI"}, {"letter": "E", "text": "ASA III-E"}], "answer": "C", "explanation": "Moribund, not expected to survive without the operation = V; the emergency modifier E is appended.", "objective": "SURG MED — Overview of General Anesthesia — Obj 3: Select the ASA Physical Status Classification for a given clinical scenario", "section": "General Anesthesia"}, {"id": "19", "group": 19, "stem": "After mastectomy with axillary dissection, the surgeon wants to obliterate dead space under the skin flap to prevent a seroma. Which drain fits?", "options": [{"letter": "A", "text": "Jackson-Pratt drain"}, {"letter": "B", "text": "Salem sump"}, {"letter": "C", "text": "T-tube"}, {"letter": "D", "text": "Penrose drain"}, {"letter": "E", "text": "Chest tube"}], "answer": "A", "explanation": "The JP is a closed suction bulb drain — the seroma-prevention drain. A Penrose is open and cannot measure output.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 2: Indications and complications of T-tubes, J-tubes, Penrose drains, and Jackson-Pratt drains", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "19A", "group": 19, "stem": "On POD 2 the drain output suddenly stops, but the flap is swollen and tense. What is the first step?", "options": [{"letter": "A", "text": "Strip the tubing and assess for occlusion"}, {"letter": "B", "text": "Start empiric antibiotics"}, {"letter": "C", "text": "Observe for 24 hours"}, {"letter": "D", "text": "Remove the drain"}, {"letter": "E", "text": "Return to the OR"}], "answer": "A", "explanation": "Sudden cessation with a clinical collection = occluded or malpositioned drain; strip the tubing, then bedside assessment or imaging.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 2: Indications and complications of T-tubes, J-tubes, Penrose drains, and Jackson-Pratt drains", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "20", "group": 20, "stem": "You need to incise and drain a fluctuant abscess. Which blade?", "options": [{"letter": "A", "text": "#22 blade"}, {"letter": "B", "text": "#11 blade"}, {"letter": "C", "text": "#15 blade"}, {"letter": "D", "text": "#20 blade"}, {"letter": "E", "text": "#10 blade"}], "answer": "B", "explanation": "#11 = straight pointed stab blade: I&D, port sites, arteriotomy, the guidewire skin nick. #10 = skin incision; #15 = fine work.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 4: Surgical blades 10, 11, 15 and handles and their indications", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "21", "group": 21, "stem": "POD 10 after mastectomy, a soft, fluctuant, nontender swelling appears under the flap. Aspiration returns clear yellow fluid; she is afebrile. Diagnosis?", "options": [{"letter": "A", "text": "Seroma"}, {"letter": "B", "text": "Abscess"}, {"letter": "C", "text": "Hematoma"}, {"letter": "D", "text": "Fat necrosis"}, {"letter": "E", "text": "Lymphangitis"}], "answer": "A", "explanation": "Liquefied fat, serum, lymph — the most common benign wound complication; large skin flaps. Aspirate ×2; prevent with suction drains.", "objective": "SURG MED — Postoperative Complications II — Obj 1: Surgical wound hematoma and seroma", "section": "Post-Op Complications II"}, {"id": "22", "group": 22, "stem": "A patient used no opioids in the 24 hours before discharge after a lap chole. Discharge analgesia?", "options": [{"letter": "A", "text": "Tramadol PRN for 30 days"}, {"letter": "B", "text": "Scheduled acetaminophen and NSAID, no opioid"}, {"letter": "C", "text": "Oxycodone ER for 7 days"}, {"letter": "D", "text": "Hydrocodone for 2 weeks"}, {"letter": "E", "text": "Oxycodone 5 mg for 3 days"}], "answer": "B", "explanation": "No opioid in the last 24 h = no automatic opioid prescription. If needed: ≤ 3–5 days, immediate-release only.", "objective": "SURG MED — Ensuring Patient Recovery — Obj 7: Discharge counseling", "section": "Post-Op Care & Recovery"}, {"id": "23", "group": 23, "stem": "Two days after repair of a contaminated crush wound: crepitus, bronze skin with bullae, thin drainage with a sweet \"mousy\" odor, and gas in the muscle on CT. He is nearly afebrile. Diagnosis?", "options": [{"letter": "A", "text": "Cellulitis"}, {"letter": "B", "text": "Infected hematoma"}, {"letter": "C", "text": "Clostridial myonecrosis"}, {"letter": "D", "text": "Necrotizing fasciitis"}, {"letter": "E", "text": "Wound seroma"}], "answer": "C", "explanation": "C. perfringens (~80%); little or no fever, gas in the tissues, sensorium may paradoxically clear near death.", "objective": "SURG MED — Postoperative Complications II — Obj 4: UTI, pseudomembranous colitis, necrotizing fasciitis, clostridial myositis, and peritoneal abscess", "section": "Post-Op Complications II"}, {"id": "23A", "group": 23, "stem": "Along with immediate debridement and antibiotics, which is part of treatment?", "options": [{"letter": "A", "text": "Primary wound closure"}, {"letter": "B", "text": "Hyperbaric oxygen and tetanus vaccine"}, {"letter": "C", "text": "IVC filter"}, {"letter": "D", "text": "Oral vancomycin"}, {"letter": "E", "text": "Systemic corticosteroids"}], "answer": "B", "explanation": "Debride, heal by secondary intention, hyperbaric O₂, antibiotics, tetanus.", "objective": "SURG MED — Postoperative Complications II — Obj 4: UTI, pseudomembranous colitis, necrotizing fasciitis, clostridial myositis, and peritoneal abscess", "section": "Post-Op Complications II"}, {"id": "24", "group": 24, "stem": "Electrocautery is needed on a finger in a patient with a pacemaker. Which setup?", "options": [{"letter": "A", "text": "Monopolar coagulation"}, {"letter": "B", "text": "Blended monopolar current"}, {"letter": "C", "text": "Monopolar cut"}, {"letter": "D", "text": "Monopolar with pad on the thigh"}, {"letter": "E", "text": "Bipolar cautery"}], "answer": "E", "explanation": "Bipolar passes current only between the forceps tips — no grounding pad, no current through the body.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 3: How the needle driver, forceps, Bovie, hemostats, and retractor are utilized", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "25", "group": 25, "stem": "A patient had a hip steroid injection last month and now wants a total hip arthroplasty. When should surgery be scheduled?", "options": [{"letter": "A", "text": "Wait until 3–6 months after the injection"}, {"letter": "B", "text": "Wait 12 months"}, {"letter": "C", "text": "Proceed after 6 weeks"}, {"letter": "D", "text": "Proceed within 2 weeks"}, {"letter": "E", "text": "Timing does not matter"}], "answer": "A", "explanation": "Injection closer than 3–6 months raises periprosthetic infection risk. Also optimize BMI < 35–40, Hgb > 11–12, A1c < 7–7.5, no tobacco > 30 days.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 1: Hip disorders — arthritis, osteonecrosis, labrum injury, hip fracture", "section": "Orthopedic Surgery"}, {"id": "26", "group": 26, "stem": "Lidocaine → Maximum dose when mixed with epinephrine:", "options": [{"letter": "A", "text": "7 mg/kg"}, {"letter": "B", "text": "2.5 mg/kg"}, {"letter": "C", "text": "10 mg/kg"}, {"letter": "D", "text": "3 mg/kg"}, {"letter": "E", "text": "4.5 mg/kg"}], "answer": "A", "explanation": "Epinephrine (1:200,000) limits systemic absorption, raising lidocaine's max from 4.5 to 7 mg/kg.", "objective": "SURG MED — Overview of General Anesthesia — Obj 8: Indications and contraindications for epinephrine in local anesthesia", "section": "General Anesthesia"}, {"id": "27", "group": 27, "stem": "A 40-year-old on chronic prednisone has insidious groin pain worse on stairs. Hip x-ray is normal. Next test?", "options": [{"letter": "A", "text": "CT of the pelvis"}, {"letter": "B", "text": "Bone scan"}, {"letter": "C", "text": "Repeat x-ray in 6 months"}, {"letter": "D", "text": "MRI of both hips"}, {"letter": "E", "text": "MRI arthrogram"}], "answer": "D", "explanation": "MRI detects early AVN (x-ray only shows moderate–late disease); 80% are bilateral.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 1: Hip disorders — arthritis, osteonecrosis, labrum injury, hip fracture", "section": "Orthopedic Surgery"}, {"id": "27A", "group": 27, "stem": "MRI shows early AVN without collapse. Operation?", "options": [{"letter": "A", "text": "Hip arthrodesis"}, {"letter": "B", "text": "Total hip arthroplasty"}, {"letter": "C", "text": "Pelvic osteotomy"}, {"letter": "D", "text": "Hip resurfacing"}, {"letter": "E", "text": "Core decompression"}], "answer": "E", "explanation": "Core decompression ± bone graft only works before collapse; THA once the head collapses or DJD is severe.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 2: Surgical options for hip disorders", "section": "Orthopedic Surgery"}, {"id": "28", "group": 28, "stem": "POD 1 after open hemicolectomy, a smoker is splinting from pain and not using his incentive spirometer. SpO₂ 90%, T 100.8°F, decreased breath sounds and crackles at the bases. Diagnosis?", "options": [{"letter": "A", "text": "Pulmonary embolism"}, {"letter": "B", "text": "Atelectasis"}, {"letter": "C", "text": "Hospital-acquired pneumonia"}, {"letter": "D", "text": "Aspiration pneumonitis"}, {"letter": "E", "text": "Fat embolism syndrome"}], "answer": "B", "explanation": "Atelectasis peaks the 2nd post-op night; pain-driven hypoventilation is the mechanism.", "objective": "SURG MED — Postoperative Complications I — Obj 1: Atelectasis, respiratory failure, aspiration pneumonia, and aspiration pneumonitis", "section": "Post-Op Complications I"}, {"id": "29", "group": 29, "stem": "POD 11 fever. Cultures, CXR, UA, and wound are all negative and the patient looks well. He is on vancomycin and heparin. Most likely cause?", "options": [{"letter": "A", "text": "Drug fever"}, {"letter": "B", "text": "Atelectasis"}, {"letter": "C", "text": "Catheter-associated UTI"}, {"letter": "D", "text": "Occult DVT"}, {"letter": "E", "text": "Malignant hyperthermia"}], "answer": "A", "explanation": "'Wonder drugs' — POD > 9 with no source; antimicrobials and heparin are the most common culprits.", "objective": "SURG MED — Postoperative Complications II — Obj 6: Etiologies of postoperative fever by time frame", "section": "Post-Op Complications II"}, {"id": "30", "group": 30, "stem": "A head-trauma patient with raccoon eyes and clear rhinorrhea needs gastric decompression. Which device is contraindicated?", "options": [{"letter": "A", "text": "Orogastric tube"}, {"letter": "B", "text": "Nasogastric tube"}, {"letter": "C", "text": "Foley catheter"}, {"letter": "D", "text": "Peripheral IV"}, {"letter": "E", "text": "Endotracheal tube"}], "answer": "B", "explanation": "Basilar skull fracture, severe facial fracture, and an obstructed airway contraindicate an NG tube — use an orogastric tube.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 1: Indications and complications of central lines, peripheral lines, chest tubes, NG tubes, urethral catheters, and endotracheal tubes", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "30A", "group": 30, "stem": "What is the feared complication of the contraindicated device?", "options": [{"letter": "A", "text": "Epistaxis"}, {"letter": "B", "text": "Esophageal perforation"}, {"letter": "C", "text": "Sinusitis"}, {"letter": "D", "text": "Aspiration"}, {"letter": "E", "text": "Intracranial placement"}], "answer": "E", "explanation": "The tube can pass through the fractured cribriform plate into the cranial vault.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 1: Indications and complications of central lines, peripheral lines, chest tubes, NG tubes, urethral catheters, and endotracheal tubes", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "31", "group": 31, "stem": "An opioid-naive patient starts a morphine PCA after abdominal surgery. Which setting should be avoided?", "options": [{"letter": "A", "text": "A continuous basal rate"}, {"letter": "B", "text": "A 1 mg demand dose"}, {"letter": "C", "text": "A clinician loading dose"}, {"letter": "D", "text": "A 6–12 minute lockout"}, {"letter": "E", "text": "Capnography monitoring"}], "answer": "A", "explanation": "Basal rates in the opioid-naive raise nocturnal respiratory depression risk; reserve for opioid-tolerant patients.", "objective": "SURG MED — Ensuring Patient Recovery — Obj 3: Management plan for pain, nausea, and constipation", "section": "Post-Op Care & Recovery"}, {"id": "32", "group": 32, "stem": "An 82-year-old woman falls and has a shortened, externally rotated leg. X-ray shows a displaced intracapsular femoral neck fracture. Best operation?", "options": [{"letter": "A", "text": "Cephalomedullary nail"}, {"letter": "B", "text": "Hip arthrodesis"}, {"letter": "C", "text": "Hemiarthroplasty or total hip arthroplasty"}, {"letter": "D", "text": "Cannulated screw fixation"}, {"letter": "E", "text": "Non-operative bed rest"}], "answer": "C", "explanation": "Displaced femoral neck in the elderly → arthroplasty; young/non-displaced → cannulated screws or sliding hip screw.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 1: Hip disorders — arthritis, osteonecrosis, labrum injury, hip fracture", "section": "Orthopedic Surgery"}, {"id": "32A", "group": 32, "stem": "Why does this fracture location carry a high risk of AVN and nonunion?", "options": [{"letter": "A", "text": "It lies in high-cortical, low-flow bone"}, {"letter": "B", "text": "It is extracapsular — cancellous bone exposed"}, {"letter": "C", "text": "It lies at the hip abductor insertion"}, {"letter": "D", "text": "It is within 5 cm of the lesser trochanter"}, {"letter": "E", "text": "It is intracapsular — medial femoral circumflex disrupted"}], "answer": "E", "explanation": "Intracapsular disrupts the femoral head supply; intertrochanteric fractures are extracapsular with better blood supply.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 1: Hip disorders — arthritis, osteonecrosis, labrum injury, hip fracture", "section": "Orthopedic Surgery"}, {"id": "33", "group": 33, "stem": "POD 2 after femoral intramedullary nailing, a patient is confused with SpO₂ 86%, diffuse crackles, and non-blanching petechiae in the axillae and conjunctivae. Diagnosis?", "options": [{"letter": "A", "text": "Pulmonary embolism"}, {"letter": "B", "text": "Bone cement implantation syndrome"}, {"letter": "C", "text": "Fat embolism syndrome"}, {"letter": "D", "text": "Septic DIC"}, {"letter": "E", "text": "Aspiration pneumonia"}], "answer": "C", "explanation": "Triad: hypoxemia + neurologic change + petechial rash after a long-bone fracture (48 h in 85%).", "objective": "SURG MED — Postoperative Complications I — Obj 5: Fat emboli syndrome, intravascular catheter risks, postoperative renal failure, and DIC", "section": "Post-Op Complications I"}, {"id": "34", "group": 34, "stem": "A 4-year-old with no IV access needs sedation for a laceration repair. Which agent?", "options": [{"letter": "A", "text": "Ketamine"}, {"letter": "B", "text": "Fentanyl"}, {"letter": "C", "text": "Midazolam"}, {"letter": "D", "text": "Etomidate"}, {"letter": "E", "text": "Propofol"}], "answer": "A", "explanation": "Ketamine can be given IM and does not cause respiratory arrest.", "objective": "SURG MED — Overview of General Anesthesia — Obj 5: Medications used to achieve unconsciousness and amnesia", "section": "General Anesthesia"}, {"id": "35", "group": 35, "stem": "Compared with the anterior approach, posterior total hip arthroplasty carries a higher risk of:", "options": [{"letter": "A", "text": "Infection under a large pannus"}, {"letter": "B", "text": "Abductor mechanism injury"}, {"letter": "C", "text": "Femoral nerve palsy"}, {"letter": "D", "text": "LFCN paresthesia"}, {"letter": "E", "text": "Dislocation and sciatic nerve palsy"}], "answer": "E", "explanation": "Posterior is most common with good exposure but more dislocation and sciatic palsy; anterior risks LFCN/femoral nerve and pannus infection.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 2: Surgical options for hip disorders", "section": "Orthopedic Surgery"}, {"id": "36", "group": 36, "stem": "Shortly after succinylcholine induction and sevoflurane maintenance, end-tidal CO₂ doubles, heart rate climbs, and the jaw is rigid. Diagnosis?", "options": [{"letter": "A", "text": "Neuroleptic malignant syndrome"}, {"letter": "B", "text": "Early sepsis"}, {"letter": "C", "text": "Transfusion reaction"}, {"letter": "D", "text": "Thyroid storm"}, {"letter": "E", "text": "Malignant hyperthermia"}], "answer": "E", "explanation": "Unexplained hypercarbia with masseter rigidity after a trigger (volatile agent or succinylcholine) = MH.", "objective": "SURG MED — Overview of General Anesthesia — Obj 10: Malignant hyperthermia — signs, symptoms, and treatment", "section": "General Anesthesia"}, {"id": "36A", "group": 36, "stem": "What is the first step?", "options": [{"letter": "A", "text": "Give sodium bicarbonate"}, {"letter": "B", "text": "Give a rocuronium bolus"}, {"letter": "C", "text": "Deepen the sevoflurane"}, {"letter": "D", "text": "Apply cooling blankets"}, {"letter": "E", "text": "Stop the volatile agent and succinylcholine"}], "answer": "E", "explanation": "Discontinue triggers → call for help → dantrolene → treat acidosis, hyperkalemia, and temperature.", "objective": "SURG MED — Overview of General Anesthesia — Obj 10: Malignant hyperthermia — signs, symptoms, and treatment", "section": "General Anesthesia"}, {"id": "36B", "group": 36, "stem": "Which drug and dose treat the underlying mechanism?", "options": [{"letter": "A", "text": "Dantrolene 2.5 mg/kg IV"}, {"letter": "B", "text": "Dantrolene 0.25 mg/kg IV"}, {"letter": "C", "text": "Rocuronium 1 mg/kg IV"}, {"letter": "D", "text": "Bromocriptine 2.5 mg PO"}, {"letter": "E", "text": "Naloxone 0.4 mg IV"}], "answer": "A", "explanation": "Dantrolene blocks Ca²⁺ release from the sarcoplasmic reticulum; must be reconstituted with sterile water (Ryanodex 1 mg/kg, max 10 mg/kg).", "objective": "SURG MED — Overview of General Anesthesia — Obj 10: Malignant hyperthermia — signs, symptoms, and treatment", "section": "General Anesthesia"}, {"id": "37", "group": 37, "stem": "POD 5, a drain has put out 20 mL of serous fluid in 24 hours. The patient is still on cefazolin \"because the drain is in.\" Plan?", "options": [{"letter": "A", "text": "Remove the drain and stop the antibiotic"}, {"letter": "B", "text": "Keep the drain, stop cefazolin"}, {"letter": "C", "text": "Culture the drain fluid first"}, {"letter": "D", "text": "Keep the drain, continue cefazolin"}, {"letter": "E", "text": "Remove the drain, continue cefazolin"}], "answer": "A", "explanation": "Remove at < 30 mL/24 h; antibiotics solely for a drain do not reduce SSI.", "objective": "SURG MED — Ensuring Patient Recovery — Obj 9: Evidence-based justification of post-op decisions", "section": "Post-Op Care & Recovery"}, {"id": "38", "group": 38, "stem": "A patient with a proximal femoral DVT develops an active GI bleed that precludes anticoagulation. Best option?", "options": [{"letter": "A", "text": "Catheter-directed thrombolysis"}, {"letter": "B", "text": "Compression stockings alone"}, {"letter": "C", "text": "Repeat duplex in a week"}, {"letter": "D", "text": "IVC filter"}, {"letter": "E", "text": "Warfarin alone"}], "answer": "D", "explanation": "IVC filter indications: contraindication to or failure of anticoagulation, or recurrent thromboembolism despite anticoagulation.", "objective": "SURG MED — Postoperative Complications I — Obj 2: IVC filter and its indications", "section": "Post-Op Complications I"}, {"id": "39", "group": 39, "stem": "An overhead athlete has night pain and pain lifting overhead. Strength is normal; Neer and Hawkins tests are positive. Diagnosis?", "options": [{"letter": "A", "text": "Subacromial impingement"}, {"letter": "B", "text": "Full-thickness supraspinatus tear"}, {"letter": "C", "text": "Subscapularis tear"}, {"letter": "D", "text": "Glenohumeral osteoarthritis"}, {"letter": "E", "text": "Adhesive capsulitis"}], "answer": "A", "explanation": "Impingement is the most common cause of shoulder pain; normal strength separates it from a tear.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 5: Rotator cuff impingement and tears — exam, imaging, surgical indications", "section": "Orthopedic Surgery"}, {"id": "39A", "group": 39, "stem": "After failed NSAIDs, PT, and subacromial injections, which operation?", "options": [{"letter": "A", "text": "Superior capsular reconstruction"}, {"letter": "B", "text": "Arthroscopic rotator cuff repair"}, {"letter": "C", "text": "Subacromial decompression / acromioplasty"}, {"letter": "D", "text": "Total shoulder arthroplasty"}, {"letter": "E", "text": "Reverse total shoulder arthroplasty"}], "answer": "C", "explanation": "Operative treatment of impingement is subacromial decompression/acromioplasty.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 5: Rotator cuff impingement and tears — exam, imaging, surgical indications", "section": "Orthopedic Surgery"}, {"id": "40", "group": 40, "stem": "POD 2, a patient has incisional pain far out of proportion to exam, edema extending beyond the erythema, thin gray dishwater drainage, and T 103°F. Diagnosis?", "options": [{"letter": "A", "text": "Wound seroma"}, {"letter": "B", "text": "Necrotizing fasciitis"}, {"letter": "C", "text": "Superficial SSI with cellulitis"}, {"letter": "D", "text": "Wound hematoma"}, {"letter": "E", "text": "Clostridial myonecrosis"}], "answer": "B", "explanation": "Group A Strep; pain out of proportion, edema beyond erythema, high fever, systemic toxicity.", "objective": "SURG MED — Postoperative Complications II — Obj 4: UTI, pseudomembranous colitis, necrotizing fasciitis, clostridial myositis, and peritoneal abscess", "section": "Post-Op Complications II"}, {"id": "40A", "group": 40, "stem": "Next step?", "options": [{"letter": "A", "text": "IV antibiotics and reassess"}, {"letter": "B", "text": "MRI to define extent first"}, {"letter": "C", "text": "Hyperbaric oxygen alone"}, {"letter": "D", "text": "Emergent surgical debridement"}, {"letter": "E", "text": "Bedside incision and drainage"}], "answer": "D", "explanation": "Imaging must never delay the OR; debride until viable tissue + carbapenem/Zosyn + vanc/dapto + clindamycin.", "objective": "SURG MED — Postoperative Complications II — Obj 4: UTI, pseudomembranous colitis, necrotizing fasciitis, clostridial myositis, and peritoneal abscess", "section": "Post-Op Complications II"}, {"id": "41", "group": 41, "stem": "A chest tube is being placed for a pneumothorax. Where should the tube be directed?", "options": [{"letter": "A", "text": "Apically and anteriorly"}, {"letter": "B", "text": "Toward the diaphragm"}, {"letter": "C", "text": "Posteriorly at the 8th ICS"}, {"letter": "D", "text": "Basally and posteriorly"}, {"letter": "E", "text": "Medially toward the hilum"}], "answer": "A", "explanation": "Air rises — apical/anterior. Fluid falls — basal/posterior. Insert at the 4th–5th ICS, mid-to-anterior axillary line.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 1: Indications and complications of central lines, peripheral lines, chest tubes, NG tubes, urethral catheters, and endotracheal tubes", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "41A", "group": 41, "stem": "Continuous bubbling then appears in the water-seal chamber. What does this indicate?", "options": [{"letter": "A", "text": "Resolution of the pneumothorax"}, {"letter": "B", "text": "Normal suction function"}, {"letter": "C", "text": "Re-expansion pulmonary edema"}, {"letter": "D", "text": "A clotted chest tube"}, {"letter": "E", "text": "An air leak in the system"}], "answer": "E", "explanation": "Chamber 2 is a one-way valve; bubbling there means an air leak — check connections and the patient.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 1: Indications and complications of central lines, peripheral lines, chest tubes, NG tubes, urethral catheters, and endotracheal tubes", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "42", "group": 42, "stem": "An intertrochanteric fracture is fixed with a sliding hip screw. Most common complication?", "options": [{"letter": "A", "text": "Loss of fixation"}, {"letter": "B", "text": "Heterotopic ossification"}, {"letter": "C", "text": "Sciatic nerve palsy"}, {"letter": "D", "text": "Avascular necrosis"}, {"letter": "E", "text": "Dural tear"}], "answer": "A", "explanation": "Loss of fixation (usually poor lag-screw position) is most common; also cutout, VTE, infection, malunion, nonunion.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 1: Hip disorders — arthritis, osteonecrosis, labrum injury, hip fracture", "section": "Orthopedic Surgery"}, {"id": "43", "group": 43, "stem": "A patient ate a cheeseburger 4 hours ago and is scheduled for elective surgery. Plan?", "options": [{"letter": "A", "text": "Delay until 8 hours have passed"}, {"letter": "B", "text": "Proceed under MAC instead"}, {"letter": "C", "text": "Proceed now"}, {"letter": "D", "text": "Proceed after 2 hours of clears"}, {"letter": "E", "text": "Delay until 6 hours have passed"}], "answer": "A", "explanation": "NPO 8/6/2: fatty foods 8 h, light meal 6 h, clear liquids 2 h.", "objective": "SURG MED — Overview of General Anesthesia — Obj 4: Compare procedural steps and indications for general, regional, and local anesthesia", "section": "General Anesthesia"}, {"id": "44", "group": 44, "stem": "POD 2, a hemodynamically stable, euvolemic patient has borderline urine output. Weight is up 3 kg since yesterday. Plan?", "options": [{"letter": "A", "text": "Start albumin infusion"}, {"letter": "B", "text": "Insert a Foley for strict I&O"}, {"letter": "C", "text": "Double the maintenance rate"}, {"letter": "D", "text": "Stop IV fluids and do not chase urine output"}, {"letter": "E", "text": "Give a 1 L crystalloid bolus"}], "answer": "D", "explanation": "Target euvolemia; urine output is unreliable post-op; weight gain > 2.5 kg/day signals harmful overload.", "objective": "SURG MED — Ensuring Patient Recovery — Obj 4: Modify the plan for pain, nausea, and constipation based on response", "section": "Post-Op Care & Recovery"}, {"id": "45", "group": 45, "stem": "A patient develops abrupt spiking fevers with mild erythema at the central line site and no other source. Next step?", "options": [{"letter": "A", "text": "Obtain a CT abdomen and pelvis"}, {"letter": "B", "text": "Remove the line, culture the tip and blood"}, {"letter": "C", "text": "Observe and repeat vitals q4h"}, {"letter": "D", "text": "Rewire the line over a guidewire"}, {"letter": "E", "text": "Start oral antibiotics, keep line"}], "answer": "B", "explanation": "Removal is curative; always send the tip and draw cultures from the line AND peripherally; cover gram-positives (S. aureus is most common).", "objective": "SURG MED — Postoperative Complications I — Obj 5: Fat emboli syndrome, intravascular catheter risks, postoperative renal failure, and DIC", "section": "Post-Op Complications I"}, {"id": "46", "group": 46, "stem": "A patient is started on scheduled oxycodone after a hip fracture repair. Bowel plan?", "options": [{"letter": "A", "text": "No plan — tolerance develops"}, {"letter": "B", "text": "Start only if complaints arise"}, {"letter": "C", "text": "Wait for 3 days without stool"}, {"letter": "D", "text": "Start a bowel regimen now"}, {"letter": "E", "text": "Loperamide PRN"}], "answer": "D", "explanation": "Tolerance never develops to opioid constipation — start PEG 3350, senna, Mg(OH)₂, or lactulose with the opioid.", "objective": "SURG MED — Ensuring Patient Recovery — Obj 3: Management plan for pain, nausea, and constipation", "section": "Post-Op Care & Recovery"}, {"id": "47", "group": 47, "stem": "An obtunded patient vomits and aspirates gastric contents during induction. Hours later the CXR shows diffuse bilateral fluffy infiltrates. Diagnosis?", "options": [{"letter": "A", "text": "Atelectasis"}, {"letter": "B", "text": "Aspiration pneumonitis"}, {"letter": "C", "text": "Cardiogenic pulmonary edema"}, {"letter": "D", "text": "Aspiration pneumonia"}, {"letter": "E", "text": "Lobar pneumonia"}], "answer": "B", "explanation": "Pneumonitis = gastric acid = chemical 'flash burn'. Pneumonia = colonized oropharyngeal secretions days later, focal infiltrate.", "objective": "SURG MED — Postoperative Complications I — Obj 1: Atelectasis, respiratory failure, aspiration pneumonia, and aspiration pneumonitis", "section": "Post-Op Complications I"}, {"id": "47A", "group": 47, "stem": "Management?", "options": [{"letter": "A", "text": "High-dose corticosteroids"}, {"letter": "B", "text": "Supportive care without antibiotics"}, {"letter": "C", "text": "Emergent CT angiography"}, {"letter": "D", "text": "Empiric broad-spectrum antibiotics"}, {"letter": "E", "text": "Therapeutic bronchoscopy"}], "answer": "B", "explanation": "Suction if witnessed, but it won't undo the chemical injury — supportive care only.", "objective": "SURG MED — Postoperative Complications I — Obj 1: Atelectasis, respiratory failure, aspiration pneumonia, and aspiration pneumonitis", "section": "Post-Op Complications I"}, {"id": "48", "group": 48, "stem": "A malnourished patient with gastroparesis and a high aspiration risk needs long-term enteral feeding. Which tube is preferred?", "options": [{"letter": "A", "text": "PICC line for TPN"}, {"letter": "B", "text": "Jejunostomy (J-tube)"}, {"letter": "C", "text": "Nasogastric tube"}, {"letter": "D", "text": "Gastrostomy (G-tube)"}, {"letter": "E", "text": "Salem sump tube"}], "answer": "B", "explanation": "Feeding past the pylorus is the reason to choose a J-tube over a G-tube: aspiration risk or impaired gastric emptying.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 2: Indications and complications of T-tubes, J-tubes, Penrose drains, and Jackson-Pratt drains", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "49", "group": 49, "stem": "Minutes after a right subclavian central line is placed, the patient becomes tachycardic and hypotensive with absent breath sounds on the right. What is the most likely complication?", "options": [{"letter": "A", "text": "Line-related sepsis"}, {"letter": "B", "text": "Arterial puncture"}, {"letter": "C", "text": "Air embolism"}, {"letter": "D", "text": "Pneumothorax"}, {"letter": "E", "text": "Retained guidewire"}], "answer": "D", "explanation": "Pneumothorax is the classic complication of subclavian and IJ lines — the reason a CXR follows every central line placement.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 1: Indications and complications of central lines, peripheral lines, chest tubes, NG tubes, urethral catheters, and endotracheal tubes", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "49A", "group": 49, "stem": "Which study should follow every central line placement?", "options": [{"letter": "A", "text": "CT of the chest"}, {"letter": "B", "text": "Venous duplex ultrasound"}, {"letter": "C", "text": "Arterial blood gas"}, {"letter": "D", "text": "Chest x-ray"}, {"letter": "E", "text": "Echocardiogram"}], "answer": "D", "explanation": "CXR confirms the tip sits in the SVC just proximal to the right atrium and rules out pneumothorax.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 1: Indications and complications of central lines, peripheral lines, chest tubes, NG tubes, urethral catheters, and endotracheal tubes", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "50", "group": 50, "stem": "POD 4 after hemicolectomy, T 101.7°F, WBC 15,800. The Foley came out on POD 2; she has no dysuria. UA shows pyuria and nitrites. Diagnosis?", "options": [{"letter": "A", "text": "Asymptomatic bacteriuria"}, {"letter": "B", "text": "Surgical site infection"}, {"letter": "C", "text": "Catheter-associated UTI"}, {"letter": "D", "text": "Atelectasis"}, {"letter": "E", "text": "Peritoneal abscess"}], "answer": "C", "explanation": "'Water' window (POD 3–5); post-op UTI may be only fever and leukocytosis. Don't dismiss it as asymptomatic bacteriuria.", "objective": "SURG MED — Postoperative Complications II — Obj 4: UTI, pseudomembranous colitis, necrotizing fasciitis, clostridial myositis, and peritoneal abscess", "section": "Post-Op Complications II"}, {"id": "50A", "group": 50, "stem": "Initial treatment?", "options": [{"letter": "A", "text": "Metronidazole IV"}, {"letter": "B", "text": "Observe — no treatment"}, {"letter": "C", "text": "Ceftriaxone 1 g IV, narrow by culture"}, {"letter": "D", "text": "Oral vancomycin"}, {"letter": "E", "text": "Reinsert the Foley catheter"}], "answer": "C", "explanation": "Culture first if it won't delay therapy; empiric ceftriaxone, then narrow. Prevention = early Foley removal.", "objective": "SURG MED — Postoperative Complications II — Obj 4: UTI, pseudomembranous colitis, necrotizing fasciitis, clostridial myositis, and peritoneal abscess", "section": "Post-Op Complications II"}, {"id": "51", "group": 51, "stem": "During cholecystectomy the surgeon needs to pass a tie behind the cystic artery. Which instrument?", "options": [{"letter": "A", "text": "Allis clamp"}, {"letter": "B", "text": "Babcock clamp"}, {"letter": "C", "text": "Right angle (Mixter) clamp"}, {"letter": "D", "text": "Mosquito clamp"}, {"letter": "E", "text": "Kocher clamp"}], "answer": "C", "explanation": "The 90° tip of the right angle passes ties or vessel loops behind a vessel or duct.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 6: Clamps, retractors, forceps, needle drivers, suction, and other tools", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "52", "group": 52, "stem": "NSAIDs are absolutely contraindicated after which operation?", "options": [{"letter": "A", "text": "Laparoscopic cholecystectomy"}, {"letter": "B", "text": "Total knee arthroplasty"}, {"letter": "C", "text": "Inguinal hernia repair"}, {"letter": "D", "text": "Coronary artery bypass grafting"}, {"letter": "E", "text": "Thyroidectomy"}], "answer": "D", "explanation": "CABG is the absolute contraindication; celecoxib for high bleeding risk; naproxen for high CV risk; ketorolac ≤ 5 days.", "objective": "SURG MED — Ensuring Patient Recovery — Obj 3: Management plan for pain, nausea, and constipation", "section": "Post-Op Care & Recovery"}, {"id": "53", "group": 53, "stem": "Hospital-acquired MRSA → Where post-surgical infections most often begin:", "options": [{"letter": "A", "text": "Lungs after aspiration"}, {"letter": "B", "text": "Urinary tract after Foley removal"}, {"letter": "C", "text": "Skin, surgical site, or a device/line site"}, {"letter": "D", "text": "Colon after bowel prep"}, {"letter": "E", "text": "Oropharynx after intubation"}], "answer": "C", "explanation": "HA-MRSA starts at the skin, surgical site, or device/line site → bacteremia, pneumonia, SSI. Treat with vancomycin + MIC studies + ID consult.", "objective": "SURG MED — Postoperative Complications II — Obj 3: Etiology and post-surgical sites for MRSA infections", "section": "Post-Op Complications II"}, {"id": "54", "group": 54, "stem": "POD 1 after transsphenoidal pituitary resection, urine output is 400 mL/h of dilute urine and serum sodium is rising. Diagnosis?", "options": [{"letter": "A", "text": "Central diabetes insipidus"}, {"letter": "B", "text": "Post-obstructive diuresis"}, {"letter": "C", "text": "Adrenal crisis"}, {"letter": "D", "text": "SIADH"}, {"letter": "E", "text": "Osmotic diuresis from DKA"}], "answer": "A", "explanation": "Dilute polyuria + rising Na⁺ = DI; concentrated urine + falling Na⁺ = SIADH. Both can follow the same pituitary operation.", "objective": "SURG MED — Postoperative Complications I — Obj 4: DKA, diabetes insipidus, adrenal insufficiency/crisis, and SIADH after surgery", "section": "Post-Op Complications I"}, {"id": "54A", "group": 54, "stem": "Treatment?", "options": [{"letter": "A", "text": "Hypertonic saline"}, {"letter": "B", "text": "IV insulin infusion"}, {"letter": "C", "text": "Stress-dose hydrocortisone"}, {"letter": "D", "text": "Fluid restriction"}, {"letter": "E", "text": "Desmopressin with matched fluid replacement"}], "answer": "E", "explanation": "Desmopressin IV q12–24h; replace losses because the NPO patient cannot drink to keep up.", "objective": "SURG MED — Postoperative Complications I — Obj 4: DKA, diabetes insipidus, adrenal insufficiency/crisis, and SIADH after surgery", "section": "Post-Op Complications I"}, {"id": "55", "group": 55, "stem": "A 55-year-old with well-controlled hypertension who smokes a pack a day and has no activity limitation is scheduled for elective hernia repair. ASA class?", "options": [{"letter": "A", "text": "ASA I"}, {"letter": "B", "text": "ASA III"}, {"letter": "C", "text": "ASA II-E"}, {"letter": "D", "text": "ASA II"}, {"letter": "E", "text": "ASA IV"}], "answer": "D", "explanation": "Mild systemic disease without functional limitation (controlled HTN, smoker) = ASA II.", "objective": "SURG MED — Overview of General Anesthesia — Obj 3: Select the ASA Physical Status Classification for a given clinical scenario", "section": "General Anesthesia"}, {"id": "56", "group": 56, "stem": "A 64-year-old has medial-compartment-only knee arthritis, flexion to 110°, no flexion contracture, and an intact ACL. Best operation?", "options": [{"letter": "A", "text": "Knee arthroscopy with debridement"}, {"letter": "B", "text": "Total knee arthroplasty"}, {"letter": "C", "text": "Knee arthrodesis"}, {"letter": "D", "text": "High tibial osteotomy"}, {"letter": "E", "text": "Unicompartmental knee arthroplasty"}], "answer": "E", "explanation": "UKA requires all four: age > 60, flexion > 90°, contracture < 15°, intact ACL.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 4: Knee arthroscopy and total knee arthroplasty", "section": "Orthopedic Surgery"}, {"id": "57", "group": 57, "stem": "POD 1 after emergent colectomy for fecal peritonitis, a septic, massively transfused patient oozes from the incision and every line. Platelets 60K, PT/aPTT prolonged, fibrinogen 90, D-dimer very high. Diagnosis?", "options": [{"letter": "A", "text": "Heparin-induced thrombocytopenia"}, {"letter": "B", "text": "Vitamin K deficiency"}, {"letter": "C", "text": "Disseminated intravascular coagulation"}, {"letter": "D", "text": "Thrombotic thrombocytopenic purpura"}, {"letter": "E", "text": "Dilutional thrombocytopenia"}], "answer": "C", "explanation": "DIC quartet: ↓ platelets, ↑ PT/aPTT, ↓ fibrinogen, ↑ D-dimer in sepsis, trauma, or malignancy.", "objective": "SURG MED — Postoperative Complications I — Obj 5: Fat emboli syndrome, intravascular catheter risks, postoperative renal failure, and DIC", "section": "Post-Op Complications I"}, {"id": "58", "group": 58, "stem": "A 68-year-old had an MI 6 weeks ago and still has angina at rest. ASA class?", "options": [{"letter": "A", "text": "ASA II"}, {"letter": "B", "text": "ASA VI"}, {"letter": "C", "text": "ASA IV"}, {"letter": "D", "text": "ASA V"}, {"letter": "E", "text": "ASA III"}], "answer": "C", "explanation": "MI, CVA, or stent < 3 months ago or ongoing ischemia = constant threat to life = ASA IV.", "objective": "SURG MED — Overview of General Anesthesia — Obj 3: Select the ASA Physical Status Classification for a given clinical scenario", "section": "General Anesthesia"}, {"id": "59", "group": 59, "stem": "New foot drop after total knee arthroplasty → Nerve injured:", "options": [{"letter": "A", "text": "Sciatic"}, {"letter": "B", "text": "Obturator"}, {"letter": "C", "text": "Femoral"}, {"letter": "D", "text": "Common peroneal"}, {"letter": "E", "text": "Tibial"}], "answer": "D", "explanation": "Nerve palsy map: TKA → peroneal; posterior THA → sciatic; anterior THA → femoral/LFCN; TSA → axillary.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 4: Knee arthroscopy and total knee arthroplasty", "section": "Orthopedic Surgery"}, {"id": "60", "group": 60, "stem": "Lidocaine with epinephrine is classically avoided in which setting?", "options": [{"letter": "A", "text": "Scalp laceration repair"}, {"letter": "B", "text": "Digital block of a finger"}, {"letter": "C", "text": "Skin wheal before an IV"}, {"letter": "D", "text": "Forearm lipoma excision"}, {"letter": "E", "text": "Abdominal incision infiltration"}], "answer": "B", "explanation": "Classic teaching: avoid epi in end-arterial structures — fingers, toes, nose, ears, penis.", "objective": "SURG MED — Overview of General Anesthesia — Obj 8: Indications and contraindications for epinephrine in local anesthesia", "section": "General Anesthesia"}, {"id": "61", "group": 61, "stem": "A trauma patient with a pelvic fracture has blood at the urethral meatus. What should happen before any bladder catheter is placed?", "options": [{"letter": "A", "text": "Coude catheter placement"}, {"letter": "B", "text": "Retrograde urethrogram"}, {"letter": "C", "text": "Foley with a smaller French size"}, {"letter": "D", "text": "Bladder scan"}, {"letter": "E", "text": "Straight catheterization"}], "answer": "B", "explanation": "Urethral injury from a pelvic fracture is the contraindication to a Foley — image the urethra first; suprapubic catheter if needed.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 1: Indications and complications of central lines, peripheral lines, chest tubes, NG tubes, urethral catheters, and endotracheal tubes", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "62", "group": 62, "stem": "A patient's pain keeps rising despite several opioid dose increases, and light touch near the incision is now painful. Next step?", "options": [{"letter": "A", "text": "Reduce the opioid dose"}, {"letter": "B", "text": "Add a benzodiazepine"}, {"letter": "C", "text": "Add a basal PCA rate"}, {"letter": "D", "text": "Increase the opioid dose again"}, {"letter": "E", "text": "Switch to extended-release oxycodone"}], "answer": "A", "explanation": "Opioid-induced hyperalgesia → reduce, don't escalate.", "objective": "SURG MED — Ensuring Patient Recovery — Obj 4: Modify the plan for pain, nausea, and constipation based on response", "section": "Post-Op Care & Recovery"}, {"id": "63", "group": 63, "stem": "POD 7 after abdominal hysterectomy, a sedentary woman has sudden dyspnea and pleuritic chest pain. HR 124, SpO₂ 86%, prominent P2, CXR clear. Diagnosis?", "options": [{"letter": "A", "text": "Aspiration pneumonitis"}, {"letter": "B", "text": "Acute MI"}, {"letter": "C", "text": "Pulmonary embolism"}, {"letter": "D", "text": "Pneumonia"}, {"letter": "E", "text": "Atelectasis"}], "answer": "C", "explanation": "POD 5+ 'walking' window; a normal CXR in a hypoxic tachycardic patient is the finding.", "objective": "SURG MED — Postoperative Complications I — Obj 2: IVC filter and its indications", "section": "Post-Op Complications I"}, {"id": "63A", "group": 63, "stem": "Definitive diagnostic test?", "options": [{"letter": "A", "text": "Echocardiogram"}, {"letter": "B", "text": "Chest x-ray"}, {"letter": "C", "text": "D-dimer"}, {"letter": "D", "text": "Arterial blood gas"}, {"letter": "E", "text": "CT pulmonary angiography"}], "answer": "E", "explanation": "CTPA is definitive; treat with anticoagulation (heparin, LMWH, fondaparinux, oral Xa inhibitor).", "objective": "SURG MED — Postoperative Complications I — Obj 2: IVC filter and its indications", "section": "Post-Op Complications I"}, {"id": "64", "group": 64, "stem": "Nausea persists in the PACU despite ondansetron. Next step?", "options": [{"letter": "A", "text": "Keep NPO and observe"}, {"letter": "B", "text": "Double the ondansetron dose"}, {"letter": "C", "text": "Give prochlorperazine"}, {"letter": "D", "text": "Start an NG tube"}, {"letter": "E", "text": "Repeat the ondansetron dose"}], "answer": "C", "explanation": "PONV failing one agent → switch class, don't repeat it; add dexamethasone if not given intra-op.", "objective": "SURG MED — Ensuring Patient Recovery — Obj 4: Modify the plan for pain, nausea, and constipation based on response", "section": "Post-Op Care & Recovery"}, {"id": "65", "group": 65, "stem": "Emergency laparotomy for a perforated colon with gross fecal spillage → Wound class:", "options": [{"letter": "A", "text": "Clean-contaminated (< 10%)"}, {"letter": "B", "text": "Contaminated-clean (~15%)"}, {"letter": "C", "text": "Dirty (~40% infection risk)"}, {"letter": "D", "text": "Clean (< 2%)"}, {"letter": "E", "text": "Contaminated (~20%)"}], "answer": "C", "explanation": "Pre-op perforation, pus, or trauma > 4 h = dirty. Gross spillage at elective entry or trauma < 4 h = contaminated.", "objective": "SURG MED — Postoperative Complications II — Obj 2: Surgical wound infection, surgical abscess, and superinfection", "section": "Post-Op Complications II"}, {"id": "66", "group": 66, "stem": "Which set of red-flag symptoms should be taught before discharge?", "options": [{"letter": "A", "text": "Fever > 99°F, mild incisional ache, fatigue"}, {"letter": "B", "text": "Low appetite, poor sleep, mild bruising"}, {"letter": "C", "text": "Clear drainage for a day, itching, soreness"}, {"letter": "D", "text": "Fever > 101.5°F, spreading redness, calf pain"}, {"letter": "E", "text": "Constipation for a day, bloating, gas pain"}], "answer": "D", "explanation": "Lecture red flags: fever > 101.5°F, spreading redness, calf pain — plus drainage, uncontrolled pain, and inability to eat or void.", "objective": "SURG MED — Ensuring Patient Recovery — Obj 6: Patient/family instructions — medications, wound care, activity, red flags", "section": "Post-Op Care & Recovery"}, {"id": "67", "group": 67, "stem": "A healthy 25-year-old has laryngospasm at emergence. Minutes after it breaks he is hypoxic with pink frothy sputum and bilateral crackles. Diagnosis?", "options": [{"letter": "A", "text": "Negative-pressure pulmonary edema"}, {"letter": "B", "text": "Pulmonary embolism"}, {"letter": "C", "text": "Fat embolism syndrome"}, {"letter": "D", "text": "Atelectasis"}, {"letter": "E", "text": "Aspiration pneumonitis"}], "answer": "A", "explanation": "Forced inspiration against a closed glottis draws fluid into the interstitium; stage 2 emergence is the laryngospasm window.", "objective": "SURG MED — Postoperative Complications I — Obj 1: Atelectasis, respiratory failure, aspiration pneumonia, and aspiration pneumonitis", "section": "General Anesthesia"}, {"id": "68", "group": 68, "stem": "A patient on chronic prednisone had it stopped abruptly before surgery. On POD 1: BP 78/40, Na⁺ 128, K⁺ 5.8, glucose 52, vomiting. Diagnosis?", "options": [{"letter": "A", "text": "Central diabetes insipidus"}, {"letter": "B", "text": "Septic shock"}, {"letter": "C", "text": "Diabetic ketoacidosis"}, {"letter": "D", "text": "SIADH"}, {"letter": "E", "text": "Adrenal crisis"}], "answer": "E", "explanation": "Hypotension, hypoglycemia, hyponatremia, hyperkalemia after steroid withdrawal or surgical stress → fluids and glucocorticoids.", "objective": "SURG MED — Postoperative Complications I — Obj 4: DKA, diabetes insipidus, adrenal insufficiency/crisis, and SIADH after surgery", "section": "Post-Op Complications I"}, {"id": "69", "group": 69, "stem": "During a field block the patient reports circumoral numbness and ringing in the ears. Diagnosis?", "options": [{"letter": "A", "text": "Anxiety reaction"}, {"letter": "B", "text": "Malignant hyperthermia"}, {"letter": "C", "text": "Local anesthetic systemic toxicity"}, {"letter": "D", "text": "Anaphylaxis"}, {"letter": "E", "text": "Vasovagal reaction"}], "answer": "C", "explanation": "LAST ladder: circumoral numbness → tinnitus → visual change → twitching → seizure → CV collapse. Stop injecting.", "objective": "SURG MED — Overview of General Anesthesia — Obj 8: Indications and contraindications for epinephrine in local anesthesia", "section": "General Anesthesia"}, {"id": "70", "group": 70, "stem": "POD 6 after colectomy, the incision is red, warm, and draining pus. Fascia is intact on probing. Management?", "options": [{"letter": "A", "text": "Oral antibiotics alone"}, {"letter": "B", "text": "Return to OR for fascial closure"}, {"letter": "C", "text": "Apply a sealed occlusive dressing"}, {"letter": "D", "text": "Open, debride, irrigate, and pack"}, {"letter": "E", "text": "Warm compresses and observe"}], "answer": "D", "explanation": "Remove sutures/staples over it, debride, irrigate, pack to the base; antibiotics only if cellulitis. Fascial involvement → OR.", "objective": "SURG MED — Postoperative Complications II — Obj 2: Surgical wound infection, surgical abscess, and superinfection", "section": "Post-Op Complications II"}, {"id": "71", "group": 71, "stem": "A 42-year-old has radicular leg pain, a positive straight leg raise, and a depressed Achilles reflex despite 8 weeks of PT and epidural injections. Best operation?", "options": [{"letter": "A", "text": "Anterior lumbar interbody fusion"}, {"letter": "B", "text": "Decompressive laminectomy"}, {"letter": "C", "text": "Posterior lumbar fusion"}, {"letter": "D", "text": "Epidural steroid series"}, {"letter": "E", "text": "Microdiscectomy"}], "answer": "E", "explanation": "Disc herniation (L5-S1 = 90%) with failed care > 6 weeks, progressive weakness, or cauda equina → discectomy; prone, outpatient.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 6: Discectomy, laminectomy, decompression, and fusion", "section": "Orthopedic Surgery"}, {"id": "72", "group": 72, "stem": "The surgeon asks for scissors to divide the anterior rectus fascia. Which do you hand over?", "options": [{"letter": "A", "text": "Iris"}, {"letter": "B", "text": "Straight Mayo"}, {"letter": "C", "text": "Metzenbaum"}, {"letter": "D", "text": "Bandage (Lister)"}, {"letter": "E", "text": "Curved Mayo"}], "answer": "E", "explanation": "Curved Mayo cuts tough tissue (fascia, muscle); straight Mayo cuts suture; Metzenbaum cuts delicate tissue; iris cuts tiny things.", "objective": "SURG MED — Surgical Instruments, Lines, Tubes, and Drains — Obj 5: Iris, straight Mayo, curved Mayo, Metzenbaum, and bandage scissors", "section": "Lines, Tubes, Drains & Instruments"}, {"id": "73", "group": 73, "stem": "Evening of POD 0 after laparoscopic cholecystectomy, T 99.6°F. The patient is comfortable with normal HR, BP, and urine output. Next step?", "options": [{"letter": "A", "text": "CT abdomen and pelvis"}, {"letter": "B", "text": "Empiric IV vancomycin"}, {"letter": "C", "text": "Blood cultures × 2 sets"}, {"letter": "D", "text": "Observe — normal response to surgery"}, {"letter": "E", "text": "CXR and urinalysis"}], "answer": "D", "explanation": "Post-op fever is > 100.4°F; 99–100°F in the first 24–36 h is the inflammatory response to surgery.", "objective": "SURG MED — Postoperative Complications II — Obj 5: Define postoperative fever", "section": "Post-Op Complications II"}, {"id": "74", "group": 74, "stem": "A 70-year-old on alendronate for 8 years has a transverse femur fracture 3 cm below the lesser trochanter after a ground-level fall. Treatment?", "options": [{"letter": "A", "text": "Cast immobilization"}, {"letter": "B", "text": "Sliding hip screw"}, {"letter": "C", "text": "Cannulated screws"}, {"letter": "D", "text": "Intramedullary nailing"}, {"letter": "E", "text": "Hemiarthroplasty"}], "answer": "D", "explanation": "Subtrochanteric (within 5 cm) atypical fracture from bisphosphonates; high cortical bone, poor vascularity → IM nail; check the other femur.", "objective": "SURG MED — Approach to Orthopedic Surgery — Obj 1: Hip disorders — arthritis, osteonecrosis, labrum injury, hip fracture", "section": "Orthopedic Surgery"}, {"id": "75", "group": 75, "stem": "POD 6 after sigmoid resection with anastomosis: spiking fevers, prolonged ileus, and focal left lower quadrant tenderness. Best diagnostic test?", "options": [{"letter": "A", "text": "CT abdomen/pelvis with PO and IV contrast"}, {"letter": "B", "text": "Plain abdominal films"}, {"letter": "C", "text": "Blood cultures alone"}, {"letter": "D", "text": "Abdominal ultrasound"}, {"letter": "E", "text": "Diagnostic laparoscopy"}], "answer": "A", "explanation": "CT with oral and IV contrast is > 95% accurate — the best test for intra-abdominal abscess (POD 4–7).", "objective": "SURG MED — Postoperative Complications II — Obj 4: UTI, pseudomembranous colitis, necrotizing fasciitis, clostridial myositis, and peritoneal abscess", "section": "Post-Op Complications II"}, {"id": "75A", "group": 75, "stem": "Standard treatment?", "options": [{"letter": "A", "text": "Observation and serial exams"}, {"letter": "B", "text": "Diverting colostomy"}, {"letter": "C", "text": "Antibiotics alone for 14 days"}, {"letter": "D", "text": "Open laparotomy and washout"}, {"letter": "E", "text": "Percutaneous CT-guided drainage + antibiotics"}], "answer": "E", "explanation": "An abscess must be drained; start aerobic + anaerobic coverage before drainage and stop when sepsis resolves.", "objective": "SURG MED — Postoperative Complications II — Obj 2: Surgical wound infection, surgical abscess, and superinfection", "section": "Post-Op Complications II"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
