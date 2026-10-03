@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = (function (raw) {
+  // Reshuffle stack order and option order on every open; renumber ids.
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  const groups = {}; const order = [];
+  raw.questions.forEach(q => { if (!groups[q.group]) { groups[q.group] = []; order.push(q.group); } groups[q.group].push(q); });
+  shuffle(order);
+  const out = []; const letters = ['A','B','C','D','E','F'];
+  order.forEach((g, gi) => {
+    groups[g].forEach((q, qi) => {
+      const correct = q.options.find(o => o.letter === q.answer).text;
+      const opts = shuffle(q.options.map(o => o.text)).map((t, i) => ({ letter: letters[i], text: t }));
+      const ans = opts.find(o => o.text === correct).letter;
+      out.push(Object.assign({}, q, { id: String(gi + 1) + (qi === 0 ? '' : letters[qi - 1]), group: gi + 1, options: opts, answer: ans }));
+    });
+  });
+  return { title: raw.title, questions: out };
+})({"title": "Ortho Exam 3 — Keywords, Associations & Rules", "questions": [{"id": "1", "group": 1, "section": "Mechanism → Structure", "objective": "Mechanism → structure · upper extremity", "stem": "Arm forced into abduction + external rotation, felt a pop → Likely injury:", "options": [{"letter": "A", "text": "Anterior shoulder dislocation"}, {"letter": "B", "text": "Posterior shoulder dislocation"}, {"letter": "C", "text": "AC joint separation"}, {"letter": "D", "text": "Proximal biceps rupture"}], "answer": "A", "explanation": "Anterior = ~97% of shoulder dislocations."}, {"id": "1a", "group": 1, "section": "Mechanism → Structure", "objective": "Mechanism → structure · upper extremity", "stem": "Generalized tonic-clonic seizure, now shoulder pain → Likely injury:", "options": [{"letter": "A", "text": "Posterior shoulder dislocation"}, {"letter": "B", "text": "Anterior shoulder dislocation"}, {"letter": "C", "text": "Clavicle fracture"}, {"letter": "D", "text": "Rotator cuff tendinitis"}], "answer": "A", "explanation": "Seizure or electrocution → posterior; arm fixed in adduction + IR."}, {"id": "1b", "group": 1, "section": "Mechanism → Structure", "objective": "Mechanism → structure · upper extremity", "stem": "Direct blow to the tip of the shoulder in a rugby tackle → Most likely injury:", "options": [{"letter": "A", "text": "AC joint separation"}, {"letter": "B", "text": "Posterior shoulder dislocation"}, {"letter": "C", "text": "Humeral shaft fracture"}, {"letter": "D", "text": "Adhesive capsulitis"}], "answer": "A", "explanation": "Direct blow to the shoulder tip = MC cause of AC sprain."}, {"id": "1c", "group": 1, "section": "Mechanism → Structure", "objective": "Mechanism → structure · upper extremity", "stem": "Toddler swung by the arms, now won't use one arm, no swelling → Likely diagnosis:", "options": [{"letter": "A", "text": "Nursemaid's elbow"}, {"letter": "B", "text": "Supracondylar fracture"}, {"letter": "C", "text": "Olecranon bursitis"}, {"letter": "D", "text": "Clavicle fracture"}], "answer": "A", "explanation": "Radial head subluxation through the annular ligament, age 1–4."}, {"id": "1d", "group": 1, "section": "Mechanism → Structure", "objective": "Mechanism → structure · upper extremity", "stem": "Ski pole forces the thumb into radial deviation → Ligament injured:", "options": [{"letter": "A", "text": "Ulnar collateral ligament of the thumb MCP"}, {"letter": "B", "text": "Radial collateral ligament of the thumb MCP"}, {"letter": "C", "text": "Scapholunate ligament"}, {"letter": "D", "text": "Triangular fibrocartilage complex"}], "answer": "A", "explanation": "Gamekeeper's/skier's thumb."}, {"id": "1e", "group": 1, "section": "Mechanism → Structure", "objective": "Mechanism → structure · upper extremity", "stem": "Ball jams the fingertip, DIP now droops → Structure injured:", "options": [{"letter": "A", "text": "Terminal extensor tendon"}, {"letter": "B", "text": "Central slip"}, {"letter": "C", "text": "Volar plate"}, {"letter": "D", "text": "Flexor digitorum profundus"}], "answer": "A", "explanation": "Mallet finger."}, {"id": "2", "group": 2, "section": "Mechanism → Structure", "objective": "Mechanism → structure · lower extremity", "stem": "Non-contact plant-and-cut, pop, rapid knee swelling → Structure injured:", "options": [{"letter": "A", "text": "Anterior cruciate ligament"}, {"letter": "B", "text": "Posterior cruciate ligament"}, {"letter": "C", "text": "Medial collateral ligament"}, {"letter": "D", "text": "Patellar tendon"}], "answer": "A", "explanation": "Rapid hemarthrosis after plant-and-cut = ACL."}, {"id": "2a", "group": 2, "section": "Mechanism → Structure", "objective": "Mechanism → structure · lower extremity", "stem": "Knee strikes the dashboard → Ligament injured:", "options": [{"letter": "A", "text": "Posterior cruciate ligament"}, {"letter": "B", "text": "Anterior cruciate ligament"}, {"letter": "C", "text": "Lateral collateral ligament"}, {"letter": "D", "text": "Medial collateral ligament"}], "answer": "A", "explanation": "Dashboard = PCL (also posterior hip dislocation, patella fx)."}, {"id": "2b", "group": 2, "section": "Mechanism → Structure", "objective": "Mechanism → structure · lower extremity", "stem": "Lateral blow to the knee with the foot planted and external rotation → Injury pattern:", "options": [{"letter": "A", "text": "Unhappy triad"}, {"letter": "B", "text": "Isolated PCL tear"}, {"letter": "C", "text": "Patellar dislocation"}, {"letter": "D", "text": "Tibial plateau fracture"}], "answer": "A", "explanation": "ACL + MCL + medial meniscus (lecture answer)."}, {"id": "2c", "group": 2, "section": "Mechanism → Structure", "objective": "Mechanism → structure · lower extremity", "stem": "Blow to the medial knee (varus stress) → Ligament injured:", "options": [{"letter": "A", "text": "Lateral collateral ligament"}, {"letter": "B", "text": "Medial collateral ligament"}, {"letter": "C", "text": "Anterior cruciate ligament"}, {"letter": "D", "text": "Patellar tendon"}], "answer": "A", "explanation": "Isolated LCL is rare — check the posterolateral corner."}, {"id": "2d", "group": 2, "section": "Mechanism → Structure", "objective": "Mechanism → structure · lower extremity", "stem": "Inverted, plantarflexed ankle roll → First ligament to tear:", "options": [{"letter": "A", "text": "Anterior talofibular ligament"}, {"letter": "B", "text": "Calcaneofibular ligament"}, {"letter": "C", "text": "Deltoid ligament"}, {"letter": "D", "text": "Anterior inferior tibiofibular ligament"}], "answer": "A", "explanation": "ATFL → CFL → PTFL."}, {"id": "2e", "group": 2, "section": "Mechanism → Structure", "objective": "Mechanism → structure · lower extremity", "stem": "Foot forced into external rotation while cutting → Injury:", "options": [{"letter": "A", "text": "High ankle sprain"}, {"letter": "B", "text": "Lateral ankle sprain"}, {"letter": "C", "text": "Achilles tendon rupture"}, {"letter": "D", "text": "Lisfranc injury"}], "answer": "A", "explanation": "ER ± dorsiflexion → syndesmosis; Kleiger test."}, {"id": "3", "group": 3, "section": "Mechanism → Structure", "objective": "Mechanism → structure · axial & trauma", "stem": "Lap-belt restrained passenger, flexion over the belt → Spinal fracture:", "options": [{"letter": "A", "text": "Chance fracture"}, {"letter": "B", "text": "Jefferson fracture"}, {"letter": "C", "text": "Hangman's fracture"}, {"letter": "D", "text": "Clay-shoveler fracture"}], "answer": "A", "explanation": "Flexion-distraction → look at the abdomen."}, {"id": "3a", "group": 3, "section": "Mechanism → Structure", "objective": "Mechanism → structure · axial & trauma", "stem": "Shallow-water dive, neck flexion injury → Fracture to suspect:", "options": [{"letter": "A", "text": "Teardrop fracture"}, {"letter": "B", "text": "Transverse process fracture"}, {"letter": "C", "text": "Chance fracture"}, {"letter": "D", "text": "Spinous process fracture"}], "answer": "A", "explanation": "Teardrop = severe, often cord injury."}, {"id": "3b", "group": 3, "section": "Mechanism → Structure", "objective": "Mechanism → structure · axial & trauma", "stem": "Axial load onto the top of the head → Fracture:", "options": [{"letter": "A", "text": "Jefferson (C1 burst) fracture"}, {"letter": "B", "text": "Hangman's (C2) fracture"}, {"letter": "C", "text": "Dens fracture"}, {"letter": "D", "text": "Chance fracture"}], "answer": "A", "explanation": "C1 ring split in several places."}, {"id": "3c", "group": 3, "section": "Mechanism → Structure", "objective": "Mechanism → structure · axial & trauma", "stem": "Hyperextension + axial load of the neck → Fracture:", "options": [{"letter": "A", "text": "Hangman's fracture"}, {"letter": "B", "text": "Jefferson fracture"}, {"letter": "C", "text": "Clay-shoveler fracture"}, {"letter": "D", "text": "Burst fracture of L1"}], "answer": "A", "explanation": "Bilateral C2 pars → add vascular imaging (vertebral a.)."}, {"id": "4", "group": 4, "section": "Position & Deformity", "objective": "Resting position = diagnosis", "stem": "Leg shortened, internally rotated, and adducted after MVC → Diagnosis:", "options": [{"letter": "A", "text": "Posterior hip dislocation"}, {"letter": "B", "text": "Anterior hip dislocation"}, {"letter": "C", "text": "Femoral neck fracture"}, {"letter": "D", "text": "Intertrochanteric fracture"}], "answer": "A", "explanation": "Posterior (90%) = short + IR + ADD."}, {"id": "4a", "group": 4, "section": "Position & Deformity", "objective": "Resting position = diagnosis", "stem": "Leg externally rotated, abducted, slightly flexed after trauma → Diagnosis:", "options": [{"letter": "A", "text": "Anterior hip dislocation"}, {"letter": "B", "text": "Posterior hip dislocation"}, {"letter": "C", "text": "SCFE"}, {"letter": "D", "text": "Pubic ramus fracture"}], "answer": "A", "explanation": "Anterior (10%) = ER + ABD."}, {"id": "4b", "group": 4, "section": "Position & Deformity", "objective": "Resting position = diagnosis", "stem": "Elderly woman after a fall, leg shortened and externally rotated → Diagnosis:", "options": [{"letter": "A", "text": "Hip fracture"}, {"letter": "B", "text": "Posterior hip dislocation"}, {"letter": "C", "text": "Trochanteric bursitis"}, {"letter": "D", "text": "Meralgia paresthetica"}], "answer": "A", "explanation": "Fracture = short + ER; posterior dislocation = short + IR."}, {"id": "4c", "group": 4, "section": "Position & Deformity", "objective": "Resting position = diagnosis", "stem": "Arm fixed in adduction and internal rotation, cannot externally rotate → Diagnosis:", "options": [{"letter": "A", "text": "Posterior shoulder dislocation"}, {"letter": "B", "text": "Anterior shoulder dislocation"}, {"letter": "C", "text": "Adhesive capsulitis"}, {"letter": "D", "text": "AC separation"}], "answer": "A", "explanation": "Lightbulb sign on AP; axillary view."}, {"id": "4d", "group": 4, "section": "Position & Deformity", "objective": "Resting position = diagnosis", "stem": "Obese boy's thigh rolls into external rotation as the hip is passively flexed → Diagnosis:", "options": [{"letter": "A", "text": "Slipped capital femoral epiphysis"}, {"letter": "B", "text": "Legg-Calvé-Perthes disease"}, {"letter": "C", "text": "Developmental dysplasia of the hip"}, {"letter": "D", "text": "Transient synovitis"}], "answer": "A", "explanation": "Obligate ER with flexion = SCFE."}, {"id": "5", "group": 5, "section": "Position & Deformity", "objective": "Deformity decoder", "stem": "PIP flexed, DIP hyperextended → Deformity:", "options": [{"letter": "A", "text": "Boutonniere deformity"}, {"letter": "B", "text": "Swan neck deformity"}, {"letter": "C", "text": "Mallet finger"}, {"letter": "D", "text": "Claw hand"}], "answer": "A", "explanation": "Central slip rupture; RA."}, {"id": "5a", "group": 5, "section": "Position & Deformity", "objective": "Deformity decoder", "stem": "PIP hyperextended, DIP flexed → Deformity:", "options": [{"letter": "A", "text": "Swan neck deformity"}, {"letter": "B", "text": "Boutonniere deformity"}, {"letter": "C", "text": "Mallet finger"}, {"letter": "D", "text": "Trigger finger"}], "answer": "A", "explanation": "Volar plate laxity; RA ~50%; double-ring splint."}, {"id": "5b", "group": 5, "section": "Position & Deformity", "objective": "Deformity decoder", "stem": "MCP hyperextended, PIP and DIP flexed in the 4th and 5th fingers → Nerve:", "options": [{"letter": "A", "text": "Ulnar nerve"}, {"letter": "B", "text": "Median nerve"}, {"letter": "C", "text": "Radial nerve"}, {"letter": "D", "text": "Anterior interosseous nerve"}], "answer": "A", "explanation": "Claw hand = intrinsic minus (ulnar palsy)."}, {"id": "5c", "group": 5, "section": "Position & Deformity", "objective": "Deformity decoder", "stem": "Palmar nodule and cords pulling the ring and small fingers into flexion; can't lay hand flat → Diagnosis:", "options": [{"letter": "A", "text": "Dupuytren's contracture"}, {"letter": "B", "text": "Trigger finger"}, {"letter": "C", "text": "Volkmann's contracture"}, {"letter": "D", "text": "Claw hand"}], "answer": "A", "explanation": "Positive tabletop test; older Northern-European male."}, {"id": "5d", "group": 5, "section": "Position & Deformity", "objective": "Deformity decoder", "stem": "Bulge in the distal upper arm after a pop at the shoulder → Diagnosis:", "options": [{"letter": "A", "text": "Proximal biceps tendon rupture"}, {"letter": "B", "text": "Distal biceps tendon rupture"}, {"letter": "C", "text": "Deltoid tear"}, {"letter": "D", "text": "Humeral shaft fracture"}], "answer": "A", "explanation": "Popeye = proximal (conservative); reverse Popeye = distal."}, {"id": "5e", "group": 5, "section": "Position & Deformity", "objective": "Deformity decoder", "stem": "Patella sits high on the lateral X-ray after a jump landing in a 25-year-old → Diagnosis:", "options": [{"letter": "A", "text": "Patellar tendon rupture"}, {"letter": "B", "text": "Quadriceps tendon rupture"}, {"letter": "C", "text": "Patella fracture"}, {"letter": "D", "text": "Osgood-Schlatter disease"}], "answer": "A", "explanation": "Alta = patellar tendon (<40); baja = quad tendon (>40)."}, {"id": "6", "group": 6, "section": "Special Tests", "objective": "Special tests · knee", "stem": "Best overall test for an ACL tear →", "options": [{"letter": "A", "text": "Lachman test"}, {"letter": "B", "text": "Anterior drawer"}, {"letter": "C", "text": "Posterior sag sign"}, {"letter": "D", "text": "McMurray test"}], "answer": "A", "explanation": "Drawer can be negative in ~50% of acute tears; pivot shift is most specific."}, {"id": "6a", "group": 6, "section": "Special Tests", "objective": "Special tests · knee", "stem": "Tibia drops back with hips and knees at 90° → Ligament:", "options": [{"letter": "A", "text": "Posterior cruciate ligament"}, {"letter": "B", "text": "Anterior cruciate ligament"}, {"letter": "C", "text": "Medial collateral ligament"}, {"letter": "D", "text": "Lateral collateral ligament"}], "answer": "A", "explanation": "Posterior sag sign. Check sag first — a PCL knee fakes a positive anterior drawer."}, {"id": "6b", "group": 6, "section": "Special Tests", "objective": "Special tests · knee", "stem": "Pain and click with knee extension while the tibia is externally rotated → Structure:", "options": [{"letter": "A", "text": "Medial meniscus"}, {"letter": "B", "text": "Lateral meniscus"}, {"letter": "C", "text": "Anterior cruciate ligament"}, {"letter": "D", "text": "Iliotibial band"}], "answer": "A", "explanation": "McMurray: ER = medial, IR = lateral."}, {"id": "6c", "group": 6, "section": "Special Tests", "objective": "Special tests · knee", "stem": "Most sensitive exam finding for a meniscal tear →", "options": [{"letter": "A", "text": "Joint-line tenderness"}, {"letter": "B", "text": "Positive Lachman"}, {"letter": "C", "text": "Posterior sag"}, {"letter": "D", "text": "Large hemarthrosis"}], "answer": "A", "explanation": "Plus mechanical catching/locking."}, {"id": "6d", "group": 6, "section": "Special Tests", "objective": "Special tests · knee", "stem": "Valgus laxity at 30° of flexion but stable at full extension → Interpretation:", "options": [{"letter": "A", "text": "Isolated MCL injury"}, {"letter": "B", "text": "MCL plus cruciate injury"}, {"letter": "C", "text": "Isolated LCL injury"}, {"letter": "D", "text": "Normal knee"}], "answer": "A", "explanation": "Laxity in full extension = MCL + cruciate(s) + capsule."}, {"id": "7", "group": 7, "section": "Special Tests", "objective": "Special tests · shoulder", "stem": "Pain with passive forward flexion above 90° → Diagnosis suggested:", "options": [{"letter": "A", "text": "Impingement syndrome"}, {"letter": "B", "text": "Adhesive capsulitis"}, {"letter": "C", "text": "SLAP tear"}, {"letter": "D", "text": "AC separation"}], "answer": "A", "explanation": "Neer; Hawkins-Kennedy is the IR-at-90° partner."}, {"id": "7a", "group": 7, "section": "Special Tests", "objective": "Special tests · shoulder", "stem": "Passively abducted arm falls to the side when released → Diagnosis:", "options": [{"letter": "A", "text": "Supraspinatus (rotator cuff) tear"}, {"letter": "B", "text": "Impingement without tear"}, {"letter": "C", "text": "Biceps tendinitis"}, {"letter": "D", "text": "Adhesive capsulitis"}], "answer": "A", "explanation": "Drop-arm test."}, {"id": "7b", "group": 7, "section": "Special Tests", "objective": "Special tests · shoulder", "stem": "Empty can test produces WEAKNESS (not just pain) → Interpretation:", "options": [{"letter": "A", "text": "Rotator cuff tear"}, {"letter": "B", "text": "Impingement only"}, {"letter": "C", "text": "Biceps tendinitis"}, {"letter": "D", "text": "AC arthritis"}], "answer": "A", "explanation": "Weakness = tear; pain = impingement/tendinopathy."}, {"id": "7c", "group": 7, "section": "Special Tests", "objective": "Special tests · shoulder", "stem": "Most sensitive test for subscapularis tear →", "options": [{"letter": "A", "text": "Bear hug test"}, {"letter": "B", "text": "Lift-off test"}, {"letter": "C", "text": "Belly press test"}, {"letter": "D", "text": "Drop-arm test"}], "answer": "A", "explanation": "Bear hug > belly press > lift-off."}, {"id": "7d", "group": 7, "section": "Special Tests", "objective": "Special tests · shoulder", "stem": "Arm adducted, fully internally rotated, resisted flexion → deep shoulder pain → Diagnosis:", "options": [{"letter": "A", "text": "SLAP tear"}, {"letter": "B", "text": "AC separation"}, {"letter": "C", "text": "Impingement"}, {"letter": "D", "text": "Subacromial bursitis"}], "answer": "A", "explanation": "O'Brien's."}, {"id": "8", "group": 8, "section": "Special Tests", "objective": "Special tests · elbow, wrist, hand", "stem": "Pain with resisted wrist extension, tender lateral epicondyle → Diagnosis:", "options": [{"letter": "A", "text": "Lateral epicondylitis"}, {"letter": "B", "text": "De Quervain's tenosynovitis"}, {"letter": "C", "text": "Carpal tunnel syndrome"}, {"letter": "D", "text": "Distal biceps rupture"}], "answer": "A", "explanation": "Cozen test; ECRB tendinopathy."}, {"id": "8a", "group": 8, "section": "Special Tests", "objective": "Special tests · elbow, wrist, hand", "stem": "Thumb tucked in fist, wrist ulnarly deviated → radial wrist pain → Diagnosis:", "options": [{"letter": "A", "text": "De Quervain's tenosynovitis"}, {"letter": "B", "text": "Scaphoid fracture"}, {"letter": "C", "text": "Carpal tunnel syndrome"}, {"letter": "D", "text": "Gamekeeper's thumb"}], "answer": "A", "explanation": "Finkelstein; APL + EPB."}, {"id": "8b", "group": 8, "section": "Special Tests", "objective": "Special tests · elbow, wrist, hand", "stem": "Examiner cannot hook the biceps tendon at the antecubital fossa → Diagnosis:", "options": [{"letter": "A", "text": "Distal biceps tendon rupture"}, {"letter": "B", "text": "Proximal biceps rupture"}, {"letter": "C", "text": "Lateral epicondylitis"}, {"letter": "D", "text": "Olecranon bursitis"}], "answer": "A", "explanation": "Abnormal hook test → surgery more common."}, {"id": "8c", "group": 8, "section": "Special Tests", "objective": "Special tests · elbow, wrist, hand", "stem": "Wrists held in full flexion for 60 seconds reproduce paresthesias → Diagnosis:", "options": [{"letter": "A", "text": "Carpal tunnel syndrome"}, {"letter": "B", "text": "Cubital tunnel syndrome"}, {"letter": "C", "text": "De Quervain's tenosynovitis"}, {"letter": "D", "text": "Ganglion cyst"}], "answer": "A", "explanation": "Phalen; Tinel at the wrist."}, {"id": "8d", "group": 8, "section": "Special Tests", "objective": "Special tests · elbow, wrist, hand", "stem": "Tender fovea distal to the ulnar styloid, pain pushing up from a chair → Diagnosis:", "options": [{"letter": "A", "text": "TFCC injury"}, {"letter": "B", "text": "Scaphoid fracture"}, {"letter": "C", "text": "De Quervain's tenosynovitis"}, {"letter": "D", "text": "Colles fracture"}], "answer": "A", "explanation": "Press test; MC cause of ulnar-sided wrist pain."}, {"id": "9", "group": 9, "section": "Special Tests", "objective": "Special tests · hip, spine, ankle", "stem": "Pelvis drops on the opposite side when standing on one leg → Weak muscle:", "options": [{"letter": "A", "text": "Gluteus medius"}, {"letter": "B", "text": "Iliopsoas"}, {"letter": "C", "text": "Gluteus maximus"}, {"letter": "D", "text": "Hamstrings"}], "answer": "A", "explanation": "Trendelenburg sign."}, {"id": "9a", "group": 9, "section": "Special Tests", "objective": "Special tests · hip, spine, ankle", "stem": "Hip flexion + adduction + internal rotation reproduces groin pain → Diagnosis:", "options": [{"letter": "A", "text": "Femoroacetabular impingement"}, {"letter": "B", "text": "Greater trochanteric bursitis"}, {"letter": "C", "text": "Meralgia paresthetica"}, {"letter": "D", "text": "Ischial (weaver's) bursitis"}], "answer": "A", "explanation": "FADIR."}, {"id": "9b", "group": 9, "section": "Special Tests", "objective": "Special tests · hip, spine, ankle", "stem": "Neck extension + lateral flexion + rotation to the affected side → arm pain → Diagnosis:", "options": [{"letter": "A", "text": "Cervical radiculopathy"}, {"letter": "B", "text": "Thoracic outlet syndrome"}, {"letter": "C", "text": "Cervical sprain"}, {"letter": "D", "text": "Torticollis"}], "answer": "A", "explanation": "Spurling = specific (rule in)."}, {"id": "9c", "group": 9, "section": "Special Tests", "objective": "Special tests · hip, spine, ankle", "stem": "Single-leg standing lumbar extension reproduces back pain in a teen → Diagnosis:", "options": [{"letter": "A", "text": "Spondylolysis"}, {"letter": "B", "text": "Herniated nucleus pulposus"}, {"letter": "C", "text": "Ankylosing spondylitis"}, {"letter": "D", "text": "Scoliosis"}], "answer": "A", "explanation": "Stork test; pars defect."}, {"id": "9d", "group": 9, "section": "Special Tests", "objective": "Special tests · hip, spine, ankle", "stem": "Calf squeeze produces no plantarflexion → Diagnosis:", "options": [{"letter": "A", "text": "Achilles tendon rupture"}, {"letter": "B", "text": "Achilles tendinitis"}, {"letter": "C", "text": "Plantar fasciitis"}, {"letter": "D", "text": "Tarsal tunnel syndrome"}], "answer": "A", "explanation": "Positive Thompson; negative in tendinitis."}, {"id": "9e", "group": 9, "section": "Special Tests", "objective": "Special tests · hip, spine, ankle", "stem": "Compressing the metatarsal heads produces a painful click → Diagnosis:", "options": [{"letter": "A", "text": "Morton's neuroma"}, {"letter": "B", "text": "Metatarsal stress fracture"}, {"letter": "C", "text": "Sesamoiditis"}, {"letter": "D", "text": "Metatarsalgia"}], "answer": "A", "explanation": "Mulder's click, 3rd–4th interspace."}, {"id": "10", "group": 10, "section": "Nerves & Roots", "objective": "Root levels", "stem": "Thumb numbness, weak wrist extension, ↓ brachioradialis reflex → Root:", "options": [{"letter": "A", "text": "C6"}, {"letter": "B", "text": "C5"}, {"letter": "C", "text": "C7"}, {"letter": "D", "text": "C8"}], "answer": "A", "explanation": "C5 = deltoid/biceps; C7 = triceps/middle finger."}, {"id": "10a", "group": 10, "section": "Nerves & Roots", "objective": "Root levels", "stem": "Weak plantarflexion, lateral foot numbness, ↓ Achilles reflex → Root:", "options": [{"letter": "A", "text": "S1"}, {"letter": "B", "text": "L4"}, {"letter": "C", "text": "L5"}, {"letter": "D", "text": "L3"}], "answer": "A", "explanation": "S1 pairing."}, {"id": "10b", "group": 10, "section": "Nerves & Roots", "objective": "Root levels", "stem": "Weak great-toe extension, numb dorsum of foot, normal reflexes → Root:", "options": [{"letter": "A", "text": "L5"}, {"letter": "B", "text": "L4"}, {"letter": "C", "text": "S1"}, {"letter": "D", "text": "L3"}], "answer": "A", "explanation": "L5 has no reflex."}, {"id": "10c", "group": 10, "section": "Nerves & Roots", "objective": "Root levels", "stem": "Weak dorsiflexion with ↓ patellar reflex → Root:", "options": [{"letter": "A", "text": "L4"}, {"letter": "B", "text": "L5"}, {"letter": "C", "text": "S1"}, {"letter": "D", "text": "L2"}], "answer": "A", "explanation": "L4 vs L5 both weaken dorsiflexion — L4 owns the patellar reflex."}, {"id": "10d", "group": 10, "section": "Nerves & Roots", "objective": "Root levels", "stem": "Posterolateral L4–L5 disc herniation → Root compressed:", "options": [{"letter": "A", "text": "L5"}, {"letter": "B", "text": "L4"}, {"letter": "C", "text": "S1"}, {"letter": "D", "text": "L3"}], "answer": "A", "explanation": "Posterolateral disc hits the root below the level."}, {"id": "11", "group": 11, "section": "Nerves & Roots", "objective": "Nerve at risk by injury", "stem": "Anterior shoulder dislocation with lateral shoulder numbness → Nerve:", "options": [{"letter": "A", "text": "Axillary nerve"}, {"letter": "B", "text": "Radial nerve"}, {"letter": "C", "text": "Musculocutaneous nerve"}, {"letter": "D", "text": "Suprascapular nerve"}], "answer": "A", "explanation": "'Regimental badge' sensation; deltoid weakness."}, {"id": "11a", "group": 11, "section": "Nerves & Roots", "objective": "Nerve at risk by injury", "stem": "Midshaft humerus fracture with wrist drop → Nerve:", "options": [{"letter": "A", "text": "Radial nerve"}, {"letter": "B", "text": "Median nerve"}, {"letter": "C", "text": "Ulnar nerve"}, {"letter": "D", "text": "Axillary nerve"}], "answer": "A", "explanation": "Spiral groove."}, {"id": "11b", "group": 11, "section": "Nerves & Roots", "objective": "Nerve at risk by injury", "stem": "Child with supracondylar fracture can't make an 'OK' sign → Nerve:", "options": [{"letter": "A", "text": "Anterior interosseous nerve"}, {"letter": "B", "text": "Posterior interosseous nerve"}, {"letter": "C", "text": "Ulnar nerve"}, {"letter": "D", "text": "Radial sensory nerve"}], "answer": "A", "explanation": "Pure motor (no sensory loss)."}, {"id": "11c", "group": 11, "section": "Nerves & Roots", "objective": "Nerve at risk by injury", "stem": "Posterior hip dislocation with foot drop → Nerve:", "options": [{"letter": "A", "text": "Sciatic nerve"}, {"letter": "B", "text": "Femoral nerve"}, {"letter": "C", "text": "Obturator nerve"}, {"letter": "D", "text": "Superior gluteal nerve"}], "answer": "A", "explanation": "Document before and after reduction."}, {"id": "11d", "group": 11, "section": "Nerves & Roots", "objective": "Nerve at risk by injury", "stem": "Knee dislocation with foot drop → Nerve:", "options": [{"letter": "A", "text": "Common peroneal nerve"}, {"letter": "B", "text": "Tibial nerve"}, {"letter": "C", "text": "Femoral nerve"}, {"letter": "D", "text": "Sural nerve"}], "answer": "A", "explanation": "Plus popliteal artery → CT angiogram."}, {"id": "12", "group": 12, "section": "Nerves & Roots", "objective": "Entrapments", "stem": "Ring/small finger tingling in someone who leans on their elbows → Diagnosis:", "options": [{"letter": "A", "text": "Cubital tunnel syndrome"}, {"letter": "B", "text": "Carpal tunnel syndrome"}, {"letter": "C", "text": "C6 radiculopathy"}, {"letter": "D", "text": "Thoracic outlet syndrome"}], "answer": "A", "explanation": "Ulnar nerve at the elbow; elbow flexion test."}, {"id": "12a", "group": 12, "section": "Nerves & Roots", "objective": "Entrapments", "stem": "Anterolateral thigh numbness with normal strength, tight belt → Diagnosis:", "options": [{"letter": "A", "text": "Meralgia paresthetica"}, {"letter": "B", "text": "L3 radiculopathy"}, {"letter": "C", "text": "Femoral neuropathy"}, {"letter": "D", "text": "Trochanteric bursitis"}], "answer": "A", "explanation": "LFCN compression; weakness = look elsewhere."}, {"id": "12b", "group": 12, "section": "Nerves & Roots", "objective": "Entrapments", "stem": "Burning sole and medial ankle, Tinel behind the medial malleolus → Diagnosis:", "options": [{"letter": "A", "text": "Tarsal tunnel syndrome"}, {"letter": "B", "text": "Plantar fasciitis"}, {"letter": "C", "text": "Morton's neuroma"}, {"letter": "D", "text": "Achilles tendinitis"}], "answer": "A", "explanation": "Tibial nerve; EMG/NCS confirms."}, {"id": "12c", "group": 12, "section": "Nerves & Roots", "objective": "Entrapments", "stem": "Arm heaviness with overhead work, cervical rib on X-ray → Diagnosis:", "options": [{"letter": "A", "text": "Thoracic outlet syndrome"}, {"letter": "B", "text": "C8 radiculopathy"}, {"letter": "C", "text": "Cubital tunnel syndrome"}, {"letter": "D", "text": "Rotator cuff tendinitis"}], "answer": "A", "explanation": "90% neurogenic; Adson's test."}, {"id": "13", "group": 13, "section": "Imaging & Decision Rules", "objective": "Who gets imaged", "stem": "Ankle injury, tender only over the ATFL, walked 4 steps → Ottawa result:", "options": [{"letter": "A", "text": "No X-ray needed"}, {"letter": "B", "text": "Ankle X-ray series"}, {"letter": "C", "text": "Foot X-ray series"}, {"letter": "D", "text": "MRI of the ankle"}], "answer": "A", "explanation": "Bony tenderness must be at the posterior edge/tip of a malleolus."}, {"id": "13a", "group": 13, "section": "Imaging & Decision Rules", "objective": "Who gets imaged", "stem": "Ankle injury with tenderness at the base of the 5th metatarsal → Order:", "options": [{"letter": "A", "text": "Foot X-ray series"}, {"letter": "B", "text": "Ankle X-ray series only"}, {"letter": "C", "text": "MRI of the foot"}, {"letter": "D", "text": "No imaging"}], "answer": "A", "explanation": "5th MT base or navicular → foot series."}, {"id": "13b", "group": 13, "section": "Imaging & Decision Rules", "objective": "Who gets imaged", "stem": "Knee injury in a 58-year-old who can walk normally → Ottawa knee result:", "options": [{"letter": "A", "text": "X-ray indicated"}, {"letter": "B", "text": "No X-ray needed"}, {"letter": "C", "text": "MRI first"}, {"letter": "D", "text": "CT first"}], "answer": "A", "explanation": "Age ≥55, isolated patellar tenderness, fibular head tenderness, can't flex 90°, can't bear weight."}, {"id": "13c", "group": 13, "section": "Imaging & Decision Rules", "objective": "Who gets imaged", "stem": "MVC patient, intoxicated, no neck complaints → C-spine plan:", "options": [{"letter": "A", "text": "C-collar and CT"}, {"letter": "B", "text": "Clinically clear the C-spine"}, {"letter": "C", "text": "Flexion-extension X-rays"}, {"letter": "D", "text": "Discharge with soft collar"}], "answer": "A", "explanation": "Any NEXUS criterion → image; CT in acute trauma."}, {"id": "14", "group": 14, "section": "Imaging & Decision Rules", "objective": "Best study / view", "stem": "Suspected posterior shoulder dislocation → Best view:", "options": [{"letter": "A", "text": "Axillary view"}, {"letter": "B", "text": "Scapular Y view"}, {"letter": "C", "text": "Bilateral AC view"}, {"letter": "D", "text": "Zanca view"}], "answer": "A", "explanation": "Easily missed on AP alone."}, {"id": "14a", "group": 14, "section": "Imaging & Decision Rules", "objective": "Best study / view", "stem": "Suspected SCFE → Views:", "options": [{"letter": "A", "text": "AP and frog-leg lateral of both hips"}, {"letter": "B", "text": "AP view of the affected hip only"}, {"letter": "C", "text": "MRI of the symptomatic knee"}, {"letter": "D", "text": "Ultrasound of both hip joints"}], "answer": "A", "explanation": "Klein's line fails to intersect the epiphysis."}, {"id": "14b", "group": 14, "section": "Imaging & Decision Rules", "objective": "Best study / view", "stem": "Knee osteoarthritis → Required X-ray technique:", "options": [{"letter": "A", "text": "Weight-bearing films"}, {"letter": "B", "text": "Non-weight-bearing films"}, {"letter": "C", "text": "Sunrise view only"}, {"letter": "D", "text": "Stress views"}], "answer": "A", "explanation": "Non-WB films underestimate narrowing."}, {"id": "14c", "group": 14, "section": "Imaging & Decision Rules", "objective": "Best study / view", "stem": "Suspected hip labral tear → Imaging of choice:", "options": [{"letter": "A", "text": "MR arthrogram"}, {"letter": "B", "text": "Plain MRI without contrast"}, {"letter": "C", "text": "CT of the hip"}, {"letter": "D", "text": "Ultrasound"}], "answer": "A", "explanation": "Also TFCC."}, {"id": "14d", "group": 14, "section": "Imaging & Decision Rules", "objective": "Best study / view", "stem": "Scaphoid tenderness with negative X-ray → Most sensitive study:", "options": [{"letter": "A", "text": "MRI"}, {"letter": "B", "text": "CT"}, {"letter": "C", "text": "Repeat X-ray in 24 hours"}, {"letter": "D", "text": "Ultrasound"}], "answer": "A", "explanation": "Most sensitive <24 h; otherwise splint and repeat films 7–10 days."}, {"id": "14e", "group": 14, "section": "Imaging & Decision Rules", "objective": "Best study / view", "stem": "Knee dislocation with ABI 0.8 → Next study:", "options": [{"letter": "A", "text": "CT angiogram"}, {"letter": "B", "text": "MRI of the knee"}, {"letter": "C", "text": "Venous duplex"}, {"letter": "D", "text": "Repeat ABI tomorrow"}], "answer": "A", "explanation": "Popliteal artery injury ~1/3."}, {"id": "15", "group": 15, "section": "Emergencies", "objective": "Can't-miss emergencies", "stem": "Back pain after a sneeze + saddle numbness + urinary retention → Next step:", "options": [{"letter": "A", "text": "Emergent MRI"}, {"letter": "B", "text": "Outpatient MRI"}, {"letter": "C", "text": "Lumbar X-ray"}, {"letter": "D", "text": "NSAIDs and PT"}], "answer": "A", "explanation": "Cauda equina → emergent decompression."}, {"id": "15a", "group": 15, "section": "Emergencies", "objective": "Can't-miss emergencies", "stem": "Child in a fresh cast with pain on passive finger stretch → Action:", "options": [{"letter": "A", "text": "Remove the cast and arrange fasciotomy"}, {"letter": "B", "text": "Elevate the arm and give opioids"}, {"letter": "C", "text": "Reassess pain again in the morning"}, {"letter": "D", "text": "Overwrap the cast more tightly"}], "answer": "A", "explanation": "Compartment syndrome → Volkmann's if missed."}, {"id": "15b", "group": 15, "section": "Emergencies", "objective": "Can't-miss emergencies", "stem": "Laceration over a tibial fracture → Key treatment:", "options": [{"letter": "A", "text": "Antibiotics and surgery"}, {"letter": "B", "text": "Splint and outpatient follow-up"}, {"letter": "C", "text": "Hematoma block and closed reduction"}, {"letter": "D", "text": "Cast and NSAIDs"}], "answer": "A", "explanation": "Any laceration over a fracture = open; no hematoma block."}, {"id": "15c", "group": 15, "section": "Emergencies", "objective": "Can't-miss emergencies", "stem": "Unstable pelvis, hypotension, blood at the meatus → First intervention:", "options": [{"letter": "A", "text": "Pelvic binder"}, {"letter": "B", "text": "Foley catheter"}, {"letter": "C", "text": "MRI pelvis"}, {"letter": "D", "text": "Traction splint"}], "answer": "A", "explanation": "No Foley until retrograde urethrogram."}, {"id": "15d", "group": 15, "section": "Emergencies", "objective": "Can't-miss emergencies", "stem": "Hip dislocation without fracture → Reduction window:", "options": [{"letter": "A", "text": "Within 12 hours"}, {"letter": "B", "text": "Within 72 hours"}, {"letter": "C", "text": "Within 1 week"}, {"letter": "D", "text": "Only after MRI"}], "answer": "A", "explanation": "Delay ↑ AVN."}, {"id": "15e", "group": 15, "section": "Emergencies", "objective": "Can't-miss emergencies", "stem": "Shoulder dislocated for 3 days → ED reduction?", "options": [{"letter": "A", "text": "Consult ortho before reduction"}, {"letter": "B", "text": "Reduce with Kocher in the ED"}, {"letter": "C", "text": "Apprehension test first"}, {"letter": "D", "text": "Sling only, no reduction needed"}], "answer": "A", "explanation": ">48 h, humeral neck fx, nerve deficit, vascular injury → ortho."}, {"id": "16", "group": 16, "section": "Spine", "objective": "Spine keywords", "stem": "Young man, back stiffness better with exercise, worse with rest, uveitis → Diagnosis:", "options": [{"letter": "A", "text": "Ankylosing spondylitis"}, {"letter": "B", "text": "Lumbar spinal stenosis"}, {"letter": "C", "text": "Herniated nucleus pulposus"}, {"letter": "D", "text": "Mechanical back strain"}], "answer": "A", "explanation": "Inflammatory back pain; HLA-B27."}, {"id": "16a", "group": 16, "section": "Spine", "objective": "Spine keywords", "stem": "Ankylosing spondylitis → First imaging:", "options": [{"letter": "A", "text": "X-ray of SI joints and lumbar spine"}, {"letter": "B", "text": "HLA-B27 before any imaging"}, {"letter": "C", "text": "MRI of the lumbar spine"}, {"letter": "D", "text": "CT of the pelvis and sacrum"}], "answer": "A", "explanation": "HLA-B27 only if imaging is unrevealing."}, {"id": "16b", "group": 16, "section": "Spine", "objective": "Spine keywords", "stem": "Earliest X-ray finding of ankylosing spondylitis →", "options": [{"letter": "A", "text": "Bilateral symmetric sacroiliitis"}, {"letter": "B", "text": "Bamboo spine appearance"}, {"letter": "C", "text": "Marginal syndesmophytes"}, {"letter": "D", "text": "Anterior vertebral wedging"}], "answer": "A", "explanation": "Then syndesmophytes → bamboo spine."}, {"id": "16c", "group": 16, "section": "Spine", "objective": "Spine keywords", "stem": "Leg pain after walking, relieved by leaning on a shopping cart → Diagnosis:", "options": [{"letter": "A", "text": "Lumbar spinal stenosis"}, {"letter": "B", "text": "Peripheral arterial disease"}, {"letter": "C", "text": "Herniated disc"}, {"letter": "D", "text": "Spondylolysis"}], "answer": "A", "explanation": "Neurogenic claudication."}, {"id": "16d", "group": 16, "section": "Spine", "objective": "Spine keywords", "stem": "Rib hump on forward bend in a preteen girl → Diagnosis-making study:", "options": [{"letter": "A", "text": "Standing PA and lateral spine X-ray"}, {"letter": "B", "text": "MRI of the whole spine"}, {"letter": "C", "text": "CT of the chest and spine"}, {"letter": "D", "text": "Whole-body bone scan"}], "answer": "A", "explanation": "Adams = screen; Cobb >10° = diagnosis."}, {"id": "17", "group": 17, "section": "Spine", "objective": "Spine management", "stem": "Scoliosis with Cobb angle 35° in a growing child → Management:", "options": [{"letter": "A", "text": "Bracing"}, {"letter": "B", "text": "Observation"}, {"letter": "C", "text": "Spinal fusion"}, {"letter": "D", "text": "Physical therapy only"}], "answer": "A", "explanation": "<20 observe · 20–50 brace · >50 fusion."}, {"id": "17a", "group": 17, "section": "Spine", "objective": "Spine management", "stem": "Uncomplicated lumbar radiculopathy, no red flags → First line:", "options": [{"letter": "A", "text": "NSAIDs, activity modification, PT"}, {"letter": "B", "text": "MRI and microdiscectomy"}, {"letter": "C", "text": "Strict bed rest for 2 weeks"}, {"letter": "D", "text": "Opioids and a rigid corset"}], "answer": "A", "explanation": "MRI only if severe, refractory, or red flags."}, {"id": "17b", "group": 17, "section": "Spine", "objective": "Spine management", "stem": "Positive NEXUS after MVC with neck pain → Imaging:", "options": [{"letter": "A", "text": "CT of the cervical spine"}, {"letter": "B", "text": "Cervical X-ray series"}, {"letter": "C", "text": "MRI cervical spine"}, {"letter": "D", "text": "No imaging"}], "answer": "A", "explanation": "CT preferred in acute trauma."}, {"id": "18", "group": 18, "section": "Shoulder & Elbow", "objective": "Shoulder keywords", "stem": "Woman in her 50s with diabetes, loss of active AND passive ROM → Diagnosis:", "options": [{"letter": "A", "text": "Adhesive capsulitis"}, {"letter": "B", "text": "Rotator cuff tear"}, {"letter": "C", "text": "Impingement syndrome"}, {"letter": "D", "text": "Glenohumeral OA"}], "answer": "A", "explanation": "Passive ROM preserved = cuff/impingement."}, {"id": "18a", "group": 18, "section": "Shoulder & Elbow", "objective": "Shoulder keywords", "stem": "Adhesive capsulitis → Labs to order:", "options": [{"letter": "A", "text": "TSH and A1c"}, {"letter": "B", "text": "ESR and RF"}, {"letter": "C", "text": "CK"}, {"letter": "D", "text": "Uric acid"}], "answer": "A", "explanation": "DM and thyroid association."}, {"id": "18b", "group": 18, "section": "Shoulder & Elbow", "objective": "Shoulder keywords", "stem": "Compression defect of the posterolateral humeral head after dislocation → Name:", "options": [{"letter": "A", "text": "Hill-Sachs lesion"}, {"letter": "B", "text": "Bankart lesion"}, {"letter": "C", "text": "SLAP lesion"}, {"letter": "D", "text": "Reverse Bankart"}], "answer": "A", "explanation": "Bankart = anterior-inferior labrum."}, {"id": "18c", "group": 18, "section": "Shoulder & Elbow", "objective": "Shoulder keywords", "stem": "Anterior shoulder dislocation → X-ray views:", "options": [{"letter": "A", "text": "AP and scapular Y"}, {"letter": "B", "text": "AP only"}, {"letter": "C", "text": "Axillary only"}, {"letter": "D", "text": "Bilateral AC"}], "answer": "A", "explanation": "Humeral head under the coracoid."}, {"id": "18d", "group": 18, "section": "Shoulder & Elbow", "objective": "Shoulder keywords", "stem": "Shoulder pain with overhead work, strength preserved, positive Neer/Hawkins → Mainstay of treatment:", "options": [{"letter": "A", "text": "Physical therapy"}, {"letter": "B", "text": "Subacromial decompression"}, {"letter": "C", "text": "Reverse TSA"}, {"letter": "D", "text": "Immobilization"}], "answer": "A", "explanation": "Decompression only after 4–6 mo; not superior to PT."}, {"id": "19", "group": 19, "section": "Shoulder & Elbow", "objective": "Elbow & arm keywords", "stem": "Tennis elbow → Tendon involved:", "options": [{"letter": "A", "text": "Extensor carpi radialis brevis"}, {"letter": "B", "text": "Flexor carpi radialis"}, {"letter": "C", "text": "Pronator teres"}, {"letter": "D", "text": "Brachioradialis"}], "answer": "A", "explanation": "Degenerative, not truly inflammatory."}, {"id": "19a", "group": 19, "section": "Shoulder & Elbow", "objective": "Elbow & arm keywords", "stem": "Golfer's elbow → Structure at risk with injection or surgery:", "options": [{"letter": "A", "text": "Ulnar nerve"}, {"letter": "B", "text": "Radial nerve"}, {"letter": "C", "text": "Median nerve"}, {"letter": "D", "text": "Brachial artery"}], "answer": "A", "explanation": "Ulnar nerve runs just behind the medial epicondyle."}, {"id": "19b", "group": 19, "section": "Shoulder & Elbow", "objective": "Elbow & arm keywords", "stem": "Hot, red, fluctuant swelling over the olecranon with full elbow ROM → Next step:", "options": [{"letter": "A", "text": "Aspirate the bursa for culture"}, {"letter": "B", "text": "Arthrocentesis of the elbow"}, {"letter": "C", "text": "Intrabursal steroid injection"}, {"letter": "D", "text": "Compression wrap and NSAIDs"}], "answer": "A", "explanation": "Rule out septic bursitis first."}, {"id": "19c", "group": 19, "section": "Shoulder & Elbow", "objective": "Elbow & arm keywords", "stem": "Proximal ulna fracture + radial head dislocation → Name:", "options": [{"letter": "A", "text": "Monteggia fracture"}, {"letter": "B", "text": "Galeazzi fracture"}, {"letter": "C", "text": "Colles fracture"}, {"letter": "D", "text": "Nightstick fracture"}], "answer": "A", "explanation": "MUGR: Monteggia = Ulna."}, {"id": "19d", "group": 19, "section": "Shoulder & Elbow", "objective": "Elbow & arm keywords", "stem": "Distal radius fracture + DRUJ dislocation → Name:", "options": [{"letter": "A", "text": "Galeazzi fracture"}, {"letter": "B", "text": "Monteggia fracture"}, {"letter": "C", "text": "Smith fracture"}, {"letter": "D", "text": "Barton fracture"}], "answer": "A", "explanation": "GRUesome: Galeazzi = Radius."}, {"id": "19e", "group": 19, "section": "Shoulder & Elbow", "objective": "Elbow & arm keywords", "stem": "Supracondylar fracture X-ray clue →", "options": [{"letter": "A", "text": "Posterior fat pad sign"}, {"letter": "B", "text": "Lightbulb sign"}, {"letter": "C", "text": "Fallen leaf sign"}, {"letter": "D", "text": "Fleck sign"}], "answer": "A", "explanation": "Posterior fat pad is always abnormal."}, {"id": "20", "group": 20, "section": "Wrist & Hand", "objective": "Wrist & hand keywords", "stem": "FOOSH with snuffbox tenderness, X-ray negative → Management:", "options": [{"letter": "A", "text": "Thumb spica splint + ortho referral"}, {"letter": "B", "text": "Reassurance and elastic wrap"}, {"letter": "C", "text": "Volar cock-up wrist splint"}, {"letter": "D", "text": "Ulnar gutter splint"}], "answer": "A", "explanation": "Treat as fracture regardless of X-ray."}, {"id": "20a", "group": 20, "section": "Wrist & Hand", "objective": "Wrist & hand keywords", "stem": "Scaphoid region with highest AVN risk →", "options": [{"letter": "A", "text": "Proximal pole"}, {"letter": "B", "text": "Distal pole"}, {"letter": "C", "text": "Waist"}, {"letter": "D", "text": "Tubercle"}], "answer": "A", "explanation": "Retrograde blood supply."}, {"id": "20b", "group": 20, "section": "Wrist & Hand", "objective": "Wrist & hand keywords", "stem": "Dinner-fork deformity after FOOSH → Fracture:", "options": [{"letter": "A", "text": "Colles fracture"}, {"letter": "B", "text": "Smith fracture"}, {"letter": "C", "text": "Scaphoid fracture"}, {"letter": "D", "text": "Bennett fracture"}], "answer": "A", "explanation": "Dorsal displacement; Smith = volar (garden spade)."}, {"id": "20c", "group": 20, "section": "Wrist & Hand", "objective": "Wrist & hand keywords", "stem": "Punched a wall, depressed 5th knuckle → Splint:", "options": [{"letter": "A", "text": "Ulnar gutter splint"}, {"letter": "B", "text": "Thumb spica splint"}, {"letter": "C", "text": "Volar cock-up splint"}, {"letter": "D", "text": "Sugar-tong splint"}], "answer": "A", "explanation": "Any malrotation → reduce/ORIF."}, {"id": "20d", "group": 20, "section": "Wrist & Hand", "objective": "Wrist & hand keywords", "stem": "Intra-articular fracture at the base of the 1st metacarpal → Name:", "options": [{"letter": "A", "text": "Bennett's fracture"}, {"letter": "B", "text": "Boxer's fracture"}, {"letter": "C", "text": "Gamekeeper's thumb"}, {"letter": "D", "text": "Scaphoid fracture"}], "answer": "A", "explanation": "Thumb spica after reduction/ORIF."}, {"id": "20e", "group": 20, "section": "Wrist & Hand", "objective": "Wrist & hand keywords", "stem": "Mallet finger → Treatment:", "options": [{"letter": "A", "text": "Continuous DIP extension splint"}, {"letter": "B", "text": "Buddy taping to the next finger"}, {"letter": "C", "text": "PIP extension splint"}, {"letter": "D", "text": "DIP splint at night only"}], "answer": "A", "explanation": "Any DIP flexion restarts the clock."}, {"id": "20f", "group": 20, "section": "Wrist & Hand", "objective": "Wrist & hand keywords", "stem": "Finger locks in flexion with a tender nodule at the A1 pulley in a diabetic → Diagnosis:", "options": [{"letter": "A", "text": "Trigger finger"}, {"letter": "B", "text": "Dupuytren's contracture"}, {"letter": "C", "text": "Boutonniere deformity"}, {"letter": "D", "text": "Ganglion cyst"}], "answer": "A", "explanation": "Splint → steroid injection → A1 release."}, {"id": "21", "group": 21, "section": "Hip & Knee", "objective": "Hip keywords", "stem": "Boy aged 4–8 with painless limp and ↓ internal rotation → Diagnosis:", "options": [{"letter": "A", "text": "Legg-Calvé-Perthes disease"}, {"letter": "B", "text": "Slipped capital femoral epiphysis"}, {"letter": "C", "text": "Septic arthritis of the hip"}, {"letter": "D", "text": "Developmental hip dysplasia"}], "answer": "A", "explanation": "Idiopathic AVN of the femoral head."}, {"id": "21a", "group": 21, "section": "Hip & Knee", "objective": "Hip keywords", "stem": "Obese adolescent with knee pain and normal knee exam → Next step:", "options": [{"letter": "A", "text": "Image the hips"}, {"letter": "B", "text": "MRI of the knee"}, {"letter": "C", "text": "Reassure"}, {"letter": "D", "text": "Knee aspiration"}], "answer": "A", "explanation": "Missed SCFE is a classic pitfall."}, {"id": "21b", "group": 21, "section": "Hip & Knee", "objective": "Hip keywords", "stem": "SCFE → Treatment:", "options": [{"letter": "A", "text": "Percutaneous screw pinning"}, {"letter": "B", "text": "Pavlik harness"}, {"letter": "C", "text": "Observation and crutches"}, {"letter": "D", "text": "Hip spica cast"}], "answer": "A", "explanation": "Single cannulated screw in situ."}, {"id": "21c", "group": 21, "section": "Hip & Knee", "objective": "Hip keywords", "stem": "Newborn hip clunks as it relocates with abduction → Diagnosis:", "options": [{"letter": "A", "text": "Developmental dysplasia of the hip"}, {"letter": "B", "text": "Slipped capital femoral epiphysis"}, {"letter": "C", "text": "Legg-Calvé-Perthes disease"}, {"letter": "D", "text": "Septic arthritis of the hip"}], "answer": "A", "explanation": "Positive Ortolani (clunk of reduction); Barlow = dislocatable."}, {"id": "21d", "group": 21, "section": "Hip & Knee", "objective": "Hip keywords", "stem": "DDH in a young infant → First treatment:", "options": [{"letter": "A", "text": "Pavlik harness"}, {"letter": "B", "text": "Spica cast"}, {"letter": "C", "text": "Closed reduction"}, {"letter": "D", "text": "Observation"}], "answer": "A", "explanation": "Ultrasound for diagnosis in young infants."}, {"id": "21e", "group": 21, "section": "Hip & Knee", "objective": "Hip keywords", "stem": "Displaced femoral neck fracture in an elderly patient → Treatment:", "options": [{"letter": "A", "text": "Hemiarthroplasty or THA"}, {"letter": "B", "text": "Cannulated screws"}, {"letter": "C", "text": "Sliding hip screw"}, {"letter": "D", "text": "Traction"}], "answer": "A", "explanation": "Intracapsular → highest AVN risk."}, {"id": "21f", "group": 21, "section": "Hip & Knee", "objective": "Hip keywords", "stem": "Steroids or alcohol, groin pain, normal hip X-ray → Next study:", "options": [{"letter": "A", "text": "MRI of the hips"}, {"letter": "B", "text": "CT of the pelvis"}, {"letter": "C", "text": "Hip ultrasound"}, {"letter": "D", "text": "Repeat X-ray in 1 year"}], "answer": "A", "explanation": "Early AVN of the femoral head; MRI often shows bilateral disease."}, {"id": "22", "group": 22, "section": "Hip & Knee", "objective": "Knee keywords", "stem": "Adolescent boy, tender bump at the tibial tubercle → Diagnosis:", "options": [{"letter": "A", "text": "Osgood-Schlatter disease"}, {"letter": "B", "text": "Sinding-Larsen-Johansson"}, {"letter": "C", "text": "Patellar tendon rupture"}, {"letter": "D", "text": "OCD"}], "answer": "A", "explanation": "Conservative care."}, {"id": "22a", "group": 22, "section": "Hip & Knee", "objective": "Knee keywords", "stem": "Young woman, diffuse anterior knee pain with stairs and prolonged sitting → Diagnosis:", "options": [{"letter": "A", "text": "Patellofemoral syndrome"}, {"letter": "B", "text": "Patellar tendinitis"}, {"letter": "C", "text": "Meniscal tear"}, {"letter": "D", "text": "Osgood-Schlatter"}], "answer": "A", "explanation": "'Theater sign'; PT ≥1 year."}, {"id": "22b", "group": 22, "section": "Hip & Knee", "objective": "Knee keywords", "stem": "Boggy swelling over the patella in a carpet layer → Diagnosis:", "options": [{"letter": "A", "text": "Prepatellar bursitis"}, {"letter": "B", "text": "Infrapatellar bursitis"}, {"letter": "C", "text": "Patellar fracture"}, {"letter": "D", "text": "Knee effusion from OA"}], "answer": "A", "explanation": "Housemaid's knee; MC knee bursa."}, {"id": "22c", "group": 22, "section": "Hip & Knee", "objective": "Knee keywords", "stem": "Small avulsion off the lateral tibial plateau → Associated injury:", "options": [{"letter": "A", "text": "ACL tear"}, {"letter": "B", "text": "PCL tear"}, {"letter": "C", "text": "MCL tear"}, {"letter": "D", "text": "Patellar dislocation"}], "answer": "A", "explanation": "Segond fracture is pathognomonic."}, {"id": "22d", "group": 22, "section": "Hip & Knee", "objective": "Knee keywords", "stem": "Axial load knee injury, lipohemarthrosis, subtle X-ray → Next study:", "options": [{"letter": "A", "text": "CT of the knee"}, {"letter": "B", "text": "MRI lumbar spine"}, {"letter": "C", "text": "Bone scan"}, {"letter": "D", "text": "Repeat X-ray in 2 weeks"}], "answer": "A", "explanation": "Tibial plateau — watch for compartment syndrome."}, {"id": "22e", "group": 22, "section": "Hip & Knee", "objective": "Knee keywords", "stem": "With an ACL tear, which meniscus tears more often?", "options": [{"letter": "A", "text": "Lateral meniscus"}, {"letter": "B", "text": "Medial meniscus"}, {"letter": "C", "text": "Neither — always intact"}, {"letter": "D", "text": "Both equally"}], "answer": "A", "explanation": "Otherwise medial > lateral."}, {"id": "23", "group": 23, "section": "Ankle & Foot", "objective": "Ankle & foot keywords", "stem": "Heel pain worst with the first steps in the morning → Diagnosis:", "options": [{"letter": "A", "text": "Plantar fasciitis"}, {"letter": "B", "text": "Achilles tendinitis"}, {"letter": "C", "text": "Calcaneal stress fracture"}, {"letter": "D", "text": "Tarsal tunnel syndrome"}], "answer": "A", "explanation": "Medial calcaneal tubercle tenderness."}, {"id": "23a", "group": 23, "section": "Ankle & Foot", "objective": "Ankle & foot keywords", "stem": "Plantar arch ecchymosis after a midfoot twist → Diagnosis until proven otherwise:", "options": [{"letter": "A", "text": "Lisfranc injury"}, {"letter": "B", "text": "Jones fracture"}, {"letter": "C", "text": "Plantar fasciitis"}, {"letter": "D", "text": "Lateral ankle sprain"}], "answer": "A", "explanation": "Widening between the 1st and 2nd MT bases; fleck sign."}, {"id": "23b", "group": 23, "section": "Ankle & Foot", "objective": "Ankle & foot keywords", "stem": "Fracture at the 5th MT metaphyseal–diaphyseal junction → Treatment:", "options": [{"letter": "A", "text": "Non-weight-bearing cast"}, {"letter": "B", "text": "Hard-soled shoe, WBAT"}, {"letter": "C", "text": "Buddy taping"}, {"letter": "D", "text": "Lace-up ankle brace"}], "answer": "A", "explanation": "Jones = watershed, nonunion risk."}, {"id": "23c", "group": 23, "section": "Ankle & Foot", "objective": "Ankle & foot keywords", "stem": "Avulsion of the 5th metatarsal tuberosity after inversion → Treatment:", "options": [{"letter": "A", "text": "Hard-soled shoe or boot, WBAT"}, {"letter": "B", "text": "Non-weight-bearing cast + ortho"}, {"letter": "C", "text": "ORIF"}, {"letter": "D", "text": "Long-leg cast"}], "answer": "A", "explanation": "Don't treat a Jones like an avulsion."}, {"id": "23d", "group": 23, "section": "Ankle & Foot", "objective": "Ankle & foot keywords", "stem": "Military recruit with 2nd metatarsal pain and a normal X-ray → Diagnosis:", "options": [{"letter": "A", "text": "Metatarsal stress fracture"}, {"letter": "B", "text": "Morton's neuroma"}, {"letter": "C", "text": "Lisfranc injury"}, {"letter": "D", "text": "Hallux rigidus"}], "answer": "A", "explanation": "Callus appears on repeat films."}, {"id": "23e", "group": 23, "section": "Ankle & Foot", "objective": "Ankle & foot keywords", "stem": "Ankle sprain plus a pop, instability, and tenderness behind the lateral malleolus → Diagnosis:", "options": [{"letter": "A", "text": "Peroneal tendon injury"}, {"letter": "B", "text": "Isolated ATFL sprain"}, {"letter": "C", "text": "Achilles rupture"}, {"letter": "D", "text": "Syndesmotic sprain"}], "answer": "A", "explanation": "Easily mistaken for a lateral sprain."}, {"id": "23f", "group": 23, "section": "Ankle & Foot", "objective": "Ankle & foot keywords", "stem": "Stiff, painful great toe MTP with dorsal osteophytes → Diagnosis:", "options": [{"letter": "A", "text": "Hallux rigidus"}, {"letter": "B", "text": "Hallux valgus"}, {"letter": "C", "text": "Turf toe"}, {"letter": "D", "text": "Sesamoiditis"}], "answer": "A", "explanation": "1st MTP OA; rocker-bottom sole."}, {"id": "24", "group": 24, "section": "Bone Tumors", "objective": "Bone tumors · buzzwords", "stem": "Sunburst periosteal reaction with Codman triangle in a teen → Tumor:", "options": [{"letter": "A", "text": "Osteosarcoma"}, {"letter": "B", "text": "Ewing sarcoma"}, {"letter": "C", "text": "Osteoid osteoma"}, {"letter": "D", "text": "Chondrosarcoma"}], "answer": "A", "explanation": "Distal femur metaphysis."}, {"id": "24a", "group": 24, "section": "Bone Tumors", "objective": "Bone tumors · buzzwords", "stem": "Onion-skin periosteal reaction, fever, ↑ESR in a child → Tumor:", "options": [{"letter": "A", "text": "Ewing sarcoma"}, {"letter": "B", "text": "Osteosarcoma"}, {"letter": "C", "text": "Osteochondroma"}, {"letter": "D", "text": "Giant cell tumor"}], "answer": "A", "explanation": "Small round blue cells, t(11;22); mimics osteomyelitis."}, {"id": "24b", "group": 24, "section": "Bone Tumors", "objective": "Bone tumors · buzzwords", "stem": "Night pain dramatically relieved by aspirin/NSAIDs → Tumor:", "options": [{"letter": "A", "text": "Osteoid osteoma"}, {"letter": "B", "text": "Osteosarcoma"}, {"letter": "C", "text": "Ewing sarcoma"}, {"letter": "D", "text": "Multiple myeloma"}], "answer": "A", "explanation": "Prostaglandin-producing nidus <1 cm."}, {"id": "24c", "group": 24, "section": "Bone Tumors", "objective": "Bone tumors · buzzwords", "stem": "Eccentric lytic lesion in the EPIPHYSIS of the distal femur, woman age 35 → Tumor:", "options": [{"letter": "A", "text": "Giant cell tumor"}, {"letter": "B", "text": "Non-ossifying fibroma"}, {"letter": "C", "text": "Unicameral bone cyst"}, {"letter": "D", "text": "Enchondroma"}], "answer": "A", "explanation": "Only common tumor in the epiphysis; F > M."}, {"id": "24d", "group": 24, "section": "Bone Tumors", "objective": "Bone tumors · buzzwords", "stem": "Soap-bubble cortical lesion in a child's distal femur, incidental → Tumor:", "options": [{"letter": "A", "text": "Non-ossifying fibroma"}, {"letter": "B", "text": "Unicameral bone cyst"}, {"letter": "C", "text": "Osteosarcoma"}, {"letter": "D", "text": "Osteoid osteoma"}], "answer": "A", "explanation": "MC benign bone tumor; observe."}, {"id": "24e", "group": 24, "section": "Bone Tumors", "objective": "Bone tumors · buzzwords", "stem": "Fallen leaf sign in the proximal humerus → Lesion:", "options": [{"letter": "A", "text": "Unicameral bone cyst"}, {"letter": "B", "text": "Enchondroma"}, {"letter": "C", "text": "Giant cell tumor"}, {"letter": "D", "text": "Osteochondroma"}], "answer": "A", "explanation": "MC cause of pathologic fracture in kids."}, {"id": "25", "group": 25, "section": "Bone Tumors", "objective": "Bone tumors · buzzwords", "stem": "Rings and arcs calcification in the pelvis of a 50-year-old → Tumor:", "options": [{"letter": "A", "text": "Chondrosarcoma"}, {"letter": "B", "text": "Osteosarcoma"}, {"letter": "C", "text": "Multiple myeloma"}, {"letter": "D", "text": "Osteochondroma"}], "answer": "A", "explanation": "Aggressive surgery; chemo seldom used."}, {"id": "25a", "group": 25, "section": "Bone Tumors", "objective": "Bone tumors · buzzwords", "stem": "Multiple punched-out lytic lesions, hypercalcemia, anemia → Diagnosis:", "options": [{"letter": "A", "text": "Multiple myeloma"}, {"letter": "B", "text": "Metastatic prostate cancer"}, {"letter": "C", "text": "Primary bone lymphoma"}, {"letter": "D", "text": "Paget's disease"}], "answer": "A", "explanation": "CRAB; Bence Jones proteins."}, {"id": "25b", "group": 25, "section": "Bone Tumors", "objective": "Bone tumors · buzzwords", "stem": "Cartilage-capped bony projection pointing away from the joint → Tumor:", "options": [{"letter": "A", "text": "Osteochondroma"}, {"letter": "B", "text": "Enchondroma"}, {"letter": "C", "text": "Osteoid osteoma"}, {"letter": "D", "text": "Chondrosarcoma"}], "answer": "A", "explanation": "Growth after maturity → worry about chondrosarcoma."}, {"id": "26", "group": 26, "section": "Bone Tumors", "objective": "Bone tumors · rules", "stem": "Most common primary bone malignancy overall (lecture) →", "options": [{"letter": "A", "text": "Multiple myeloma"}, {"letter": "B", "text": "Osteosarcoma"}, {"letter": "C", "text": "Ewing sarcoma"}, {"letter": "D", "text": "Chondrosarcoma"}], "answer": "A", "explanation": "Osteosarcoma = MC primary malignant bone TUMOR (sarcoma)."}, {"id": "26a", "group": 26, "section": "Bone Tumors", "objective": "Bone tumors · rules", "stem": "Suspected malignant bone tumor → Required staging study:", "options": [{"letter": "A", "text": "CT of the chest"}, {"letter": "B", "text": "Colonoscopy"}, {"letter": "C", "text": "Skeletal survey only"}, {"letter": "D", "text": "Ultrasound of the abdomen"}], "answer": "A", "explanation": "Lungs are the first metastatic site."}, {"id": "26b", "group": 26, "section": "Bone Tumors", "objective": "Bone tumors · rules", "stem": "Which sarcoma is radiosensitive?", "options": [{"letter": "A", "text": "Ewing sarcoma"}, {"letter": "B", "text": "Osteosarcoma"}, {"letter": "C", "text": "Chondrosarcoma"}, {"letter": "D", "text": "Giant cell tumor"}], "answer": "A", "explanation": "Osteosarcoma is radiation-resistant."}, {"id": "27", "group": 27, "section": "Bone & Joint Infection", "objective": "Osteomyelitis & septic joint", "stem": "Hot swollen knee with fever → Key diagnostic step:", "options": [{"letter": "A", "text": "Arthrocentesis"}, {"letter": "B", "text": "MRI"}, {"letter": "C", "text": "Uric acid"}, {"letter": "D", "text": "Knee X-ray"}], "answer": "A", "explanation": "Gram stain, cell count, culture."}, {"id": "27a", "group": 27, "section": "Bone & Joint Infection", "objective": "Osteomyelitis & septic joint", "stem": "Synovial WBC >50,000 with neutrophils → Interpretation:", "options": [{"letter": "A", "text": "Septic arthritis"}, {"letter": "B", "text": "Osteoarthritis"}, {"letter": "C", "text": "Normal fluid"}, {"letter": "D", "text": "Hemarthrosis"}], "answer": "A", "explanation": "Crystals don't exclude infection."}, {"id": "27b", "group": 27, "section": "Bone & Joint Infection", "objective": "Osteomyelitis & septic joint", "stem": "Most common organism in septic arthritis and osteomyelitis →", "options": [{"letter": "A", "text": "Staphylococcus aureus"}, {"letter": "B", "text": "Streptococcus pneumoniae"}, {"letter": "C", "text": "E. coli"}, {"letter": "D", "text": "Pseudomonas"}], "answer": "A", "explanation": "Then Streptococcus."}, {"id": "27c", "group": 27, "section": "Bone & Joint Infection", "objective": "Osteomyelitis & septic joint", "stem": "Osteomyelitis in a patient with sickle cell disease → Organism:", "options": [{"letter": "A", "text": "Salmonella"}, {"letter": "B", "text": "Pasteurella"}, {"letter": "C", "text": "Eikenella"}, {"letter": "D", "text": "Neisseria gonorrhoeae"}], "answer": "A", "explanation": "Diaphysis, multiple sites."}, {"id": "27d", "group": 27, "section": "Bone & Joint Infection", "objective": "Osteomyelitis & septic joint", "stem": "Migratory polyarthralgia, tenosynovitis, and pustules in a young adult → Diagnosis:", "options": [{"letter": "A", "text": "Disseminated gonococcal infection"}, {"letter": "B", "text": "Reactive arthritis"}, {"letter": "C", "text": "Nongonococcal septic arthritis"}, {"letter": "D", "text": "Lyme arthritis"}], "answer": "A", "explanation": "Swab all mucosal sites; ceftriaxone + doxycycline."}, {"id": "27e", "group": 27, "section": "Bone & Joint Infection", "objective": "Osteomyelitis & septic joint", "stem": "Osteomyelitis suspected but X-ray normal → Next study:", "options": [{"letter": "A", "text": "MRI with and without contrast"}, {"letter": "B", "text": "Repeat X-ray in 24 hours"}, {"letter": "C", "text": "Bone densitometry"}, {"letter": "D", "text": "Ultrasound"}], "answer": "A", "explanation": "X-ray needs ~2 weeks of bone loss."}, {"id": "28", "group": 28, "section": "Bone & Joint Infection", "objective": "Osteomyelitis & septic joint", "stem": "Gold standard for osteomyelitis diagnosis →", "options": [{"letter": "A", "text": "Bone biopsy with culture"}, {"letter": "B", "text": "ESR >70"}, {"letter": "C", "text": "Blood cultures"}, {"letter": "D", "text": "Bone scan"}], "answer": "A", "explanation": "Normal ESR/CRP don't exclude it."}, {"id": "28a", "group": 28, "section": "Bone & Joint Infection", "objective": "Osteomyelitis & septic joint", "stem": "Diabetic foot ulcer, sterile probe hits bone → Suggests:", "options": [{"letter": "A", "text": "Osteomyelitis"}, {"letter": "B", "text": "Cellulitis only"}, {"letter": "C", "text": "Charcot foot"}, {"letter": "D", "text": "Gout"}], "answer": "A", "explanation": "Probe-to-bone; biopsy confirms."}, {"id": "28b", "group": 28, "section": "Bone & Joint Infection", "objective": "Osteomyelitis & septic joint", "stem": "Chronic prosthetic hip/knee infection → Gold-standard surgical approach:", "options": [{"letter": "A", "text": "Two-stage exchange"}, {"letter": "B", "text": "Debridement with implant retention"}, {"letter": "C", "text": "Arthroscopic washout"}, {"letter": "D", "text": "Oral antibiotics only"}], "answer": "A", "explanation": "Spacer → IV abx → reimplant."}, {"id": "29", "group": 29, "section": "Osteoarthritis", "objective": "Osteoarthritis", "stem": "Joint stiffness that improves within ~30 minutes, worse with use → Diagnosis:", "options": [{"letter": "A", "text": "Osteoarthritis"}, {"letter": "B", "text": "Rheumatoid arthritis"}, {"letter": "C", "text": "Ankylosing spondylitis"}, {"letter": "D", "text": "Gout"}], "answer": "A", "explanation": "RA stiffness >1 h."}, {"id": "29a", "group": 29, "section": "Osteoarthritis", "objective": "Osteoarthritis", "stem": "DIP bony enlargements →", "options": [{"letter": "A", "text": "Heberden's nodes"}, {"letter": "B", "text": "Bouchard's nodes"}, {"letter": "C", "text": "Tophi"}, {"letter": "D", "text": "Rheumatoid nodules"}], "answer": "A", "explanation": "Bouchard = PIP (worse disease)."}, {"id": "29b", "group": 29, "section": "Osteoarthritis", "objective": "Osteoarthritis", "stem": "OA X-ray pattern →", "options": [{"letter": "A", "text": "Asymmetric narrowing with osteophytes"}, {"letter": "B", "text": "Symmetric narrowing with erosions"}, {"letter": "C", "text": "Periarticular osteopenia, no spurs"}, {"letter": "D", "text": "Pencil-in-cup deformities"}], "answer": "A", "explanation": "Plus subchondral sclerosis and cysts."}, {"id": "29c", "group": 29, "section": "Osteoarthritis", "objective": "Osteoarthritis", "stem": "Knee OA → First-line drug (lecture):", "options": [{"letter": "A", "text": "Topical diclofenac"}, {"letter": "B", "text": "Acetaminophen"}, {"letter": "C", "text": "Tramadol"}, {"letter": "D", "text": "Oral prednisone"}], "answer": "A", "explanation": "Acetaminophen is 2nd line per lecture (ACR 2019)."}, {"id": "29d", "group": 29, "section": "Osteoarthritis", "objective": "Osteoarthritis", "stem": "Medial compartment knee OA → Deformity:", "options": [{"letter": "A", "text": "Varus (bow-legged)"}, {"letter": "B", "text": "Valgus (knock-kneed)"}, {"letter": "C", "text": "Recurvatum"}, {"letter": "D", "text": "Flexion contracture only"}], "answer": "A", "explanation": "Lateral compartment → valgus."}, {"id": "29e", "group": 29, "section": "Osteoarthritis", "objective": "Osteoarthritis", "stem": "Single modifiable risk factor with the biggest knee payoff →", "options": [{"letter": "A", "text": "Weight loss"}, {"letter": "B", "text": "Glucosamine"}, {"letter": "C", "text": "Bracing"}, {"letter": "D", "text": "Bed rest"}], "answer": "A", "explanation": "1 lb lost = 4 lb off the knee."}, {"id": "30", "group": 30, "section": "Rules & Do-Nots", "objective": "Rules & do-nots", "stem": "Corticosteroid injection should be avoided in →", "options": [{"letter": "A", "text": "Achilles tendinopathy"}, {"letter": "B", "text": "Carpal tunnel syndrome"}, {"letter": "C", "text": "De Quervain's"}, {"letter": "D", "text": "Trigger finger"}], "answer": "A", "explanation": "Rupture risk; also patellar tendonitis, cubital tunnel, metatarsalgia."}, {"id": "30a", "group": 30, "section": "Rules & Do-Nots", "objective": "Rules & do-nots", "stem": "Antibiotic class that causes tendinopathy and Achilles rupture →", "options": [{"letter": "A", "text": "Fluoroquinolones"}, {"letter": "B", "text": "Cephalosporins"}, {"letter": "C", "text": "Macrolides"}, {"letter": "D", "text": "Tetracyclines"}], "answer": "A", "explanation": "Ask in every MSK history."}, {"id": "30b", "group": 30, "section": "Rules & Do-Nots", "objective": "Rules & do-nots", "stem": "Apprehension test on an acutely relocated shoulder →", "options": [{"letter": "A", "text": "Do not perform"}, {"letter": "B", "text": "Required before discharge"}, {"letter": "C", "text": "Perform under sedation"}, {"letter": "D", "text": "Perform only in children"}], "answer": "A", "explanation": "Risks re-dislocation."}, {"id": "30c", "group": 30, "section": "Rules & Do-Nots", "objective": "Rules & do-nots", "stem": "Reduction technique NOT used for posterior shoulder dislocation →", "options": [{"letter": "A", "text": "Kocher maneuver"}, {"letter": "B", "text": "Traction/counter-traction"}, {"letter": "C", "text": "Axial traction with IR → ER"}, {"letter": "D", "text": "Procedural sedation"}], "answer": "A", "explanation": "Kocher and FARES are for anterior only."}, {"id": "30d", "group": 30, "section": "Rules & Do-Nots", "objective": "Rules & do-nots", "stem": "Ganglion cyst on the volar wrist → Aspiration?", "options": [{"letter": "A", "text": "Avoid aspiration"}, {"letter": "B", "text": "Aspirate at the first visit"}, {"letter": "C", "text": "Aspirate and inject steroid"}, {"letter": "D", "text": "Aspirate only if painless"}], "answer": "A", "explanation": "Radial artery lies adjacent — aspirate dorsal cysts only."}, {"id": "30e", "group": 30, "section": "Rules & Do-Nots", "objective": "Rules & do-nots", "stem": "Blood at the urethral meatus → Before a Foley:", "options": [{"letter": "A", "text": "Retrograde urethrogram"}, {"letter": "B", "text": "Renal ultrasound"}, {"letter": "C", "text": "Cystoscopy"}, {"letter": "D", "text": "Urinalysis"}], "answer": "A", "explanation": "Anterior ring fracture → urogenital injury."}, {"id": "30f", "group": 30, "section": "Rules & Do-Nots", "objective": "Rules & do-nots", "stem": "Open fracture → Anesthesia technique to avoid:", "options": [{"letter": "A", "text": "Hematoma block"}, {"letter": "B", "text": "Procedural sedation"}, {"letter": "C", "text": "General anesthesia"}, {"letter": "D", "text": "Regional nerve block"}], "answer": "A", "explanation": "Would contaminate the fracture."}]});
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
