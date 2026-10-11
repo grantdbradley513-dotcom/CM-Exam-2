@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Rheum & Rehab Exam 4 — Keywords & Associations", "questions": [{"id": "1", "group": 1, "stem": "Cannot get up from the floor → ICF level:", "options": [{"letter": "A", "text": "Activity limitation"}, {"letter": "B", "text": "Personal factor"}, {"letter": "C", "text": "Participation restriction"}, {"letter": "D", "text": "Impairment"}, {"letter": "E", "text": "Indirect impairment"}], "answer": "A", "explanation": "Difficulty executing a task = activity limitation.", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "2", "group": 2, "stem": "Polymyositis / dermatomyositis → First-line treatment:", "options": [{"letter": "A", "text": "Hydroxychloroquine"}, {"letter": "B", "text": "Methotrexate alone"}, {"letter": "C", "text": "High-dose corticosteroids"}, {"letter": "D", "text": "IVIG"}, {"letter": "E", "text": "NSAIDs"}], "answer": "C", "explanation": "High-dose steroids first; azathioprine/methotrexate steroid-sparing; JAK inhibitors off-label.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "3", "group": 3, "stem": "Numbness and tingling in the hand after starting axillary crutches → Cause:", "options": [{"letter": "A", "text": "Crutches too tall — brachial plexus compression"}, {"letter": "B", "text": "Tips worn down"}, {"letter": "C", "text": "Handgrip too low"}, {"letter": "D", "text": "Crutches too short — trunk flexion"}, {"letter": "E", "text": "Normal adaptation"}], "answer": "A", "explanation": "Too tall → brachial plexus injury; refit 2–3 finger widths below the axilla with weight through the hands.", "objective": "", "section": "Assistive Devices"}, {"id": "4", "group": 4, "stem": "Antibody that is 95% specific for RA and predicts erosive disease →", "options": [{"letter": "A", "text": "Anti-Smith"}, {"letter": "B", "text": "ANA"}, {"letter": "C", "text": "Rheumatoid factor"}, {"letter": "D", "text": "Anti-CCP"}, {"letter": "E", "text": "Anti-histone"}], "answer": "D", "explanation": "Anti-CCP: 95% specific, ~67% sensitive — a positive rules RA IN (SPIN).", "objective": "", "section": "Approach & Labs"}, {"id": "5", "group": 5, "stem": "Rheumatoid arthritis + neutropenia + splenomegaly → Syndrome:", "options": [{"letter": "A", "text": "Felty syndrome"}, {"letter": "B", "text": "Caplan syndrome"}, {"letter": "C", "text": "Still disease"}, {"letter": "D", "text": "Sjögren syndrome"}, {"letter": "E", "text": "Macrophage activation syndrome"}], "answer": "A", "explanation": "Felty = RA + neutropenia + splenomegaly.", "objective": "", "section": "RA & JIA"}, {"id": "6", "group": 6, "stem": "Febuxostat → Black box warning:", "options": [{"letter": "A", "text": "Nephrolithiasis"}, {"letter": "B", "text": "Bone-marrow suppression"}, {"letter": "C", "text": "Cardiovascular death"}, {"letter": "D", "text": "Hepatotoxicity"}, {"letter": "E", "text": "Hypersensitivity syndrome"}], "answer": "C", "explanation": "Febuxostat carries a BBW for CV death; it needs no adjustment in mild–moderate CKD.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "7", "group": 7, "stem": "Peripheral oligoarthritis that flares and settles with the bowel disease in Crohn's → Type:", "options": [{"letter": "A", "text": "Enteropathic gout"}, {"letter": "B", "text": "Type I IBD-associated arthropathy"}, {"letter": "C", "text": "Axial IBD-associated arthropathy"}, {"letter": "D", "text": "Type II IBD-associated arthropathy"}, {"letter": "E", "text": "Reactive arthritis"}], "answer": "B", "explanation": "Type I tracks bowel activity (control the colitis); Type II symmetric hand polyarthritis independent of the bowel; axial = AS-like.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "8", "group": 8, "stem": "Young man presenting with NEW psoriasis → Test:", "options": [{"letter": "A", "text": "Hepatitis C"}, {"letter": "B", "text": "HLA-B27"}, {"letter": "C", "text": "HIV"}, {"letter": "D", "text": "ANA"}, {"letter": "E", "text": "Rheumatoid factor"}], "answer": "C", "explanation": "New psoriasis in a young man → think HIV (lecture buzzword).", "objective": "", "section": "Spondyloarthropathies"}, {"id": "9", "group": 9, "stem": "Spasticity after a stroke → ICF level:", "options": [{"letter": "A", "text": "Personal factor"}, {"letter": "B", "text": "Environmental factor"}, {"letter": "C", "text": "Participation restriction"}, {"letter": "D", "text": "Activity limitation"}, {"letter": "E", "text": "Impairment (body structure/function)"}], "answer": "E", "explanation": "Impairment = the body-level deficit; cannot get up from the floor = activity limitation; cannot visit grandchildren = participation restriction.", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "10", "group": 10, "stem": "Weight-bearing status that allows a cane →", "options": [{"letter": "A", "text": "Toe-touch weight-bearing"}, {"letter": "B", "text": "Non-weight-bearing"}, {"letter": "C", "text": "Partial weight-bearing (50%)"}, {"letter": "D", "text": "WBAT or full weight-bearing only"}, {"letter": "E", "text": "Any weight-bearing status"}], "answer": "D", "explanation": "Canes, single crutch and hemi-walker are unilateral options — only for WBAT/FWB.", "objective": "", "section": "Assistive Devices"}, {"id": "11", "group": 11, "stem": "Rhomboid crystals, positively birefringent (blue parallel to the axis) → Diagnosis:", "options": [{"letter": "A", "text": "Milwaukee shoulder"}, {"letter": "B", "text": "Pseudogout (CPPD)"}, {"letter": "C", "text": "Osteoarthritis"}, {"letter": "D", "text": "Gout"}, {"letter": "E", "text": "Septic arthritis"}], "answer": "B", "explanation": "Calcium pyrophosphate = rhomboid, positively birefringent.", "objective": "", "section": "Approach & Labs"}, {"id": "12", "group": 12, "stem": "Leaving home requires considerable and taxing effort → Qualifies for:", "options": [{"letter": "A", "text": "Long-term acute care"}, {"letter": "B", "text": "Outpatient rehabilitation"}, {"letter": "C", "text": "Subacute rehab"}, {"letter": "D", "text": "Home health rehabilitation"}, {"letter": "E", "text": "Day rehabilitation"}], "answer": "D", "explanation": "Homebound = home health; 2–3×/wk × ~4 wk; cannot combine with outpatient.", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "13", "group": 13, "stem": "Behçet syndrome → HLA association:", "options": [{"letter": "A", "text": "HLA-DR4"}, {"letter": "B", "text": "HLA-DQ2"}, {"letter": "C", "text": "HLA-B*58:01"}, {"letter": "D", "text": "HLA-B51"}, {"letter": "E", "text": "HLA-B27"}], "answer": "D", "explanation": "HLA-B51/B5 (Silk Road); B27 = SpA; DR4 = RA; B*58:01 = allopurinol hypersensitivity.", "objective": "", "section": "Vasculitis"}, {"id": "14", "group": 14, "stem": "Patient with dementia needs a device → Best choice and why:", "options": [{"letter": "A", "text": "Walker — mimics a normal gait pattern (and refer to PT)"}, {"letter": "B", "text": "Quad cane — simplest"}, {"letter": "C", "text": "Lofstrand crutches — long-term"}, {"letter": "D", "text": "Hemi-walker — one-handed"}, {"letter": "E", "text": "Axillary crutches — most stable"}], "answer": "A", "explanation": "Cognitive deficit → walker (mimics normal gait); crutches require strength, balance, coordination and cognition.", "objective": "", "section": "Assistive Devices"}, {"id": "15", "group": 15, "stem": "Polymyalgia rheumatica → Treatment and expected response:", "options": [{"letter": "A", "text": "Methotrexate — improvement over months"}, {"letter": "B", "text": "Graded exercise — improvement over weeks"}, {"letter": "C", "text": "NSAIDs — gradual improvement"}, {"letter": "D", "text": "Prednisone 10–20 mg — dramatic improvement in days"}, {"letter": "E", "text": "Prednisone 1 mg/kg — slow improvement"}], "answer": "D", "explanation": "Low-dose prednisone with dramatic response supports the diagnosis; poor response → consider paraneoplastic process.", "objective": "", "section": "Vasculitis"}, {"id": "16", "group": 16, "stem": "Recurrent pseudogout attacks (≥3 per year) → Long-term prophylaxis:", "options": [{"letter": "A", "text": "Low-dose colchicine"}, {"letter": "B", "text": "Allopurinol"}, {"letter": "C", "text": "Pegloticase"}, {"letter": "D", "text": "Probenecid"}, {"letter": "E", "text": "Febuxostat"}], "answer": "A", "explanation": "CPPD has no urate-lowering therapy — allopurinol does nothing; use low-dose colchicine or daily low-dose NSAID.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "17", "group": 17, "stem": "Positive anti-histone with negative anti-dsDNA and anti-Smith → Diagnosis:", "options": [{"letter": "A", "text": "Discoid lupus"}, {"letter": "B", "text": "Systemic lupus erythematosus"}, {"letter": "C", "text": "Drug-induced lupus"}, {"letter": "D", "text": "Subacute cutaneous lupus"}, {"letter": "E", "text": "Mixed connective tissue disease"}], "answer": "C", "explanation": "Anti-histone is also positive in SLE — the discriminator is that the other antibodies are negative in DILE.", "objective": "", "section": "Lupus Family"}, {"id": "18", "group": 18, "stem": "Depression, loss of vocation and change in family roles after a stroke → Impairment type:", "options": [{"letter": "A", "text": "Indirect impairment"}, {"letter": "B", "text": "Activity limitation"}, {"letter": "C", "text": "Participation restriction"}, {"letter": "D", "text": "Direct impairment"}, {"letter": "E", "text": "Environmental factor"}], "answer": "A", "explanation": "Direct = neurologic deficit you can examine (spasticity, apraxia, dysphagia); indirect = psychosocial consequence.", "objective": "", "section": "Neuro Rehab"}, {"id": "19", "group": 19, "stem": "Most specific antibody for SLE →", "options": [{"letter": "A", "text": "Anti-Smith"}, {"letter": "B", "text": "Anti-histone"}, {"letter": "C", "text": "Anti-dsDNA"}, {"letter": "D", "text": "ANA"}, {"letter": "E", "text": "Anti-SSA (Ro)"}], "answer": "A", "explanation": "Anti-Smith is most specific; anti-dsDNA is specific AND tracks activity.", "objective": "", "section": "Lupus Family"}, {"id": "20", "group": 20, "stem": "Ultimate goal of rehabilitation (ICF) →", "options": [{"letter": "A", "text": "Participation"}, {"letter": "B", "text": "Independence in ADLs"}, {"letter": "C", "text": "Return to work"}, {"letter": "D", "text": "Remediation of impairment"}, {"letter": "E", "text": "Pain control"}], "answer": "A", "explanation": "ICF: body structure/function → activity → participation; participation is the ultimate goal.", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "21", "group": 21, "stem": "Sjögren patient with persistent unilateral parotid enlargement, lymphadenopathy, new cytopenia → Evaluate for:", "options": [{"letter": "A", "text": "Parotid abscess"}, {"letter": "B", "text": "Sarcoidosis"}, {"letter": "C", "text": "Sialolithiasis"}, {"letter": "D", "text": "Mumps"}, {"letter": "E", "text": "Non-Hodgkin lymphoma"}], "answer": "E", "explanation": "Sjögren carries an increased risk of NHL.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "22", "group": 22, "stem": "Dry gritty eyes + dry mouth + bilateral parotid enlargement + dental caries → Diagnosis:", "options": [{"letter": "A", "text": "Diabetes mellitus"}, {"letter": "B", "text": "Mumps"}, {"letter": "C", "text": "Sjögren syndrome"}, {"letter": "D", "text": "Sarcoidosis"}, {"letter": "E", "text": "Anticholinergic side effect"}], "answer": "C", "explanation": "Sicca + parotid enlargement = Sjögren; ANA/RF/SSA/SSB positive.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "23", "group": 23, "stem": "Sausage digit (dactylitis) → Disease family:", "options": [{"letter": "A", "text": "Spondyloarthropathies (PsA, reactive)"}, {"letter": "B", "text": "Crystal arthropathy"}, {"letter": "C", "text": "Rheumatoid arthritis"}, {"letter": "D", "text": "Osteoarthritis"}, {"letter": "E", "text": "Lupus"}], "answer": "A", "explanation": "Dactylitis and enthesitis are SpA hallmarks.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "24", "group": 24, "stem": "Morning stiffness lasting more than 60 minutes that worsens with rest → Category:", "options": [{"letter": "A", "text": "Inflammatory arthritis"}, {"letter": "B", "text": "Fibromyalgia"}, {"letter": "C", "text": "Non-inflammatory arthritis"}, {"letter": "D", "text": "Periarticular pain"}, {"letter": "E", "text": "Arthralgia"}], "answer": "A", "explanation": "Inflammatory: AM stiffness >60 min, worse with rest, warmth/effusion, ESR/CRP up, fluid WBC >2,000. Non-inflammatory: stiffness <30 min, bony enlargement.", "objective": "", "section": "Approach & Labs"}, {"id": "25", "group": 25, "stem": "Cannot visit grandchildren in a two-story house → ICF level:", "options": [{"letter": "A", "text": "Direct impairment"}, {"letter": "B", "text": "Impairment"}, {"letter": "C", "text": "Activity limitation"}, {"letter": "D", "text": "Participation restriction"}, {"letter": "E", "text": "Environmental factor"}], "answer": "D", "explanation": "Problem with involvement in a life situation = participation restriction.", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "26", "group": 26, "stem": "Anchor DMARD for rheumatoid arthritis →", "options": [{"letter": "A", "text": "Prednisone"}, {"letter": "B", "text": "Naproxen"}, {"letter": "C", "text": "Methotrexate"}, {"letter": "D", "text": "Hydroxychloroquine"}, {"letter": "E", "text": "Infliximab"}], "answer": "C", "explanation": "Methotrexate weekly + folic acid; prednisone 5–15 mg only as a bridge; NSAIDs for symptoms only.", "objective": "", "section": "RA & JIA"}, {"id": "27", "group": 27, "stem": "Axillary crutch fit →", "options": [{"letter": "A", "text": "Crutch top snug in the axilla, weight through the axilla"}, {"letter": "B", "text": "2–3 finger widths below the axilla, slight elbow bend, weight through the hands"}, {"letter": "C", "text": "Cuff 3 finger widths below the elbow, grip at the wrist"}, {"letter": "D", "text": "Grip at the ulnar styloid, 20–30° elbow flexion"}, {"letter": "E", "text": "Elbow locked straight, tips at shoulder width"}], "answer": "B", "explanation": "Axillary crutch: 2–3 fingers below axilla, tips slightly wider than shoulders, weight on hands.", "objective": "", "section": "Assistive Devices"}, {"id": "28", "group": 28, "stem": "Newly diagnosed dermatomyositis → Mandatory evaluation:", "options": [{"letter": "A", "text": "HLA-B27"}, {"letter": "B", "text": "Age-appropriate malignancy screening"}, {"letter": "C", "text": "Echocardiogram for Libman-Sacks"}, {"letter": "D", "text": "Renal biopsy"}, {"letter": "E", "text": "Temporal artery biopsy"}], "answer": "B", "explanation": "Cancer in 15–20% of DM (7–10% PM) — screen every patient.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "29", "group": 29, "stem": "Long-term device for a patient with MS or cerebral palsy with balance and weakness deficits →", "options": [{"letter": "A", "text": "Standard walker"}, {"letter": "B", "text": "Straight cane"}, {"letter": "C", "text": "Lofstrand (forearm) crutches"}, {"letter": "D", "text": "Hemi-walker"}, {"letter": "E", "text": "Axillary crutches"}], "answer": "C", "explanation": "Lofstrand = long-term neurologic use; cuff 3 finger widths below the elbow, grip at wrist height. Axillary = temporary ortho.", "objective": "", "section": "Assistive Devices"}, {"id": "30", "group": 30, "stem": "Patient of African or South Asian descent before starting allopurinol → Test:", "options": [{"letter": "A", "text": "HLA-B51"}, {"letter": "B", "text": "HLA-B27"}, {"letter": "C", "text": "HLA-B*58:01"}, {"letter": "D", "text": "G6PD level"}, {"letter": "E", "text": "HLA-DR4"}], "answer": "C", "explanation": "HLA-B*58:01 predicts allopurinol hypersensitivity syndrome.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "31", "group": 31, "stem": "Hand X-ray with periarticular osteopenia and marginal erosions → Diagnosis:", "options": [{"letter": "A", "text": "Psoriatic arthritis"}, {"letter": "B", "text": "CPPD"}, {"letter": "C", "text": "Gout"}, {"letter": "D", "text": "Osteoarthritis"}, {"letter": "E", "text": "Rheumatoid arthritis"}], "answer": "E", "explanation": "RA: periarticular osteopenia, marginal erosions, joint-space narrowing (late; normal early). Gout: punched-out erosions with overhanging edges. PsA: pencil-in-cup.", "objective": "", "section": "RA & JIA"}, {"id": "32", "group": 32, "stem": "BADLs/IADLs, fine motor, visual-spatial skills, upper-extremity orthotics → Team member:", "options": [{"letter": "A", "text": "Speech-language pathologist"}, {"letter": "B", "text": "Orthotist"}, {"letter": "C", "text": "Occupational therapist"}, {"letter": "D", "text": "Physical therapist"}, {"letter": "E", "text": "Rehab nurse"}], "answer": "C", "explanation": "OT = daily living, fine motor, visual-spatial, UE orthotics; PT = gross motor, mobility, falls, home assessment.", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "33", "group": 33, "stem": "Ventilator/trach weaning, wound vac, prolonged IV antibiotics → Rehab setting:", "options": [{"letter": "A", "text": "Subacute rehab (SNF)"}, {"letter": "B", "text": "Acute inpatient rehabilitation"}, {"letter": "C", "text": "Outpatient"}, {"letter": "D", "text": "Long-term acute care (LTAC)"}, {"letter": "E", "text": "Home health"}], "answer": "D", "explanation": "LTAC: MD daily, RT ≥TID, skilled nursing ≥7 h/day, LOS ~30 days.", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "34", "group": 34, "stem": "Non-weight-bearing, toe-touch or partial weight-bearing order → Device requirement:", "options": [{"letter": "A", "text": "A hemi-walker"}, {"letter": "B", "text": "No device needed"}, {"letter": "C", "text": "A quad cane"}, {"letter": "D", "text": "A straight cane in the opposite hand"}, {"letter": "E", "text": "Bilateral upper-extremity support — walker, crutches or parallel bars"}], "answer": "E", "explanation": "Limited WB (NWB/TTWB/PWB) requires bilateral UE support; canes only for WBAT/FWB.", "objective": "", "section": "Assistive Devices"}, {"id": "35", "group": 35, "stem": "Anti-SSA (Ro) positive mother → Fetal risk:", "options": [{"letter": "A", "text": "Neonatal lupus / congenital heart block"}, {"letter": "B", "text": "Fetal loss from thrombosis"}, {"letter": "C", "text": "Fetal hydrops from anemia"}, {"letter": "D", "text": "Neural tube defect"}, {"letter": "E", "text": "Macrosomia"}], "answer": "A", "explanation": "SSA crosses the placenta → neonatal lupus and congenital heart block; hydroxychloroquine reduces the risk.", "objective": "", "section": "Lupus Family"}, {"id": "36", "group": 36, "stem": "Reactive arthritis → Initial treatment:", "options": [{"letter": "A", "text": "NSAIDs (+ antibiotics only if infection still active)"}, {"letter": "B", "text": "Sulfasalazine"}, {"letter": "C", "text": "Methotrexate"}, {"letter": "D", "text": "Prednisone 1 mg/kg"}, {"letter": "E", "text": "TNF inhibitor"}], "answer": "A", "explanation": "NSAIDs first; persistent >3–6 months → methotrexate or TNF inhibitors.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "37", "group": 37, "stem": "Violaceous upper eyelids + scaly papules over the knuckles → Diagnosis:", "options": [{"letter": "A", "text": "Polymyositis"}, {"letter": "B", "text": "Systemic lupus erythematosus"}, {"letter": "C", "text": "Dermatomyositis"}, {"letter": "D", "text": "Allergic contact dermatitis"}, {"letter": "E", "text": "Psoriasis"}], "answer": "C", "explanation": "Heliotrope rash + Gottron papules (highly specific) = dermatomyositis; also shawl/V sign, mechanic's hands.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "38", "group": 38, "stem": "Chalky nodules on the ear helix and olecranon → Finding and diagnosis:", "options": [{"letter": "A", "text": "Rheumatoid nodules — RA"}, {"letter": "B", "text": "Tophi — chronic tophaceous gout"}, {"letter": "C", "text": "Calcinosis — limited scleroderma"}, {"letter": "D", "text": "Gottron papules — dermatomyositis"}, {"letter": "E", "text": "Xanthomas — hyperlipidemia"}], "answer": "B", "explanation": "Tophi = MSU deposits; their presence is itself an indication for urate-lowering therapy with target <5 mg/dL.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "39", "group": 39, "stem": "Polymyalgia rheumatica → Screen at every visit for:", "options": [{"letter": "A", "text": "Uveitis"}, {"letter": "B", "text": "Lupus nephritis"}, {"letter": "C", "text": "Malignancy of the colon"}, {"letter": "D", "text": "Interstitial lung disease"}, {"letter": "E", "text": "Giant cell arteritis symptoms"}], "answer": "E", "explanation": "20% of PMR develop GCA; 40–50% of GCA have PMR — ask about headache, jaw claudication, vision.", "objective": "", "section": "Vasculitis"}, {"id": "40", "group": 40, "stem": "Synovial fluid WBC >50,000/µL with a positive Gram stain → Fluid class:", "options": [{"letter": "A", "text": "Inflammatory"}, {"letter": "B", "text": "Hemorrhagic"}, {"letter": "C", "text": "Non-inflammatory"}, {"letter": "D", "text": "Crystal"}, {"letter": "E", "text": "Septic"}], "answer": "E", "explanation": "Septic fluid is >50,000 with Gram stain/culture positive — never inject a steroid.", "objective": "", "section": "Approach & Labs"}, {"id": "41", "group": 41, "stem": "Non-severe EGPA → Targeted biologic:", "options": [{"letter": "A", "text": "Adalimumab (TNF)"}, {"letter": "B", "text": "Rituximab (CD20)"}, {"letter": "C", "text": "Mepolizumab (IL-5)"}, {"letter": "D", "text": "Secukinumab (IL-17)"}, {"letter": "E", "text": "Tocilizumab (IL-6)"}], "answer": "C", "explanation": "Mepolizumab for less severe EGPA; severe → steroids + rituximab/cyclophosphamide.", "objective": "", "section": "Vasculitis"}, {"id": "42", "group": 42, "stem": "Antiphospholipid syndrome with thrombosis → Long-term anticoagulant:", "options": [{"letter": "A", "text": "Low-molecular-weight heparin for 3 months only"}, {"letter": "B", "text": "Aspirin alone"}, {"letter": "C", "text": "Clopidogrel"}, {"letter": "D", "text": "Warfarin"}, {"letter": "E", "text": "Apixaban"}], "answer": "D", "explanation": "LMWH bridging → warfarin long term (usually lifelong); DOACs only in mild disease.", "objective": "", "section": "Lupus Family"}, {"id": "43", "group": 43, "stem": "Increasing hat size, hearing loss, bowed tibia, warmth over the bone → Diagnosis:", "options": [{"letter": "A", "text": "Osteosarcoma"}, {"letter": "B", "text": "Acromegaly"}, {"letter": "C", "text": "Osteomalacia"}, {"letter": "D", "text": "Fibrous dysplasia"}, {"letter": "E", "text": "Paget's disease of bone"}], "answer": "E", "explanation": "Skull enlargement, deafness (ossicle ankylosis + auditory meatus narrowing), bowing, hypervascular warm bone = Paget's. Acromegaly enlarges hands/feet/jaw (IGF-1).", "objective": "", "section": "Fibromyalgia, CRPS & Paget's"}, {"id": "44", "group": 44, "stem": "Hemiparetic arm hanging unsupported at the bedside → Correct care:", "options": [{"letter": "A", "text": "Position/support the shoulder, ROM, resting hand splint — never pull on the arm"}, {"letter": "B", "text": "Begin heavy resistance training"}, {"letter": "C", "text": "Immobilize the shoulder in a sling full-time"}, {"letter": "D", "text": "Pull the patient up by the arm to mobilize early"}, {"letter": "E", "text": "Leave the hand flexed to prevent spasm"}], "answer": "A", "explanation": "Position → ROM → splint → task practice; avoid pulling on the arm or ignoring shoulder pain.", "objective": "", "section": "Neuro Rehab"}, {"id": "45", "group": 45, "stem": "Pulmonary hemorrhage + glomerulonephritis together → Category:", "options": [{"letter": "A", "text": "Large-vessel vasculitis (GCA)"}, {"letter": "B", "text": "Variable-vessel vasculitis (Behçet)"}, {"letter": "C", "text": "Immune-complex vasculitis (IgA)"}, {"letter": "D", "text": "Small-vessel ANCA-associated vasculitis"}, {"letter": "E", "text": "Medium-vessel vasculitis (PAN)"}], "answer": "D", "explanation": "Pulmonary-renal syndrome = GPA/MPA/EGPA — never PAN.", "objective": "", "section": "Vasculitis"}, {"id": "46", "group": 46, "stem": "Before starting a TNF blocker → Mandatory screening:", "options": [{"letter": "A", "text": "Retinal exam"}, {"letter": "B", "text": "HLA-B27"}, {"letter": "C", "text": "Pulmonary function tests"}, {"letter": "D", "text": "TB, hepatitis B/C, HIV"}, {"letter": "E", "text": "DEXA scan"}], "answer": "D", "explanation": "All biologics/JAKi: TB (PPD/Quantiferon), hepatitis B/C, HIV, CXR before starting.", "objective": "", "section": "RA & JIA"}, {"id": "47", "group": 47, "stem": "Suspected inflammatory myopathy → Best initial test:", "options": [{"letter": "A", "text": "Creatine kinase"}, {"letter": "B", "text": "Anti-Jo-1"}, {"letter": "C", "text": "Muscle biopsy"}, {"letter": "D", "text": "MRI of the thighs"}, {"letter": "E", "text": "EMG"}], "answer": "A", "explanation": "CK (and aldolase) first; EMG myopathic; muscle biopsy is the gold standard.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "48", "group": 48, "stem": "Raynaud + arthritis + puffy hands with high-titer anti-U1-RNP and negative dsDNA/Smith → Diagnosis:", "options": [{"letter": "A", "text": "Limited systemic sclerosis"}, {"letter": "B", "text": "Mixed connective tissue disease"}, {"letter": "C", "text": "Systemic lupus erythematosus"}, {"letter": "D", "text": "Polymyositis"}, {"letter": "E", "text": "Sjögren syndrome"}], "answer": "B", "explanation": "MCTD = overlap of SLE/SSc/PM held together by anti-U1-RNP; watch for ILD/pulmonary hypertension.", "objective": "", "section": "Lupus Family"}, {"id": "49", "group": 49, "stem": "Complex regional pain syndrome → How the diagnosis is made:", "options": [{"letter": "A", "text": "Bone scan"}, {"letter": "B", "text": "Nerve conduction studies"}, {"letter": "C", "text": "MRI of the limb"}, {"letter": "D", "text": "Exclusion of all other causes"}, {"letter": "E", "text": "Clinically, by the Budapest criteria"}], "answer": "E", "explanation": "CRPS is NOT a diagnosis of exclusion — it is made positively on Budapest criteria; imaging and labs are optional.", "objective": "", "section": "Fibromyalgia, CRPS & Paget's"}, {"id": "50", "group": 50, "stem": "Gold standard for giant cell arteritis →", "options": [{"letter": "A", "text": "Temporal artery biopsy"}, {"letter": "B", "text": "MR angiography"}, {"letter": "C", "text": "Fundoscopy"}, {"letter": "D", "text": "Temporal artery ultrasound"}, {"letter": "E", "text": "ESR and CRP"}], "answer": "A", "explanation": "Biopsy → granulomatous inflammation with giant cells; stays positive ~2 weeks after steroids start.", "objective": "", "section": "Vasculitis"}, {"id": "51", "group": 51, "stem": "Lupus-like fever, arthritis and serositis after starting an antiarrhythmic → Drug:", "options": [{"letter": "A", "text": "Digoxin"}, {"letter": "B", "text": "Metoprolol"}, {"letter": "C", "text": "Diltiazem"}, {"letter": "D", "text": "Amiodarone"}, {"letter": "E", "text": "Procainamide"}], "answer": "E", "explanation": "CHIMP Q: chlorpromazine, hydralazine, INH, methyldopa, procainamide, quinidine; also minocycline, TNF blockers.", "objective": "", "section": "Lupus Family"}, {"id": "52", "group": 52, "stem": "Recurrent painful oral AND genital ulcers + uveitis in a young Middle-Eastern man → Diagnosis:", "options": [{"letter": "A", "text": "Behçet syndrome"}, {"letter": "B", "text": "Crohn disease"}, {"letter": "C", "text": "Herpes simplex"}, {"letter": "D", "text": "Reactive arthritis"}, {"letter": "E", "text": "Systemic lupus erythematosus"}], "answer": "A", "explanation": "Behçet: oral + genital ulcers, uveitis/hypopyon, erythema nodosum, pathergy, venous thrombosis; HLA-B51.", "objective": "", "section": "Vasculitis"}, {"id": "53", "group": 53, "stem": "Complex regional pain syndrome → First-line treatment:", "options": [{"letter": "A", "text": "CRPS-specific PT/OT for about 6 months"}, {"letter": "B", "text": "Opioid analgesia"}, {"letter": "C", "text": "Long-term oral steroids"}, {"letter": "D", "text": "Sympathetic nerve block"}, {"letter": "E", "text": "Spinal cord stimulator"}], "answer": "A", "explanation": "PT/OT to restore function; NSAIDs, a 2–4 wk steroid course, bisphosphonates, gabapentin/TCA adjuncts; stimulator and blocks for refractory disease.", "objective": "", "section": "Fibromyalgia, CRPS & Paget's"}, {"id": "54", "group": 54, "stem": "Granulomatosis with polyangiitis → Induction therapy:", "options": [{"letter": "A", "text": "High-dose steroids + cyclophosphamide or rituximab"}, {"letter": "B", "text": "Apremilast"}, {"letter": "C", "text": "Methotrexate alone"}, {"letter": "D", "text": "Prednisone 10–20 mg alone"}, {"letter": "E", "text": "Mepolizumab"}], "answer": "A", "explanation": "Induce with steroids + cyclophosphamide or rituximab; maintain with MMF, azathioprine or rituximab.", "objective": "", "section": "Vasculitis"}, {"id": "55", "group": 55, "stem": "Unprovoked DVT + recurrent fetal loss + thrombocytopenia + prolonged PTT → Diagnosis:", "options": [{"letter": "A", "text": "Factor V Leiden"}, {"letter": "B", "text": "Immune thrombocytopenia"}, {"letter": "C", "text": "Antiphospholipid syndrome"}, {"letter": "D", "text": "Disseminated intravascular coagulation"}, {"letter": "E", "text": "Protein C deficiency"}], "answer": "C", "explanation": "APS: persistent lupus anticoagulant / anticardiolipin / anti-β2GP1 + thrombosis or pregnancy morbidity.", "objective": "", "section": "Lupus Family"}, {"id": "56", "group": 56, "stem": "Anticentromere antibody → Diagnosis and feared complication:", "options": [{"letter": "A", "text": "Diffuse SSc — interstitial lung disease"}, {"letter": "B", "text": "Limited SSc (CREST) — pulmonary arterial hypertension"}, {"letter": "C", "text": "Diffuse SSc — renal crisis"}, {"letter": "D", "text": "MCTD — myositis"}, {"letter": "E", "text": "Sjögren — lymphoma"}], "answer": "B", "explanation": "Anticentromere = limited cutaneous SSc; PAH is the usual cause of death.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "57", "group": 57, "stem": "Medication that can precipitate scleroderma renal crisis →", "options": [{"letter": "A", "text": "Mycophenolate"}, {"letter": "B", "text": "Lisinopril"}, {"letter": "C", "text": "Prednisone above 7.5 mg/day"}, {"letter": "D", "text": "Nifedipine"}, {"letter": "E", "text": "Omeprazole"}], "answer": "C", "explanation": "Avoid steroids >7.5 mg in diffuse SSc; CCBs may protect.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "58", "group": 58, "stem": "Scleroderma interstitial lung disease → Treatment options:", "options": [{"letter": "A", "text": "Prednisone 1 mg/kg"}, {"letter": "B", "text": "Mycophenolate, cyclophosphamide, nintedanib, tocilizumab"}, {"letter": "C", "text": "Sildenafil, bosentan"}, {"letter": "D", "text": "ACE inhibitor"}, {"letter": "E", "text": "Methotrexate"}], "answer": "B", "explanation": "ILD: MMF, cyclophosphamide, rituximab, nintedanib, tocilizumab. PAH: CCBs, sildenafil/tadalafil, bosentan, iloprost.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "59", "group": 59, "stem": "Teratogenic DMARD that persists in the body for up to 2 years →", "options": [{"letter": "A", "text": "Leflunomide"}, {"letter": "B", "text": "Sulfasalazine"}, {"letter": "C", "text": "Etanercept"}, {"letter": "D", "text": "Hydroxychloroquine"}, {"letter": "E", "text": "Methotrexate"}], "answer": "A", "explanation": "Leflunomide needs a 2-year washout (or cholestyramine) — avoid in women planning pregnancy.", "objective": "", "section": "RA & JIA"}, {"id": "60", "group": 60, "stem": "Arthritis that moves from joint to joint, each resolving as the next begins → Pattern and classic cause:", "options": [{"letter": "A", "text": "Migratory — gonococcal / rheumatic fever / Lyme"}, {"letter": "B", "text": "Oligoarticular — spondyloarthritis"}, {"letter": "C", "text": "Additive — rheumatoid arthritis"}, {"letter": "D", "text": "Monoarticular — crystal arthritis"}, {"letter": "E", "text": "Symmetric polyarticular — lupus"}], "answer": "A", "explanation": "Migratory = rheumatic fever, gonococcal, Lyme, palindromic. Additive = reactive, RA, AS, PsA.", "objective": "", "section": "Approach & Labs"}, {"id": "61", "group": 61, "stem": "Giant cell arteritis with any visual symptom → Immediate action:", "options": [{"letter": "A", "text": "Prednisone 10 mg daily"}, {"letter": "B", "text": "MRI brain first"}, {"letter": "C", "text": "Aspirin and ophthalmology referral"}, {"letter": "D", "text": "IV methylprednisolone 1 g now — before the biopsy"}, {"letter": "E", "text": "Schedule temporal artery biopsy, then treat"}], "answer": "D", "explanation": "Visual symptoms = impending blindness; steroids first, biopsy within 2 weeks (it stays positive).", "objective": "", "section": "Vasculitis"}, {"id": "62", "group": 62, "stem": "New severe pain and swelling in a known pagetic bone → Rule out:", "options": [{"letter": "A", "text": "Pathologic fracture"}, {"letter": "B", "text": "Osteomyelitis"}, {"letter": "C", "text": "Osteosarcoma"}, {"letter": "D", "text": "Gout"}, {"letter": "E", "text": "Septic arthritis"}], "answer": "C", "explanation": "Osteosarcoma (<1%) — new pain or a mass in pagetic bone is a red flag.", "objective": "", "section": "Fibromyalgia, CRPS & Paget's"}, {"id": "63", "group": 63, "stem": "Known RA on methotrexate with one joint far hotter and more swollen than the rest → Next step:", "options": [{"letter": "A", "text": "Start a prednisone bridge"}, {"letter": "B", "text": "Aspirate that joint to exclude infection"}, {"letter": "C", "text": "Increase the methotrexate dose"}, {"letter": "D", "text": "Inject intra-articular steroid"}, {"letter": "E", "text": "Add a TNF blocker"}], "answer": "B", "explanation": "A single disproportionately hot joint in an immunosuppressed patient = septic arthritis until proven otherwise.", "objective": "", "section": "RA & JIA"}, {"id": "64", "group": 64, "stem": "Wet, gurgly voice after swallowing and coughing with thin liquids → Next step:", "options": [{"letter": "A", "text": "Start aspiration-pneumonia antibiotics"}, {"letter": "B", "text": "Insert a feeding tube"}, {"letter": "C", "text": "Thicken liquids and continue the diet"}, {"letter": "D", "text": "Order a chest X-ray and continue PO"}, {"letter": "E", "text": "SLP bedside swallow evaluation; NPO if high risk; review medication routes"}], "answer": "E", "explanation": "Dysphagia is a medical safety issue — SLP evaluation, keep NPO until clarified, check med routes.", "objective": "", "section": "Neuro Rehab"}, {"id": "65", "group": 65, "stem": "Child under 16 with swollen knee and ankle for 3 months, ANA positive, RF negative → Diagnosis:", "options": [{"letter": "A", "text": "Oligoarticular JIA"}, {"letter": "B", "text": "Reactive arthritis"}, {"letter": "C", "text": "Polyarticular JIA"}, {"letter": "D", "text": "Septic arthritis"}, {"letter": "E", "text": "Systemic JIA (Still disease)"}], "answer": "A", "explanation": "Oligoarticular (≤4 joints, knees/hips) is the most common JIA subtype; ANA+ marks uveitis risk.", "objective": "", "section": "RA & JIA"}, {"id": "66", "group": 66, "stem": "\"Can't see, can't pee, can't climb a tree\" → Diagnosis:", "options": [{"letter": "A", "text": "Ankylosing spondylitis"}, {"letter": "B", "text": "Gonococcal arthritis"}, {"letter": "C", "text": "Reactive arthritis"}, {"letter": "D", "text": "Psoriatic arthritis"}, {"letter": "E", "text": "Behçet syndrome"}], "answer": "C", "explanation": "Reiter triad: conjunctivitis + urethritis + arthritis within 2 months of a GI/GU infection.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "67", "group": 67, "stem": "Symptomatic Paget's disease → Most effective treatment:", "options": [{"letter": "A", "text": "Oral alendronate"}, {"letter": "B", "text": "Denosumab"}, {"letter": "C", "text": "Single-dose IV zoledronate"}, {"letter": "D", "text": "Teriparatide"}, {"letter": "E", "text": "Calcitonin"}], "answer": "C", "explanation": "Zoledronate IV single dose is most effective; oral risedronate/alendronate are alternatives; NSAIDs/acetaminophen until it works.", "objective": "", "section": "Fibromyalgia, CRPS & Paget's"}, {"id": "68", "group": 68, "stem": "Suspected Sjögren with negative SSA/SSB → Confirmatory test:", "options": [{"letter": "A", "text": "Salivary flow rate"}, {"letter": "B", "text": "ANA titer"}, {"letter": "C", "text": "Parotid ultrasound"}, {"letter": "D", "text": "Lip (minor salivary gland) biopsy"}, {"letter": "E", "text": "Sialography"}], "answer": "D", "explanation": "Lip biopsy → focal lymphocytic sialadenitis.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "69", "group": 69, "stem": "Halting, effortful telegraphic speech; the patient knows what he wants to say → Diagnosis:", "options": [{"letter": "A", "text": "Receptive aphasia"}, {"letter": "B", "text": "Dysphonia"}, {"letter": "C", "text": "Expressive aphasia"}, {"letter": "D", "text": "Dysarthria"}, {"letter": "E", "text": "Global aphasia"}], "answer": "C", "explanation": "Expressive aphasia → use yes/no questions, gestures, writing, pictures; relevant to capacity assessment.", "objective": "", "section": "Neuro Rehab"}, {"id": "70", "group": 70, "stem": "Biologic class associated with GI perforation →", "options": [{"letter": "A", "text": "Abatacept"}, {"letter": "B", "text": "TNF blockers"}, {"letter": "C", "text": "Rituximab"}, {"letter": "D", "text": "IL-6 blockers (tocilizumab, sarilumab)"}, {"letter": "E", "text": "IL-17 blockers"}], "answer": "D", "explanation": "IL-6 blockade → GI perforation; abatacept → COPD exacerbation; TNF → TB/lymphoma/MS flare/DILE.", "objective": "", "section": "RA & JIA"}, {"id": "71", "group": 71, "stem": "Hot swollen joint with a normal serum uric acid → Next step:", "options": [{"letter": "A", "text": "Start allopurinol"}, {"letter": "B", "text": "Order a dual-energy CT first"}, {"letter": "C", "text": "Treat empirically with antibiotics"}, {"letter": "D", "text": "Gout is excluded — look elsewhere"}, {"letter": "E", "text": "Arthrocentesis with polarized microscopy"}], "answer": "E", "explanation": "Uric acid can be NORMAL during a flare — crystals make the diagnosis.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "72", "group": 72, "stem": "Liaison to the insurance case manager, discharge planning, orders DME →", "options": [{"letter": "A", "text": "Case manager"}, {"letter": "B", "text": "Medical social worker"}, {"letter": "C", "text": "Rehab nurse"}, {"letter": "D", "text": "Vocational therapist"}, {"letter": "E", "text": "Occupational therapist"}], "answer": "A", "explanation": "Case manager (inpatient) handles insurance, discharge planning, DME.", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "73", "group": 73, "stem": "Walker handgrip height → Landmark:", "options": [{"letter": "A", "text": "Mid-thigh, giving 10° elbow flexion"}, {"letter": "B", "text": "Umbilicus, giving 60° elbow flexion"}, {"letter": "C", "text": "Greater trochanter, giving 0° elbow flexion"}, {"letter": "D", "text": "Iliac crest, giving 45° elbow flexion"}, {"letter": "E", "text": "Ulnar styloid in standing, giving 20–30° elbow flexion"}], "answer": "E", "explanation": "Measure — never trust the device's height markings; 20–30° elbow flexion gives the best mechanical advantage.", "objective": "", "section": "Assistive Devices"}, {"id": "74", "group": 74, "stem": "Scarring coin-shaped plaques with central atrophy and hair-follicle loss, lesions inside the ears → Diagnosis:", "options": [{"letter": "A", "text": "Tinea capitis"}, {"letter": "B", "text": "Subacute cutaneous lupus"}, {"letter": "C", "text": "Psoriasis"}, {"letter": "D", "text": "Seborrheic dermatitis"}, {"letter": "E", "text": "Discoid lupus erythematosus"}], "answer": "E", "explanation": "DLE: keratotic scaling, hyperpigmented edges, central scarring/atrophy, scarring alopecia — always look in the ears.", "objective": "", "section": "Lupus Family"}, {"id": "75", "group": 75, "stem": "Ankylosing spondylitis → Extra-articular \"A\" complications:", "options": [{"letter": "A", "text": "Ascites, asthma, atrophy, apnea"}, {"letter": "B", "text": "Alopecia, anemia, arthralgia, anxiety"}, {"letter": "C", "text": "Acne, aphthae, abscess, angioedema"}, {"letter": "D", "text": "Acromegaly, adrenal failure, amyloid"}, {"letter": "E", "text": "Anterior uveitis, apical fibrosis, aortitis/AR, AV block"}], "answer": "E", "explanation": "The A's: anterior uveitis, apical pulmonary fibrosis, aortitis → aortic regurgitation, AV block; plus vertebral fractures.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "76", "group": 76, "stem": "ANA-positive oligoarticular JIA → Required referral:", "options": [{"letter": "A", "text": "Cardiology"}, {"letter": "B", "text": "Orthopedics"}, {"letter": "C", "text": "Nephrology"}, {"letter": "D", "text": "Dermatology"}, {"letter": "E", "text": "Ophthalmology (slit-lamp for uveitis)"}], "answer": "E", "explanation": "20% of oligoarticular JIA develop anterior uveitis; ANA positivity raises the risk — it is prognostic, not diagnostic.", "objective": "", "section": "RA & JIA"}, {"id": "77", "group": 77, "stem": "Over 60, bilateral shoulder and hip girdle morning stiffness, normal strength, normal CK, high ESR → Diagnosis:", "options": [{"letter": "A", "text": "Polymyalgia rheumatica"}, {"letter": "B", "text": "Hypothyroidism"}, {"letter": "C", "text": "Rheumatoid arthritis"}, {"letter": "D", "text": "Fibromyalgia"}, {"letter": "E", "text": "Polymyositis"}], "answer": "A", "explanation": "PMR: girdle stiffness, normal CK and strength, no small-joint synovitis, dramatic response to low-dose prednisone.", "objective": "", "section": "Vasculitis"}, {"id": "78", "group": 78, "stem": "Slurred, slow, low-volume speech with intact language → Diagnosis:", "options": [{"letter": "A", "text": "Global aphasia"}, {"letter": "B", "text": "Expressive aphasia"}, {"letter": "C", "text": "Apraxia of speech"}, {"letter": "D", "text": "Dysarthria"}, {"letter": "E", "text": "Receptive aphasia"}], "answer": "D", "explanation": "Dysarthria is a motor speech disorder; language is intact.", "objective": "", "section": "Neuro Rehab"}, {"id": "79", "group": 79, "stem": "Fibromyalgia → First-line management:", "options": [{"letter": "A", "text": "Prednisone"}, {"letter": "B", "text": "Graded aerobic exercise and education"}, {"letter": "C", "text": "Weekly methotrexate"}, {"letter": "D", "text": "Hydroxychloroquine"}, {"letter": "E", "text": "Oxycodone"}], "answer": "B", "explanation": "Not inflammatory — steroids, NSAIDs, DMARDs and opioids do not help; exercise, education, sleep correction come first.", "objective": "", "section": "Fibromyalgia, CRPS & Paget's"}, {"id": "80", "group": 80, "stem": "Gait sequence with a walker →", "options": [{"letter": "A", "text": "Walker → unaffected leg → affected leg"}, {"letter": "B", "text": "Both legs → walker"}, {"letter": "C", "text": "Affected leg → walker → unaffected leg"}, {"letter": "D", "text": "Walker → affected leg → unaffected leg"}, {"letter": "E", "text": "Unaffected leg → walker → affected leg"}], "answer": "D", "explanation": "Walker first, then the affected leg, then the unaffected leg.", "objective": "", "section": "Assistive Devices"}, {"id": "81", "group": 81, "stem": "Negative ANA in a patient suspected of having lupus → Interpretation:", "options": [{"letter": "A", "text": "Order the ANA panel anyway"}, {"letter": "B", "text": "SLE essentially ruled out"}, {"letter": "C", "text": "Diagnose seronegative lupus"}, {"letter": "D", "text": "Repeat ANA in 2 weeks"}, {"letter": "E", "text": "Order anti-dsDNA"}], "answer": "B", "explanation": "ANA is 99% sensitive — a negative rules lupus out (SNOUT). ANA 1:40 is seen in 1/3 of healthy people; subserologies only with strong suspicion.", "objective": "", "section": "Approach & Labs"}, {"id": "82", "group": 82, "stem": "Refractory sinusitis with bloody crusting + hemoptysis + hematuria with RBC casts → Diagnosis:", "options": [{"letter": "A", "text": "Polyarteritis nodosa"}, {"letter": "B", "text": "Goodpasture syndrome"}, {"letter": "C", "text": "Eosinophilic granulomatosis with polyangiitis"}, {"letter": "D", "text": "Granulomatosis with polyangiitis"}, {"letter": "E", "text": "IgA vasculitis"}], "answer": "D", "explanation": "Upper airway + lower airway + kidney = GPA triad.", "objective": "", "section": "Vasculitis"}, {"id": "83", "group": 83, "stem": "Malignant hypertension with acute renal failure in diffuse scleroderma → Diagnosis and treatment:", "options": [{"letter": "A", "text": "Scleroderma renal crisis — ACE inhibitor"}, {"letter": "B", "text": "Hemolytic-uremic syndrome — plasma exchange"}, {"letter": "C", "text": "Hypertensive emergency — nitroprusside"}, {"letter": "D", "text": "PAN — steroids + cyclophosphamide"}, {"letter": "E", "text": "Lupus nephritis — cyclophosphamide"}], "answer": "A", "explanation": "Renal crisis: ACE inhibitor (captopril)/ARB; monthly BP checks; steroids >7.5 mg can trigger it.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "84", "group": 84, "stem": "Paget's disease → Test that defines the extent of skeletal involvement:", "options": [{"letter": "A", "text": "CT of the skull"}, {"letter": "B", "text": "MRI of the pelvis"}, {"letter": "C", "text": "DEXA"}, {"letter": "D", "text": "Skeletal survey"}, {"letter": "E", "text": "Nuclear medicine bone scan"}], "answer": "E", "explanation": "Bone scan (Tc-99m MDP) shows focal hot spots — sensitive, not specific; plain films confirm.", "objective": "", "section": "Fibromyalgia, CRPS & Paget's"}, {"id": "85", "group": 85, "stem": "\"Pencil-in-cup\" deformity on hand X-ray → Diagnosis:", "options": [{"letter": "A", "text": "Gout"}, {"letter": "B", "text": "Scleroderma"}, {"letter": "C", "text": "Psoriatic arthritis"}, {"letter": "D", "text": "Osteoarthritis"}, {"letter": "E", "text": "Rheumatoid arthritis"}], "answer": "C", "explanation": "Pencil-in-cup, DIP erosions with periostitis, osteolysis in mutilans = PsA.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "86", "group": 86, "stem": "Age over 50, new temporal headache, jaw claudication, scalp tenderness → Diagnosis:", "options": [{"letter": "A", "text": "Trigeminal neuralgia"}, {"letter": "B", "text": "Cluster headache"}, {"letter": "C", "text": "Temporomandibular joint disorder"}, {"letter": "D", "text": "Giant cell arteritis"}, {"letter": "E", "text": "Tension headache"}], "answer": "D", "explanation": "GCA: >50, new headache, jaw claudication, tender pulseless temporal artery, ESR often >100.", "objective": "", "section": "Vasculitis"}, {"id": "87", "group": 87, "stem": "Symmetric proximal weakness (stairs, chairs, combing hair) WITHOUT pain, markedly elevated CK → Diagnosis:", "options": [{"letter": "A", "text": "Polymyalgia rheumatica"}, {"letter": "B", "text": "Myasthenia gravis"}, {"letter": "C", "text": "Hypothyroid myopathy"}, {"letter": "D", "text": "Polymyositis"}, {"letter": "E", "text": "Fibromyalgia"}], "answer": "D", "explanation": "Myositis = weakness, not pain; PMR = pain/stiffness with normal CK and normal strength.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "88", "group": 88, "stem": "Child with daily spiking fever, evanescent salmon rash, lymphadenopathy, hepatosplenomegaly and polyarthritis → Diagnosis:", "options": [{"letter": "A", "text": "Kawasaki disease"}, {"letter": "B", "text": "Systemic JIA (Still disease)"}, {"letter": "C", "text": "Oligoarticular JIA"}, {"letter": "D", "text": "Acute rheumatic fever"}, {"letter": "E", "text": "Leukemia"}], "answer": "B", "explanation": "Systemic JIA = fever + rash + LAD + HSM + arthritis.", "objective": "", "section": "RA & JIA"}, {"id": "89", "group": 89, "stem": "Antihypertensive that most often precipitates gout →", "options": [{"letter": "A", "text": "Losartan"}, {"letter": "B", "text": "Metoprolol"}, {"letter": "C", "text": "Amlodipine"}, {"letter": "D", "text": "Lisinopril"}, {"letter": "E", "text": "Hydrochlorothiazide"}], "answer": "E", "explanation": "Thiazide and loop diuretics (also low-dose aspirin, cyclosporine, pyrazinamide) cause under-excretion.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "90", "group": 90, "stem": "Post-op lumbar fusion needing a device → Best choice and why:", "options": [{"letter": "A", "text": "Axillary crutches — temporary use"}, {"letter": "B", "text": "Lofstrand crutches — long-term use"}, {"letter": "C", "text": "Cane — pain relief"}, {"letter": "D", "text": "Hemi-walker — one-handed"}, {"letter": "E", "text": "Walker — keeps neutral spinal alignment"}], "answer": "E", "explanation": "Walker indications: limited WB, weakness, poor balance, amputee, low endurance/cardiac/respiratory, post-op spine, cognitive deficit.", "objective": "", "section": "Assistive Devices"}, {"id": "91", "group": 91, "stem": "CPPD in a patient under 50 → Workup to add:", "options": [{"letter": "A", "text": "Calcium/PTH, iron studies, magnesium, ALP"}, {"letter": "B", "text": "HLA-B27 and SI joint films"}, {"letter": "C", "text": "Hepatitis B serologies"}, {"letter": "D", "text": "Serum uric acid and 24-h urine urate"}, {"letter": "E", "text": "ANA panel and complement"}], "answer": "A", "explanation": "Young CPPD → hyperparathyroidism, hemochromatosis, hypomagnesemia, hypophosphatasia.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "92", "group": 92, "stem": "Ankylosing spondylitis → First-line pharmacologic treatment:", "options": [{"letter": "A", "text": "Sulfasalazine"}, {"letter": "B", "text": "NSAIDs (e.g., naproxen) for 2–4 weeks"}, {"letter": "C", "text": "Prednisone"}, {"letter": "D", "text": "Methotrexate"}, {"letter": "E", "text": "TNF inhibitor"}], "answer": "B", "explanation": "NSAIDs + extension exercises/PT first; switch NSAID if no response; then TNF, IL-17 or JAK inhibitors.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "93", "group": 93, "stem": "Most stable device → least stable, in order →", "options": [{"letter": "A", "text": "Axillary crutches > walker > quad cane > hemi-walker > cane"}, {"letter": "B", "text": "Walker > parallel bars > hemi-walker > crutches > cane"}, {"letter": "C", "text": "Parallel bars > walker > axillary crutches > forearm crutches > bilateral canes > hemi-walker > quad cane > straight cane"}, {"letter": "D", "text": "Hemi-walker > quad cane > walker > crutches > cane"}, {"letter": "E", "text": "Straight cane > quad cane > hemi-walker > walker > parallel bars"}], "answer": "C", "explanation": "Stability ladder: most stable/least mobile at the top.", "objective": "", "section": "Assistive Devices"}, {"id": "94", "group": 94, "stem": "Post-hip-fracture patient after a 3-day hospital stay who tolerates only 2 hours of therapy per day → Setting:", "options": [{"letter": "A", "text": "Acute inpatient rehabilitation"}, {"letter": "B", "text": "Long-term acute care"}, {"letter": "C", "text": "Outpatient"}, {"letter": "D", "text": "Home health"}, {"letter": "E", "text": "Subacute rehab (SNF)"}], "answer": "E", "explanation": "SAR: 2 h/day, provider ≤3×/wk, 3-day hospital stay required, LOS 3–4 wk, more orthopedic.", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "95", "group": 95, "stem": "Before starting tofacitinib or another JAK inhibitor → Vaccine to give first:", "options": [{"letter": "A", "text": "Hepatitis B"}, {"letter": "B", "text": "HPV"}, {"letter": "C", "text": "Pneumococcal"}, {"letter": "D", "text": "MMR"}, {"letter": "E", "text": "Shingrix (zoster)"}], "answer": "E", "explanation": "JAK inhibitors reactivate zoster → Shingrix first; also thrombosis, LFTs, lipids, leukopenia.", "objective": "", "section": "RA & JIA"}, {"id": "96", "group": 96, "stem": "Rehab team leader in a traumatic brain injury program →", "options": [{"letter": "A", "text": "Neuropsychologist"}, {"letter": "B", "text": "Rehab nurse"}, {"letter": "C", "text": "Physiatrist"}, {"letter": "D", "text": "Case manager"}, {"letter": "E", "text": "Physical therapist"}], "answer": "A", "explanation": "MD/PA usually leads; the neuropsychologist leads in TBI.", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "97", "group": 97, "stem": "X-ray showing punched-out erosions with overhanging (\"rat-bite\") edges → Diagnosis:", "options": [{"letter": "A", "text": "Psoriatic arthritis"}, {"letter": "B", "text": "Chronic gout"}, {"letter": "C", "text": "Rheumatoid arthritis"}, {"letter": "D", "text": "CPPD"}, {"letter": "E", "text": "Osteoarthritis"}], "answer": "B", "explanation": "Overhanging-edge erosions with soft-tissue tophi = chronic gout.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "98", "group": 98, "stem": "New lupus symptoms in a post-menopausal woman → Think first:", "options": [{"letter": "A", "text": "Sjögren syndrome"}, {"letter": "B", "text": "Systemic lupus erythematosus"}, {"letter": "C", "text": "Drug-induced lupus"}, {"letter": "D", "text": "Polymyalgia rheumatica"}, {"letter": "E", "text": "Fibromyalgia"}], "answer": "C", "explanation": "SLE favors women of childbearing age; new disease after menopause → look for hydralazine, procainamide, etc.", "objective": "", "section": "Lupus Family"}, {"id": "99", "group": 99, "stem": "Schirmer test with less than 5 mm of wetting in 5 minutes → Diagnosis:", "options": [{"letter": "A", "text": "Blepharitis"}, {"letter": "B", "text": "Allergic conjunctivitis"}, {"letter": "C", "text": "Sjögren syndrome"}, {"letter": "D", "text": "Bell palsy"}, {"letter": "E", "text": "Graves ophthalmopathy"}], "answer": "C", "explanation": "Schirmer <5 mm/5 min = reduced tear production.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "100", "group": 100, "stem": "Gait sequence with a cane →", "options": [{"letter": "A", "text": "Unaffected leg and cane together, then affected leg"}, {"letter": "B", "text": "Cane, then unaffected leg, then affected leg"}, {"letter": "C", "text": "Cane, then both legs together"}, {"letter": "D", "text": "Affected leg, then cane, then unaffected leg"}, {"letter": "E", "text": "Cane and affected leg together, then the unaffected leg"}], "answer": "E", "explanation": "Cane + affected leg move together, then the unaffected leg.", "objective": "", "section": "Assistive Devices"}, {"id": "101", "group": 101, "stem": "Abrupt, exquisitely painful red swollen first MTP joint at 2 AM → Finding and diagnosis:", "options": [{"letter": "A", "text": "Podagra — gout"}, {"letter": "B", "text": "Enthesitis — reactive arthritis"}, {"letter": "C", "text": "Dactylitis — psoriatic arthritis"}, {"letter": "D", "text": "Hallux valgus — osteoarthritis"}, {"letter": "E", "text": "Chondrocalcinosis — CPPD"}], "answer": "A", "explanation": "Podagra is the classic first gout attack.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "102", "group": 102, "stem": "False-positive RPR/VDRL in a young woman with livedo reticularis → Antibody responsible:", "options": [{"letter": "A", "text": "Rheumatoid factor"}, {"letter": "B", "text": "Anticardiolipin"}, {"letter": "C", "text": "Anti-Scl-70"}, {"letter": "D", "text": "Anti-SSA (Ro)"}, {"letter": "E", "text": "Anti-dsDNA"}], "answer": "B", "explanation": "The cardiolipin reagent in the syphilis test cross-reacts with anticardiolipin — a classic APS clue.", "objective": "", "section": "Lupus Family"}, {"id": "103", "group": 103, "stem": "Ulnar deviation, swan-neck and boutonnière deformities → Diagnosis:", "options": [{"letter": "A", "text": "Psoriatic arthritis mutilans"}, {"letter": "B", "text": "Chronic tophaceous gout"}, {"letter": "C", "text": "Jaccoud arthropathy of lupus"}, {"letter": "D", "text": "Chronic rheumatoid arthritis"}, {"letter": "E", "text": "Osteoarthritis"}], "answer": "D", "explanation": "Late RA deformities: ulnar deviation, volar subluxation, swan-neck, boutonnière, hammer toes.", "objective": "", "section": "RA & JIA"}, {"id": "104", "group": 104, "stem": "Right-hemisphere stroke patient leaves food on the left side of the plate and shaves only one side → Deficit and who addresses it:", "options": [{"letter": "A", "text": "Hemianopia — ophthalmology"}, {"letter": "B", "text": "Unilateral neglect — OT visual-scanning strategies"}, {"letter": "C", "text": "Agnosia — SLP"}, {"letter": "D", "text": "Apraxia — PT"}, {"letter": "E", "text": "Dysphagia — SLP"}], "answer": "B", "explanation": "Neglect/visual-spatial deficits → OT: scanning, environmental setup, cueing, caregiver education.", "objective": "", "section": "Neuro Rehab"}, {"id": "105", "group": 105, "stem": "Schober test with less than 5 cm of excursion → Diagnosis:", "options": [{"letter": "A", "text": "Spondylolisthesis"}, {"letter": "B", "text": "Osteoporosis"}, {"letter": "C", "text": "Fibromyalgia"}, {"letter": "D", "text": "Lumbar strain"}, {"letter": "E", "text": "Ankylosing spondylitis"}], "answer": "E", "explanation": "10 cm mark should reach ≥15 cm on flexion; <5 cm excursion = reduced lumbar mobility of AS.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "106", "group": 106, "stem": "Vasculitis that spares the lungs and never causes glomerulonephritis →", "options": [{"letter": "A", "text": "Goodpasture syndrome"}, {"letter": "B", "text": "Polyarteritis nodosa"}, {"letter": "C", "text": "Eosinophilic granulomatosis with polyangiitis"}, {"letter": "D", "text": "Granulomatosis with polyangiitis"}, {"letter": "E", "text": "Microscopic polyangiitis"}], "answer": "B", "explanation": "PAN affects renal arteries (HTN, infarcts) but not glomeruli; a pulmonary-renal syndrome is never PAN.", "objective": "", "section": "Vasculitis"}, {"id": "107", "group": 107, "stem": "Mucocutaneous Behçet → First-line:", "options": [{"letter": "A", "text": "High-dose IV steroids"}, {"letter": "B", "text": "Cyclophosphamide"}, {"letter": "C", "text": "Rituximab"}, {"letter": "D", "text": "Methotrexate"}, {"letter": "E", "text": "Apremilast or colchicine"}], "answer": "E", "explanation": "Apremilast (PDE4i), colchicine, topical steroids; ocular/vascular/CNS → steroids, azathioprine, cyclophosphamide, anti-TNF.", "objective": "", "section": "Vasculitis"}, {"id": "108", "group": 108, "stem": "Patient arrives at clinic in a wheelchair, or cannot rise from a chair, or has stairs at home and never had PT → Action:", "options": [{"letter": "A", "text": "Prescribe a cane"}, {"letter": "B", "text": "Prescribe a walker"}, {"letter": "C", "text": "Order a scooter"}, {"letter": "D", "text": "Order home health nursing"}, {"letter": "E", "text": "Refer to physical therapy"}], "answer": "E", "explanation": "PT referral triggers: post-ortho surgery, sit↔stand difficulty, needs help with device, unstable, dementia, wheelchair, functional change, untreated neuro weakness, stairs.", "objective": "", "section": "Assistive Devices"}, {"id": "109", "group": 109, "stem": "Suspected lupus nephritis → Test that classifies it and guides therapy:", "options": [{"letter": "A", "text": "Anti-dsDNA titer"}, {"letter": "B", "text": "Complement levels"}, {"letter": "C", "text": "24-hour urine protein"}, {"letter": "D", "text": "Renal ultrasound"}, {"letter": "E", "text": "Renal biopsy"}], "answer": "E", "explanation": "Biopsy gives class I–VI; class III/IV (proliferative) need aggressive induction.", "objective": "", "section": "Lupus Family"}, {"id": "110", "group": 110, "stem": "Uricosuric that is contraindicated in CKD and kidney stones →", "options": [{"letter": "A", "text": "Febuxostat"}, {"letter": "B", "text": "Colchicine"}, {"letter": "C", "text": "Anakinra"}, {"letter": "D", "text": "Allopurinol"}, {"letter": "E", "text": "Probenecid"}], "answer": "E", "explanation": "Probenecid increases urinary urate — avoid with CKD or nephrolithiasis.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "111", "group": 111, "stem": "Starting allopurinol → Add for the first 3–6 months:", "options": [{"letter": "A", "text": "Febuxostat"}, {"letter": "B", "text": "Low-dose colchicine prophylaxis"}, {"letter": "C", "text": "Probenecid"}, {"letter": "D", "text": "Pegloticase"}, {"letter": "E", "text": "Daily prednisone 40 mg"}], "answer": "B", "explanation": "Starting ULT precipitates flares — cover with colchicine 0.6 mg daily–bid for 3–6 months (or low-dose NSAID/prednisone).", "objective": "", "section": "Crystal Arthropathies"}, {"id": "112", "group": 112, "stem": "Burning limb pain out of proportion weeks after a fracture, with swelling, mottled color, temperature asymmetry and allodynia → Diagnosis:", "options": [{"letter": "A", "text": "Cellulitis"}, {"letter": "B", "text": "Deep vein thrombosis"}, {"letter": "C", "text": "Complex regional pain syndrome"}, {"letter": "D", "text": "Peripheral neuropathy"}, {"letter": "E", "text": "Compartment syndrome"}], "answer": "C", "explanation": "CRPS: regional (not dermatomal) pain out of proportion after trauma/surgery/stroke, with vasomotor, sudomotor and trophic changes.", "objective": "", "section": "Fibromyalgia, CRPS & Paget's"}, {"id": "113", "group": 113, "stem": "Crusted pustular papules on the palms and soles after a diarrheal illness → Finding:", "options": [{"letter": "A", "text": "Pustular psoriasis"}, {"letter": "B", "text": "Erythema nodosum"}, {"letter": "C", "text": "Keratoderma blennorrhagicum"}, {"letter": "D", "text": "Secondary syphilis"}, {"letter": "E", "text": "Gottron papules"}], "answer": "C", "explanation": "Keratoderma blennorrhagicum is indistinguishable from pustular psoriasis — the infection history makes the call.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "114", "group": 114, "stem": "\"Hurts all over\" for years, non-restorative sleep, \"fibro fog\", multiple tender points, no synovitis, normal labs → Diagnosis:", "options": [{"letter": "A", "text": "Hypothyroidism"}, {"letter": "B", "text": "Rheumatoid arthritis"}, {"letter": "C", "text": "Polymyositis"}, {"letter": "D", "text": "Polymyalgia rheumatica"}, {"letter": "E", "text": "Fibromyalgia"}], "answer": "E", "explanation": "Fibromyalgia: widespread pain ≥3 months, fatigue, sleep and cognitive symptoms; CBC/ESR/RF/CK/TSH normal.", "objective": "", "section": "Fibromyalgia, CRPS & Paget's"}, {"id": "115", "group": 115, "stem": "Medication every lupus patient should be on unless contraindicated →", "options": [{"letter": "A", "text": "Prednisone"}, {"letter": "B", "text": "Hydroxychloroquine"}, {"letter": "C", "text": "Cyclophosphamide"}, {"letter": "D", "text": "Belimumab"}, {"letter": "E", "text": "Methotrexate"}], "answer": "B", "explanation": "HCQ reduces flares, thrombosis, insulin resistance, mortality and neonatal heart block (SSA+).", "objective": "", "section": "Lupus Family"}, {"id": "116", "group": 116, "stem": "Spondyloarthritis in a patient with Crohn's disease → Biologic class to AVOID:", "options": [{"letter": "A", "text": "TNF inhibitors"}, {"letter": "B", "text": "IL-23 inhibitors"}, {"letter": "C", "text": "JAK inhibitors"}, {"letter": "D", "text": "IL-17 inhibitors (secukinumab, ixekizumab)"}, {"letter": "E", "text": "IL-12/23 inhibitor (ustekinumab)"}], "answer": "D", "explanation": "IL-17 blockers worsen or unmask IBD — give TNF, IL-23 or JAK inhibitors instead.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "117", "group": 117, "stem": "ESR greater than 100 mm/h → Conditions to consider:", "options": [{"letter": "A", "text": "GCA, PMR, myeloma, malignancy"}, {"letter": "B", "text": "Paget's disease, osteoporosis"}, {"letter": "C", "text": "Reactive arthritis, AS, PsA"}, {"letter": "D", "text": "Gout, CPPD, septic joint"}, {"letter": "E", "text": "Fibromyalgia, OA, CRPS"}], "answer": "A", "explanation": "ESR >100 → GCA/PMR, multiple myeloma, cancer. ESR ULN: men age/2, women (age+10)/2.", "objective": "", "section": "Approach & Labs"}, {"id": "118", "group": 118, "stem": "Antibody that tracks lupus disease activity and nephritis →", "options": [{"letter": "A", "text": "Anti-U1-RNP"}, {"letter": "B", "text": "ANA titer"}, {"letter": "C", "text": "Anti-histone"}, {"letter": "D", "text": "Anti-dsDNA"}, {"letter": "E", "text": "Anti-Smith"}], "answer": "D", "explanation": "dsDNA rises with activity; ANA titer does not track activity.", "objective": "", "section": "Lupus Family"}, {"id": "119", "group": 119, "stem": "New calf swelling, chest pain or a new neurologic deficit during a rehab session → Action:", "options": [{"letter": "A", "text": "Document and re-check tomorrow"}, {"letter": "B", "text": "Continue — therapy is part of treatment"}, {"letter": "C", "text": "Reduce therapy intensity and continue"}, {"letter": "D", "text": "Clinical pause point — hold therapy and re-stabilize"}, {"letter": "E", "text": "Switch to OT only"}], "answer": "D", "explanation": "Pause points: new neuro deficit, aspiration, suspected DVT/PE, chest pain, unsafe cognition.", "objective": "", "section": "Neuro Rehab"}, {"id": "120", "group": 120, "stem": "Hydroxychloroquine → Required monitoring:", "options": [{"letter": "A", "text": "Annual DEXA"}, {"letter": "B", "text": "Quarterly LFTs"}, {"letter": "C", "text": "Baseline PFTs"}, {"letter": "D", "text": "Yearly retinal exam"}, {"letter": "E", "text": "Monthly CBC"}], "answer": "D", "explanation": "HCQ retinopathy — retinal exam at baseline and yearly.", "objective": "", "section": "RA & JIA"}, {"id": "121", "group": 121, "stem": "Cane for right-knee osteoarthritis → Which hand holds it:", "options": [{"letter": "A", "text": "The dominant hand"}, {"letter": "B", "text": "Either hand — patient preference"}, {"letter": "C", "text": "Right hand (same side)"}, {"letter": "D", "text": "Alternate hands daily"}, {"letter": "E", "text": "Left hand (opposite the affected side)"}], "answer": "E", "explanation": "Cane in the hand opposite the affected limb; elbow 15–30° flexion.", "objective": "", "section": "Assistive Devices"}, {"id": "122", "group": 122, "stem": "Symmetric MCP, PIP, wrist and MTP synovitis for more than 6 weeks that spares the DIPs → Diagnosis:", "options": [{"letter": "A", "text": "Gout"}, {"letter": "B", "text": "Systemic lupus erythematosus"}, {"letter": "C", "text": "Psoriatic arthritis"}, {"letter": "D", "text": "Osteoarthritis"}, {"letter": "E", "text": "Rheumatoid arthritis"}], "answer": "E", "explanation": "RA = symmetric small-joint polyarthritis sparing the DIPs; DIP disease → OA or PsA.", "objective": "", "section": "RA & JIA"}, {"id": "123", "group": 123, "stem": "Swallowing, cognition and adaptive communication devices → Team member:", "options": [{"letter": "A", "text": "Neuropsychologist"}, {"letter": "B", "text": "Speech-language pathologist"}, {"letter": "C", "text": "Occupational therapist"}, {"letter": "D", "text": "Physical therapist"}, {"letter": "E", "text": "Dietician"}], "answer": "B", "explanation": "SLP covers communication, cognition and swallow.", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "124", "group": 124, "stem": "FDA-approved medications for fibromyalgia →", "options": [{"letter": "A", "text": "Prednisone, methotrexate, hydroxychloroquine"}, {"letter": "B", "text": "Amitriptyline, trazodone, cyclobenzaprine"}, {"letter": "C", "text": "Naproxen, celecoxib, tramadol"}, {"letter": "D", "text": "Duloxetine, milnacipran, pregabalin"}, {"letter": "E", "text": "Gabapentin, venlafaxine, fluoxetine"}], "answer": "D", "explanation": "FDA-approved: duloxetine, milnacipran, pregabalin. Bedtime amitriptyline/trazodone/cyclobenzaprine help sleep; SSRIs, gabapentin, tramadol are alternatives.", "objective": "", "section": "Fibromyalgia, CRPS & Paget's"}, {"id": "125", "group": 125, "stem": "\"Bamboo spine\" with syndesmophytes and bilateral sacroiliitis → Diagnosis:", "options": [{"letter": "A", "text": "Degenerative disc disease"}, {"letter": "B", "text": "Psoriatic spondylitis"}, {"letter": "C", "text": "Diffuse idiopathic skeletal hyperostosis"}, {"letter": "D", "text": "Ankylosing spondylitis"}, {"letter": "E", "text": "Paget's disease"}], "answer": "D", "explanation": "Bilateral sacroiliitis, squared vertebrae, syndesmophytes → bamboo spine.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "126", "group": 126, "stem": "Life-threatening complication of systemic JIA →", "options": [{"letter": "A", "text": "Scleroderma renal crisis"}, {"letter": "B", "text": "Macrophage activation syndrome"}, {"letter": "C", "text": "Catastrophic APS"}, {"letter": "D", "text": "Felty syndrome"}, {"letter": "E", "text": "Anterior uveitis"}], "answer": "B", "explanation": "MAS = uncontrolled macrophage activation with widespread inflammation and organ damage.", "objective": "", "section": "RA & JIA"}, {"id": "127", "group": 127, "stem": "Cannot recognize objects despite intact vision and sensation → Term:", "options": [{"letter": "A", "text": "Agnosia"}, {"letter": "B", "text": "Apraxia"}, {"letter": "C", "text": "Neglect"}, {"letter": "D", "text": "Aphasia"}, {"letter": "E", "text": "Dysarthria"}], "answer": "A", "explanation": "Agnosia = recognition failure; apraxia = cannot perform purposeful movements.", "objective": "", "section": "Neuro Rehab"}, {"id": "128", "group": 128, "stem": "Skull X-ray with a \"cotton-wool\" appearance → Diagnosis:", "options": [{"letter": "A", "text": "Paget's disease of bone"}, {"letter": "B", "text": "Hyperparathyroidism"}, {"letter": "C", "text": "Metastatic prostate cancer"}, {"letter": "D", "text": "Multiple myeloma"}, {"letter": "E", "text": "Osteopetrosis"}], "answer": "A", "explanation": "Cotton-wool skull = mixed lytic/sclerotic thickened calvarium of Paget's.", "objective": "", "section": "Fibromyalgia, CRPS & Paget's"}, {"id": "129", "group": 129, "stem": "Asthma + marked eosinophilia + mononeuritis multiplex + p-ANCA → Diagnosis:", "options": [{"letter": "A", "text": "Eosinophilic granulomatosis with polyangiitis"}, {"letter": "B", "text": "Allergic bronchopulmonary aspergillosis"}, {"letter": "C", "text": "Hypereosinophilic syndrome"}, {"letter": "D", "text": "Granulomatosis with polyangiitis"}, {"letter": "E", "text": "Polyarteritis nodosa"}], "answer": "A", "explanation": "EGPA (Churg-Strauss) = asthma + eosinophils + vasculitis; cardiac involvement is the usual cause of death.", "objective": "", "section": "Vasculitis"}, {"id": "130", "group": 130, "stem": "Young man with months of low back pain that improves with exercise and worsens with rest, stiffness over an hour → Diagnosis:", "options": [{"letter": "A", "text": "Vertebral compression fracture"}, {"letter": "B", "text": "Ankylosing spondylitis"}, {"letter": "C", "text": "Mechanical low back pain"}, {"letter": "D", "text": "Lumbar disc herniation"}, {"letter": "E", "text": "Spinal stenosis"}], "answer": "B", "explanation": "Inflammatory back pain: insidious, <40 y, better with activity, worse at night/rest, AM stiffness >1 h.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "131", "group": 131, "stem": "Annular scaly plaques on sun-exposed skin that look like tinea or psoriasis, ANA negative → Diagnosis and antibody:", "options": [{"letter": "A", "text": "Subacute cutaneous lupus — anti-SSA (Ro)"}, {"letter": "B", "text": "Discoid lupus — anti-dsDNA"}, {"letter": "C", "text": "Dermatomyositis — anti-Jo-1"}, {"letter": "D", "text": "Psoriasis — HLA-B27"}, {"letter": "E", "text": "Systemic lupus — anti-Smith"}], "answer": "A", "explanation": "SCLE: annular/psoriasiform rash, non-scarring, ANA may be negative, SSA positive; associated with calcium-channel blockers.", "objective": "", "section": "Lupus Family"}, {"id": "132", "group": 132, "stem": "Acute gout flare in a patient with CKD and a prior GI bleed → Preferred treatment:", "options": [{"letter": "A", "text": "Indomethacin"}, {"letter": "B", "text": "Intra-articular glucocorticoid after aspiration"}, {"letter": "C", "text": "Allopurinol started today"}, {"letter": "D", "text": "Probenecid"}, {"letter": "E", "text": "High-dose colchicine"}], "answer": "B", "explanation": "CKD: avoid NSAIDs, caution colchicine, avoid probenecid — use intra-articular (or oral) steroid.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "133", "group": 133, "stem": "Needle-shaped crystals, negatively birefringent (yellow parallel to the axis) → Diagnosis:", "options": [{"letter": "A", "text": "Septic arthritis"}, {"letter": "B", "text": "Milwaukee shoulder"}, {"letter": "C", "text": "Pseudogout (CPPD)"}, {"letter": "D", "text": "Gout"}, {"letter": "E", "text": "Reactive arthritis"}], "answer": "D", "explanation": "Monosodium urate = needle-shaped, negatively birefringent.", "objective": "", "section": "Approach & Labs"}, {"id": "134", "group": 134, "stem": "Anti-Scl-70 (topoisomerase I) → Diagnosis and feared complication:", "options": [{"letter": "A", "text": "Diffuse SSc — interstitial lung disease / renal crisis"}, {"letter": "B", "text": "Limited SSc — pulmonary hypertension"}, {"letter": "C", "text": "Polymyositis — ILD"}, {"letter": "D", "text": "SLE — nephritis"}, {"letter": "E", "text": "MCTD — ILD"}], "answer": "A", "explanation": "Scl-70 = diffuse SSc with ILD and decreased survival; renal crisis in the first 5 years.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "135", "group": 135, "stem": "DIP arthritis with nail pitting and onycholysis → Diagnosis:", "options": [{"letter": "A", "text": "Rheumatoid arthritis"}, {"letter": "B", "text": "Psoriatic arthritis"}, {"letter": "C", "text": "Osteoarthritis"}, {"letter": "D", "text": "Gout"}, {"letter": "E", "text": "Reactive arthritis"}], "answer": "B", "explanation": "DIP disease looks like OA, but nail pitting (specific) points to PsA; RA spares the DIPs.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "136", "group": 136, "stem": "Polyarteritis nodosa → Treatment:", "options": [{"letter": "A", "text": "Apremilast"}, {"letter": "B", "text": "Prednisone 10–20 mg alone"}, {"letter": "C", "text": "Tocilizumab"}, {"letter": "D", "text": "Mepolizumab"}, {"letter": "E", "text": "Steroids + cyclophosphamide (+ antivirals if HBV)"}], "answer": "E", "explanation": "IV steroids + cyclophosphamide; treat hepatitis B; plasmapheresis in HBV-associated disease.", "objective": "", "section": "Vasculitis"}, {"id": "137", "group": 137, "stem": "Older man with isolated elevated alkaline phosphatase, normal calcium, phosphate and PTH → Diagnosis:", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Paget's disease of bone"}, {"letter": "C", "text": "Osteoporosis"}, {"letter": "D", "text": "Osteomalacia"}, {"letter": "E", "text": "Multiple myeloma"}], "answer": "B", "explanation": "Isolated ↑ALP with normal Ca/PO4/PTH = Paget's; osteoporosis has normal ALP; hyperparathyroidism raises calcium.", "objective": "", "section": "Fibromyalgia, CRPS & Paget's"}, {"id": "138", "group": 138, "stem": "Gout flare while already taking allopurinol → Allopurinol should be:", "options": [{"letter": "A", "text": "Switched to probenecid"}, {"letter": "B", "text": "Continued at the same dose"}, {"letter": "C", "text": "Stopped until the flare resolves"}, {"letter": "D", "text": "Doubled immediately"}, {"letter": "E", "text": "Switched to pegloticase"}], "answer": "B", "explanation": "Never stop (or start) ULT during a flare — treat the flare and continue allopurinol.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "139", "group": 139, "stem": "Severe lupus nephritis, alveolar hemorrhage or CNS lupus → Induction therapy:", "options": [{"letter": "A", "text": "Cyclophosphamide or mycophenolate + high-dose steroids"}, {"letter": "B", "text": "Anifrolumab"}, {"letter": "C", "text": "Hydroxychloroquine alone"}, {"letter": "D", "text": "NSAIDs and low-dose prednisone"}, {"letter": "E", "text": "Belimumab monotherapy"}], "answer": "A", "explanation": "Severe disease: cyclophosphamide/MMF, high-dose steroids, ± rituximab, voclosporin, IVIG, plasmapheresis. Belimumab does not help CNS; anifrolumab does not help nephritis or CNS.", "objective": "", "section": "Lupus Family"}, {"id": "140", "group": 140, "stem": "Lab that must be checked at every lupus visit because the kidney sets prognosis →", "options": [{"letter": "A", "text": "ANA titer"}, {"letter": "B", "text": "Complete blood count"}, {"letter": "C", "text": "ESR"}, {"letter": "D", "text": "Urinalysis"}, {"letter": "E", "text": "Anticardiolipin"}], "answer": "D", "explanation": "Urinalysis (± 24-h protein) is mandatory; proteinuria >500 mg/24 h or RBC casts → nephritis.", "objective": "", "section": "Lupus Family"}, {"id": "141", "group": 141, "stem": "Deep, diffuse joint pain that hurts on active AND passive range of motion, with an effusion → Type of pain:", "options": [{"letter": "A", "text": "Periarticular"}, {"letter": "B", "text": "Referred"}, {"letter": "C", "text": "Myofascial"}, {"letter": "D", "text": "Articular"}, {"letter": "E", "text": "Neuropathic"}], "answer": "D", "explanation": "Articular pain hurts with passive ROM and comes with effusion; periarticular pain is point-tender with painless passive ROM and no effusion.", "objective": "", "section": "Approach & Labs"}, {"id": "142", "group": 142, "stem": "Acute monoarticular arthritis → Diagnoses to think of first:", "options": [{"letter": "A", "text": "Rheumatoid arthritis"}, {"letter": "B", "text": "Crystal or septic arthritis"}, {"letter": "C", "text": "Fibromyalgia"}, {"letter": "D", "text": "Polymyalgia rheumatica"}, {"letter": "E", "text": "Systemic lupus erythematosus"}], "answer": "B", "explanation": "Mono = crystal/septic/viral/reactive; oligo = SpA/sarcoid/JIA; poly = RA/PsA/OA/CTD.", "objective": "", "section": "Approach & Labs"}, {"id": "143", "group": 143, "stem": "Biologic that treats both Crohn's disease and its spondyloarthritis →", "options": [{"letter": "A", "text": "Secukinumab (IL-17)"}, {"letter": "B", "text": "Adalimumab (TNF inhibitor)"}, {"letter": "C", "text": "Apremilast"}, {"letter": "D", "text": "Etanercept"}, {"letter": "E", "text": "Naproxen"}], "answer": "B", "explanation": "TNF inhibitors (adalimumab, infliximab, certolizumab), IL-23, IL-12/23, JAK — never IL-17; NSAIDs can flare colitis.", "objective": "", "section": "Spondyloarthropathies"}, {"id": "144", "group": 144, "stem": "Knee X-ray with calcification of the menisci (chondrocalcinosis) → Diagnosis:", "options": [{"letter": "A", "text": "Gout"}, {"letter": "B", "text": "Septic arthritis"}, {"letter": "C", "text": "CPPD (pseudogout)"}, {"letter": "D", "text": "Osteoarthritis"}, {"letter": "E", "text": "Paget's disease"}], "answer": "C", "explanation": "Chondrocalcinosis = CPP deposition in cartilage; asymptomatic chondrocalcinosis needs no treatment.", "objective": "", "section": "Crystal Arthropathies"}, {"id": "145", "group": 145, "stem": "The 4Ms of Age-Friendly care →", "options": [{"letter": "A", "text": "Motor, Memory, Mood, Mobility"}, {"letter": "B", "text": "Mind, Muscle, Meds, Motivation"}, {"letter": "C", "text": "Medicine, Monitoring, Movement, Meals"}, {"letter": "D", "text": "What Matters, Medication, Mentation, Mobility"}, {"letter": "E", "text": "Mentation, Malnutrition, Mobility, Morbidity"}], "answer": "D", "explanation": "What matters to the patient, their meds, their mind, whether they can move.", "objective": "", "section": "Neuro Rehab"}, {"id": "146", "group": 146, "stem": "Erythematous malar rash that spares the nasolabial folds → Diagnosis:", "options": [{"letter": "A", "text": "Subacute cutaneous lupus"}, {"letter": "B", "text": "Dermatomyositis"}, {"letter": "C", "text": "Seborrheic dermatitis"}, {"letter": "D", "text": "Systemic lupus erythematosus"}, {"letter": "E", "text": "Rosacea"}], "answer": "D", "explanation": "Butterfly rash sparing the nasolabial folds = SLE; rosacea/seborrheic dermatitis involve the folds; DM gives heliotrope eyelids.", "objective": "", "section": "Lupus Family"}, {"id": "147", "group": 147, "stem": "WBAT patient who needs more support than a quad cane but can use only one hand →", "options": [{"letter": "A", "text": "Lofstrand crutches"}, {"letter": "B", "text": "Straight cane"}, {"letter": "C", "text": "Axillary crutches"}, {"letter": "D", "text": "Hemi-walker"}, {"letter": "E", "text": "Standard walker"}], "answer": "D", "explanation": "Hemi-walker = one-handed walker; sits between bilateral canes and quad cane on the ladder.", "objective": "", "section": "Assistive Devices"}, {"id": "148", "group": 148, "stem": "Synovial fluid WBC 30,000/µL, Gram stain negative, crystals seen → Fluid class:", "options": [{"letter": "A", "text": "Inflammatory"}, {"letter": "B", "text": "Non-inflammatory"}, {"letter": "C", "text": "Normal"}, {"letter": "D", "text": "Crystal"}, {"letter": "E", "text": "Septic"}], "answer": "D", "explanation": "Crystal fluid runs 10,000–50,000 with negative Gram stain and crystals present.", "objective": "", "section": "Approach & Labs"}, {"id": "149", "group": 149, "stem": "CRP more than 10× the upper limit of normal → Think:", "options": [{"letter": "A", "text": "Lupus flare"}, {"letter": "B", "text": "Infection"}, {"letter": "C", "text": "Fibromyalgia"}, {"letter": "D", "text": "Paget's disease"}, {"letter": "E", "text": "Osteoarthritis"}], "answer": "B", "explanation": "CRP 2–10× in inflammation; much higher → infection.", "objective": "", "section": "Approach & Labs"}, {"id": "150", "group": 150, "stem": "Post-stroke patient needing ≥2 therapy disciplines who can tolerate 3 hours of therapy per day → Setting:", "options": [{"letter": "A", "text": "Outpatient"}, {"letter": "B", "text": "Subacute rehab (SNF)"}, {"letter": "C", "text": "Acute inpatient rehabilitation"}, {"letter": "D", "text": "Long-term acute care"}, {"letter": "E", "text": "Home health"}], "answer": "C", "explanation": "Acute inpatient rehab: 3 h/day, ≥2 disciplines, MD daily, rehab RN 24/7, LOS 12–16 d (3 wk stroke).", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "151", "group": 151, "stem": "Chronic hepatitis B + abdominal angina + foot drop + new hypertension + livedo → Diagnosis:", "options": [{"letter": "A", "text": "Granulomatosis with polyangiitis"}, {"letter": "B", "text": "Eosinophilic granulomatosis with polyangiitis"}, {"letter": "C", "text": "Cryoglobulinemic vasculitis"}, {"letter": "D", "text": "Polyarteritis nodosa"}, {"letter": "E", "text": "Takayasu arteritis"}], "answer": "D", "explanation": "Vasculitis + hepatitis B = PAN; medium vessels of skin, nerves, gut, kidney vessels — spares the lungs.", "objective": "", "section": "Vasculitis"}, {"id": "152", "group": 152, "stem": "Best inflammatory marker to follow spondyloarthritis →", "options": [{"letter": "A", "text": "CK"}, {"letter": "B", "text": "ESR"}, {"letter": "C", "text": "RF"}, {"letter": "D", "text": "CRP"}, {"letter": "E", "text": "ANA"}], "answer": "D", "explanation": "CRP is the better marker in SpA; ESR is better in lupus.", "objective": "", "section": "Approach & Labs"}, {"id": "153", "group": 153, "stem": "\"I can't close my fists in the morning\" with stiffness lasting more than an hour → Diagnosis:", "options": [{"letter": "A", "text": "Osteoarthritis"}, {"letter": "B", "text": "Dupuytren contracture"}, {"letter": "C", "text": "Fibromyalgia"}, {"letter": "D", "text": "Rheumatoid arthritis"}, {"letter": "E", "text": "Polymyalgia rheumatica"}], "answer": "D", "explanation": "Flexor tenosynovitis with prolonged morning stiffness is classic early RA.", "objective": "", "section": "RA & JIA"}, {"id": "154", "group": 154, "stem": "Pregnant woman with antiphospholipid syndrome → Anticoagulant:", "options": [{"letter": "A", "text": "Warfarin"}, {"letter": "B", "text": "Rivaroxaban"}, {"letter": "C", "text": "Heparin / LMWH (± aspirin)"}, {"letter": "D", "text": "Apixaban"}, {"letter": "E", "text": "Clopidogrel"}], "answer": "C", "explanation": "Warfarin is teratogenic — switch to heparin/LMWH in pregnancy.", "objective": "", "section": "Lupus Family"}, {"id": "155", "group": 155, "stem": "Anti-Jo-1 antibody → Associated complication:", "options": [{"letter": "A", "text": "Renal crisis"}, {"letter": "B", "text": "Lymphoma"}, {"letter": "C", "text": "Uveitis"}, {"letter": "D", "text": "Interstitial lung disease"}, {"letter": "E", "text": "Pulmonary hypertension"}], "answer": "D", "explanation": "Anti-Jo-1 (antisynthetase) → ILD, mechanic's hands.", "objective": "", "section": "Scleroderma, Sjögren & Myositis"}, {"id": "156", "group": 156, "stem": "Acute inpatient rehab admission → Discharge plan that is NOT allowed:", "options": [{"letter": "A", "text": "Assisted living"}, {"letter": "B", "text": "Home with home health"}, {"letter": "C", "text": "Outpatient therapy"}, {"letter": "D", "text": "Nursing home"}, {"letter": "E", "text": "Home with spouse"}], "answer": "D", "explanation": "The discharge plan for acute inpatient rehab cannot be a nursing home.", "objective": "", "section": "Rehab: Settings & Team"}, {"id": "157", "group": 157, "stem": "c-ANCA / anti-PR3 → Diagnosis:", "options": [{"letter": "A", "text": "Giant cell arteritis"}, {"letter": "B", "text": "Behçet syndrome"}, {"letter": "C", "text": "Polyarteritis nodosa"}, {"letter": "D", "text": "Granulomatosis with polyangiitis"}, {"letter": "E", "text": "Eosinophilic granulomatosis with polyangiitis"}], "answer": "D", "explanation": "c-ANCA/PR3 is very specific for GPA; p-ANCA/MPO → EGPA, MPA.", "objective": "", "section": "Vasculitis"}, {"id": "158", "group": 158, "stem": "Patient needs therapy but has no car → Setting:", "options": [{"letter": "A", "text": "Long-term acute care"}, {"letter": "B", "text": "Home health — no transportation makes him homebound"}, {"letter": "C", "text": "Outpatient — lack of transportation does not qualify for home health"}, {"letter": "D", "text": "Subacute rehab"}, {"letter": "E", "text": "Acute inpatient rehab"}], "answer": "C", "explanation": "No transportation ≠ homebound; outpatient does not provide transportation.", "objective": "", "section": "Rehab: Settings & Team"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // Reshuffle on every open: stack order and option order (answer letters remapped).
+  (function reshuffle() {
+    function fy(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+    fy(groups);
+    const L = 'ABCDEFGH';
+    questions.forEach(q => {
+      const correct = q.options.find(o => o.letter === q.answer);
+      fy(q.options);
+      q.options.forEach((o, i) => { o.letter = L[i]; });
+      q.answer = correct.letter;
+    });
+  })();
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
