@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- Adaptive tutor ---------- */
+  :root { --tutor: #5b3fa6; --tutor-bg: #f5f2fc; --tutor-line: #ddd3f3; }
+  .feedback.tutoring { background: var(--amber-bg); border-left: 4px solid var(--amber); margin-bottom: 22px; }
+  .feedback.tutoring .verdict { color: var(--amber); }
+  /* Guided review: a quiet rail instead of a filled box, so nested cards don't stack up visually */
+  .tutor { border-left: 3px solid var(--tutor-line); padding: 2px 0 2px 16px; margin: 0 0 6px 4px; }
+  .tutor-head { font-weight: 700; color: var(--tutor); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+  .tnode { background: var(--card); border: 1px solid var(--tutor-line); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+  .tnode.active { border-color: var(--tutor); box-shadow: 0 2px 10px rgba(91,63,166,0.10); }
+  .tnode.done { background: #fcfcfe; }
+  .tlabel { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--tutor); margin-bottom: 8px; }
+  .tlabel.cp { color: #fff; background: var(--tutor); border-radius: 6px; padding: 1px 8px; }
+  .tlabel.clar { color: var(--amber); }
+  .teach { border-left: 3px solid var(--tutor); padding: 2px 0 2px 12px; margin-bottom: 12px; font-size: 0.95em; white-space: pre-wrap; color: var(--ink); }
+  .tnode .stem { margin-bottom: 12px; font-weight: 500; }
+  .tnode .opt { padding: 8px 12px; margin-bottom: 8px; }
+  .tnode .feedback { margin-top: 10px; }
+  .tnode .nudge { margin-top: 8px; color: var(--amber); font-weight: 600; font-size: 0.9em; }
+  .opt.elim { opacity: 0.45; text-decoration: line-through; border-style: dashed; }
+  .tnote { border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 0.95em; }
+  .tnote.reveal { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .tnote.mastered { background: var(--green-bg); border-left: 4px solid var(--green); font-weight: 600; }
+  .tnote.review { background: var(--red-bg); border-left: 4px solid var(--red); font-weight: 600; }
+  .tnote.info { color: var(--ink-soft); padding: 0 2px; margin-bottom: 10px; font-style: italic; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 6px; padding: 1px 8px; margin-left: 8px; vertical-align: middle; }
+  .badge.mastered { background: var(--green-bg); color: var(--green); }
+  .badge.review { background: var(--red-bg); color: var(--red); }
+  .badge.active { background: var(--tutor-bg); color: var(--tutor); }
+  details.trail { margin-top: 12px; }
+  details.trail summary { cursor: pointer; color: var(--tutor); font-weight: 600; font-size: 0.9rem; }
+  details.trail .tutor { margin-top: 12px; }
+
+  .qcard > .feedback + .tutor { margin-top: 22px; }
+
+  /* ---------- Results: study plan ---------- */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 16px; }
+  .card h2 { font-size: 1.02rem; margin-bottom: 4px; }
+  .card .sub { font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 14px; }
+  .focus-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 640px) { .focus-grid { grid-template-columns: 1fr 1fr; } }
+  .focus-box { border-radius: 10px; padding: 12px 14px; background: var(--red-bg); border-left: 4px solid var(--red); }
+  .focus-box.ok { background: var(--green-bg); border-left-color: var(--green); }
+  .focus-box .k { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+  .focus-box .v { font-weight: 700; font-size: 1.02rem; margin-top: 2px; }
+  .focus-box .n { font-size: 0.85rem; color: var(--ink-soft); }
+  .todo { list-style: none; }
+  .todo li { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border); font-size: 0.93rem; }
+  .todo li:first-child { border-top: none; }
+  .todo .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; transform: translateY(-1px); }
+  .todo .dot.review { background: var(--red); } .todo .dot.missed { background: var(--amber); } .todo .dot.mastered { background: var(--green); }
+  .todo .what { flex: 1; }
+  .todo .what b { font-weight: 600; }
+  .todo .tag { flex: none; font-size: 0.75rem; font-weight: 700; color: var(--ink-soft); }
+  .todo .tag.review { color: var(--red); } .todo .tag.missed { color: var(--amber); } .todo .tag.mastered { color: var(--green); }
+  .bar-row { margin-bottom: 14px; }
+  .bar-row:last-child { margin-bottom: 2px; }
+  .bar-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.92rem; margin-bottom: 5px; }
+  .bar-head .nm { font-weight: 600; }
+  .bar-head .pc { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+  .bar-head .pc b { color: var(--ink); }
+  .bar-meta { font-size: 0.78rem; color: var(--ink-soft); margin-top: 3px; }
+  .tutor-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 640px) { .tutor-stats { grid-template-columns: repeat(4, 1fr); } }
+  .tstat { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; color: var(--ink-soft); }
+  .tstat b { display: block; font-size: 1.4rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tstat.m b { color: var(--green); } .tstat.r b { color: var(--red); } .tstat.t b { color: var(--tutor); }
+
+  /* Background infographic (added by Claude) */
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(244, 246, 250, 0.55), rgba(244, 246, 250, 0.55)),
+      url("data:image/png;base64,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EEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRT4AcaQetVXEvmbAAAAAElFTkSuQmCC");
+    background-repeat: no-repeat, no-repeat;
+    background-position: center center, center center;
+    background-size: cover, cover;
+    background-attachment: fixed, fixed;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, topic?, skill?, image?,
+//    remediation?: {                      // OPTIONAL — adaptive tutor pathway for a wrong first answer
+//      steps: [{ teach?, stem, options, answer, explanation?,
+//                clarify?: [{ teach?, stem, options, answer, explanation? }] }],   // simpler questions used when a step is missed
+//      checkpoints?: [{ teach?, stem, options, answer, explanation? }]             // mastery check(s): a new vignette on the same concept
+//    } }] }
+// Questions without `remediation` behave exactly like the classic exam (answer revealed immediately).
+// **double asterisks** in any text render as bold.
+const EXAM_DATA = {"title": "Diabetes Pharmacotherapy Part II (Type 1 DM & Insulin) — Keyword Practice (Adaptive)", "questions": [{"id": "1", "group": 1, "slide": 4, "section": "T1DM pharmacotherapy framework", "topic": "T1DM framework & goals", "skill": "Disease process", "stem": "What core defect in type 1 diabetes determines its treatment?", "options": [{"letter": "A", "text": "Excess renal glucose reabsorption"}, {"letter": "B", "text": "Peripheral insulin resistance"}, {"letter": "C", "text": "Absolute insulin deficiency"}, {"letter": "D", "text": "Incretin hormone deficiency"}], "answer": "C", "explanation": "Autoimmune β-cell destruction → **absolute insulin deficiency**, so every person with T1DM needs **insulin for life, without interruption**.", "objective": "", "remediation": {"steps": [{"teach": "T1DM is **autoimmune β-cell destruction** — the cells that make insulin are gone (C-peptide low/undetectable).", "stem": "If β-cells are destroyed, endogenous insulin production is:", "options": [{"letter": "A", "text": "Nearly absent"}, {"letter": "B", "text": "Increased to compensate"}], "answer": "A", "explanation": "No β-cells → essentially no insulin of their own.", "clarify": [{"stem": "C-peptide in new T1DM is typically:", "options": [{"letter": "A", "text": "Low or undetectable"}, {"letter": "B", "text": "Elevated"}], "answer": "A", "explanation": "C-peptide is co-secreted with insulin; low C-peptide = little endogenous insulin."}]}], "checkpoints": [{"stem": "Type 1 DM → Which patients need insulin?", "options": [{"letter": "A", "text": "Only those with A1C >10%"}, {"letter": "B", "text": "Only during DKA"}, {"letter": "C", "text": "All patients, lifelong"}, {"letter": "D", "text": "Only after oral agents fail"}], "answer": "C", "explanation": "**Every** person with T1DM requires insulin, for life, without interruption."}, {"stem": "Autoimmune β-cell destruction → Resulting state:", "options": [{"letter": "A", "text": "Insulin resistance"}, {"letter": "B", "text": "Absolute insulin deficiency"}, {"letter": "C", "text": "Hyperinsulinemia"}, {"letter": "D", "text": "Glucagon deficiency"}], "answer": "B", "explanation": "β-cell loss = **absolute insulin deficiency**."}]}}, {"id": "2", "group": 2, "slide": 5, "section": "What changed in ADA 2026", "topic": "Insulin delivery (pump, AID, CGM)", "skill": "Management", "stem": "According to ADA 2026 guidance, what is the preferred insulin delivery method for adults with type 1 diabetes?", "options": [{"letter": "A", "text": "Pump without a CGM"}, {"letter": "B", "text": "Syringe-based MDI"}, {"letter": "C", "text": "Automated insulin delivery"}, {"letter": "D", "text": "Premixed 70/30 twice daily"}, {"letter": "E", "text": "Inhaled prandial insulin"}], "answer": "C", "explanation": "**AID** (pump + CGM + algorithm) is now the **preferred** delivery method — offer to all adults with T1 when feasible; 2026 removed C-peptide/antibody/duration prerequisites.", "objective": "", "remediation": {"steps": [{"teach": "AID = **pump + CGM + algorithm** that modulates basal minute-to-minute and suspends for lows. ADA 2026 made it the top recommendation.", "stem": "What does AID add beyond a standard pump?", "options": [{"letter": "A", "text": "Inhaled insulin delivery"}, {"letter": "B", "text": "CGM-driven automatic insulin adjustment"}, {"letter": "C", "text": "A long-acting insulin reservoir"}], "answer": "B", "explanation": "The algorithm uses CGM data to adjust basal and suspend for lows.", "clarify": [{"stem": "Does an AID user still announce meals and enter carbs?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No — fully automatic"}], "answer": "A", "explanation": "User still announces meals/enters carbs, changes sites and sensors."}]}], "checkpoints": [{"stem": "ADA 2026 → Prerequisite REMOVED before pump/AID:", "options": [{"letter": "A", "text": "C-peptide or autoantibody testing"}, {"letter": "B", "text": "Glucagon prescription"}, {"letter": "C", "text": "CGM training"}, {"letter": "D", "text": "Carbohydrate counting education"}], "answer": "A", "explanation": "2026 removed C-peptide, autoantibody, and minimum insulin-duration requirements."}, {"stem": "Adult with T1, access not an issue → Delivery method to offer:", "options": [{"letter": "A", "text": "Sliding scale alone"}, {"letter": "B", "text": "Premixed insulin"}, {"letter": "C", "text": "AID system"}, {"letter": "D", "text": "Basal-only insulin"}], "answer": "C", "explanation": "**AID** should be offered to all adults with T1 when feasible."}]}}, {"id": "3", "group": 3, "slide": 5, "section": "What changed in ADA 2026", "topic": "Hypoglycemia & exercise", "skill": "Counseling & prevention", "stem": "According to ADA 2026 guidance, who should be prescribed glucagon?", "options": [{"letter": "A", "text": "Only after a Level 3 event"}, {"letter": "B", "text": "Only children with T1"}, {"letter": "C", "text": "Everyone on insulin"}, {"letter": "D", "text": "Only insulin pump users"}], "answer": "C", "explanation": "**Glucagon for everyone on insulin** — ready-to-use formulations preferred — with a trained household member.", "objective": "", "remediation": {"steps": [{"teach": "Severe hypoglycemia can happen to anyone on insulin, and the patient can't treat it alone — the rescue drug is prescribed **up front**, not after the first event.", "stem": "Who gives glucagon during severe hypoglycemia?", "options": [{"letter": "A", "text": "A trained caregiver/household member"}, {"letter": "B", "text": "The patient, while seizing"}], "answer": "A", "explanation": "A trained household member gives it — that's why training is part of the prescription.", "clarify": [{"stem": "Is glucagon reserved for patients who already had a severe low?", "options": [{"letter": "A", "text": "No — prescribe it up front"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "It's for **everyone** on insulin."}]}], "checkpoints": [{"stem": "ADA 2026 → Preferred glucagon formulation:", "options": [{"letter": "A", "text": "Ready-to-use (nasal/auto-injector)"}, {"letter": "B", "text": "IV only"}, {"letter": "C", "text": "Oral tablet"}, {"letter": "D", "text": "Reconstituted vial kit"}], "answer": "A", "explanation": "**Ready-to-use** glucagon (nasal, auto-injector) is preferred."}, {"stem": "New T1 patient leaving clinic → Rescue drug they must have:", "options": [{"letter": "A", "text": "Oral glucose only"}, {"letter": "B", "text": "Glucagon"}, {"letter": "C", "text": "Regular insulin vial"}, {"letter": "D", "text": "Pramlintide"}], "answer": "B", "explanation": "**Glucagon** + trained household member."}]}}, {"id": "4", "group": 4, "slide": 6, "section": "Glycemic goals in T1DM", "topic": "T1DM framework & goals", "skill": "Management", "stem": "What is the A1C goal for most nonpregnant adults with type 1 diabetes?", "options": [{"letter": "A", "text": "<7%"}, {"letter": "B", "text": "<8%"}, {"letter": "C", "text": "<6%"}, {"letter": "D", "text": "<6.5%"}], "answer": "A", "explanation": "**A1C <7%** for most nonpregnant adults (premeal 80–130, post-meal <180; CGM TIR >70%). Relax in older adults/high hypo risk.", "objective": "", "remediation": {"steps": [{"teach": "The standard adult goal balances complication prevention against **hypoglycemia**; looser goals are for frail or high-risk patients.", "stem": "A looser target (e.g., <7.5–8%) is reserved for:", "options": [{"letter": "A", "text": "Healthy young adults"}, {"letter": "B", "text": "Older/frail or high hypo-risk patients"}], "answer": "B", "explanation": "Relax targets in older adults, major comorbidity, or high hypo risk.", "clarify": [{"stem": "Does a stricter A1C target raise or lower hypoglycemia risk?", "options": [{"letter": "A", "text": "Raises it"}, {"letter": "B", "text": "Lowers it"}], "answer": "A", "explanation": "Tighter targets = more insulin = more lows."}]}], "checkpoints": [{"stem": "CGM → Time-in-range (70–180) goal for most adults:", "options": [{"letter": "A", "text": ">70%"}, {"letter": "B", "text": ">90%"}, {"letter": "C", "text": ">40%"}, {"letter": "D", "text": ">50%"}], "answer": "A", "explanation": "**TIR >70%**; time <70 **<4%**, <54 **<1%**, >250 **<5%**."}, {"stem": "Healthy 30-year-old with T1 → A1C target:", "options": [{"letter": "A", "text": "<8.5%"}, {"letter": "B", "text": "<7%"}, {"letter": "C", "text": "<6%"}, {"letter": "D", "text": "<9%"}], "answer": "B", "explanation": "**<7%** for most nonpregnant adults."}]}}, {"id": "5", "group": 5, "slide": 8, "section": "Insulin: mechanism of action", "topic": "Insulin mechanism", "skill": "Pharmacology", "stem": "What type of receptor does insulin bind to?", "options": [{"letter": "A", "text": "Ligand-gated ion channel"}, {"letter": "B", "text": "Nuclear hormone receptor"}, {"letter": "C", "text": "G-protein–coupled receptor"}, {"letter": "D", "text": "Tyrosine kinase receptor"}], "answer": "D", "explanation": "Insulin binds the **insulin receptor (tyrosine kinase)** on muscle, fat, and liver → signaling → **GLUT4 translocation**.", "objective": "", "remediation": {"steps": [{"teach": "The insulin receptor is an **enzyme-linked** receptor that phosphorylates itself after binding — not a GPCR or ion channel.", "stem": "Insulin receptor signaling begins with:", "options": [{"letter": "A", "text": "Opening of a sodium channel"}, {"letter": "B", "text": "cAMP production via Gs"}, {"letter": "C", "text": "Autophosphorylation on tyrosine residues"}], "answer": "C", "explanation": "Binding activates the receptor's **tyrosine kinase** activity.", "clarify": [{"stem": "Insulin is a peptide hormone — does it act on a nuclear receptor?", "options": [{"letter": "A", "text": "Yes — nuclear receptor"}, {"letter": "B", "text": "No — cell-surface receptor"}], "answer": "B", "explanation": "Peptides act on surface receptors."}]}], "checkpoints": [{"stem": "Insulin receptor activation → Key event in muscle/fat:", "options": [{"letter": "A", "text": "GLUT4 translocation to membrane"}, {"letter": "B", "text": "SGLT2 inhibition"}, {"letter": "C", "text": "Increased glucagon release"}, {"letter": "D", "text": "K-ATP channel closure"}], "answer": "A", "explanation": "Signaling moves **GLUT4** to the membrane → glucose uptake."}, {"stem": "Insulin → Binds which receptor class?", "options": [{"letter": "A", "text": "Ion channel"}, {"letter": "B", "text": "Nuclear receptor"}, {"letter": "C", "text": "Tyrosine kinase"}, {"letter": "D", "text": "GPCR"}], "answer": "C", "explanation": "**Tyrosine kinase** receptor."}]}}, {"id": "6", "group": 6, "slide": 8, "section": "Insulin: mechanism of action", "topic": "Insulin mechanism", "skill": "Pharmacology", "stem": "Which glucose transporter does insulin move to the cell membrane in muscle and adipose tissue?", "options": [{"letter": "A", "text": "GLUT2"}, {"letter": "B", "text": "SGLT2"}, {"letter": "C", "text": "GLUT4"}, {"letter": "D", "text": "GLUT1"}], "answer": "C", "explanation": "Insulin signaling → **GLUT4 translocation** → ↑ glucose uptake in **muscle and fat**.", "objective": "", "remediation": {"steps": [{"teach": "Insulin-sensitive tissues (**skeletal muscle, adipose**) take up glucose through an insulin-regulated transporter.", "stem": "Which tissues show insulin-stimulated glucose uptake?", "options": [{"letter": "A", "text": "Muscle and fat"}, {"letter": "B", "text": "Brain and red cells"}], "answer": "A", "explanation": "Muscle and fat are the insulin-responsive uptake tissues.", "clarify": [{"stem": "SGLT2 is located mainly in:", "options": [{"letter": "A", "text": "Skeletal muscle"}, {"letter": "B", "text": "Renal proximal tubule"}], "answer": "B", "explanation": "SGLT2 = kidney glucose reabsorption — not insulin's transporter."}]}], "checkpoints": [{"stem": "Insulin → Effect on the liver:", "options": [{"letter": "A", "text": "↑ glycogenolysis"}, {"letter": "B", "text": "↑ hepatic glucose output"}, {"letter": "C", "text": "↓ glucose production, ↑ glycogen"}, {"letter": "D", "text": "↑ ketogenesis"}], "answer": "C", "explanation": "Liver: **↓ hepatic glucose production, ↑ glycogen**."}, {"stem": "Insulin-regulated glucose transporter in muscle:", "options": [{"letter": "A", "text": "SGLT1"}, {"letter": "B", "text": "GLUT3"}, {"letter": "C", "text": "GLUT4"}, {"letter": "D", "text": "GLUT2"}], "answer": "C", "explanation": "**GLUT4**."}]}}, {"id": "7", "group": 7, "slide": 8, "section": "Insulin: mechanism of action", "topic": "Insulin mechanism", "skill": "Pharmacology", "stem": "What effect of insulin on adipose tissue explains why basal insulin must continue during illness?", "options": [{"letter": "A", "text": "↑ lipolysis and FFA release"}, {"letter": "B", "text": "↓ lipolysis → ↓ ketogenesis"}, {"letter": "C", "text": "↑ hepatic ketone production"}, {"letter": "D", "text": "↑ glucagon secretion"}], "answer": "B", "explanation": "Insulin **suppresses lipolysis → ↓ FFA → ↓ ketogenesis**; stopping basal (even when not eating) unleashes ketone production → DKA.", "objective": "", "remediation": {"steps": [{"teach": "Without insulin, fat breaks down into **free fatty acids**, which the liver turns into **ketones**.", "stem": "Free fatty acids reaching the liver without insulin become:", "options": [{"letter": "A", "text": "Glycogen"}, {"letter": "B", "text": "Ketone bodies"}], "answer": "B", "explanation": "FFA → ketogenesis.", "clarify": [{"stem": "Insulin makes lipolysis go:", "options": [{"letter": "A", "text": "Down"}, {"letter": "B", "text": "Up"}], "answer": "A", "explanation": "Insulin is anti-lipolytic."}]}], "checkpoints": [{"stem": "Sick T1 patient not eating → Basal insulin:", "options": [{"letter": "A", "text": "Stop until eating"}, {"letter": "B", "text": "Continue"}, {"letter": "C", "text": "Hold overnight"}, {"letter": "D", "text": "Switch to an oral agent"}], "answer": "B", "explanation": "**Never stop basal** — it's what suppresses ketogenesis."}, {"stem": "Insulin → Effect on ketogenesis:", "options": [{"letter": "A", "text": "No effect"}, {"letter": "B", "text": "Increases it in the liver"}, {"letter": "C", "text": "Decreases it"}, {"letter": "D", "text": "Increases it"}], "answer": "C", "explanation": "Insulin **decreases** ketogenesis."}]}}, {"id": "8", "group": 8, "slide": 8, "section": "Insulin: mechanism of action", "topic": "Insulin mechanism", "skill": "Pharmacology", "stem": "Which electrolyte does insulin drive into cells, potentially lowering its serum level excessively?", "options": [{"letter": "A", "text": "Calcium"}, {"letter": "B", "text": "Potassium"}, {"letter": "C", "text": "Magnesium"}, {"letter": "D", "text": "Sodium"}], "answer": "B", "explanation": "Insulin **drives K⁺ into cells** with glucose — treats hyperkalemia (with dextrose) but can cause **hypokalemia**, esp. IV/large doses.", "objective": "", "remediation": {"steps": [{"teach": "The intracellular shift used to treat a dangerous **high** level of this electrolyte causes a **low** when insulin is given in large doses (e.g., DKA).", "stem": "Insulin with dextrose is used to treat:", "options": [{"letter": "A", "text": "Hypernatremia"}, {"letter": "B", "text": "Hyperkalemia"}], "answer": "B", "explanation": "Insulin + dextrose shifts K⁺ into cells.", "clarify": [{"stem": "During IV insulin for DKA, which electrolyte must you watch fall?", "options": [{"letter": "A", "text": "Chloride"}, {"letter": "B", "text": "Potassium"}], "answer": "B", "explanation": "IV insulin → **hypokalemia** risk."}]}], "checkpoints": [{"stem": "Hyperkalemia → Insulin is given together with:", "options": [{"letter": "A", "text": "Dextrose"}, {"letter": "B", "text": "Pramlintide"}, {"letter": "C", "text": "Glucagon"}, {"letter": "D", "text": "Potassium chloride"}], "answer": "A", "explanation": "Regular insulin + **dextrose** shifts K⁺ in without causing hypoglycemia."}, {"stem": "Large/IV insulin doses → Electrolyte adverse effect:", "options": [{"letter": "A", "text": "Hypermagnesemia"}, {"letter": "B", "text": "Hypokalemia"}, {"letter": "C", "text": "Hypercalcemia"}, {"letter": "D", "text": "Hypernatremia"}], "answer": "B", "explanation": "**Hypokalemia**."}]}}, {"id": "9", "group": 9, "slide": 9, "section": "Insulin: indications & contraindications", "topic": "Insulin — indications, AEs & warnings", "skill": "Management", "stem": "Which insulin is used for diabetic ketoacidosis or hyperosmolar hyperglycemic state?", "options": [{"letter": "A", "text": "Inhaled insulin"}, {"letter": "B", "text": "SubQ degludec"}, {"letter": "C", "text": "SubQ glargine U-300"}, {"letter": "D", "text": "IV regular insulin"}, {"letter": "E", "text": "SubQ NPH twice daily"}], "answer": "D", "explanation": "**IV regular insulin** is the IV insulin of choice for DKA/HHS and hospital protocols (and for hyperkalemia with dextrose).", "objective": "", "remediation": {"steps": [{"teach": "An emergency needs a **titratable IV infusion**; basal analogs, NPH, and inhaled forms aren't given IV.", "stem": "Which route allows minute-to-minute titration in DKA?", "options": [{"letter": "A", "text": "IV infusion"}, {"letter": "B", "text": "Subcutaneous depot"}], "answer": "A", "explanation": "IV infusion.", "clarify": [{"stem": "Which insulin is the one routinely given IV?", "options": [{"letter": "A", "text": "Glargine"}, {"letter": "B", "text": "Regular (human)"}], "answer": "B", "explanation": "Glargine/NPH/degludec are SubQ only."}]}], "checkpoints": [{"stem": "Regular insulin → Brand names:", "options": [{"letter": "A", "text": "Humalog, NovoLog"}, {"letter": "B", "text": "Humulin R, Novolin R"}, {"letter": "C", "text": "Lantus, Toujeo"}, {"letter": "D", "text": "Humulin N, Novolin N"}], "answer": "B", "explanation": "**Humulin R, Novolin R** = regular."}, {"stem": "Hospital DKA protocol → Insulin used:", "options": [{"letter": "A", "text": "SubQ NPH"}, {"letter": "B", "text": "IV regular"}, {"letter": "C", "text": "SubQ lispro"}, {"letter": "D", "text": "Inhaled Afrezza"}], "answer": "B", "explanation": "**IV regular**."}]}}, {"id": "10", "group": 10, "slide": 9, "section": "Insulin: indications & contraindications", "topic": "Insulin — indications, AEs & warnings", "skill": "Pharmacology", "stem": "What is a contraindication to insulin administration?", "options": [{"letter": "A", "text": "Stage 4 chronic kidney disease"}, {"letter": "B", "text": "Obesity (BMI >35)"}, {"letter": "C", "text": "Pregnancy"}, {"letter": "D", "text": "Current hypoglycemia"}], "answer": "D", "explanation": "Insulin CIs: **current hypoglycemia** and hypersensitivity to a specific insulin/excipient. CKD → lower dose; pregnancy → insulin preferred.", "objective": "", "remediation": {"steps": [{"teach": "Insulin lowers glucose — giving it during a low worsens the low. Renal disease changes the **dose**, not whether insulin can be used.", "stem": "In CKD, insulin is:", "options": [{"letter": "A", "text": "Dose-reduced (↓ clearance)"}, {"letter": "B", "text": "Contraindicated"}], "answer": "A", "explanation": "Renal/hepatic impairment ↓ clearance → lower dose.", "clarify": [{"stem": "In pregnancy with diabetes, insulin is:", "options": [{"letter": "A", "text": "Preferred therapy"}, {"letter": "B", "text": "Contraindicated"}], "answer": "A", "explanation": "Insulin is preferred in pregnancy."}]}], "checkpoints": [{"stem": "Hypersensitivity to one insulin's excipient → Action:", "options": [{"letter": "A", "text": "Use oral agents in T1"}, {"letter": "B", "text": "Double the dose"}, {"letter": "C", "text": "Stop all insulin permanently"}, {"letter": "D", "text": "Switch insulin product"}], "answer": "D", "explanation": "Switch to a different product — T1 still needs insulin."}, {"stem": "Insulin → Contraindication:", "options": [{"letter": "A", "text": "Pregnancy"}, {"letter": "B", "text": "Dialysis"}, {"letter": "C", "text": "Age >65"}, {"letter": "D", "text": "Current hypoglycemia"}], "answer": "D", "explanation": "**Current hypoglycemia**."}]}}, {"id": "11", "group": 11, "slide": 10, "section": "Insulin: adverse effects", "topic": "Insulin — indications, AEs & warnings", "skill": "Pharmacology", "stem": "What dose-limiting adverse effect is shared by all insulins?", "options": [{"letter": "A", "text": "Weight gain"}, {"letter": "B", "text": "Hypokalemia"}, {"letter": "C", "text": "Hypoglycemia"}, {"letter": "D", "text": "Lipoatrophy"}], "answer": "C", "explanation": "**Hypoglycemia** is the dose-limiting AE of every insulin; **weight gain** is the other common expected AE.", "objective": "", "remediation": {"steps": [{"teach": "The most common and dangerous result of too much insulin is an excessive drop in **glucose**.", "stem": "Too much insulin relative to food/activity causes:", "options": [{"letter": "A", "text": "Low blood glucose"}, {"letter": "B", "text": "High blood glucose"}], "answer": "A", "explanation": "Hypoglycemia.", "clarify": [{"stem": "Is weight gain a common insulin AE?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "B", "explanation": "Yes — restored anabolism + 'defensive snacking' — but it doesn't limit the dose the way lows do."}]}], "checkpoints": [{"stem": "Insulin → Common AE besides hypoglycemia:", "options": [{"letter": "A", "text": "Diarrhea"}, {"letter": "B", "text": "Weight loss"}, {"letter": "C", "text": "Weight gain"}, {"letter": "D", "text": "Hyperkalemia"}], "answer": "C", "explanation": "**Weight gain** (anabolism + defensive snacking)."}, {"stem": "Insulin → AE that limits how far you can push the dose:", "options": [{"letter": "A", "text": "Hypoglycemia"}, {"letter": "B", "text": "Edema"}, {"letter": "C", "text": "Rash"}, {"letter": "D", "text": "Hypokalemia"}], "answer": "A", "explanation": "**Hypoglycemia**."}]}}, {"id": "12", "group": 12, "slide": 10, "section": "Insulin: adverse effects", "topic": "Insulin — indications, AEs & warnings", "skill": "Pharmacology", "stem": "What local tissue change can result from repeated insulin injections at the same site?", "options": [{"letter": "A", "text": "Fat necrosis"}, {"letter": "B", "text": "Lipoatrophy"}, {"letter": "C", "text": "Lipohypertrophy"}, {"letter": "D", "text": "Keloid formation"}], "answer": "C", "explanation": "**Lipohypertrophy** — rubbery swelling → erratic, blunted absorption. Rotate sites and palpate every visit.", "objective": "", "remediation": {"steps": [{"teach": "Insulin is anabolic for fat — repeated local exposure makes fat **grow**, forming a rubbery lump.", "stem": "Insulin's local effect on fat at an overused site:", "options": [{"letter": "A", "text": "Fat accumulates"}, {"letter": "B", "text": "Fat wastes away"}], "answer": "A", "explanation": "Fat accumulates → lipohypertrophy.", "clarify": [{"stem": "Lipoatrophy with modern analogs is:", "options": [{"letter": "A", "text": "The usual finding"}, {"letter": "B", "text": "Rare"}], "answer": "B", "explanation": "Lipoatrophy is rare with analogs."}]}], "checkpoints": [{"stem": "Patient stops injecting into a lipohypertrophy site → Risk:", "options": [{"letter": "A", "text": "Hypokalemia"}, {"letter": "B", "text": "Hyperglycemia"}, {"letter": "C", "text": "Hypoglycemia"}, {"letter": "D", "text": "DKA"}], "answer": "C", "explanation": "Absorption improves in healthy tissue → needs drop → **hypoglycemia** if doses aren't adjusted."}, {"stem": "Prevent lipohypertrophy →", "options": [{"letter": "A", "text": "Inject one spot only"}, {"letter": "B", "text": "Use only the thigh"}, {"letter": "C", "text": "Massage after injecting"}, {"letter": "D", "text": "Rotate injection sites"}], "answer": "D", "explanation": "**Rotate sites** and palpate."}]}}, {"id": "13", "group": 13, "slide": 11, "section": "Insulin: key warnings & interactions", "topic": "Insulin — indications, AEs & warnings", "skill": "Pharmacology", "stem": "Combining insulin with which oral medication class increases the risk of fluid retention and heart failure?", "options": [{"letter": "A", "text": "Biguanides"}, {"letter": "B", "text": "Sulfonylureas"}, {"letter": "C", "text": "Thiazolidinediones"}, {"letter": "D", "text": "DPP-4 inhibitors"}], "answer": "C", "explanation": "**TZD (pioglitazone) + insulin → ↑ fluid retention, HF risk.**", "objective": "", "remediation": {"steps": [{"teach": "One oral class causes **fluid retention/edema** on its own; insulin (renal Na⁺ retention) compounds it.", "stem": "Pioglitazone belongs to which class?", "options": [{"letter": "A", "text": "Sulfonylurea"}, {"letter": "B", "text": "Thiazolidinedione"}], "answer": "B", "explanation": "Pioglitazone = TZD.", "clarify": [{"stem": "Insulin's renal effect that adds to edema:", "options": [{"letter": "A", "text": "Na⁺ retention"}, {"letter": "B", "text": "Na⁺ wasting"}], "answer": "A", "explanation": "Insulin promotes renal Na⁺ retention."}]}], "checkpoints": [{"stem": "Patient with HF on insulin → Oral agent to avoid adding:", "options": [{"letter": "A", "text": "Metformin"}, {"letter": "B", "text": "Pioglitazone"}, {"letter": "C", "text": "Sitagliptin"}, {"letter": "D", "text": "Glipizide"}], "answer": "B", "explanation": "**Pioglitazone** (TZD) + insulin → fluid retention/HF."}, {"stem": "Insulin + TZD → Main risk:", "options": [{"letter": "A", "text": "Genital infections"}, {"letter": "B", "text": "Fluid retention/HF"}, {"letter": "C", "text": "Lactic acidosis"}, {"letter": "D", "text": "Pancreatitis"}], "answer": "B", "explanation": "**Fluid retention, HF**."}]}}, {"id": "14", "group": 14, "slide": 11, "section": "Insulin: key warnings & interactions", "topic": "Drugs affecting glucose", "skill": "Pharmacology", "stem": "How does a nonselective beta-blocker affect hypoglycemia in a patient using insulin?", "options": [{"letter": "A", "text": "Prevents nocturnal lows"}, {"letter": "B", "text": "Masks warning symptoms"}, {"letter": "C", "text": "Causes euglycemic DKA"}, {"letter": "D", "text": "Reverses insulin effect"}], "answer": "B", "explanation": "Nonselective **β-blockers** (and **clonidine**) **mask autonomic warning signs** (tremor, palpitations, anxiety) — lows are harder to notice.", "objective": "", "remediation": {"steps": [{"teach": "Tremor, palpitations, and anxiety during a low come from the **adrenergic (sympathetic)** response.", "stem": "Blocking β-receptors blunts which hypoglycemia symptoms?", "options": [{"letter": "A", "text": "Autonomic (tremor, palpitations)"}, {"letter": "B", "text": "Neuroglycopenic (confusion)"}], "answer": "A", "explanation": "Autonomic warnings are blunted.", "clarify": [{"stem": "Another drug that masks hypoglycemia symptoms:", "options": [{"letter": "A", "text": "Clonidine"}, {"letter": "B", "text": "Metformin"}], "answer": "A", "explanation": "**Clonidine** also masks lows."}]}], "checkpoints": [{"stem": "Insulin user → Pair that makes lows 'easier and harder to notice':", "options": [{"letter": "A", "text": "Estrogen and antipsychotics"}, {"letter": "B", "text": "Metformin and DPP-4i"}, {"letter": "C", "text": "Alcohol and β-blockers"}, {"letter": "D", "text": "Steroids and thiazides"}], "answer": "C", "explanation": "York: **alcohol & β-blockers** → hypo is easier and harder to notice."}, {"stem": "Antibiotics that ↑ hypoglycemia risk with insulin:", "options": [{"letter": "A", "text": "Penicillins, cephalosporins"}, {"letter": "B", "text": "Vancomycin, linezolid"}, {"letter": "C", "text": "Doxycycline, clindamycin"}, {"letter": "D", "text": "Fluoroquinolones, TMP-SMX"}], "answer": "D", "explanation": "**Fluoroquinolones and TMP-SMX** (plus MAOIs, salicylates, alcohol, SUs)."}]}}, {"id": "15", "group": 15, "slide": 12, "section": "Medications that cause or worsen diabetes", "topic": "Drugs affecting glucose", "skill": "Pharmacology", "stem": "How are insulin requirements expected to change when a patient with type 1 diabetes starts systemic glucocorticoids?", "options": [{"letter": "A", "text": "No change"}, {"letter": "B", "text": "Increase insulin"}, {"letter": "C", "text": "Stop basal"}, {"letter": "D", "text": "Decrease insulin"}], "answer": "B", "explanation": "**Glucocorticoids**, thiazide/loop diuretics, atypical antipsychotics, estrogen/progestin, mTOR/PI3K inhibitors **raise glucose → increase insulin**.", "objective": "", "remediation": {"steps": [{"teach": "Glucocorticoids ↑ hepatic glucose output and ↓ insulin sensitivity — they **raise** BG.", "stem": "Glucocorticoids make blood glucose:", "options": [{"letter": "A", "text": "Rise"}, {"letter": "B", "text": "Fall"}], "answer": "A", "explanation": "They raise BG.", "clarify": [{"stem": "Alcohol in an insulin user → Hypoglycemia risk:", "options": [{"letter": "A", "text": "Decreases"}, {"letter": "B", "text": "Increases"}], "answer": "B", "explanation": "Alcohol is on the **lower insulin / more lows** list — the opposite direction."}]}], "checkpoints": [{"stem": "Atypical antipsychotic most associated with hyperglycemia:", "options": [{"letter": "A", "text": "Buspirone"}, {"letter": "B", "text": "Haloperidol"}, {"letter": "C", "text": "Olanzapine"}, {"letter": "D", "text": "Sertraline"}], "answer": "C", "explanation": "**Olanzapine** (and clozapine)."}, {"stem": "Drug class expected to RAISE insulin needs:", "options": [{"letter": "A", "text": "Salicylates"}, {"letter": "B", "text": "Sulfonylureas"}, {"letter": "C", "text": "Thiazide diuretics"}, {"letter": "D", "text": "MAOIs"}], "answer": "C", "explanation": "**Thiazide/loop diuretics** raise BG; the others ↑ hypo risk."}]}}, {"id": "16", "group": 16, "slide": 15, "section": "Rapid-acting analogs", "topic": "Prandial insulins (rapid & regular)", "skill": "Pharmacology", "stem": "What are the onset, peak, and duration of action of insulin lispro, aspart, and glulisine?", "options": [{"letter": "A", "text": "1–2 h / 6–10 h / 10–16 h"}, {"letter": "B", "text": "1–4 h / flat / ~24 h"}, {"letter": "C", "text": "5–15 min / ~1 h / 3–4 h"}, {"letter": "D", "text": "~30 min / 2–3 h / 4–6 h"}], "answer": "C", "explanation": "**Rapid analogs: 5–15 min / ~1 h / 3–4 h** ('GAL pals'). Regular 30 min / 2–3 h / 4–6 h; NPH 1–2 / 6–10 / 10–16 h.", "objective": "", "remediation": {"steps": [{"teach": "Rapid analogs are built to match the **post-meal curve** — onset within minutes, peak around an hour.", "stem": "Rapid-analog peak:", "options": [{"letter": "A", "text": "~1 h"}, {"letter": "B", "text": "6–10 h"}], "answer": "A", "explanation": "~1 h.", "clarify": [{"stem": "Rapid-analog duration:", "options": [{"letter": "A", "text": "3–4 h"}, {"letter": "B", "text": "~24 h"}], "answer": "A", "explanation": "3–4 h."}]}], "checkpoints": [{"stem": "Rapid analogs → When to inject relative to meals:", "options": [{"letter": "A", "text": "0–15 min before"}, {"letter": "B", "text": "60 min before"}, {"letter": "C", "text": "At bedtime"}, {"letter": "D", "text": "30 min before"}], "answer": "A", "explanation": "**0–15 min before** (ADA prefers 10–15 min when intake is predictable)."}, {"stem": "Insulin with onset 5–15 min and peak ~1 h:", "options": [{"letter": "A", "text": "Glargine"}, {"letter": "B", "text": "Aspart"}, {"letter": "C", "text": "Regular"}, {"letter": "D", "text": "NPH"}], "answer": "B", "explanation": "**Aspart** (rapid analog)."}]}}, {"id": "17", "group": 17, "slide": 16, "section": "Regular insulin", "topic": "Prandial insulins (rapid & regular)", "skill": "Pharmacology", "stem": "What are the onset, peak, and duration of action of regular insulin (Humulin R)?", "options": [{"letter": "A", "text": "5–15 min / ~1 h / 3–4 h"}, {"letter": "B", "text": "1–2 h / 6–10 h / 10–16 h"}, {"letter": "C", "text": "~30 min / 2–3 h / 4–6 h"}, {"letter": "D", "text": "~1 h / none / >42 h"}], "answer": "C", "explanation": "**Regular: ~30 min / 2–3 h / 4–6 h** → inject **30 min before** meals; longer tail → between-meal/nocturnal lows.", "objective": "", "remediation": {"steps": [{"teach": "Regular (human) insulin is slower than analogs — given **half an hour** before eating, and it lingers longer.", "stem": "Regular insulin onset:", "options": [{"letter": "A", "text": "5–15 min"}, {"letter": "B", "text": "~30 min"}], "answer": "B", "explanation": "~30 min.", "clarify": [{"stem": "Regular insulin duration:", "options": [{"letter": "A", "text": "4–6 h"}, {"letter": "B", "text": "10–16 h"}], "answer": "A", "explanation": "4–6 h."}]}], "checkpoints": [{"stem": "Regular vs rapid analogs → Main disadvantage of regular:", "options": [{"letter": "A", "text": "Longer tail → late lows"}, {"letter": "B", "text": "Most costly mealtime insulin"}, {"letter": "C", "text": "Cloudy suspension"}, {"letter": "D", "text": "Cannot be given IV"}], "answer": "A", "explanation": "Slower onset + **longer tail → between-meal and nocturnal hypoglycemia**; it's actually the cheapest."}, {"stem": "Regular insulin SubQ → Inject how long before a meal:", "options": [{"letter": "A", "text": "30 min"}, {"letter": "B", "text": "0–15 min"}, {"letter": "C", "text": "2 h"}, {"letter": "D", "text": "After the meal"}], "answer": "A", "explanation": "**30 min** before."}]}}, {"id": "18", "group": 18, "slide": 17, "section": "Inhaled human insulin (Afrezza)", "topic": "Inhaled insulin (Afrezza)", "skill": "Pharmacology", "stem": "What is the boxed warning for inhaled insulin (Afrezza)?", "options": [{"letter": "A", "text": "Severe hypoglycemia"}, {"letter": "B", "text": "Acute bronchospasm"}, {"letter": "C", "text": "Thyroid C-cell tumors"}, {"letter": "D", "text": "Lactic acidosis"}], "answer": "B", "explanation": "**Boxed: acute bronchospasm** → contraindicated in **asthma/COPD**; spirometry (FEV₁) at baseline, 6 months, then yearly.", "objective": "", "remediation": {"steps": [{"teach": "Afrezza is a **dry powder inhaled into the lungs** — its unique danger is airway-related.", "stem": "Afrezza's unique risk involves:", "options": [{"letter": "A", "text": "Lungs/airways"}, {"letter": "B", "text": "Thyroid"}], "answer": "A", "explanation": "The lungs.", "clarify": [{"stem": "'Severe hypoglycemia' boxed warning belongs to:", "options": [{"letter": "A", "text": "Pramlintide"}, {"letter": "B", "text": "Afrezza"}], "answer": "A", "explanation": "Pramlintide's BBW is severe insulin-induced hypoglycemia."}]}], "checkpoints": [{"stem": "Afrezza → Contraindicated in:", "options": [{"letter": "A", "text": "Asthma or COPD"}, {"letter": "B", "text": "Pregnancy"}, {"letter": "C", "text": "Age >65"}, {"letter": "D", "text": "CKD"}], "answer": "A", "explanation": "**Asthma/COPD** (bronchospasm)."}, {"stem": "Afrezza → Monitoring before starting:", "options": [{"letter": "A", "text": "LFTs"}, {"letter": "B", "text": "TSH"}, {"letter": "C", "text": "ECG"}, {"letter": "D", "text": "Spirometry (FEV₁)"}], "answer": "D", "explanation": "Baseline **FEV₁**, repeat at 6 months, then yearly."}]}}, {"id": "19", "group": 19, "slide": 18, "section": "Intermediate-acting: NPH", "topic": "Basal insulins (NPH, glargine, degludec)", "skill": "Identification", "stem": "Which insulin is cloudy and must be gently mixed before use?", "options": [{"letter": "A", "text": "NPH"}, {"letter": "B", "text": "Degludec"}, {"letter": "C", "text": "Regular"}, {"letter": "D", "text": "Glargine"}, {"letter": "E", "text": "Lispro"}], "answer": "A", "explanation": "**NPH** is a cloudy **protamine suspension** — gently mix before each dose.", "objective": "", "remediation": {"steps": [{"teach": "Cloudiness comes from a **protamine** complex that slows absorption — an intermediate-acting human insulin.", "stem": "Protamine makes insulin:", "options": [{"letter": "A", "text": "Longer-acting (suspension)"}, {"letter": "B", "text": "Faster-acting"}], "answer": "A", "explanation": "Longer-acting suspension.", "clarify": [{"stem": "Is glargine clear or cloudy?", "options": [{"letter": "A", "text": "Cloudy"}, {"letter": "B", "text": "Clear"}], "answer": "B", "explanation": "Glargine is clear (but still must not be mixed)."}]}], "checkpoints": [{"stem": "NPH → Class:", "options": [{"letter": "A", "text": "Rapid-acting analog"}, {"letter": "B", "text": "Intermediate-acting human"}, {"letter": "C", "text": "Long-acting analog"}, {"letter": "D", "text": "Short-acting human"}], "answer": "B", "explanation": "**Intermediate-acting** human insulin."}, {"stem": "Insulin that must be gently mixed before each dose:", "options": [{"letter": "A", "text": "Aspart"}, {"letter": "B", "text": "Regular"}, {"letter": "C", "text": "Glargine"}, {"letter": "D", "text": "NPH"}], "answer": "D", "explanation": "**NPH**."}]}}, {"id": "20", "group": 20, "slide": 18, "section": "Intermediate-acting: NPH", "topic": "Basal insulins (NPH, glargine, degludec)", "skill": "Pharmacology", "stem": "What are the onset, peak, and duration of action of NPH insulin?", "options": [{"letter": "A", "text": "1–2 h / 6–10 h / 10–16 h"}, {"letter": "B", "text": "5–15 min / ~1 h / 3–4 h"}, {"letter": "C", "text": "~30 min / 2–3 h / 4–6 h"}, {"letter": "D", "text": "1–4 h / flat / ~24 h"}], "answer": "A", "explanation": "**NPH: 1–2 h / 6–10 h / 10–16 h** → BID; its **real peak** causes nocturnal hypoglycemia.", "objective": "", "remediation": {"steps": [{"teach": "NPH is intermediate — it has a **real peak** hours after injection, unlike the flat basal analogs.", "stem": "Does NPH have a meaningful peak?", "options": [{"letter": "A", "text": "Yes, at 6–10 h"}, {"letter": "B", "text": "No, it is flat"}], "answer": "A", "explanation": "Peak 6–10 h.", "clarify": [{"stem": "Typical NPH basal dosing frequency:", "options": [{"letter": "A", "text": "Twice daily"}, {"letter": "B", "text": "Every 2 days"}], "answer": "A", "explanation": "BID."}]}], "checkpoints": [{"stem": "NPH evening dose at dinner → Main hazard:", "options": [{"letter": "A", "text": "DKA"}, {"letter": "B", "text": "Morning hyperglycemia"}, {"letter": "C", "text": "2–3 a.m. hypoglycemia"}, {"letter": "D", "text": "Post-lunch spike"}], "answer": "C", "explanation": "The peak lands overnight → **nocturnal hypoglycemia**."}, {"stem": "Insulin with a 6–10 h peak:", "options": [{"letter": "A", "text": "Lispro"}, {"letter": "B", "text": "Degludec"}, {"letter": "C", "text": "NPH"}, {"letter": "D", "text": "Glargine"}], "answer": "C", "explanation": "**NPH**."}]}}, {"id": "21", "group": 21, "slide": 18, "section": "Intermediate-acting: NPH", "topic": "Basal insulins (NPH, glargine, degludec)", "skill": "Management", "stem": "How should NPH timing be adjusted when a dinner-time dose causes hypoglycemia at 3 AM?", "options": [{"letter": "A", "text": "Increase the evening NPH"}, {"letter": "B", "text": "Add bedtime lispro"}, {"letter": "C", "text": "Move evening NPH to bedtime"}, {"letter": "D", "text": "Give evening NPH at 4 p.m."}], "answer": "C", "explanation": "**Move evening NPH from dinner to bedtime** → shifts the peak later and cuts 3 a.m. lows (or switch to a basal analog).", "objective": "", "remediation": {"steps": [{"teach": "NPH peaks 6–10 h after injection. A dinner dose peaks around 2–3 a.m.; giving it **later** pushes the peak toward morning.", "stem": "Injecting NPH later shifts its peak:", "options": [{"letter": "A", "text": "Earlier (toward evening)"}, {"letter": "B", "text": "Later (toward morning)"}], "answer": "B", "explanation": "Later.", "clarify": [{"stem": "Would increasing the NPH dose help 3 a.m. lows?", "options": [{"letter": "A", "text": "No — it worsens them"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "More NPH = deeper lows."}]}], "checkpoints": [{"stem": "Switching NPH to which basal reduces nocturnal hypoglycemia?", "options": [{"letter": "A", "text": "Lispro"}, {"letter": "B", "text": "Human 70/30"}, {"letter": "C", "text": "Regular"}, {"letter": "D", "text": "Glargine"}], "answer": "D", "explanation": "Analogs (vs NPH) → **less nocturnal hypo**."}, {"stem": "3 a.m. lows on dinnertime NPH → Fix:", "options": [{"letter": "A", "text": "Give NPH at bedtime"}, {"letter": "B", "text": "Raise the NPH dose"}, {"letter": "C", "text": "Add a 3 a.m. correction"}, {"letter": "D", "text": "Stop all NPH"}], "answer": "A", "explanation": "Move it to **bedtime**."}]}}, {"id": "22", "group": 22, "slide": 19, "section": "Long-acting analog: glargine", "topic": "Basal insulins (NPH, glargine, degludec)", "skill": "Counseling & prevention", "stem": "What is the rule for mixing insulin glargine or degludec with other insulins?", "options": [{"letter": "A", "text": "Mix with lispro in one syringe"}, {"letter": "B", "text": "Draw up after regular"}, {"letter": "C", "text": "Do not mix with other insulins"}, {"letter": "D", "text": "Mix only with NPH"}], "answer": "C", "explanation": "**Never mix glargine or degludec** with other insulins; only NPH + regular are self-mixed ('clear before cloudy').", "objective": "", "remediation": {"steps": [{"teach": "Long-acting analogs depend on their formulation for a flat profile — mixing **changes their kinetics**.", "stem": "Which pair CAN be self-mixed?", "options": [{"letter": "A", "text": "NPH + regular"}, {"letter": "B", "text": "Glargine + lispro"}], "answer": "A", "explanation": "NPH + regular.", "clarify": [{"stem": "Glargine is clear — does that make it safe to mix?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "Clear ≠ mixable."}]}], "checkpoints": [{"stem": "Insulin pens/needles → Sharing rule:", "options": [{"letter": "A", "text": "Never share"}, {"letter": "B", "text": "Share within household"}, {"letter": "C", "text": "Share if wiped with alcohol"}, {"letter": "D", "text": "Share with a new needle"}], "answer": "A", "explanation": "**Never share** pens, needles, or cartridges — bloodborne pathogens."}, {"stem": "Insulins that must NOT be mixed:", "options": [{"letter": "A", "text": "Novolin N and R"}, {"letter": "B", "text": "Glargine and degludec"}, {"letter": "C", "text": "NPH and regular"}, {"letter": "D", "text": "Humulin N and R"}], "answer": "B", "explanation": "**Glargine and degludec**."}]}}, {"id": "23", "group": 23, "slide": 21, "section": "Ultra-long basal: degludec", "topic": "Basal insulins (NPH, glargine, degludec)", "skill": "Pharmacology", "stem": "What is the duration of action of insulin degludec (Tresiba)?", "options": [{"letter": "A", "text": "4–6 h"}, {"letter": "B", "text": "~24 h"}, {"letter": "C", "text": "10–16 h"}, {"letter": "D", "text": ">42 h"}], "answer": "D", "explanation": "**Degludec: onset ~1 h, no peak, >42 h** → flexible timing (≥8 h between doses); dose changes take **3–4 days** to show.", "objective": "", "remediation": {"steps": [{"teach": "Degludec is the **ultra-long** basal — longer than glargine U-100's ~24 h.", "stem": "Glargine U-100 duration:", "options": [{"letter": "A", "text": "~24 h"}, {"letter": "B", "text": ">42 h"}], "answer": "A", "explanation": "~24 h.", "clarify": [{"stem": "Degludec is classified as:", "options": [{"letter": "A", "text": "Intermediate-acting"}, {"letter": "B", "text": "Ultra-long-acting"}], "answer": "B", "explanation": "Ultra-long."}]}], "checkpoints": [{"stem": "Degludec dose change → Time until full effect shows:", "options": [{"letter": "A", "text": "2 weeks"}, {"letter": "B", "text": "3–4 hours"}, {"letter": "C", "text": "1 day"}, {"letter": "D", "text": "3–4 days"}], "answer": "D", "explanation": "Duration is so long that changes take **3–4 days** — titrate slowly."}, {"stem": "Degludec → Minimum gap if the dose time shifts:", "options": [{"letter": "A", "text": "≥36 h"}, {"letter": "B", "text": "≥8 h"}, {"letter": "C", "text": "≥24 h"}, {"letter": "D", "text": "≥2 h"}], "answer": "B", "explanation": "**≥8 h** between doses."}]}}, {"id": "24", "group": 24, "slide": 24, "section": "Premixed / self-mixed insulin", "topic": "Premixed & human-insulin regimens", "skill": "Pharmacology", "stem": "What is the main disadvantage of premixed insulins such as 70/30 and Humalog Mix 75/25?", "options": [{"letter": "A", "text": "Most expensive option"}, {"letter": "B", "text": "Fixed basal:bolus ratio"}, {"letter": "C", "text": "Needs ≥6 injections/day"}, {"letter": "D", "text": "Cannot be used in T2"}], "answer": "B", "explanation": "Premixes have a **fixed ratio** — basal and bolus can't be adjusted independently; need regular meals; generally not ideal for T1.", "objective": "", "remediation": {"steps": [{"teach": "A premix puts basal and prandial insulin in **one vial at a set proportion**.", "stem": "To raise only the basal part of 70/30, you can:", "options": [{"letter": "A", "text": "Adjust just the 70% portion"}, {"letter": "B", "text": "Not do so — both rise together"}], "answer": "B", "explanation": "Both components move together.", "clarify": [{"stem": "Premix advantage:", "options": [{"letter": "A", "text": "Independent titration"}, {"letter": "B", "text": "Fewer injections (2–3/day)"}], "answer": "B", "explanation": "Fewer injections."}]}], "checkpoints": [{"stem": "Premix user skips a meal → Risk:", "options": [{"letter": "A", "text": "DKA"}, {"letter": "B", "text": "Hypoglycemia"}, {"letter": "C", "text": "Lipoatrophy"}, {"letter": "D", "text": "Bronchospasm"}], "answer": "B", "explanation": "Fixed prandial component → **hypoglycemia** when meals are skipped."}, {"stem": "70/30 premix → Key limitation:", "options": [{"letter": "A", "text": "Must be given IV"}, {"letter": "B", "text": "Requires a pump"}, {"letter": "C", "text": "Can't titrate basal and bolus apart"}, {"letter": "D", "text": "Can't be given SubQ"}], "answer": "C", "explanation": "Fixed ratio."}]}}, {"id": "25", "group": 25, "slide": 26, "section": "'Old school' NPH/regular regimen", "topic": "Premixed & human-insulin regimens", "skill": "Counseling & prevention", "stem": "In what order should regular and NPH insulin be drawn up when mixed in the same syringe?", "options": [{"letter": "A", "text": "Regular first, then NPH"}, {"letter": "B", "text": "Either order is fine"}, {"letter": "C", "text": "Separate syringes only"}, {"letter": "D", "text": "NPH first, then regular"}], "answer": "A", "explanation": "**'Clear before cloudy'** — draw up regular (clear) first, then NPH (cloudy).", "objective": "", "remediation": {"steps": [{"teach": "Regular is **clear**; NPH is **cloudy**. The rule protects the clear vial from NPH contamination.", "stem": "Which insulin is clear?", "options": [{"letter": "A", "text": "Regular"}, {"letter": "B", "text": "NPH"}], "answer": "A", "explanation": "Regular.", "clarify": [{"stem": "Mnemonic for the mixing order:", "options": [{"letter": "A", "text": "Cloudy before clear"}, {"letter": "B", "text": "Clear before cloudy"}], "answer": "B", "explanation": "Clear before cloudy."}]}], "checkpoints": [{"stem": "Old-school regimen → Morning NPH covers:", "options": [{"letter": "A", "text": "Basal + lunch peak"}, {"letter": "B", "text": "Overnight only"}, {"letter": "C", "text": "Dinner"}, {"letter": "D", "text": "Breakfast only"}], "answer": "A", "explanation": "Morning regular covers breakfast; morning NPH covers **basal + lunch**."}, {"stem": "Self-mix order:", "options": [{"letter": "A", "text": "NPH, then regular"}, {"letter": "B", "text": "Glargine, then lispro"}, {"letter": "C", "text": "Lispro, then glargine"}, {"letter": "D", "text": "Regular, then NPH"}], "answer": "D", "explanation": "Regular → NPH."}]}}, {"id": "26", "group": 26, "slide": 26, "section": "'Old school' NPH/regular regimen", "topic": "Premixed & human-insulin regimens", "skill": "Management", "stem": "What is the least expensive insulin regimen for an uninsured patient with type 1 diabetes?", "options": [{"letter": "A", "text": "AID with rapid analog"}, {"letter": "B", "text": "Glargine + lispro"}, {"letter": "C", "text": "Degludec + aspart"}, {"letter": "D", "text": "Human NPH + regular"}], "answer": "D", "explanation": "**Human NPH + regular** are cheapest (OTC in some states). Ask about cost directly — rationing is a major outpatient cause of DKA.", "objective": "", "remediation": {"steps": [{"teach": "**Human** insulins are older and far cheaper than analogs; some are sold OTC.", "stem": "Human vs analog → which is cheaper?", "options": [{"letter": "A", "text": "Human"}, {"letter": "B", "text": "Analog"}], "answer": "A", "explanation": "Human.", "clarify": [{"stem": "Which is a human insulin?", "options": [{"letter": "A", "text": "NPH"}, {"letter": "B", "text": "Glargine"}], "answer": "A", "explanation": "NPH (and regular)."}]}], "checkpoints": [{"stem": "Insulin rationing for cost → Major outpatient cause of:", "options": [{"letter": "A", "text": "Bronchospasm"}, {"letter": "B", "text": "Lipohypertrophy"}, {"letter": "C", "text": "DKA"}, {"letter": "D", "text": "Hypokalemia"}], "answer": "C", "explanation": "**DKA** (missed basal)."}, {"stem": "Cost-limited patient → Insulins to use:", "options": [{"letter": "A", "text": "Human NPH + regular"}, {"letter": "B", "text": "Degludec + glulisine"}, {"letter": "C", "text": "Toujeo + Afrezza"}, {"letter": "D", "text": "Glargine + aspart"}], "answer": "A", "explanation": "**Human NPH + regular**."}]}}, {"id": "27", "group": 27, "slide": 30, "section": "Insulin pumps", "topic": "Insulin delivery (pump, AID, CGM)", "skill": "Complications", "stem": "Why can diabetic ketoacidosis develop rapidly after an insulin pump infusion-set failure?", "options": [{"letter": "A", "text": "Pump basal rate is set too high"}, {"letter": "B", "text": "Pump reservoir holds NPH"}, {"letter": "C", "text": "No long-acting insulin on board"}, {"letter": "D", "text": "CGM stops reading glucose"}], "answer": "C", "explanation": "Pumps deliver **rapid-acting insulin only** → if the set fails there's **no long-acting insulin on board** → rapid ketosis/DKA.", "objective": "", "remediation": {"steps": [{"teach": "Pump basal is tiny pulses of **rapid-acting** insulin (3–4 h duration).", "stem": "Insulin used in pumps:", "options": [{"letter": "A", "text": "Rapid-acting analog"}, {"letter": "B", "text": "Glargine"}], "answer": "A", "explanation": "Rapid-acting only.", "clarify": [{"stem": "If delivery stops, rapid-acting insulin wears off within:", "options": [{"letter": "A", "text": "A few hours"}, {"letter": "B", "text": "2 days"}], "answer": "A", "explanation": "3–4 h."}]}], "checkpoints": [{"stem": "Every pump user → Backup to keep on hand:", "options": [{"letter": "A", "text": "Pramlintide"}, {"letter": "B", "text": "Long-acting insulin + pen"}, {"letter": "C", "text": "Oral sulfonylurea"}, {"letter": "D", "text": "Inhaled insulin only"}], "answer": "B", "explanation": "**Backup long-acting insulin + pen** for every pump user."}, {"stem": "Pump → Advantage over fixed basal injections:", "options": [{"letter": "A", "text": "Lower DKA risk"}, {"letter": "B", "text": "No carb counting"}, {"letter": "C", "text": "No site changes"}, {"letter": "D", "text": "Handles dawn phenomenon better"}], "answer": "D", "explanation": "Programmable hourly basal handles **dawn** better."}]}}, {"id": "28", "group": 28, "slide": 34, "section": "Step 1: Total daily dose", "topic": "Insulin dose calculations", "skill": "Management", "stem": "What is the starting total daily insulin dose for a newly diagnosed patient with type 1 diabetes who is not critically ill?", "options": [{"letter": "A", "text": "0.1–0.2 u/kg/day"}, {"letter": "B", "text": "0.4–0.5 u/kg/day"}, {"letter": "C", "text": "1.0–1.5 u/kg/day"}, {"letter": "D", "text": "2 u/kg/day"}], "answer": "B", "explanation": "**0.4–0.5 u/kg/day** (0.4 honeymoon; later 0.6–0.8 with puberty/obesity/illness). 0.1–0.2 u/kg is the T2 **basal** start.", "objective": "", "remediation": {"steps": [{"teach": "Start **conservatively** — easier to titrate up than chase lows. 0.1–0.2 u/kg is the **basal-only** start in T2.", "stem": "0.1–0.2 u/kg/day is the starting dose for:", "options": [{"letter": "A", "text": "Basal insulin in T2"}, {"letter": "B", "text": "Total insulin in new T1"}], "answer": "A", "explanation": "T2 basal start.", "clarify": [{"stem": "70 kg × 0.5 u/kg = ?", "options": [{"letter": "A", "text": "35 u/day"}, {"letter": "B", "text": "70 u/day"}], "answer": "A", "explanation": "35 u/day."}]}], "checkpoints": [{"stem": "70-kg new T1 at 0.5 u/kg → TDD:", "options": [{"letter": "A", "text": "35 u"}, {"letter": "B", "text": "50 u"}, {"letter": "C", "text": "70 u"}, {"letter": "D", "text": "17 u"}], "answer": "A", "explanation": "0.5 × 70 = **35 u/day**."}, {"stem": "Patient already on insulin → TDD equals:", "options": [{"letter": "A", "text": "A1C × 5"}, {"letter": "B", "text": "What they take in 24 h"}, {"letter": "C", "text": "0.5 u/kg regardless"}, {"letter": "D", "text": "Basal dose × 3"}], "answer": "B", "explanation": "TDD = what they actually take (basal + bolus)."}]}}, {"id": "29", "group": 29, "slide": 35, "section": "Step 2: Basal vs bolus split", "topic": "Insulin dose calculations", "skill": "Management", "stem": "Using the 50% rule, what basal glargine or degludec dose corresponds to a total daily insulin dose of 35 units?", "options": [{"letter": "A", "text": "26 u"}, {"letter": "B", "text": "35 u"}, {"letter": "C", "text": "9 u"}, {"letter": "D", "text": "18 u"}], "answer": "D", "explanation": "~**50% basal** / 50% bolus → 35 × 0.5 ≈ **18 u QD**; remaining 17 u bolus (~6 u/meal).", "objective": "", "remediation": {"steps": [{"teach": "A healthy pancreas puts out about **half** its insulin as basal. Replacement copies that: basal 40–50%, bolus 50–60%.", "stem": "Basal share of TDD:", "options": [{"letter": "A", "text": "~20%"}, {"letter": "B", "text": "~50%"}], "answer": "B", "explanation": "~50%.", "clarify": [{"stem": "Bolus share of TDD:", "options": [{"letter": "A", "text": "~50–60%"}, {"letter": "B", "text": "~10%"}], "answer": "A", "explanation": "~50–60%."}]}], "checkpoints": [{"stem": "Basal–bolus split rule of thumb:", "options": [{"letter": "A", "text": "30/70"}, {"letter": "B", "text": "100/0"}, {"letter": "C", "text": "80/20"}, {"letter": "D", "text": "50/50"}], "answer": "D", "explanation": "**~50/50**."}, {"stem": "TDD 40 u → Basal dose:", "options": [{"letter": "A", "text": "10 u"}, {"letter": "B", "text": "30 u"}, {"letter": "C", "text": "40 u"}, {"letter": "D", "text": "20 u"}], "answer": "D", "explanation": "50% → **20 u**."}]}}, {"id": "30", "group": 30, "slide": 35, "section": "Step 2: Basal vs bolus split", "topic": "Insulin dose calculations", "skill": "Complications", "stem": "What basal insulin dose threshold raises concern for over-basalization?", "options": [{"letter": "A", "text": "Basal >0.5 u/kg/day"}, {"letter": "B", "text": "Basal >0.1 u/kg/day"}, {"letter": "C", "text": "Basal <30% of TDD"}, {"letter": "D", "text": "TDD >0.3 u/kg/day"}], "answer": "A", "explanation": "Basal **>0.5 u/kg/day or >50–60% of TDD** → over-basalization (fasting OK but A1C high, big bedtime→morning drop).", "objective": "", "remediation": {"steps": [{"teach": "Total insulin starts near 0.5 u/kg and basal is about half — so basal alone above **0.5 u/kg** means it's doing the bolus's job.", "stem": "Over-basalization means basal is:", "options": [{"letter": "A", "text": "Too low"}, {"letter": "B", "text": "Too high, covering meals"}], "answer": "B", "explanation": "Too high.", "clarify": [{"stem": "Over-basalization as a share of TDD:", "options": [{"letter": "A", "text": "<20%"}, {"letter": "B", "text": ">50–60%"}], "answer": "B", "explanation": ">50–60%."}]}], "checkpoints": [{"stem": "Over-basalization clue:", "options": [{"letter": "A", "text": "Big bedtime→morning BG drop"}, {"letter": "B", "text": "Fasting highs every morning"}, {"letter": "C", "text": "Post-lunch lows only"}, {"letter": "D", "text": "Ketones on waking"}], "answer": "A", "explanation": "Large **bedtime→morning drop** with fasting OK but A1C high."}, {"stem": "Basal = 60% of TDD → Concern:", "options": [{"letter": "A", "text": "Dawn phenomenon"}, {"letter": "B", "text": "Somogyi pattern"}, {"letter": "C", "text": "Over-basalization"}, {"letter": "D", "text": "Waning insulin"}], "answer": "C", "explanation": "**Over-basalization**."}]}}, {"id": "31", "group": 31, "slide": 36, "section": "Step 3: Insulin-to-carb ratio", "topic": "Insulin dose calculations", "skill": "Management", "stem": "Which rule is used to estimate the insulin-to-carbohydrate ratio for a rapid-acting insulin analog?", "options": [{"letter": "A", "text": "TDD ÷ 500"}, {"letter": "B", "text": "1800 ÷ TDD"}, {"letter": "C", "text": "500 ÷ TDD"}, {"letter": "D", "text": "1500 ÷ TDD"}], "answer": "C", "explanation": "**ICR = 500 ÷ TDD** (450 if regular is prandial). TDD 35 → ~1:15. CF uses 1800 (1500 for regular).", "objective": "", "remediation": {"steps": [{"teach": "The **smaller** rule number is for **carbs (500)**; the **larger** is for **correction (1800)**.", "stem": "1800 ÷ TDD gives the:", "options": [{"letter": "A", "text": "Correction factor"}, {"letter": "B", "text": "Insulin-to-carb ratio"}], "answer": "A", "explanation": "CF.", "clarify": [{"stem": "ICR rule if regular is the prandial insulin:", "options": [{"letter": "A", "text": "500 ÷ TDD"}, {"letter": "B", "text": "450 ÷ TDD"}], "answer": "B", "explanation": "450."}]}], "checkpoints": [{"stem": "Strongest ICR (most insulin per gram):", "options": [{"letter": "A", "text": "1:15"}, {"letter": "B", "text": "1:10"}, {"letter": "C", "text": "1:25"}, {"letter": "D", "text": "1:20"}], "answer": "B", "explanation": "**Smaller denominator = stronger** → 1:10."}, {"stem": "TDD 50 → ICR by the 500 rule:", "options": [{"letter": "A", "text": "1:20"}, {"letter": "B", "text": "1:36"}, {"letter": "C", "text": "1:10"}, {"letter": "D", "text": "1:5"}], "answer": "C", "explanation": "500 ÷ 50 = **1:10**."}]}}, {"id": "32", "group": 32, "slide": 37, "section": "Step 4: Correction factor", "topic": "Insulin dose calculations", "skill": "Management", "stem": "Which rule is used to estimate the correction factor for a rapid-acting insulin analog?", "options": [{"letter": "A", "text": "450 ÷ TDD"}, {"letter": "B", "text": "1800 ÷ TDD"}, {"letter": "C", "text": "TDD × 1800"}, {"letter": "D", "text": "500 ÷ TDD"}], "answer": "B", "explanation": "**CF = 1800 ÷ TDD** (1500 if regular). TDD 35 → CF ~50 (1 unit ↓ BG ~50). **Larger TDD → smaller CF.**", "objective": "", "remediation": {"steps": [{"teach": "CF = mg/dL that **1 unit** lowers glucose; it uses the **larger** rule number.", "stem": "500 ÷ TDD gives the:", "options": [{"letter": "A", "text": "Insulin-to-carb ratio"}, {"letter": "B", "text": "Correction factor"}], "answer": "A", "explanation": "ICR.", "clarify": [{"stem": "CF rule with regular insulin:", "options": [{"letter": "A", "text": "1500 ÷ TDD"}, {"letter": "B", "text": "1800 ÷ TDD"}], "answer": "A", "explanation": "1500."}]}], "checkpoints": [{"stem": "Larger TDD → Correction factor:", "options": [{"letter": "A", "text": "Larger number"}, {"letter": "B", "text": "Smaller number"}, {"letter": "C", "text": "Unchanged"}, {"letter": "D", "text": "Doubles"}], "answer": "B", "explanation": "**Inverse** — larger TDD → smaller CF (each unit moves BG less)."}, {"stem": "TDD 36 → CF (1800 rule):", "options": [{"letter": "A", "text": "14"}, {"letter": "B", "text": "36"}, {"letter": "C", "text": "50"}, {"letter": "D", "text": "72"}], "answer": "C", "explanation": "1800 ÷ 36 = **50**."}]}}, {"id": "33", "group": 33, "slide": 38, "section": "Step 5: Total mealtime dose", "topic": "Insulin dose calculations", "skill": "Management", "stem": "What total rapid-acting insulin dose is needed for 60 g of carbohydrate and a glucose of 240 mg/dL when the insulin-to-carbohydrate ratio is 1:15, the correction factor is 50, and the target glucose is 120 mg/dL?", "options": [{"letter": "A", "text": "2 u"}, {"letter": "B", "text": "6 u"}, {"letter": "C", "text": "8 u"}, {"letter": "D", "text": "4 u"}], "answer": "B", "explanation": "Carb 60 ÷ 15 = 4 u + correction (240 − 120) ÷ 50 ≈ 2 u → **6 u**, 10–15 min before eating.", "objective": "", "remediation": {"steps": [{"teach": "**Meal dose = carb dose + correction dose.**", "stem": "Carb dose for 60 g at 1:15:", "options": [{"letter": "A", "text": "6 u"}, {"letter": "B", "text": "4 u"}], "answer": "B", "explanation": "60 ÷ 15 = 4 u.", "clarify": [{"stem": "Correction for BG 240, target 120, CF 50:", "options": [{"letter": "A", "text": "~5 u"}, {"letter": "B", "text": "~2 u"}], "answer": "B", "explanation": "120 ÷ 50 ≈ 2 u."}]}], "checkpoints": [{"stem": "ICR 1:12, CF 45, target 120; BG 300, 72 g → Total:", "options": [{"letter": "A", "text": "4 u"}, {"letter": "B", "text": "10 u"}, {"letter": "C", "text": "12 u"}, {"letter": "D", "text": "6 u"}], "answer": "B", "explanation": "72 ÷ 12 = 6 + 180 ÷ 45 = 4 → **10 u**."}, {"stem": "Total mealtime dose formula:", "options": [{"letter": "A", "text": "Basal + correction"}, {"letter": "B", "text": "TDD ÷ 3"}, {"letter": "C", "text": "Carb dose × CF"}, {"letter": "D", "text": "Carb dose + correction dose"}], "answer": "D", "explanation": "Carb dose + correction dose."}]}}, {"id": "34", "group": 34, "slide": 44, "section": "Pattern-based rules", "topic": "Pattern-based adjustments", "skill": "Management", "stem": "What should be adjusted when glucose is consistently elevated 2–3 hours after one specific meal?", "options": [{"letter": "A", "text": "Increase the basal dose"}, {"letter": "B", "text": "Strengthen that meal's ICR"}, {"letter": "C", "text": "Strengthen correction factor"}, {"letter": "D", "text": "Weaken that meal's ICR"}], "answer": "B", "explanation": "Post-meal high → mealtime dose too weak → **strengthen that meal's ICR** (smaller denominator, e.g., 1:12 → 1:10).", "objective": "", "remediation": {"steps": [{"teach": "The 2–3 h post-meal window reflects the **mealtime (carb) dose**, not basal.", "stem": "'Strengthen' an ICR means:", "options": [{"letter": "A", "text": "Larger denominator (1:12→1:15)"}, {"letter": "B", "text": "Smaller denominator (1:12→1:10)"}], "answer": "B", "explanation": "Smaller denominator.", "clarify": [{"stem": "Basal mainly controls:", "options": [{"letter": "A", "text": "Post-meal spikes"}, {"letter": "B", "text": "Fasting/between-meal glucose"}], "answer": "B", "explanation": "Fasting/between-meal."}]}], "checkpoints": [{"stem": "Repeated lows 2–3 h after meals → Adjust:", "options": [{"letter": "A", "text": "Increase basal"}, {"letter": "B", "text": "Strengthen CF"}, {"letter": "C", "text": "Strengthen ICR"}, {"letter": "D", "text": "Weaken ICR or fix timing"}], "answer": "D", "explanation": "Mealtime dose too strong/early → **weaken ICR** or adjust timing."}, {"stem": "High after lunch only → Change:", "options": [{"letter": "A", "text": "Stronger lunch ICR"}, {"letter": "B", "text": "Raise basal"}, {"letter": "C", "text": "Stronger CF"}, {"letter": "D", "text": "Weaker breakfast ICR"}], "answer": "A", "explanation": "Strengthen **that meal's** ICR."}]}}, {"id": "35", "group": 35, "slide": 44, "section": "Pattern-based rules", "topic": "Pattern-based adjustments", "skill": "Management", "stem": "What should be adjusted when hyperglycemia persists after correction doses without insulin stacking?", "options": [{"letter": "A", "text": "Increase basal dose by 50% now"}, {"letter": "B", "text": "Weaken every meal's ICR ratio"}, {"letter": "C", "text": "Weaken CF (bigger number)"}, {"letter": "D", "text": "Strengthen CF (smaller number)"}], "answer": "D", "explanation": "Correction too weak → **strengthen CF** (smaller number = more insulin per correction).", "objective": "", "remediation": {"steps": [{"teach": "CF = how far 1 unit drops BG. A **smaller** CF in the formula gives **more** units per correction.", "stem": "Changing CF 50 → 40 gives:", "options": [{"letter": "A", "text": "Less insulin per correction"}, {"letter": "B", "text": "More insulin per correction"}], "answer": "B", "explanation": "More insulin.", "clarify": [{"stem": "Lows after corrections → CF change:", "options": [{"letter": "A", "text": "Bigger number (weaker)"}, {"letter": "B", "text": "Smaller number"}], "answer": "A", "explanation": "Weaken = bigger number."}]}], "checkpoints": [{"stem": "Lows after correction doses → Adjust:", "options": [{"letter": "A", "text": "Weaken CF (bigger number)"}, {"letter": "B", "text": "Increase basal"}, {"letter": "C", "text": "Strengthen ICR"}, {"letter": "D", "text": "Strengthen CF"}], "answer": "A", "explanation": "Post-correction lows → **weaker CF (bigger number)**."}, {"stem": "Corrections fail to reach target → CF:", "options": [{"letter": "A", "text": "Make it smaller"}, {"letter": "B", "text": "Make it bigger"}, {"letter": "C", "text": "Leave it"}, {"letter": "D", "text": "Stop corrections"}], "answer": "A", "explanation": "Smaller CF = stronger."}]}}, {"id": "36", "group": 36, "slide": 45, "section": "Dawn phenomenon", "topic": "Pattern-based adjustments", "skill": "Disease process", "stem": "What causes the dawn phenomenon?", "options": [{"letter": "A", "text": "Rebound after a 3 a.m. low"}, {"letter": "B", "text": "Circadian cortisol/GH surge"}, {"letter": "C", "text": "Large bedtime snack"}, {"letter": "D", "text": "Basal insulin wearing off"}], "answer": "B", "explanation": "**Dawn** = normal 4–8 a.m. surge of **cortisol, GH, catecholamines, glucagon** → ↑ hepatic glucose, ↓ insulin sensitivity; **no 2–3 a.m. low**.", "objective": "", "remediation": {"steps": [{"teach": "Dawn is a **normal circadian** event — it happens without any preceding low.", "stem": "Dawn phenomenon: 3 a.m. glucose is:", "options": [{"letter": "A", "text": "Normal/high, then rises"}, {"letter": "B", "text": "Low, then rebounds"}], "answer": "A", "explanation": "No overnight low.", "clarify": [{"stem": "Rebound after a nocturnal low is called:", "options": [{"letter": "A", "text": "Dawn phenomenon"}, {"letter": "B", "text": "Somogyi-type pattern"}], "answer": "B", "explanation": "Somogyi-type."}]}], "checkpoints": [{"stem": "Dawn phenomenon → Time window of the rise:", "options": [{"letter": "A", "text": "≈4–8 a.m."}, {"letter": "B", "text": "Noon–2 p.m."}, {"letter": "C", "text": "6–8 p.m."}, {"letter": "D", "text": "10 p.m.–midnight"}], "answer": "A", "explanation": "**≈4–8 a.m.**"}, {"stem": "Dawn surge hormones include:", "options": [{"letter": "A", "text": "GLP-1 and GIP"}, {"letter": "B", "text": "Aldosterone and ADH"}, {"letter": "C", "text": "Cortisol and GH"}, {"letter": "D", "text": "Insulin and amylin"}], "answer": "C", "explanation": "Cortisol, GH, catecholamines, glucagon."}]}}, {"id": "37", "group": 37, "slide": 45, "section": "Dawn phenomenon", "topic": "Pattern-based adjustments", "skill": "Management", "stem": "How should insulin be adjusted when fasting glucose is elevated, the 3 AM glucose is normal and then rises, and no hypoglycemia occurs?", "options": [{"letter": "A", "text": "Strengthen the breakfast ICR"}, {"letter": "B", "text": "Decrease basal by 10–20%"}, {"letter": "C", "text": "Increase or shift basal later"}, {"letter": "D", "text": "Add a bedtime snack daily"}], "answer": "C", "explanation": "Dawn → **↑ basal or move basal later**; on pump/AID raise the ~2–6 a.m. rate (pumps handle dawn best).", "objective": "", "remediation": {"steps": [{"teach": "No nocturnal low here — the rise is a **true early-morning insulin shortfall**.", "stem": "With no 3 a.m. low, is lowering basal appropriate?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "No — that's the Somogyi fix.", "clarify": [{"stem": "Pump/AID fix for dawn:", "options": [{"letter": "A", "text": "Suspend overnight basal"}, {"letter": "B", "text": "Raise ~2–6 a.m. basal rate"}], "answer": "B", "explanation": "Raise the early-morning rate."}]}], "checkpoints": [{"stem": "Delivery method that handles dawn phenomenon best:", "options": [{"letter": "A", "text": "NPH BID"}, {"letter": "B", "text": "Insulin pump/AID"}, {"letter": "C", "text": "Premixed 70/30"}, {"letter": "D", "text": "Inhaled insulin"}], "answer": "B", "explanation": "**Pump/AID** — programmable hourly basal."}, {"stem": "Dawn phenomenon → Basal change:", "options": [{"letter": "A", "text": "No change"}, {"letter": "B", "text": "Increase or shift later"}, {"letter": "C", "text": "Decrease 10–20%"}, {"letter": "D", "text": "Stop it"}], "answer": "B", "explanation": "↑ or shift basal."}]}}, {"id": "38", "group": 38, "slide": 46, "section": "Somogyi-type pattern", "topic": "Pattern-based adjustments", "skill": "Complications", "stem": "What pattern is suggested by fasting hyperglycemia with a 3 AM glucose below 70 mg/dL?", "options": [{"letter": "A", "text": "Somogyi-type pattern"}, {"letter": "B", "text": "Steroid effect"}, {"letter": "C", "text": "Dawn phenomenon"}, {"letter": "D", "text": "Waning basal insulin"}], "answer": "A", "explanation": "**Low at 2–3 a.m. → rebound morning high = Somogyi-type (nocturnal hypo)** → ↓ overnight basal 10–20%; never raise basal.", "objective": "", "remediation": {"steps": [{"teach": "The **3 a.m. value** sorts the causes of a fasting high: normal→rise, low→rise, or high all night.", "stem": "Which pattern features a low overnight?", "options": [{"letter": "A", "text": "Dawn"}, {"letter": "B", "text": "Somogyi-type"}], "answer": "B", "explanation": "Somogyi-type.", "clarify": [{"stem": "Waning insulin: the 3 a.m. glucose is:", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "Already high and climbing"}], "answer": "B", "explanation": "High and climbing."}]}], "checkpoints": [{"stem": "Somogyi-type pattern → Basal change:", "options": [{"letter": "A", "text": "Double it"}, {"letter": "B", "text": "Increase 10–20%"}, {"letter": "C", "text": "Decrease 10–20%"}, {"letter": "D", "text": "No change"}], "answer": "C", "explanation": "**↓ overnight basal 10–20%**, move basal toward bedtime, bedtime snack if on NPH."}, {"stem": "Key data point to sort morning highs:", "options": [{"letter": "A", "text": "A1C"}, {"letter": "B", "text": "Bedtime ketones"}, {"letter": "C", "text": "Post-lunch glucose"}, {"letter": "D", "text": "3 a.m. glucose"}], "answer": "D", "explanation": "The **3 a.m.** value."}]}}, {"id": "39", "group": 39, "slide": 48, "section": "Waning insulin", "topic": "Pattern-based adjustments", "skill": "Complications", "stem": "What pattern is suggested when glucose rises throughout the night and is already elevated at 3 AM?", "options": [{"letter": "A", "text": "Dawn phenomenon"}, {"letter": "B", "text": "Over-basalization"}, {"letter": "C", "text": "Somogyi-type pattern"}, {"letter": "D", "text": "Waning basal insulin"}], "answer": "D", "explanation": "**Waning** = basal too low/worn off/missed → **↑ basal, lengthen (NPH → glargine), or move to bedtime**.", "objective": "", "remediation": {"steps": [{"teach": "Dawn's rise starts **before waking** (≈4–8 a.m.); waning shows a rise **all night long**.", "stem": "Rise that starts near midnight and keeps climbing:", "options": [{"letter": "A", "text": "Dawn"}, {"letter": "B", "text": "Waning basal"}], "answer": "B", "explanation": "Waning.", "clarify": [{"stem": "Is there a low in the waning pattern?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "No low."}]}], "checkpoints": [{"stem": "Waning basal → Fix:", "options": [{"letter": "A", "text": "Weaken ICR"}, {"letter": "B", "text": "Lower basal 20%"}, {"letter": "C", "text": "Lengthen basal (NPH → glargine)"}, {"letter": "D", "text": "Bedtime snack"}], "answer": "C", "explanation": "↑ basal, **switch to longer-acting**, or move to bedtime."}, {"stem": "High and rising all night → Basal change:", "options": [{"letter": "A", "text": "Move to morning"}, {"letter": "B", "text": "Increase/lengthen"}, {"letter": "C", "text": "Decrease"}, {"letter": "D", "text": "Stop"}], "answer": "B", "explanation": "↑ or lengthen basal."}]}}, {"id": "40", "group": 40, "slide": 49, "section": "Exercise & insulin", "topic": "Hypoglycemia & exercise", "skill": "Management", "stem": "What should a patient do if glucose is below 90–100 mg/dL before exercise?", "options": [{"letter": "A", "text": "Take 15–30 g carb first"}, {"letter": "B", "text": "Give a correction dose"}, {"letter": "C", "text": "Increase basal that day"}, {"letter": "D", "text": "Skip exercise; check ketones"}], "answer": "A", "explanation": "Pre-exercise <90–100 → **15–30 g carb** first. >250 with ketones → no exercise; correct and hydrate.", "objective": "", "remediation": {"steps": [{"teach": "Aerobic exercise **lowers** glucose now and for up to 24 h — starting low invites a low.", "stem": "Aerobic exercise makes BG:", "options": [{"letter": "A", "text": "Fall"}, {"letter": "B", "text": "Rise"}], "answer": "A", "explanation": "Fall.", "clarify": [{"stem": "BG >250 with ketones before exercise:", "options": [{"letter": "A", "text": "Exercise to lower it"}, {"letter": "B", "text": "Don't exercise; correct, hydrate"}], "answer": "B", "explanation": "No exercise."}]}], "checkpoints": [{"stem": "Planned moderate exercise → Pre-exercise bolus:", "options": [{"letter": "A", "text": "No change"}, {"letter": "B", "text": "Increase 25–50%"}, {"letter": "C", "text": "Reduce 25–50%"}, {"letter": "D", "text": "Skip basal"}], "answer": "C", "explanation": "**↓ pre-exercise bolus 25–50%**; avoid injecting the exercising limb."}, {"stem": "After late-day exercise → Watch for:", "options": [{"letter": "A", "text": "Hyperkalemia"}, {"letter": "B", "text": "Delayed nocturnal hypoglycemia"}, {"letter": "C", "text": "Dawn phenomenon"}, {"letter": "D", "text": "DKA"}], "answer": "B", "explanation": "**Delayed nocturnal hypo** → lower overnight basal or bedtime snack."}]}}, {"id": "41", "group": 41, "slide": 50, "section": "Sick-day rules for T1", "topic": "Sick-day rules & DKA prevention", "skill": "Management", "stem": "How should basal insulin be managed in a patient with type 1 diabetes who is ill, vomiting, and not eating?", "options": [{"letter": "A", "text": "Cut it by half"}, {"letter": "B", "text": "Continue it"}, {"letter": "C", "text": "Stop until eating again"}, {"letter": "D", "text": "Hold tonight's dose"}], "answer": "B", "explanation": "**Never stop basal** — illness raises needs; continue at usual or **+10–20%**; BG q2–4 h; ketones if BG >240 or vomiting.", "objective": "", "remediation": {"steps": [{"teach": "Even without food, the liver keeps making glucose and fat keeps breaking down — **basal** insulin is what suppresses ketogenesis.", "stem": "Illness usually makes insulin needs:", "options": [{"letter": "A", "text": "Fall"}, {"letter": "B", "text": "Rise"}], "answer": "B", "explanation": "Rise.", "clarify": [{"stem": "Stopping basal in T1 risks:", "options": [{"letter": "A", "text": "DKA"}, {"letter": "B", "text": "Hypoglycemia"}], "answer": "A", "explanation": "DKA."}]}], "checkpoints": [{"stem": "Sick day → Check ketones when BG exceeds:", "options": [{"letter": "A", "text": "240"}, {"letter": "B", "text": "400"}, {"letter": "C", "text": "120"}, {"letter": "D", "text": "180"}], "answer": "A", "explanation": "**>240 mg/dL** (or vomiting/fever)."}, {"stem": "Sick T1 patient → Basal insulin rule:", "options": [{"letter": "A", "text": "Halve it"}, {"letter": "B", "text": "Never stop it"}, {"letter": "C", "text": "Stop it"}, {"letter": "D", "text": "Skip if vomiting"}], "answer": "B", "explanation": "**Never stop basal.**"}]}}, {"id": "42", "group": 42, "slide": 53, "section": "Treating acute hypoglycemia", "topic": "Hypoglycemia & exercise", "skill": "Management", "stem": "How should hypoglycemia be treated in a conscious patient who can swallow?", "options": [{"letter": "A", "text": "15 g glucose, recheck 15 min"}, {"letter": "B", "text": "50 g carb, recheck 1 h"}, {"letter": "C", "text": "Fat-rich snack, recheck 30 min"}, {"letter": "D", "text": "IM glucagon now"}], "answer": "A", "explanation": "**Rule of 15**: 15–20 g fast carb (pure glucose) → wait **15 min** → recheck → repeat until ≥70 → then snack/meal.", "objective": "", "remediation": {"steps": [{"teach": "If they can swallow, use **oral fast carbs**; glucagon is for patients who can't.", "stem": "Can a conscious patient take oral glucose?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "A", "explanation": "Yes.", "clarify": [{"stem": "Why not start with a fat-rich snack?", "options": [{"letter": "A", "text": "It raises glucose slowly"}, {"letter": "B", "text": "It causes DKA"}], "answer": "A", "explanation": "Fat slows absorption."}]}], "checkpoints": [{"stem": "Hypoglycemia Level 2 → Threshold:", "options": [{"letter": "A", "text": "<40 mg/dL"}, {"letter": "B", "text": "Needs assistance"}, {"letter": "C", "text": "<70 mg/dL"}, {"letter": "D", "text": "<54 mg/dL"}], "answer": "D", "explanation": "Level 1 <70, **Level 2 <54**, Level 3 needs assistance."}, {"stem": "Rule of 15 → Recheck after:", "options": [{"letter": "A", "text": "1 h"}, {"letter": "B", "text": "5 min"}, {"letter": "C", "text": "30 min"}, {"letter": "D", "text": "15 min"}], "answer": "D", "explanation": "**15 min**."}]}}, {"id": "43", "group": 43, "slide": 53, "section": "Treating acute hypoglycemia", "topic": "Hypoglycemia & exercise", "skill": "Management", "stem": "How should hypoglycemia be treated at home when the patient has a seizure or cannot swallow?", "options": [{"letter": "A", "text": "Hold next insulin dose"}, {"letter": "B", "text": "Oral glucose gel"}, {"letter": "C", "text": "Glucagon (IM/SubQ/nasal)"}, {"letter": "D", "text": "Fruit juice"}], "answer": "C", "explanation": "**Glucagon** IM/SubQ/intranasal by a trained caregiver; EMS/IV dextrose; then oral carb and find the cause.", "objective": "", "remediation": {"steps": [{"teach": "Oral carbs in a seizing or unconscious patient risk **aspiration** — use a non-oral rescue.", "stem": "Is oral glucose safe if the patient can't swallow?", "options": [{"letter": "A", "text": "No — aspiration risk"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "No.", "clarify": [{"stem": "In clinic/ED with IV access, give:", "options": [{"letter": "A", "text": "IV dextrose"}, {"letter": "B", "text": "Oral juice"}], "answer": "A", "explanation": "IV dextrose."}]}], "checkpoints": [{"stem": "Level 3 hypoglycemia → Definition:", "options": [{"letter": "A", "text": "<54 mg/dL"}, {"letter": "B", "text": "Any symptomatic low"}, {"letter": "C", "text": "<70 mg/dL"}, {"letter": "D", "text": "Needs assistance to treat"}], "answer": "D", "explanation": "**Level 3 = needs assistance.**"}, {"stem": "Unconscious hypoglycemia at home → Rescue:", "options": [{"letter": "A", "text": "Insulin"}, {"letter": "B", "text": "Candy"}, {"letter": "C", "text": "Glucagon"}, {"letter": "D", "text": "Juice"}], "answer": "C", "explanation": "**Glucagon**."}]}}, {"id": "44", "group": 44, "slide": 53, "section": "Treating hypoglycemia & fixing the regimen", "topic": "Hypoglycemia & exercise", "skill": "Management", "stem": "What is the next step after recurrent level 2 hypoglycemia or any level 3 episode?", "options": [{"letter": "A", "text": "Reduce the responsible dose"}, {"letter": "B", "text": "Stop basal insulin entirely"}, {"letter": "C", "text": "Add a bedtime correction dose"}, {"letter": "D", "text": "Re-counsel; keep same doses"}], "answer": "A", "explanation": "**Change the regimen**, not just the counseling: find where on the curve the low occurs → **↓ that component 10–20%**; consider higher targets, CGM alarms, glucagon.", "objective": "", "remediation": {"steps": [{"teach": "Five rules: a significant low is a **regimen** problem. Locate **where on the curve** it happens.", "stem": "Overnight lows point to which component?", "options": [{"letter": "A", "text": "ICR"}, {"letter": "B", "text": "Basal"}], "answer": "B", "explanation": "Basal.", "clarify": [{"stem": "Typical reduction of the responsible dose:", "options": [{"letter": "A", "text": "10–20%"}, {"letter": "B", "text": "50–75%"}], "answer": "A", "explanation": "10–20%."}]}], "checkpoints": [{"stem": "Hypoglycemia unawareness → Strategy:", "options": [{"letter": "A", "text": "Avoid all lows for weeks"}, {"letter": "B", "text": "Add a β-blocker"}, {"letter": "C", "text": "Increase basal"}, {"letter": "D", "text": "Tighten A1C target"}], "answer": "A", "explanation": "**Avoid all lows for several weeks**, often by raising targets."}, {"stem": "Post-meal lows → Fix:", "options": [{"letter": "A", "text": "Weaken that meal's ICR"}, {"letter": "B", "text": "Raise basal"}, {"letter": "C", "text": "Strengthen CF"}, {"letter": "D", "text": "Strengthen ICR"}], "answer": "A", "explanation": "Weaker ICR / move dose closer to the meal."}]}}, {"id": "45", "group": 45, "slide": 55, "section": "Preventing DKA in T1", "topic": "Sick-day rules & DKA prevention", "skill": "Pharmacology", "stem": "Which drug class should be avoided in type 1 diabetes because of the risk of euglycemic diabetic ketoacidosis?", "options": [{"letter": "A", "text": "Metformin"}, {"letter": "B", "text": "Pramlintide"}, {"letter": "C", "text": "DPP-4 inhibitors"}, {"letter": "D", "text": "SGLT2 inhibitors"}], "answer": "D", "explanation": "**SGLT2i** in insulin-deficient patients ↑ **euglycemic DKA** — not approved for T1; avoid.", "objective": "", "remediation": {"steps": [{"teach": "Euglycemic DKA = ketoacidosis with near-normal glucose, caused by a class that **dumps glucose in the urine**.", "stem": "Which class causes glucosuria?", "options": [{"letter": "A", "text": "DPP-4 inhibitors"}, {"letter": "B", "text": "SGLT2 inhibitors"}], "answer": "B", "explanation": "SGLT2i.", "clarify": [{"stem": "Pramlintide's main risk:", "options": [{"letter": "A", "text": "Severe hypoglycemia"}, {"letter": "B", "text": "Euglycemic DKA"}], "answer": "A", "explanation": "Severe hypoglycemia."}]}], "checkpoints": [{"stem": "Most common controllable outpatient DKA cause:", "options": [{"letter": "A", "text": "Missed basal insulin"}, {"letter": "B", "text": "Too many carbs"}, {"letter": "C", "text": "Exercise"}, {"letter": "D", "text": "CGM lag"}], "answer": "A", "explanation": "**Missed basal** (incl. cost rationing), pump failure, illness, SGLT2i."}, {"stem": "T1 → Class that ↑ euglycemic DKA:", "options": [{"letter": "A", "text": "GLP-1 RA"}, {"letter": "B", "text": "Pramlintide"}, {"letter": "C", "text": "SGLT2i"}, {"letter": "D", "text": "Insulin"}], "answer": "C", "explanation": "**SGLT2i**."}]}}, {"id": "46", "group": 46, "slide": 55, "section": "Preventing DKA in T1", "topic": "Sick-day rules & DKA prevention", "skill": "Management", "stem": "What is the first action for unexplained hyperglycemia in a patient using an insulin pump or automated insulin delivery system?", "options": [{"letter": "A", "text": "Give a larger pump bolus"}, {"letter": "B", "text": "Raise the pump basal rate"}, {"letter": "C", "text": "Inject by pen, check ketones"}, {"letter": "D", "text": "Recheck glucose in 4 hours"}], "answer": "C", "explanation": "Unexplained high on a pump = **site/set failure until proven otherwise** → **inject** by pen/syringe, change the set, **check ketones**.", "objective": "", "remediation": {"steps": [{"teach": "If the set has failed, extra insulin through the **pump** won't arrive.", "stem": "Assume the cause is:", "options": [{"letter": "A", "text": "Infusion-set failure"}, {"letter": "B", "text": "Dawn phenomenon"}], "answer": "A", "explanation": "Set failure.", "clarify": [{"stem": "Why check ketones?", "options": [{"letter": "A", "text": "No long-acting on board → DKA risk"}, {"letter": "B", "text": "To rule out hypoglycemia"}], "answer": "A", "explanation": "DKA risk."}]}], "checkpoints": [{"stem": "Sick-day ketone thresholds (mmol/L):", "options": [{"letter": "A", "text": "1 / 2 / 3"}, {"letter": "B", "text": "5 / 10 / 15"}, {"letter": "C", "text": "0.3 / 0.6 / 1.0"}, {"letter": "D", "text": "0.6 / 1.5 / 3.0"}], "answer": "D", "explanation": "**0.6 / 1.5 / 3.0 mmol/L**."}, {"stem": "Suspected set failure → Deliver insulin via:", "options": [{"letter": "A", "text": "Same pump site"}, {"letter": "B", "text": "Bigger pump bolus"}, {"letter": "C", "text": "Temporary basal"}, {"letter": "D", "text": "Pen or syringe"}], "answer": "D", "explanation": "**Pen/syringe** injection."}]}}, {"id": "47", "group": 47, "slide": 56, "section": "Five rules for safe insulin use", "topic": "Pattern-based adjustments", "skill": "Management", "stem": "In what order should problems be addressed when titrating a type 1 diabetes regimen?", "options": [{"letter": "A", "text": "CF → ICR → basal"}, {"letter": "B", "text": "ICR → basal → CF"}, {"letter": "C", "text": "Basal → ICR → CF"}, {"letter": "D", "text": "All three at once"}], "answer": "C", "explanation": "**Fix basal first, then ICR, then CF** — meal and correction math sit on top of basal.", "objective": "", "remediation": {"steps": [{"teach": "If basal is wrong, every other reading is distorted. **If basal is right, glucose stays flat when a meal is skipped.**", "stem": "Which component is the foundation?", "options": [{"letter": "A", "text": "Correction factor"}, {"letter": "B", "text": "Basal"}], "answer": "B", "explanation": "Basal.", "clarify": [{"stem": "ICR is fixed before or after CF?", "options": [{"letter": "A", "text": "After"}, {"letter": "B", "text": "Before"}], "answer": "B", "explanation": "Before."}]}], "checkpoints": [{"stem": "Basal dose is right if:", "options": [{"letter": "A", "text": "BG stays flat when a meal is skipped"}, {"letter": "B", "text": "Post-meal BG <140"}, {"letter": "C", "text": "A1C <6%"}, {"letter": "D", "text": "Fasting BG <70"}], "answer": "A", "explanation": "Flat glucose through a skipped meal."}, {"stem": "Fix first:", "options": [{"letter": "A", "text": "Basal"}, {"letter": "B", "text": "CF"}, {"letter": "C", "text": "ICR"}, {"letter": "D", "text": "Exercise plan"}], "answer": "A", "explanation": "**Basal**."}]}}, {"id": "48", "group": 48, "slide": 56, "section": "Five rules for safe insulin use", "topic": "T1DM framework & goals", "skill": "Diagnostics & imaging", "stem": "What should also be assessed when a patient with type 1 diabetes has a low A1C?", "options": [{"letter": "A", "text": "Time below range"}, {"letter": "B", "text": "Fructosamine"}, {"letter": "C", "text": "Fasting lipid panel"}, {"letter": "D", "text": "C-peptide"}], "answer": "A", "explanation": "A low A1C is **not automatically good control** — check **time below range** (<70 <4%, <54 <1%).", "objective": "", "remediation": {"steps": [{"teach": "A1C is an **average** — frequent lows can pull it down while the patient is at risk.", "stem": "Can frequent hypoglycemia lower A1C?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "B", "explanation": "Yes.", "clarify": [{"stem": "Data source for time below range:", "options": [{"letter": "A", "text": "CGM"}, {"letter": "B", "text": "Urine ketones"}], "answer": "A", "explanation": "CGM."}]}], "checkpoints": [{"stem": "CGM → Goal for time <70 mg/dL:", "options": [{"letter": "A", "text": "<4%"}, {"letter": "B", "text": "<25%"}, {"letter": "C", "text": "<1%"}, {"letter": "D", "text": "<10%"}], "answer": "A", "explanation": "**<4%** (<54: <1%)."}, {"stem": "A1C 5.8% with frequent lows → Interpretation:", "options": [{"letter": "A", "text": "Not necessarily good control"}, {"letter": "B", "text": "Excellent control"}, {"letter": "C", "text": "DKA risk"}, {"letter": "D", "text": "Undertreated highs"}], "answer": "A", "explanation": "Look at time below range."}]}}, {"id": "49", "group": 49, "slide": 58, "section": "Kidney disease & older adults", "topic": "Special populations", "skill": "Management", "stem": "How should total insulin requirements be adjusted when eGFR is below 10 or the patient receives dialysis?", "options": [{"letter": "A", "text": "↓ ~25%"}, {"letter": "B", "text": "↓ ~50%"}, {"letter": "C", "text": "No change"}, {"letter": "D", "text": "↑ ~25%"}], "answer": "B", "explanation": "Kidney clears insulin → **eGFR 10–50: ↓ ~25%; <10/dialysis: ↓ ~50%**, then titrate; dialysis-day drops are unpredictable.", "objective": "", "remediation": {"steps": [{"teach": "Insulin is **cleared by the kidney** — less clearance means insulin lasts longer.", "stem": "As eGFR falls, insulin needs:", "options": [{"letter": "A", "text": "Fall"}, {"letter": "B", "text": "Rise"}], "answer": "A", "explanation": "Fall.", "clarify": [{"stem": "eGFR 10–50 → reduction:", "options": [{"letter": "A", "text": "~75%"}, {"letter": "B", "text": "~25%"}], "answer": "B", "explanation": "~25%."}]}], "checkpoints": [{"stem": "eGFR 10–50 → Total insulin change:", "options": [{"letter": "A", "text": "↓ ~25%"}, {"letter": "B", "text": "↑ ~25%"}, {"letter": "C", "text": "No change"}, {"letter": "D", "text": "↓ ~50%"}], "answer": "A", "explanation": "**↓ ~25%**."}, {"stem": "Falling eGFR in an insulin user → Expect:", "options": [{"letter": "A", "text": "No change"}, {"letter": "B", "text": "More lows"}, {"letter": "C", "text": "More highs"}, {"letter": "D", "text": "DKA"}], "answer": "B", "explanation": "More lows."}]}}, {"id": "50", "group": 50, "slide": 58, "section": "Kidney disease & older adults", "topic": "Special populations", "skill": "Management", "stem": "What treatment approach is appropriate for a frail older adult with type 1 diabetes?", "options": [{"letter": "A", "text": "Complex ICR/CF, A1C <6.5%"}, {"letter": "B", "text": "Simpler regimen, higher target"}, {"letter": "C", "text": "Stop basal insulin overnight"}, {"letter": "D", "text": "Tight premix regimen, A1C <6%"}], "answer": "B", "explanation": "'**Less insulin, simpler regimen, higher target**' (A1C <7.5–8%): once-daily basal ± simple bolus; check vision, dexterity, cognition.", "objective": "", "remediation": {"steps": [{"teach": "Older adults carry higher **hypoglycemia, fall, and cognitive** risk.", "stem": "In frailty, the priority is avoiding:", "options": [{"letter": "A", "text": "Any glucose >140"}, {"letter": "B", "text": "Hypoglycemia"}], "answer": "B", "explanation": "Hypoglycemia.", "clarify": [{"stem": "Older-adult A1C target:", "options": [{"letter": "A", "text": "<7.5–8%"}, {"letter": "B", "text": "<6%"}], "answer": "A", "explanation": "<7.5–8%."}]}], "checkpoints": [{"stem": "Before choosing pens vs pump in an older adult, check:", "options": [{"letter": "A", "text": "C-peptide"}, {"letter": "B", "text": "Lipid panel"}, {"letter": "C", "text": "Spirometry"}, {"letter": "D", "text": "Vision, dexterity, cognition"}], "answer": "D", "explanation": "**Vision, dexterity, cognition**."}, {"stem": "Frail elder → A1C goal:", "options": [{"letter": "A", "text": "<7.5–8%"}, {"letter": "B", "text": "<6.5%"}, {"letter": "C", "text": "<6%"}, {"letter": "D", "text": "<5.7%"}], "answer": "A", "explanation": "<7.5–8%."}]}}, {"id": "51", "group": 51, "slide": 59, "section": "Insulin in pregnancy & children", "topic": "Special populations", "skill": "Management", "stem": "How do insulin requirements change immediately after delivery in a patient with type 1 diabetes?", "options": [{"letter": "A", "text": "Rise sharply"}, {"letter": "B", "text": "Drop sharply"}, {"letter": "C", "text": "Stay the same"}, {"letter": "D", "text": "Rise gradually"}], "answer": "B", "explanation": "Needs **↓ 1st trimester, ↑↑ 2nd–3rd, drop sharply postpartum** → reduce doses immediately after delivery.", "objective": "", "remediation": {"steps": [{"teach": "Placental hormones drive **insulin resistance** in late pregnancy; delivery removes the placenta.", "stem": "Removing the placenta makes insulin resistance:", "options": [{"letter": "A", "text": "Fall"}, {"letter": "B", "text": "Rise"}], "answer": "A", "explanation": "Fall.", "clarify": [{"stem": "2nd–3rd trimester insulin needs:", "options": [{"letter": "A", "text": "Increase markedly"}, {"letter": "B", "text": "Decrease"}], "answer": "A", "explanation": "Increase markedly."}]}], "checkpoints": [{"stem": "Pregnancy fasting glucose target:", "options": [{"letter": "A", "text": "<130"}, {"letter": "B", "text": "<95"}, {"letter": "C", "text": "<110"}, {"letter": "D", "text": "<70"}], "answer": "B", "explanation": "Fasting **<95**, 1-h <140, 2-h <120."}, {"stem": "Diabetes in pregnancy → Preferred therapy:", "options": [{"letter": "A", "text": "Glipizide"}, {"letter": "B", "text": "Pramlintide"}, {"letter": "C", "text": "Insulin"}, {"letter": "D", "text": "SGLT2i"}], "answer": "C", "explanation": "**Insulin**."}]}}, {"id": "52", "group": 52, "slide": 60, "section": "Non-insulin therapy in T1", "topic": "Pramlintide & non-insulin adjuncts", "skill": "Pharmacology", "stem": "What is the mechanism of action of pramlintide?", "options": [{"letter": "A", "text": "Amylin analog; slows gastric emptying"}, {"letter": "B", "text": "Inhibits DPP-4 breakdown of GLP-1"}, {"letter": "C", "text": "Closes β-cell K-ATP potassium channels"}, {"letter": "D", "text": "Blocks renal glucose reabsorption"}], "answer": "A", "explanation": "Pramlintide = **amylin analog**: **slows gastric emptying, ↓ post-meal glucagon**, mild A1C/weight ↓.", "objective": "", "remediation": {"steps": [{"teach": "Amylin is co-secreted with insulin from β-cells — so T1 patients lack it too.", "stem": "Amylin is secreted by:", "options": [{"letter": "A", "text": "β-cells (with insulin)"}, {"letter": "B", "text": "The kidney"}], "answer": "A", "explanation": "β-cells.", "clarify": [{"stem": "Amylin effect on post-meal glucagon:", "options": [{"letter": "A", "text": "Decreases it"}, {"letter": "B", "text": "Increases it"}], "answer": "A", "explanation": "↓ glucagon."}]}], "checkpoints": [{"stem": "Only FDA-approved non-insulin adjunct in T1:", "options": [{"letter": "A", "text": "Pramlintide"}, {"letter": "B", "text": "Empagliflozin"}, {"letter": "C", "text": "Semaglutide"}, {"letter": "D", "text": "Metformin"}], "answer": "A", "explanation": "**Pramlintide**."}, {"stem": "Pramlintide → Effect on gastric emptying:", "options": [{"letter": "A", "text": "None"}, {"letter": "B", "text": "Blocks acid"}, {"letter": "C", "text": "Slows it"}, {"letter": "D", "text": "Speeds it"}], "answer": "C", "explanation": "Slows it."}]}}, {"id": "53", "group": 53, "slide": 60, "section": "Non-insulin therapy in T1", "topic": "Pramlintide & non-insulin adjuncts", "skill": "Pharmacology", "stem": "What is the boxed warning for pramlintide?", "options": [{"letter": "A", "text": "Euglycemic DKA"}, {"letter": "B", "text": "Severe hypoglycemia"}, {"letter": "C", "text": "Pancreatitis"}, {"letter": "D", "text": "Acute bronchospasm"}], "answer": "B", "explanation": "Boxed: **severe insulin-induced hypoglycemia** → **lower mealtime insulin** when starting.", "objective": "", "remediation": {"steps": [{"teach": "Pramlintide adds glucose-lowering on top of existing prandial insulin — the danger is the **combination**.", "stem": "Starting pramlintide → mealtime insulin:", "options": [{"letter": "A", "text": "Decrease"}, {"letter": "B", "text": "Increase"}], "answer": "A", "explanation": "Decrease.", "clarify": [{"stem": "Bronchospasm boxed warning belongs to:", "options": [{"letter": "A", "text": "Afrezza"}, {"letter": "B", "text": "Pramlintide"}], "answer": "A", "explanation": "Afrezza."}]}], "checkpoints": [{"stem": "Starting pramlintide → Insulin adjustment:", "options": [{"letter": "A", "text": "Raise basal"}, {"letter": "B", "text": "Lower mealtime insulin"}, {"letter": "C", "text": "Stop basal"}, {"letter": "D", "text": "No change"}], "answer": "B", "explanation": "**Lower mealtime insulin**."}, {"stem": "Pramlintide → Boxed warning:", "options": [{"letter": "A", "text": "Bronchospasm"}, {"letter": "B", "text": "Lactic acidosis"}, {"letter": "C", "text": "Thyroid tumors"}, {"letter": "D", "text": "Severe hypoglycemia"}], "answer": "D", "explanation": "**Severe hypoglycemia**."}]}}, {"id": "54", "group": 54, "slide": 60, "section": "Non-insulin therapy in T1", "topic": "Pramlintide & non-insulin adjuncts", "skill": "Management", "stem": "For what purpose does ADA 2026 guidance allow GLP-1 receptor agonists in a patient with type 1 diabetes and obesity?", "options": [{"letter": "A", "text": "Preventing DKA"}, {"letter": "B", "text": "Primary glycemic control"}, {"letter": "C", "text": "Obesity only"}, {"letter": "D", "text": "Replacing prandial insulin"}], "answer": "C", "explanation": "GLP-1 RA is **not approved for glycemia in T1**; ADA 2026 allows it for **obesity** — expect lower insulin needs when added.", "objective": "", "remediation": {"steps": [{"teach": "Metformin, GLP-1 RA, and SGLT2i were studied as adjuncts but are **not approved** for T1 glycemic control.", "stem": "Is GLP-1 RA approved for glycemic control in T1?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "No.", "clarify": [{"stem": "Adding a GLP-1 RA → insulin needs:", "options": [{"letter": "A", "text": "Expect lower"}, {"letter": "B", "text": "Expect higher"}], "answer": "A", "explanation": "Expect lower."}]}], "checkpoints": [{"stem": "Adding GLP-1 RA for obesity in T1 → Insulin:", "options": [{"letter": "A", "text": "Increase doses"}, {"letter": "B", "text": "Expect to lower doses"}, {"letter": "C", "text": "Stop basal"}, {"letter": "D", "text": "No change"}], "answer": "B", "explanation": "Expect **lower** insulin needs."}, {"stem": "GLP-1 RA in T1 → Indication:", "options": [{"letter": "A", "text": "Obesity"}, {"letter": "B", "text": "Glycemic control"}, {"letter": "C", "text": "DKA"}, {"letter": "D", "text": "Hypoglycemia"}], "answer": "A", "explanation": "**Obesity**."}]}}, {"id": "55", "group": 55, "slide": 64, "section": "Case 1: new T1 (solution)", "topic": "Sick-day rules & DKA prevention", "skill": "Complications", "stem": "How should glucose of 428 mg/dL, β-hydroxybutyrate of 1.2, bicarbonate of 21, and an anion gap of 14 be interpreted in newly diagnosed type 1 diabetes?", "options": [{"letter": "A", "text": "Ketosis without acidosis"}, {"letter": "B", "text": "Hyperosmolar state (HHS)"}, {"letter": "C", "text": "Euglycemic DKA"}, {"letter": "D", "text": "Mild DKA (outpatient)"}], "answer": "A", "explanation": "Bicarb 21 and AG 14 = **no acidosis** → **ketosis, not DKA** → outpatient start with education and close follow-up.", "objective": "", "remediation": {"steps": [{"teach": "DKA requires **acidosis** (low bicarb, high anion gap) — ketones alone aren't enough.", "stem": "Bicarbonate 21 is:", "options": [{"letter": "A", "text": "Severely low"}, {"letter": "B", "text": "Near normal (no acidosis)"}], "answer": "B", "explanation": "Near normal.", "clarify": [{"stem": "Ketosis without acidosis can be managed:", "options": [{"letter": "A", "text": "Only in the ICU"}, {"letter": "B", "text": "Outpatient, close follow-up"}], "answer": "B", "explanation": "Outpatient."}]}], "checkpoints": [{"stem": "Case 1 → She must leave clinic with:", "options": [{"letter": "A", "text": "Metformin starter pack"}, {"letter": "B", "text": "Glucagon and ketone strips"}, {"letter": "C", "text": "Pramlintide pen"}, {"letter": "D", "text": "SGLT2 inhibitor"}], "answer": "B", "explanation": "**Glucagon** (roommate trained), **ketone strips** with thresholds, written **sick-day plan**."}, {"stem": "Ketones present, normal bicarb and AG →", "options": [{"letter": "A", "text": "Lactic acidosis"}, {"letter": "B", "text": "Ketosis, not DKA"}, {"letter": "C", "text": "DKA"}, {"letter": "D", "text": "HHS"}], "answer": "B", "explanation": "Ketosis, not DKA."}]}}, {"id": "56", "group": 56, "slide": 66, "section": "Case 2: morning highs (solution)", "topic": "Pattern-based adjustments", "skill": "Management", "stem": "What is the next step for a patient taking glargine 20 units at bedtime whose 3 AM glucose is 52–65 mg/dL and fasting glucose is 190–220 mg/dL?", "options": [{"letter": "A", "text": "Increase glargine to 24 u"}, {"letter": "B", "text": "Decrease glargine to ~16–18 u"}, {"letter": "C", "text": "Add 2 u lispro at bedtime daily"}, {"letter": "D", "text": "Strengthen the breakfast ICR"}, {"letter": "E", "text": "Watch and wait 2 weeks"}], "answer": "B", "explanation": "Documented **nocturnal lows with rebound** → **decrease glargine to ~16–18 u**. Raising basal treats the number and worsens the lows.", "objective": "", "remediation": {"steps": [{"teach": "Rule: after any documented nocturnal low, the default move is to **lower** overnight insulin — the fasting high is a rebound.", "stem": "3 a.m. lows + morning highs = which pattern?", "options": [{"letter": "A", "text": "Dawn phenomenon"}, {"letter": "B", "text": "Somogyi-type (nocturnal hypo)"}], "answer": "B", "explanation": "Somogyi-type.", "clarify": [{"stem": "Raising basal here would:", "options": [{"letter": "A", "text": "Worsen nocturnal lows"}, {"letter": "B", "text": "Fix the lows"}], "answer": "A", "explanation": "Worsen them."}]}], "checkpoints": [{"stem": "Fasting high + visible 2–3 a.m. low → Raise basal?", "options": [{"letter": "A", "text": "Yes, double it"}, {"letter": "B", "text": "Only if A1C >9%"}, {"letter": "C", "text": "Yes, by 10–20%"}, {"letter": "D", "text": "No — lower overnight basal"}], "answer": "D", "explanation": "Never raise basal with a visible nocturnal low."}, {"stem": "Nocturnal lows on glargine 20 u → New dose:", "options": [{"letter": "A", "text": "~30 u"}, {"letter": "B", "text": "20 u unchanged"}, {"letter": "C", "text": "~16–18 u"}, {"letter": "D", "text": "~24 u"}], "answer": "C", "explanation": "~10–20% less."}]}}, {"id": "57", "group": 57, "slide": 68, "section": "Case 3: steroids (solution)", "topic": "Drugs affecting glucose", "skill": "Management", "stem": "What insulin adjustment is appropriate for a patient with type 1 diabetes who takes prednisone in the morning, has fasting glucose at goal, and develops afternoon hyperglycemia?", "options": [{"letter": "A", "text": "Raise basal glargine 20%"}, {"letter": "B", "text": "Strengthen daytime ICR"}, {"letter": "C", "text": "Strengthen CF, lower basal"}, {"letter": "D", "text": "Add a bedtime NPH dose"}], "answer": "B", "explanation": "Morning prednisone peaks **afternoon/evening** → raises **daytime/post-meal** BG, not fasting → **keep basal**, strengthen daytime ICR (1:12 → 1:10), extra 2–4 u lispro at lunch/dinner; reverse on taper.", "objective": "", "remediation": {"steps": [{"teach": "Fasting glucose is fine → **basal is correct**. The steroid effect peaks in the **afternoon/evening**.", "stem": "Morning prednisone mainly raises:", "options": [{"letter": "A", "text": "Daytime/post-meal glucose"}, {"letter": "B", "text": "Fasting glucose"}], "answer": "A", "explanation": "Daytime/post-meal.", "clarify": [{"stem": "Fasting 120–140 on steroids → basal:", "options": [{"letter": "A", "text": "Keep it"}, {"letter": "B", "text": "Increase it"}], "answer": "A", "explanation": "Keep it."}]}], "checkpoints": [{"stem": "Prednisone tapered off → Counseling:", "options": [{"letter": "A", "text": "Increase basal"}, {"letter": "B", "text": "Stop corrections"}, {"letter": "C", "text": "Keep the steroid doses"}, {"letter": "D", "text": "Reverse the ICR changes"}], "answer": "D", "explanation": "Keeping 'steroid doses' after prednisone stops → **hypoglycemia**."}, {"stem": "Morning steroid → Which insulin to adjust:", "options": [{"letter": "A", "text": "Prandial"}, {"letter": "B", "text": "Basal"}, {"letter": "C", "text": "Basal and CF"}, {"letter": "D", "text": "Neither"}], "answer": "A", "explanation": "**Prandial**."}]}}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  const LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  function shuffleOptions(item) {
+    if (!item || !item.options || item.options.length < 2) return;
+    const key = (item.options.find(o => o.letter === item.answer) || {}).text;
+    const texts = item.options.map(o => o.text);
+    for (let i = texts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [texts[i], texts[j]] = [texts[j], texts[i]]; }
+    item.options = texts.map((t, i) => ({ letter: LET[i], text: t }));
+    item.answer = (item.options.find(o => o.text === key) || {}).letter;
+  }
+  // Tutor questions get fresh option order on every open, like the main exam
+  if (EXAM_DATA.shuffleTutorOptions !== false) {
+    questions.forEach(q => {
+      const r = q.remediation; if (!r) return;
+      (r.steps || []).forEach(s => { shuffleOptions(s); (s.clarify || []).forEach(shuffleOptions); });
+      (r.checkpoints || []).forEach(shuffleOptions);
+    });
+  }
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter (FIRST attempt — this is what is scored)
+  const tutor = {};          // question id -> tutor session (see startTutor)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);
+  let page = 0;
+  let lastGrade = null;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const optText = (item, letter) => { const o = item.options.find(x => x.letter === letter); return o ? o.text : ''; };
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  // ================= Adaptive tutor engine =================
+  // A session is a growing "trail" of nodes rendered under the missed question.
+  // Node kinds: step | clarify | checkpoint (answerable), note (text only).
+  function hasTutor(q) { return !!(q.remediation && q.remediation.steps && q.remediation.steps.length); }
+
+  function startTutor(q) {
+    const t = { status: 'active', phase: 'steps', trail: [], step: 0, clar: 0, wrong: [], cp: 0 };
+    tutor[q.id] = t;
+    pushStep(q, t, false);
+  }
+
+  function pushStep(q, t, retry) {
+    const steps = q.remediation.steps;
+    if (t.step >= steps.length) return finishSteps(q, t);
+    t.trail.push({ kind: 'step', item: steps[t.step], sIdx: t.step, retry: retry,
+                   elim: retry ? t.wrong.slice() : [], chosen: null, revealed: false });
+  }
+
+  function nextStep(q, t) { t.step++; t.clar = 0; t.wrong = []; pushStep(q, t, false); }
+
+  function pushClarify(q, t) {
+    const cl = q.remediation.steps[t.step].clarify || [];
+    if (t.clar < cl.length) {
+      t.trail.push({ kind: 'clarify', item: cl[t.clar], sIdx: t.step, chosen: null, revealed: false });
+      t.clar++;
+      return true;
+    }
+    return false;
+  }
+
+  function finishSteps(q, t) {
+    t.phase = 'checkpoint';
+    t.trail.push({ kind: 'note', cls: 'reveal',
+      html: '<b>Back to Question ' + esc(q.id) + ':</b> the answer is <b>' + esc(q.answer) + '. ' + fmt(optText(q, q.answer)) + '</b>' +
+            (q.explanation ? '<div style="margin-top:4px">' + fmt(q.explanation) + '</div>' : '') });
+    pushCheckpoint(q, t);
+  }
+
+  function pushCheckpoint(q, t) {
+    const cps = q.remediation.checkpoints || [];
+    if (t.cp < cps.length) {
+      t.trail.push({ kind: 'checkpoint', item: cps[t.cp], chosen: null, revealed: false, n: t.cp + 1 });
+    } else if (!cps.length) {
+      t.status = 'mastered'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Pathway complete — continue the case.' });
+    } else {
+      t.status = 'review'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'review',
+        html: '⚑ Flagged for review — this concept is saved to your missed list. Continue the case when ready.' });
+    }
+  }
+
+  function tutorAnswer(q, idx, letter) {
+    const t = tutor[q.id];
+    const node = t.trail[idx];
+    if (!node || node.chosen !== null || idx !== t.trail.length - 1) return;
+    node.chosen = letter;
+    const ok = letter === node.item.answer;
+
+    if (node.kind === 'step') {
+      if (ok) return nextStep(q, t);
+      t.wrong.push(letter);
+      if (pushClarify(q, t)) return;
+      // Out of simpler questions: teach the step's answer, then move on
+      node.revealed = true;
+      return nextStep(q, t);
+    }
+    if (node.kind === 'clarify') {
+      if (ok) return pushStep(q, t, true);              // foundation fixed -> retry the step
+      if (pushClarify(q, t)) return;                    // still shaky -> go simpler again
+      node.revealed = true;                             // teach the basic fact, then retry the step
+      return pushStep(q, t, true);
+    }
+    if (node.kind === 'checkpoint') {
+      if (ok) {
+        t.status = 'mastered'; t.phase = 'done';
+        t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Mastered — you applied it to a new case. Continue below.' });
+        return;
+      }
+      node.revealed = true;
+      t.cp++;
+      const more = t.cp < (q.remediation.checkpoints || []).length;
+      if (more) t.trail.push({ kind: 'note', cls: 'info', html: 'Same concept, one more case:' });
+      return pushCheckpoint(q, t);
+    }
+  }
+
+  // A question is "resolved" (lets its follow-up appear) once answered right,
+  // answered wrong without a pathway, or its pathway has finished.
+  function resolved(q) {
+    if (answers[q.id] === undefined) return false;
+    if (answers[q.id] === q.answer || !hasTutor(q)) return true;
+    return tutor[q.id] && tutor[q.id].status !== 'active';
+  }
+
+  function tutorStatus(q) {
+    const t = tutor[q.id];
+    return t ? t.status : null;
+  }
+
+  function nodeHtml(q, node, idx, interactive) {
+    if (node.kind === 'note') return '<div class="tnote ' + node.cls + '">' + node.html + '</div>';
+    const it = node.item;
+    const answered = node.chosen !== null;
+    const live = interactive && !answered;
+    let label;
+    if (node.kind === 'step') label = '<span class="tlabel">Step ' + (node.sIdx + 1) + ' of ' + q.remediation.steps.length + (node.retry ? ' · try again' : '') + '</span>';
+    else if (node.kind === 'clarify') label = '<span class="tlabel clar">Let\'s go simpler</span>';
+    else label = '<span class="tlabel cp">Mastery check' + ((q.remediation.checkpoints || []).length > 1 ? ' ' + node.n : '') + '</span>';
+
+    let html = '<div class="tnode' + (answered ? ' done' : ' active') + '" data-tq="' + esc(q.id) + '" data-tidx="' + idx + '">' + label;
+    if (it.teach && !(node.kind === 'step' && node.retry)) html += '<div class="teach">' + fmt(it.teach) + '</div>';
+    html += '<div class="stem">' + fmt(it.stem) + '</div>';
+    it.options.forEach(o => {
+      let cls = 'opt';
+      const elim = node.elim && node.elim.indexOf(o.letter) !== -1;
+      if (answered) {
+        if (o.letter === node.chosen) cls += node.chosen === it.answer ? ' correct' : ' incorrect';
+        else if (node.revealed && o.letter === it.answer) cls += ' correct';
+      }
+      if (elim) cls += ' elim';
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (live && !elim ? '' : ' disabled') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      const ok = node.chosen === it.answer;
+      if (ok || node.revealed) {
+        html += '<div class="feedback ' + (ok ? 'good' : 'bad') + '"><div class="verdict">' +
+          (ok ? '✓ Correct' : '✗ Answer: ' + esc(it.answer) + '. ' + fmt(optText(it, it.answer))) + '</div>' +
+          (it.explanation ? '<div>' + fmt(it.explanation) + '</div>' : '') + '</div>';
+      } else {
+        html += '<div class="nudge">✗ Not yet — let\'s break it down.</div>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function trailHtml(q, interactive) {
+    const t = tutor[q.id];
+    if (!t) return '';
+    let html = '<div class="tutor"><div class="tutor-head">Guided review</div>';
+    t.trail.forEach((n, i) => { html += nodeHtml(q, n, i, interactive); });
+    html += '</div>';
+    return html;
+  }
+
+  // ================= Rendering =================
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + fmt(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + fmt(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    const wrong = answered && chosen !== q.answer;
+    const tutoring = wrong && hasTutor(q);
+    const t = tutor[q.id];
+    // While the pathway is still in its teaching steps (exam mode), the correct answer stays hidden
+    const hideKey = mode === 'exam' && tutoring && t && t.phase === 'steps';
+    const status = tutoring ? tutorStatus(q) : null;
+
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    if (status === 'mastered') html += '<span class="badge mastered">Mastered after review</span>';
+    else if (status === 'review') html += '<span class="badge review">Flagged for review</span>';
+    else if (status === 'active') html += '<span class="badge active">Guided review in progress</span>';
+    html += '<div class="stem">' + fmt(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === chosen) cls += chosen === q.answer ? ' correct' : ' incorrect';
+        else if (o.letter === q.answer && !hideKey) cls += ' correct';
+        else if (!hideKey) cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      if (hideKey) {
+        html += '<div class="feedback tutoring"><div class="verdict">✗ Not quite — the answer stays hidden while we build up to it.</div>' +
+          '<div>Work through the guided questions below.</div></div>';
+      } else {
+        html += feedbackHtml(q, chosen);
+      }
+    }
+    if (tutoring && t) {
+      if (mode === 'exam') html += trailHtml(q, true);
+      else html += '<details class="trail"><summary>Guided review path (' +
+        t.trail.filter(n => n.kind !== 'note').length + ' questions)</summary>' + trailHtml(q, false) + '</details>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: a follow-up appears only once the question before it is
+    // resolved — answered correctly, or its guided review has finished.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && resolved(group[shown - 1])) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      const blocked = group[shown - 1];
+      const inTutor = answers[blocked.id] !== undefined && !resolved(blocked);
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') + ' in this case — ' +
+        (inTutor ? 'finish the guided review to continue' : 'answer above to continue') + '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Main-question clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll(':scope > .opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          const q = byId[qid];
+          answers[qid] = btn.getAttribute('data-letter');
+          if (answers[qid] !== q.answer && hasTutor(q)) startTutor(q);
+          renderPage(true);
+        });
+      });
+    });
+    // Tutor clicks
+    $('main').querySelectorAll('.tnode.active').forEach(nodeEl => {
+      const q = byId[nodeEl.getAttribute('data-tq')];
+      const idx = +nodeEl.getAttribute('data-tidx');
+      nodeEl.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || btn.disabled) return;
+          tutorAnswer(q, idx, btn.getAttribute('data-letter'));
+          renderPage(true);
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) {
+      window.scrollTo(0, savedY);
+      // Bring the newest tutor question / unlocked follow-up into view if it landed below the fold
+      const target = $('main').querySelector('.tnode.active') || $('main').querySelector('.tnote.mastered, .tnote.review');
+      if (target) {
+        const r = target.getBoundingClientRect();
+        const navH = $('navbar').offsetHeight || 0;
+        if (r.bottom > window.innerHeight - navH) {
+          window.scrollBy({ top: Math.min(r.top - 80, r.bottom - (window.innerHeight - navH) + 16), behavior: 'smooth' });
+        }
+      }
+    } else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  // ================= Grading =================
+  // Two lenses for the results page:
+  //   topic — WHAT you were tested on (e.g. "Paget's disease of bone"). Falls back to `section`.
+  //   skill — WHAT KIND of thinking (Identification, Disease process, Diagnostics & imaging,
+  //           Management, Complications…). Optional; the skill card is hidden when no question has one.
+  const topicOf = q => q.topic || q.section || 'All questions';
+  const skillOf = q => q.skill || null;
+
+  function tally(list, keyFn) {
+    const m = {};
+    list.forEach(q => {
+      const k = keyFn(q); if (!k) return;
+      if (!m[k]) m[k] = { name: k, correct: 0, total: 0, mastered: 0, review: 0, missed: 0 };
+      const e = m[k];
+      e.total++;
+      if (answers[q.id] === q.answer) { e.correct++; return; }
+      if (answers[q.id] === undefined) return;
+      const st = tutor[q.id] ? tutor[q.id].status : null;
+      if (st === 'mastered') e.mastered++; else if (st === 'review') e.review++; else e.missed++;
+    });
+    return Object.keys(m).map(k => { const e = m[k]; e.pct = e.total ? e.correct / e.total : 0; return e; })
+      .sort((a, b) => a.pct - b.pct || b.total - a.total);        // weakest first
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    graded.forEach(q => { if (answers[q.id] === q.answer) correct++; });
+    const ts = { started: 0, mastered: 0, review: 0, active: 0, tq: 0, tqRight: 0 };
+    Object.keys(tutor).forEach(id => {
+      const t = tutor[id];
+      ts.started++; ts[t.status]++;
+      t.trail.forEach(n => { if (n.kind !== 'note' && n.chosen !== null) { ts.tq++; if (n.chosen === n.item.answer) ts.tqRight++; } });
+    });
+    return { correct, graded: graded.length, total: questions.length, partial,
+             topics: tally(graded, topicOf), skills: tally(graded, skillOf), ts };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  // Lowest-scoring entries (ties included) — only meaningful when there's something to compare
+  function weakest(entries) {
+    if (entries.length < 2) return [];
+    const lo = entries[0].pct, hi = entries[entries.length - 1].pct;
+    if (lo === hi) return [];                                       // all equal: nothing stands out
+    return entries.filter(e => e.pct === lo);
+  }
+
+  function barsHtml(entries) {
+    const weakSet = weakest(entries).map(e => e.name);
+    return entries.map(e => {
+      const p = Math.round(e.pct * 100);
+      const cls = p >= 80 ? 'hi' : (weakSet.indexOf(e.name) !== -1 ? 'lo' : '');
+      const meta = [];
+      if (e.review) meta.push(e.review + ' flagged');
+      if (e.missed) meta.push(e.missed + ' missed');
+      if (e.mastered) meta.push(e.mastered + ' relearned in guided review');
+      return '<div class="bar-row"><div class="bar-head"><span class="nm">' + esc(e.name) +
+        (weakSet.indexOf(e.name) !== -1 ? '<span class="sec-tag weak">WEAKEST</span>' : '') +
+        '</span><span class="pc"><b>' + p + '%</b> · ' + e.correct + '/' + e.total + '</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + cls + '" style="width:' + Math.max(p, 2) + '%"></div></div>' +
+        (meta.length ? '<div class="bar-meta">' + meta.join(' · ') + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+    const hasSkills = r.skills.length > 0;
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + ' · first attempts</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.ts.started) html += '<div class="score-note">' + r.ts.mastered + ' of ' + r.ts.started +
+      ' missed concept' + (r.ts.started === 1 ? '' : 's') + ' relearned in guided review</div>';
+    else if (r.partial) html += '<div class="score-note">Unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    // ---- What to work on ----
+    const wTopic = weakest(r.topics), wSkill = weakest(r.skills);
+    const missed = missedQuestions();
+    html += '<div class="card"><h2>What to work on</h2><div class="sub">Ranked from the questions you missed on the first try</div>';
+    if (!missed.length) {
+      html += '<div class="focus-box ok"><div class="v">Nothing missed — every question right on the first try.</div></div>';
+    } else {
+      html += '<div class="focus-grid">';
+      if (wTopic.length) html += '<div class="focus-box"><div class="k">Weakest topic</div><div class="v">' +
+        wTopic.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wTopic.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      if (wSkill.length) html += '<div class="focus-box"><div class="k">Weakest skill</div><div class="v">' +
+        wSkill.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wSkill.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      html += '</div>';
+      // One line per missed concept: flagged first, then plain misses, then ones already relearned
+      const rank = { review: 0, active: 0, missed: 1, mastered: 2 };
+      const items = missed.map(q => {
+        const st = tutor[q.id] ? tutor[q.id].status : 'missed';
+        return { q, st: st === 'active' ? 'review' : st };
+      }).sort((a, b) => rank[a.st] - rank[b.st]);
+      const label = { review: 'Still shaky', missed: 'Missed', mastered: 'Relearned' };
+      html += '<ul class="todo">' + items.map(it => {
+        const sk = skillOf(it.q);
+        return '<li><span class="dot ' + it.st + '"></span><span class="what"><b>' + esc(topicOf(it.q)) + '</b>' +
+          (sk ? ' — ' + esc(sk) : '') + ' <span style="color:var(--ink-soft)">(Q' + esc(it.q.id) + ')</span></span>' +
+          '<span class="tag ' + it.st + '">' + label[it.st] + '</span></li>';
+      }).join('') + '</ul>';
+    }
+    html += '</div>';
+
+    // ---- By topic / by skill ----
+    html += '<div class="card"><h2>By topic</h2><div class="sub">First-attempt score for each disease or concept</div>' + barsHtml(r.topics) + '</div>';
+    if (hasSkills) html += '<div class="card"><h2>By skill</h2><div class="sub">Which kind of question trips you up, across all topics</div>' + barsHtml(r.skills) + '</div>';
+
+    if (r.ts.started) {
+      html += '<div class="card"><h2>Guided review</h2><div class="sub" style="margin-bottom:12px">How the tutor pathways went</div><div class="tutor-stats">' +
+        '<div class="tstat t"><b>' + r.ts.started + '</b>concepts reviewed</div>' +
+        '<div class="tstat m"><b>' + r.ts.mastered + '</b>passed mastery check</div>' +
+        '<div class="tstat r"><b>' + (r.ts.review + r.ts.active) + '</b>still shaky</div>' +
+        '<div class="tstat"><b>' + r.ts.tqRight + '/' + r.ts.tq + '</b>tutor questions right</div>' +
+        '</div></div>';
+    }
+
+    html += '<div class="results-actions">';
+    if (missed.length) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed.length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + fmt(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  const plain = s => String(s == null ? '' : s).replace(/\*\*(.+?)\*\*/g, '$1');
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id + ' — ' + topicOf(q) + (skillOf(q) ? ' / ' + skillOf(q) : '')];
+      if (group[0].id !== q.id) lines.push('Case: ' + plain(group[0].stem));
+      lines.push(plain(q.stem));
+      q.options.forEach(o => lines.push(o.letter + '. ' + plain(o.text)));
+      lines.push('My answer: ' + answers[q.id]);
+      lines.push('Correct answer: ' + q.answer + '. ' + plain(optText(q, q.answer)));
+      if (q.explanation) lines.push('Rationale: ' + plain(q.explanation));
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      const t = tutor[q.id];
+      if (t) {
+        const st = { mastered: 'MASTERED on re-check', review: 'STILL NEEDS REVIEW (missed mastery check)', active: 'guided review not finished' }[t.status];
+        lines.push('Guided review: ' + st);
+        t.trail.forEach(n => {
+          if (n.kind === 'note' || n.chosen === null) return;
+          const ok = n.chosen === n.item.answer;
+          lines.push('  ' + (ok ? '✓ ' : '✗ ') + plain(n.item.stem) + ' → ' + plain(optText(n.item, n.item.answer)));
+        });
+      }
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => !resolved(q))) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(tutor).forEach(k => delete tutor[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

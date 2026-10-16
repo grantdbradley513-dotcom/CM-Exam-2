@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- Adaptive tutor ---------- */
+  :root { --tutor: #5b3fa6; --tutor-bg: #f5f2fc; --tutor-line: #ddd3f3; }
+  .feedback.tutoring { background: var(--amber-bg); border-left: 4px solid var(--amber); margin-bottom: 22px; }
+  .feedback.tutoring .verdict { color: var(--amber); }
+  /* Guided review: a quiet rail instead of a filled box, so nested cards don't stack up visually */
+  .tutor { border-left: 3px solid var(--tutor-line); padding: 2px 0 2px 16px; margin: 0 0 6px 4px; }
+  .tutor-head { font-weight: 700; color: var(--tutor); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+  .tnode { background: var(--card); border: 1px solid var(--tutor-line); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+  .tnode.active { border-color: var(--tutor); box-shadow: 0 2px 10px rgba(91,63,166,0.10); }
+  .tnode.done { background: #fcfcfe; }
+  .tlabel { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--tutor); margin-bottom: 8px; }
+  .tlabel.cp { color: #fff; background: var(--tutor); border-radius: 6px; padding: 1px 8px; }
+  .tlabel.clar { color: var(--amber); }
+  .teach { border-left: 3px solid var(--tutor); padding: 2px 0 2px 12px; margin-bottom: 12px; font-size: 0.95em; white-space: pre-wrap; color: var(--ink); }
+  .tnode .stem { margin-bottom: 12px; font-weight: 500; }
+  .tnode .opt { padding: 8px 12px; margin-bottom: 8px; }
+  .tnode .feedback { margin-top: 10px; }
+  .tnode .nudge { margin-top: 8px; color: var(--amber); font-weight: 600; font-size: 0.9em; }
+  .opt.elim { opacity: 0.45; text-decoration: line-through; border-style: dashed; }
+  .tnote { border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 0.95em; }
+  .tnote.reveal { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .tnote.mastered { background: var(--green-bg); border-left: 4px solid var(--green); font-weight: 600; }
+  .tnote.review { background: var(--red-bg); border-left: 4px solid var(--red); font-weight: 600; }
+  .tnote.info { color: var(--ink-soft); padding: 0 2px; margin-bottom: 10px; font-style: italic; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 6px; padding: 1px 8px; margin-left: 8px; vertical-align: middle; }
+  .badge.mastered { background: var(--green-bg); color: var(--green); }
+  .badge.review { background: var(--red-bg); color: var(--red); }
+  .badge.active { background: var(--tutor-bg); color: var(--tutor); }
+  details.trail { margin-top: 12px; }
+  details.trail summary { cursor: pointer; color: var(--tutor); font-weight: 600; font-size: 0.9rem; }
+  details.trail .tutor { margin-top: 12px; }
+
+  .qcard > .feedback + .tutor { margin-top: 22px; }
+
+  /* ---------- Results: study plan ---------- */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 16px; }
+  .card h2 { font-size: 1.02rem; margin-bottom: 4px; }
+  .card .sub { font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 14px; }
+  .focus-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 640px) { .focus-grid { grid-template-columns: 1fr 1fr; } }
+  .focus-box { border-radius: 10px; padding: 12px 14px; background: var(--red-bg); border-left: 4px solid var(--red); }
+  .focus-box.ok { background: var(--green-bg); border-left-color: var(--green); }
+  .focus-box .k { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+  .focus-box .v { font-weight: 700; font-size: 1.02rem; margin-top: 2px; }
+  .focus-box .n { font-size: 0.85rem; color: var(--ink-soft); }
+  .todo { list-style: none; }
+  .todo li { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border); font-size: 0.93rem; }
+  .todo li:first-child { border-top: none; }
+  .todo .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; transform: translateY(-1px); }
+  .todo .dot.review { background: var(--red); } .todo .dot.missed { background: var(--amber); } .todo .dot.mastered { background: var(--green); }
+  .todo .what { flex: 1; }
+  .todo .what b { font-weight: 600; }
+  .todo .tag { flex: none; font-size: 0.75rem; font-weight: 700; color: var(--ink-soft); }
+  .todo .tag.review { color: var(--red); } .todo .tag.missed { color: var(--amber); } .todo .tag.mastered { color: var(--green); }
+  .bar-row { margin-bottom: 14px; }
+  .bar-row:last-child { margin-bottom: 2px; }
+  .bar-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.92rem; margin-bottom: 5px; }
+  .bar-head .nm { font-weight: 600; }
+  .bar-head .pc { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+  .bar-head .pc b { color: var(--ink); }
+  .bar-meta { font-size: 0.78rem; color: var(--ink-soft); margin-top: 3px; }
+  .tutor-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 640px) { .tutor-stats { grid-template-columns: repeat(4, 1fr); } }
+  .tstat { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; color: var(--ink-soft); }
+  .tstat b { display: block; font-size: 1.4rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tstat.m b { color: var(--green); } .tstat.r b { color: var(--red); } .tstat.t b { color: var(--tutor); }
+
+  /* Background infographic (added by Claude) */
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(244, 246, 250, 0.55), rgba(244, 246, 250, 0.55)),
+      url("data:image/png;base64,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EEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRQQiuRxJECAAAGhsAECBAgQSAGhSB5HAgQIEBAKGyBAgACBFBCK5HEkQIAAAaGwAQIECBBIAaFIHkcCBAgQEAobIECAAIEUEIrkcSRAgAABobABAgQIEEgBoUgeRwIECBAQChsgQIAAgRT4AQ/Sl2CrnYOuAAAAAElFTkSuQmCC");
+    background-repeat: no-repeat, no-repeat;
+    background-position: center center, center center;
+    background-size: cover, cover;
+    background-attachment: fixed, fixed;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, topic?, skill?, image?,
+//    remediation?: {                      // OPTIONAL — adaptive tutor pathway for a wrong first answer
+//      steps: [{ teach?, stem, options, answer, explanation?,
+//                clarify?: [{ teach?, stem, options, answer, explanation? }] }],   // simpler questions used when a step is missed
+//      checkpoints?: [{ teach?, stem, options, answer, explanation? }]             // mastery check(s): a new vignette on the same concept
+//    } }] }
+// Questions without `remediation` behave exactly like the classic exam (answer revealed immediately).
+// **double asterisks** in any text render as bold.
+const EXAM_DATA = {"title": "Thyroid Pharmacotherapy — Keyword Practice (Adaptive)", "questions": [{"id": "1", "group": 1, "slide": 5, "section": "Hypothyroidism — patient case", "topic": "Levothyroxine — properties", "skill": "Management", "stem": "How does a sulfa allergy affect levothyroxine use in a patient with TPO-positive hypothyroidism and a TSH of 60?", "options": [{"letter": "A", "text": "No effect — irrelevant"}, {"letter": "B", "text": "Use Armour Thyroid instead"}, {"letter": "C", "text": "Halve the starting dose"}, {"letter": "D", "text": "Use liothyronine instead"}], "answer": "A", "explanation": "The sulfa allergy is a **distractor** — levothyroxine is not a sulfonamide, so it remains the drug of choice.", "objective": "", "remediation": {"steps": [{"teach": "Ask whether the drug actually contains a **sulfonamide** group. Levothyroxine is synthetic thyroid hormone.", "stem": "Is levothyroxine a sulfonamide drug?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "Levothyroxine is synthetic T4, not a sulfa drug.", "clarify": [{"stem": "Which product is still the drug of choice in this patient?", "options": [{"letter": "A", "text": "Levothyroxine"}, {"letter": "B", "text": "Liothyronine"}], "answer": "A", "explanation": "Levothyroxine stays first-line; T3 products are not routinely recommended."}]}, {"teach": "Since levothyroxine is not a sulfa drug, the allergy changes nothing.", "stem": "TPO-positive hypothyroidism (TSH 60) + sulfa allergy → Effect of the sulfa allergy on levothyroxine use:", "options": [{"letter": "A", "text": "Use liothyronine instead"}, {"letter": "B", "text": "No effect — irrelevant"}, {"letter": "C", "text": "Use Armour Thyroid instead"}, {"letter": "D", "text": "Halve the starting dose"}], "answer": "B", "explanation": "The sulfa allergy is irrelevant to levothyroxine.", "clarify": [{"stem": "Does a sulfa allergy justify a lower levothyroxine starting dose?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "No — dose is based on age and cardiac status, not allergy."}]}], "checkpoints": [{"stem": "TSH 60, low FT4, TPO antibodies 136 → Pattern:", "options": [{"letter": "A", "text": "Graves' disease"}, {"letter": "B", "text": "Toxic adenoma"}, {"letter": "C", "text": "Central hypothyroidism"}, {"letter": "D", "text": "Primary autoimmune (Hashimoto) hypothyroidism"}], "answer": "D", "explanation": "High TSH + low FT4 + **TPO antibodies** = primary autoimmune (Hashimoto) hypothyroidism."}]}}, {"id": "2", "group": 2, "slide": 6, "section": "Hypothyroidism — goals of therapy", "topic": "Goals of therapy", "skill": "Management", "stem": "What is the overall goal of hypothyroidism treatment?", "options": [{"letter": "A", "text": "Suppress TSH below normal"}, {"letter": "B", "text": "Shrink the goiter"}, {"letter": "C", "text": "Restore a euthyroid state"}, {"letter": "D", "text": "Normalize T3 only"}], "answer": "C", "explanation": "Goals: symptom relief, normal **TSH and free T4**, correct metabolic abnormalities — i.e., a **euthyroid** state.", "objective": "", "remediation": {"steps": [{"teach": "Therapy brings hormone levels back to **normal** — overshooting creates the opposite disease.", "stem": "Lab targets in treated hypothyroidism:", "options": [{"letter": "A", "text": "Normal TSH and free T4"}, {"letter": "B", "text": "Undetectable TSH"}], "answer": "A", "explanation": "Target is TSH and free T4 back in the normal range.", "clarify": [{"stem": "Pushing TSH below normal on levothyroxine produces:", "options": [{"letter": "A", "text": "Iatrogenic hyperthyroidism"}, {"letter": "B", "text": "Better symptom control"}], "answer": "A", "explanation": "Over-replacement = iatrogenic hyperthyroidism (arrhythmia, osteoporosis, tremor)."}]}], "checkpoints": [{"stem": "Hyperthyroidism → Overall goal of therapy:", "options": [{"letter": "A", "text": "Suppress TSH further"}, {"letter": "B", "text": "Relieve symptoms and minimize long-term effects of excess hormone"}, {"letter": "C", "text": "Raise free T4"}, {"letter": "D", "text": "Make the patient permanently hypothyroid"}], "answer": "B", "explanation": "Hyperthyroid goal: relieve symptoms and minimize long-term consequences — again, euthyroid."}]}}, {"id": "3", "group": 3, "slide": 8, "section": "Hypothyroidism — treatment", "topic": "Levothyroxine — properties", "skill": "Management", "stem": "What is the drug of choice for primary hypothyroidism?", "options": [{"letter": "A", "text": "Liotrix"}, {"letter": "B", "text": "Methimazole"}, {"letter": "C", "text": "Levothyroxine"}, {"letter": "D", "text": "Liothyronine"}, {"letter": "E", "text": "Armour Thyroid"}], "answer": "C", "explanation": "**Levothyroxine (synthetic T4)** is the drug of choice — supplements the deficient hormone, **for life**.", "objective": "", "remediation": {"steps": [{"teach": "The preferred product is **synthetic T4** — stable potency, once daily, converted to T3 in the periphery.", "stem": "Drug of choice is synthetic:", "options": [{"letter": "A", "text": "T4"}, {"letter": "B", "text": "T3"}], "answer": "A", "explanation": "Synthetic T4 is preferred; T3 products are not routinely recommended.", "clarify": [{"stem": "Methimazole is used for:", "options": [{"letter": "A", "text": "Hyperthyroidism"}, {"letter": "B", "text": "Hypothyroidism"}], "answer": "A", "explanation": "Methimazole is an antithyroid drug — the opposite problem."}, {"stem": "Liotrix and Armour Thyroid contain:", "options": [{"letter": "A", "text": "T3 (with T4)"}, {"letter": "B", "text": "T4 only"}], "answer": "A", "explanation": "Both contain T3, which is why they are not first-line."}]}], "checkpoints": [{"stem": "Levothyroxine → Duration of therapy in primary hypothyroidism:", "options": [{"letter": "A", "text": "Lifelong"}, {"letter": "B", "text": "12–18 months"}, {"letter": "C", "text": "Until TSH normal"}, {"letter": "D", "text": "6 months"}], "answer": "A", "explanation": "Levothyroxine replacement is **lifelong**."}]}}, {"id": "4", "group": 4, "slide": 9, "section": "Levothyroxine — properties", "topic": "Levothyroxine — properties", "skill": "Pharmacology", "stem": "What is the half-life of levothyroxine?", "options": [{"letter": "A", "text": "~30 days"}, {"letter": "B", "text": "~7 days"}, {"letter": "C", "text": "~12 hours"}, {"letter": "D", "text": "~1 day"}], "answer": "B", "explanation": "T4 half-life is **~7 days** → convenient **once-daily** dosing.", "objective": "", "remediation": {"steps": [{"teach": "Levothyroxine's long half-life is the reason it can be dosed **once daily**.", "stem": "Levothyroxine half-life is:", "options": [{"letter": "A", "text": "Short (hours)"}, {"letter": "B", "text": "Long (about a week)"}], "answer": "B", "explanation": "About 7 days.", "clarify": [{"stem": "Which thyroid product has a SHORT half-life needing 3–4 doses/day?", "options": [{"letter": "A", "text": "Liothyronine (T3)"}, {"letter": "B", "text": "Levothyroxine (T4)"}], "answer": "A", "explanation": "Liothyronine is short-acting; T4 is long-acting."}]}], "checkpoints": [{"stem": "Levothyroxine → Dosing frequency:", "options": [{"letter": "A", "text": "Weekly"}, {"letter": "B", "text": "Three to four times daily"}, {"letter": "C", "text": "Once daily"}, {"letter": "D", "text": "Twice daily"}], "answer": "C", "explanation": "Once daily, made possible by the ~7-day half-life."}]}}, {"id": "5", "group": 5, "slide": 9, "section": "Levothyroxine — properties", "topic": "Levothyroxine — properties", "skill": "Pharmacology", "stem": "To which active metabolite is levothyroxine converted in peripheral tissues?", "options": [{"letter": "A", "text": "TSH"}, {"letter": "B", "text": "Reverse T3"}, {"letter": "C", "text": "Thyroglobulin"}, {"letter": "D", "text": "T3"}], "answer": "D", "explanation": "T4 is **peripherally converted to T3**, the biologically active hormone.", "objective": "", "remediation": {"steps": [{"teach": "T4 is a prohormone; the tissues **deiodinate** it to the active form.", "stem": "Biologically active thyroid hormone:", "options": [{"letter": "A", "text": "T3"}, {"letter": "B", "text": "T4"}], "answer": "A", "explanation": "T3 is the active hormone.", "clarify": [{"stem": "Reverse T3 is:", "options": [{"letter": "A", "text": "Inactive"}, {"letter": "B", "text": "The main active form"}], "answer": "A", "explanation": "Reverse T3 is inactive."}]}], "checkpoints": [{"stem": "Why does adding T3 (e.g., liotrix) add little to T4 therapy?", "options": [{"letter": "A", "text": "T4 is converted to T3 anyway"}, {"letter": "B", "text": "T3 blocks T4 absorption"}, {"letter": "C", "text": "T3 is not absorbed orally"}, {"letter": "D", "text": "T3 raises TSH"}], "answer": "A", "explanation": "T4 is converted to T3 peripherally, so extra T3 adds nothing."}]}}, {"id": "6", "group": 6, "slide": 9, "section": "Levothyroxine — properties", "topic": "Levothyroxine — dosing & monitoring", "skill": "Management", "stem": "What should be done after a pharmacy changes a patient's levothyroxine brand or generic manufacturer?", "options": [{"letter": "A", "text": "Check TSH in 3 days"}, {"letter": "B", "text": "Raise the dose by 25% now"}, {"letter": "C", "text": "No follow-up is needed"}, {"letter": "D", "text": "Recheck TSH in 4–6 weeks"}], "answer": "D", "explanation": "Potency varies between manufacturers — **not fully interchangeable** → **recheck TSH in 4–6 weeks**.", "objective": "", "remediation": {"steps": [{"teach": "Levothyroxine has **stable potency only on the same formulation**; manufacturers differ slightly in bioavailability.", "stem": "Are levothyroxine products from different manufacturers fully interchangeable?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "No — bioavailability can differ.", "clarify": [{"stem": "Does a switch automatically mean a dose increase?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No — check TSH first"}], "answer": "B", "explanation": "Check TSH; don't change the dose blindly."}]}], "checkpoints": [{"stem": "Levothyroxine → Counseling about formulation:", "options": [{"letter": "A", "text": "Switch brands freely"}, {"letter": "B", "text": "Stay on the same manufacturer"}, {"letter": "C", "text": "Alternate brand and generic"}, {"letter": "D", "text": "Use brand only in winter"}], "answer": "B", "explanation": "Stay on the same formulation/manufacturer, and report pharmacy switches."}]}}, {"id": "7", "group": 7, "slide": 10, "section": "Levothyroxine — initial dosing", "topic": "Levothyroxine — dosing & monitoring", "skill": "Management", "stem": "What is the starting levothyroxine dose for an otherwise healthy 30-year-old with overt hypothyroidism?", "options": [{"letter": "A", "text": "0.5 mcg/kg/day"}, {"letter": "B", "text": "1.6 mcg/kg/day"}, {"letter": "C", "text": "12.5–25 mcg daily"}, {"letter": "D", "text": "25–50 mcg daily"}], "answer": "B", "explanation": "Younger (<50), otherwise healthy patients start at estimated **full replacement: 1.6 mcg/kg/day**.", "objective": "", "remediation": {"steps": [{"teach": "Age **<50** and no heart disease → you can start at **full replacement**, not a cautious low dose.", "stem": "Healthy patient under 50 → start at:", "options": [{"letter": "A", "text": "Full replacement dose"}, {"letter": "B", "text": "Low dose with slow titration"}], "answer": "A", "explanation": "Full replacement is appropriate in young, healthy patients.", "clarify": [{"stem": "12.5–25 mcg daily is the start for:", "options": [{"letter": "A", "text": "Known cardiac disease"}, {"letter": "B", "text": "Healthy 30-year-old"}], "answer": "A", "explanation": "Low starting doses are for cardiac patients."}]}], "checkpoints": [{"stem": "Overt hypothyroidism, 65-year-old, no cardiac disease → Starting dose:", "options": [{"letter": "A", "text": "12.5–25 mcg daily"}, {"letter": "B", "text": "25–50 mcg daily"}, {"letter": "C", "text": "1.6 mcg/kg/day"}, {"letter": "D", "text": "200 mcg daily"}], "answer": "B", "explanation": ">50 years without cardiac disease → **25–50 mcg daily**."}]}}, {"id": "8", "group": 8, "slide": 10, "section": "Levothyroxine — initial dosing", "topic": "Levothyroxine — dosing & monitoring", "skill": "Management", "stem": "What is the starting levothyroxine dose for a patient with hypothyroidism and known coronary artery disease?", "options": [{"letter": "A", "text": "12.5–25 mcg daily"}, {"letter": "B", "text": "25–50 mcg daily"}, {"letter": "C", "text": "100–125 mcg daily"}, {"letter": "D", "text": "1.6 mcg/kg/day"}], "answer": "A", "explanation": "Cardiac disease → **12.5–25 mcg daily** to avoid precipitating **angina or dysrhythmias**.", "objective": "", "remediation": {"steps": [{"teach": "Thyroid hormone ↑ myocardial oxygen demand, so cardiac patients get the **lowest** start.", "stem": "Cardiac disease → start levothyroxine:", "options": [{"letter": "A", "text": "Low and slow"}, {"letter": "B", "text": "At full replacement"}], "answer": "A", "explanation": "Start low (12.5–25 mcg) and titrate slowly.", "clarify": [{"stem": "25–50 mcg daily is the start for:", "options": [{"letter": "A", "text": ">50 years, no cardiac disease"}, {"letter": "B", "text": "Known CAD"}], "answer": "A", "explanation": "25–50 mcg is for older patients without heart disease."}]}], "checkpoints": [{"stem": "Low starting dose in cardiac disease → Avoids precipitating:", "options": [{"letter": "A", "text": "Hypoglycemia"}, {"letter": "B", "text": "Agranulocytosis"}, {"letter": "C", "text": "Angina or dysrhythmias"}, {"letter": "D", "text": "Hepatotoxicity"}], "answer": "C", "explanation": "Too much T4 too fast can provoke **angina or dysrhythmias**."}]}}, {"id": "9", "group": 9, "slide": 11, "section": "Levothyroxine — dosage adjustments", "topic": "Levothyroxine — dosing & monitoring", "skill": "Pharmacology", "stem": "When should TSH be rechecked after levothyroxine is started or its dose is changed?", "options": [{"letter": "A", "text": "In 1 week"}, {"letter": "B", "text": "In 6 months"}, {"letter": "C", "text": "In 4–6 weeks"}, {"letter": "D", "text": "In 12 months"}], "answer": "C", "explanation": "Check **TSH 4–6 weeks** after starting or any change — the time to reach steady state/full effect.", "objective": "", "remediation": {"steps": [{"teach": "With a ~7-day half-life, steady state takes about **5 half-lives** (~5–6 weeks).", "stem": "Is TSH at 1 week reliable after a dose change?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No — too early"}], "answer": "B", "explanation": "Too early; steady state is not reached.", "clarify": [{"stem": "Waiting a full year to recheck after a dose change is:", "options": [{"letter": "A", "text": "Too long"}, {"letter": "B", "text": "Appropriate"}], "answer": "A", "explanation": "Annual checks are only once TSH is stable."}]}], "checkpoints": [{"stem": "TSH normal on a stable levothyroxine dose → Follow-up schedule:", "options": [{"letter": "A", "text": "Every 4 weeks indefinitely"}, {"letter": "B", "text": "Recheck in 4–6 months, then annually"}, {"letter": "C", "text": "No further TSH needed"}, {"letter": "D", "text": "Every week for a year"}], "answer": "B", "explanation": "Once normal → **4–6 months**, then **annually** (sooner with symptoms)."}]}}, {"id": "10", "group": 10, "slide": 11, "section": "Levothyroxine — dosage adjustments", "topic": "Levothyroxine — dosing & monitoring", "skill": "Management", "stem": "How should the levothyroxine dose be adjusted when TSH remains above the reference range?", "options": [{"letter": "A", "text": "No change"}, {"letter": "B", "text": "Decrease dose"}, {"letter": "C", "text": "Switch to liothyronine"}, {"letter": "D", "text": "Increase dose"}], "answer": "D", "explanation": "TSH high = not enough hormone → **increase** levothyroxine (by 12.5–25 mcg).", "objective": "", "remediation": {"steps": [{"teach": "TSH moves **opposite** to thyroid hormone: low hormone → pituitary pushes TSH up.", "stem": "High TSH on therapy means the dose is:", "options": [{"letter": "A", "text": "Too low"}, {"letter": "B", "text": "Too high"}], "answer": "A", "explanation": "Under-replaced → increase.", "clarify": [{"stem": "TSH below range on levothyroxine → action:", "options": [{"letter": "A", "text": "Reduce dose"}, {"letter": "B", "text": "Increase dose"}], "answer": "A", "explanation": "Suppressed TSH = over-replacement → reduce."}]}], "checkpoints": [{"stem": "Levothyroxine → Titration increment:", "options": [{"letter": "A", "text": "5 mcg"}, {"letter": "B", "text": "50–100 mcg"}, {"letter": "C", "text": "12.5–25 mcg"}, {"letter": "D", "text": "1.6 mcg/kg"}], "answer": "C", "explanation": "Titrate in **12.5–25 mcg** increments."}]}}, {"id": "11", "group": 11, "slide": 11, "section": "Levothyroxine — dosage adjustments", "topic": "Levothyroxine — dosing & monitoring", "skill": "Pharmacology", "stem": "What is the target TSH range during treatment of primary hypothyroidism?", "options": [{"letter": "A", "text": "0.4–4 mIU/L"}, {"letter": "B", "text": "4–10 mIU/L"}, {"letter": "C", "text": "<0.1 mIU/L"}, {"letter": "D", "text": "10–20 mIU/L"}], "answer": "A", "explanation": "Goal TSH in the **normal range 0.4–4 mIU/L** (many aim for the lower half, ~1–2).", "objective": "", "remediation": {"steps": [{"teach": "The target is simply the **normal reference range** for TSH.", "stem": "Should TSH be suppressed below normal?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "No — that is over-replacement.", "clarify": [{"stem": "TSH 4–6 may be accepted in:", "options": [{"letter": "A", "text": "Patients >70"}, {"letter": "B", "text": "Pregnancy"}], "answer": "A", "explanation": "Some clinicians accept TSH 4–6 in patients over 70; pregnancy targets ~1."}]}], "checkpoints": [{"stem": "Hypothyroidism in pregnancy → Target TSH:", "options": [{"letter": "A", "text": "About 6"}, {"letter": "B", "text": "About 1"}, {"letter": "C", "text": "About 4"}, {"letter": "D", "text": "Below 0.1"}], "answer": "B", "explanation": "Pregnancy: target TSH **~1**."}]}}, {"id": "12", "group": 12, "slide": 11, "section": "Levothyroxine — dosage adjustments", "topic": "Levothyroxine — dosing & monitoring", "skill": "Pharmacology", "stem": "How does the IV levothyroxine dose compare with the oral dose?", "options": [{"letter": "A", "text": "70–75% of oral"}, {"letter": "B", "text": "150% of oral"}, {"letter": "C", "text": "25% of oral"}, {"letter": "D", "text": "Same as oral dose"}], "answer": "A", "explanation": "IV T4 = **70–75% of the oral dose** (oral bioavailability is incomplete).", "objective": "", "remediation": {"steps": [{"teach": "Oral T4 is not fully absorbed, so the IV dose must be **smaller** than oral.", "stem": "IV dose compared with oral:", "options": [{"letter": "A", "text": "Smaller"}, {"letter": "B", "text": "Larger"}], "answer": "A", "explanation": "Smaller, because IV bypasses incomplete absorption.", "clarify": [{"stem": "Is 25% of the oral dose the usual IV conversion?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No — too small"}], "answer": "B", "explanation": "The usual conversion is 70–75%."}]}], "checkpoints": [{"stem": "Patient NPO switched from oral to IV levothyroxine → Dose change:", "options": [{"letter": "A", "text": "Double the dose"}, {"letter": "B", "text": "Keep identical"}, {"letter": "C", "text": "Hold until eating"}, {"letter": "D", "text": "Reduce to ~70–75%"}], "answer": "D", "explanation": "Give ~70–75% of the oral dose IV."}]}}, {"id": "13", "group": 13, "slide": 11, "section": "Levothyroxine — monitoring", "topic": "Levothyroxine — dosing & monitoring", "skill": "Pharmacology", "stem": "Which laboratory measure guides levothyroxine dosing in central or pituitary hypothyroidism?", "options": [{"letter": "A", "text": "TPO antibodies"}, {"letter": "B", "text": "Free T4"}, {"letter": "C", "text": "Total T3"}, {"letter": "D", "text": "TSH"}], "answer": "B", "explanation": "TSH is useless when the pituitary is the problem → follow **FT4**, aim for the **upper reference range**.", "objective": "", "remediation": {"steps": [{"teach": "In central disease the **pituitary cannot make TSH** normally, so TSH won't reflect thyroid status.", "stem": "Is TSH reliable in central hypothyroidism?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "No — follow free T4 instead.", "clarify": [{"stem": "TPO antibodies are used to:", "options": [{"letter": "A", "text": "Identify autoimmune thyroiditis"}, {"letter": "B", "text": "Titrate levothyroxine"}], "answer": "A", "explanation": "TPO Ab supports a Hashimoto diagnosis; they are not a dosing target."}]}], "checkpoints": [{"stem": "Central hypothyroidism → Free T4 target:", "options": [{"letter": "A", "text": "Above normal"}, {"letter": "B", "text": "Lower reference range"}, {"letter": "C", "text": "Upper reference range"}, {"letter": "D", "text": "Below normal"}], "answer": "C", "explanation": "Aim for FT4 in the **upper** reference range."}]}}, {"id": "14", "group": 14, "slide": 12, "section": "Levothyroxine — counseling", "topic": "Levothyroxine — counseling", "skill": "Counseling & prevention", "stem": "When should levothyroxine be taken in relation to breakfast?", "options": [{"letter": "A", "text": "With breakfast"}, {"letter": "B", "text": "30–60 min before breakfast"}, {"letter": "C", "text": "With a glass of milk"}, {"letter": "D", "text": "With a calcium-rich bedtime snack"}], "answer": "B", "explanation": "**Empty stomach** with water, **30–60 minutes before breakfast** (or 3–4 h after a meal).", "objective": "", "remediation": {"steps": [{"teach": "Food and **calcium** reduce absorption — optimal absorption is on an **empty stomach**.", "stem": "Levothyroxine absorption is best:", "options": [{"letter": "A", "text": "On an empty stomach"}, {"letter": "B", "text": "With food"}], "answer": "A", "explanation": "Empty stomach.", "clarify": [{"stem": "Taking T4 with milk is a problem because of:", "options": [{"letter": "A", "text": "Calcium binding"}, {"letter": "B", "text": "Lactose"}], "answer": "A", "explanation": "Calcium binds levothyroxine."}]}], "checkpoints": [{"stem": "Levothyroxine → Acceptable alternative timing if mornings don't work:", "options": [{"letter": "A", "text": "Immediately after lunch"}, {"letter": "B", "text": "3–4 hours after a meal"}, {"letter": "C", "text": "With calcium at bedtime"}, {"letter": "D", "text": "With dinner"}], "answer": "B", "explanation": "Alternative: **3–4 hours after a meal**."}]}}, {"id": "15", "group": 15, "slide": 12, "section": "Levothyroxine — counseling", "topic": "Levothyroxine — counseling", "skill": "Counseling & prevention", "stem": "When is the full benefit expected after starting levothyroxine?", "options": [{"letter": "A", "text": "6 months"}, {"letter": "B", "text": "4–6 weeks"}, {"letter": "C", "text": "12 months"}, {"letter": "D", "text": "1–2 days"}], "answer": "B", "explanation": "Some benefit within a couple of weeks; **full benefit takes 4–6 weeks** — matching the TSH recheck.", "objective": "", "remediation": {"steps": [{"teach": "Full effect matches the time to **steady state** — the same interval used for TSH rechecks.", "stem": "Will the patient feel fully better within days?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "No — weeks are needed.", "clarify": [{"stem": "When does some benefit usually begin?", "options": [{"letter": "A", "text": "Within a couple weeks"}, {"letter": "B", "text": "After 6 months"}], "answer": "A", "explanation": "A couple of weeks for early benefit."}]}], "checkpoints": [{"stem": "Why is TSH rechecked 4–6 weeks after starting T4?", "options": [{"letter": "A", "text": "Risk of agranulocytosis"}, {"letter": "B", "text": "Hepatotoxicity window"}, {"letter": "C", "text": "Time to steady state / full effect"}, {"letter": "D", "text": "To check TPO antibodies"}], "answer": "C", "explanation": "That is when the dose reaches steady state and full effect."}]}}, {"id": "16", "group": 16, "slide": 12, "section": "Levothyroxine — adverse effects", "topic": "Levothyroxine — counseling", "skill": "Pharmacology", "stem": "What adverse effects are common when levothyroxine is taken at the correct dose?", "options": [{"letter": "A", "text": "None"}, {"letter": "B", "text": "Hepatotoxicity"}, {"letter": "C", "text": "Agranulocytosis"}, {"letter": "D", "text": "Hair loss"}], "answer": "A", "explanation": "**No common AEs** at the right dose — problems come from **over-replacement** or aggravating pre-existing CV disease.", "objective": "", "remediation": {"steps": [{"teach": "T4 is the body's own hormone — toxicity occurs only when you give **too much**.", "stem": "Levothyroxine toxicity comes from:", "options": [{"letter": "A", "text": "Over-replacement"}, {"letter": "B", "text": "Idiosyncratic reactions"}], "answer": "A", "explanation": "Over-replacement → iatrogenic hyperthyroidism.", "clarify": [{"stem": "Agranulocytosis and hepatotoxicity are AEs of:", "options": [{"letter": "A", "text": "Thionamides"}, {"letter": "B", "text": "Levothyroxine"}], "answer": "A", "explanation": "Those belong to MMI/PTU."}]}], "checkpoints": [{"stem": "Levothyroxine → Worst complication in a patient with pre-existing heart disease:", "options": [{"letter": "A", "text": "Lupus-like syndrome"}, {"letter": "B", "text": "Aggravation of cardiovascular disease"}, {"letter": "C", "text": "Rash"}, {"letter": "D", "text": "Hypoglycemia"}], "answer": "B", "explanation": "Aggravation of pre-existing **cardiovascular disease** is the worst complication."}]}}, {"id": "17", "group": 17, "slide": 12, "section": "Levothyroxine — adverse effects", "topic": "Levothyroxine — counseling", "skill": "Complications", "stem": "What long-term bone consequence can result from excessive levothyroxine replacement?", "options": [{"letter": "A", "text": "Gout"}, {"letter": "B", "text": "Osteoporosis"}, {"letter": "C", "text": "Osteomalacia"}, {"letter": "D", "text": "Avascular necrosis"}], "answer": "B", "explanation": "Overtreatment → hyperthyroid signs: **arrhythmias, osteoporosis, tremor**.", "objective": "", "remediation": {"steps": [{"teach": "Excess thyroid hormone **accelerates bone turnover**, causing loss of bone mass.", "stem": "Excess thyroid hormone causes bone:", "options": [{"letter": "A", "text": "Loss"}, {"letter": "B", "text": "Gain"}], "answer": "A", "explanation": "Bone loss → osteoporosis.", "clarify": [{"stem": "Osteomalacia is mainly due to:", "options": [{"letter": "A", "text": "Vitamin D deficiency"}, {"letter": "B", "text": "Excess thyroid hormone"}], "answer": "A", "explanation": "Osteomalacia is a mineralization defect, not a thyroid-excess effect."}]}], "checkpoints": [{"stem": "Levothyroxine overtreatment → Cardiac consequence:", "options": [{"letter": "A", "text": "Pericarditis"}, {"letter": "B", "text": "Arrhythmia"}, {"letter": "C", "text": "Heart block"}, {"letter": "D", "text": "Bradycardia"}], "answer": "B", "explanation": "**Arrhythmias** (e.g., AF) are a sign of over-replacement; also tremor; T4 is misused for weight loss."}]}}, {"id": "18", "group": 18, "slide": 13, "section": "Levothyroxine — drug interactions", "topic": "Levothyroxine — interactions", "skill": "Pharmacology", "stem": "How should concurrent use of levothyroxine with calcium, iron, or a proton pump inhibitor be managed?", "options": [{"letter": "A", "text": "Separate by 4 hours"}, {"letter": "B", "text": "Separate by 30 minutes"}, {"letter": "C", "text": "Stop the levothyroxine"}, {"letter": "D", "text": "Double the T4 dose"}], "answer": "A", "explanation": "Antacids, PPIs, H2 blockers, iron, calcium ↓ absorption → **separate administration by 4 hours**.", "objective": "", "remediation": {"steps": [{"teach": "These agents act **in the gut** — spacing the doses apart prevents the interaction.", "stem": "Fix for a binding/absorption interaction:", "options": [{"letter": "A", "text": "Separate the doses"}, {"letter": "B", "text": "Raise the dose blindly"}], "answer": "A", "explanation": "Separate administration.", "clarify": [{"stem": "Required separation for levothyroxine and iron:", "options": [{"letter": "A", "text": "4 hours"}, {"letter": "B", "text": "30 minutes"}], "answer": "A", "explanation": "4 hours."}]}], "checkpoints": [{"stem": "Antacids, PPIs, H2 blockers → Mechanism of levothyroxine interaction:", "options": [{"letter": "A", "text": "↓ T4→T3 conversion"}, {"letter": "B", "text": "↑ Thyroid-binding globulin"}, {"letter": "C", "text": "↑ CYP450 clearance"}, {"letter": "D", "text": "↓ Absorption"}], "answer": "D", "explanation": "They ↓ gastric acid or bind T4 → **↓ absorption**."}]}}, {"id": "19", "group": 19, "slide": 13, "section": "Levothyroxine — drug interactions", "topic": "Levothyroxine — interactions", "skill": "Pharmacology", "stem": "What mechanism explains the interaction between levothyroxine and oral contraceptives or estrogen?", "options": [{"letter": "A", "text": "↓ Peripheral T4→T3 conversion"}, {"letter": "B", "text": "↑ CYP450 clearance"}, {"letter": "C", "text": "↓ Gut absorption"}, {"letter": "D", "text": "↑ Thyroid-binding globulin"}], "answer": "D", "explanation": "Estrogen **↑ TBG** → more T4 bound, less free → may need to ↑ dose.", "objective": "", "remediation": {"steps": [{"teach": "Estrogen raises the **binding protein** that carries T4 in blood; bound hormone is inactive.", "stem": "More binding protein means free T4:", "options": [{"letter": "A", "text": "Falls"}, {"letter": "B", "text": "Rises"}], "answer": "A", "explanation": "Free T4 falls.", "clarify": [{"stem": "CYP450 induction is the mechanism for:", "options": [{"letter": "A", "text": "Phenytoin, rifampin"}, {"letter": "B", "text": "Oral contraceptives"}], "answer": "A", "explanation": "OCPs work through TBG, not CYP induction."}]}], "checkpoints": [{"stem": "Patient on levothyroxine starts an oral contraceptive → Expected dose need:", "options": [{"letter": "A", "text": "Must stop T4"}, {"letter": "B", "text": "No change"}, {"letter": "C", "text": "May need to increase"}, {"letter": "D", "text": "May need to decrease"}], "answer": "C", "explanation": "↑ TBG → monitor TSH; **may need ↑ dose**."}]}}, {"id": "20", "group": 20, "slide": 13, "section": "Levothyroxine — drug interactions", "topic": "Levothyroxine — interactions", "skill": "Pharmacology", "stem": "How can glucocorticoids affect levothyroxine dose requirements?", "options": [{"letter": "A", "text": "Raises it only"}, {"letter": "B", "text": "Either direction"}, {"letter": "C", "text": "Lowers it only"}, {"letter": "D", "text": "No meaningful effect"}], "answer": "B", "explanation": "Glucocorticoids are **bidirectional** (↓ TBG vs ↓ TSH and ↓ T4→T3) → **monitor and adjust**.", "objective": "", "remediation": {"steps": [{"teach": "Steroids act at several points — some effects lower the need, others raise it.", "stem": "Glucocorticoids ↓ TBG, which tends to:", "options": [{"letter": "A", "text": "Lower T4 need"}, {"letter": "B", "text": "Raise T4 need"}], "answer": "A", "explanation": "Less binding → more free hormone → lower need.", "clarify": [{"stem": "Glucocorticoids also ↓ T4→T3 conversion, which tends to:", "options": [{"letter": "A", "text": "Raise T4 need"}, {"letter": "B", "text": "Lower T4 need"}], "answer": "A", "explanation": "Less activation → higher need. Net = either direction."}]}], "checkpoints": [{"stem": "Glucocorticoid started on levothyroxine → Management:", "options": [{"letter": "A", "text": "Stop T4"}, {"letter": "B", "text": "Always halve T4"}, {"letter": "C", "text": "Always double T4"}, {"letter": "D", "text": "Monitor and adjust"}], "answer": "D", "explanation": "Monitor TSH and adjust as needed."}]}}, {"id": "21", "group": 21, "slide": 14, "section": "Levothyroxine — drug interactions", "topic": "Levothyroxine — interactions", "skill": "Pharmacology", "stem": "How do phenytoin, rifampin, and phenobarbital interact with levothyroxine?", "options": [{"letter": "A", "text": "↓ Gut absorption"}, {"letter": "B", "text": "↑ Thyroid-binding globulin"}, {"letter": "C", "text": "CYP450 induction"}, {"letter": "D", "text": "↓ Peripheral T4→T3 conversion"}], "answer": "C", "explanation": "**CYP450 inducers** accelerate thyroid hormone metabolism → ↓ effectiveness.", "objective": "", "remediation": {"steps": [{"teach": "These three drugs are classic **enzyme inducers** — they speed up hepatic metabolism.", "stem": "Rifampin is a CYP450:", "options": [{"letter": "A", "text": "Inducer"}, {"letter": "B", "text": "Inhibitor"}], "answer": "A", "explanation": "Inducer → faster T4 clearance.", "clarify": [{"stem": "↑ TBG is the mechanism for:", "options": [{"letter": "A", "text": "Estrogen / OCPs"}, {"letter": "B", "text": "Phenytoin"}], "answer": "A", "explanation": "TBG belongs to estrogen; phenytoin works via CYP induction."}]}], "checkpoints": [{"stem": "Patient on levothyroxine starts rifampin → Expected dose change:", "options": [{"letter": "A", "text": "Increase T4"}, {"letter": "B", "text": "No change"}, {"letter": "C", "text": "Decrease T4"}, {"letter": "D", "text": "Switch to PTU"}], "answer": "A", "explanation": "Monitor TSH and **be prepared to increase** the T4 dose."}]}}, {"id": "22", "group": 22, "slide": 15, "section": "T3-containing products", "topic": "T3-containing products", "skill": "Management", "stem": "What is the recommendation regarding routine T3 monotherapy or combined T4/T3 therapy for hypothyroidism?", "options": [{"letter": "A", "text": "Not routinely recommended"}, {"letter": "B", "text": "Preferred in pregnancy"}, {"letter": "C", "text": "Preferred in older adults >70"}, {"letter": "D", "text": "Preferred first-line"}], "answer": "A", "explanation": "T3-containing products are **not recommended routinely** — endocrinology may consider in selected patients.", "objective": "", "remediation": {"steps": [{"teach": "**Levothyroxine** alone is the drug of choice; T3 products have dosing and potency drawbacks.", "stem": "Drug of choice for hypothyroidism:", "options": [{"letter": "A", "text": "Levothyroxine"}, {"letter": "B", "text": "Liothyronine"}], "answer": "A", "explanation": "Levothyroxine.", "clarify": [{"stem": "Who may consider T3 products in select patients?", "options": [{"letter": "A", "text": "Endocrinology"}, {"letter": "B", "text": "Any clinician routinely"}], "answer": "A", "explanation": "Endocrinology, in selected cases."}]}], "checkpoints": [{"stem": "Patient asks for Armour Thyroid → Its regulatory limitation:", "options": [{"letter": "A", "text": "IV only"}, {"letter": "B", "text": "Requires REMS"}, {"letter": "C", "text": "Not traditionally FDA-approved"}, {"letter": "D", "text": "Banned in the US"}], "answer": "C", "explanation": "Armour (desiccated porcine) is **not traditionally FDA-approved**, with variable potency."}]}}, {"id": "23", "group": 23, "slide": 15, "section": "T3-containing products", "topic": "T3-containing products", "skill": "Pharmacology", "stem": "What is the main limitation of liothyronine (Cytomel)?", "options": [{"letter": "A", "text": "Porcine-derived"}, {"letter": "B", "text": "Needs 3–4 doses daily"}, {"letter": "C", "text": "Fixed 4:1 ratio"}, {"letter": "D", "text": "Causes agranulocytosis"}], "answer": "B", "explanation": "Synthetic T3 has a **short half-life → 3–4 doses/day**, with T3 peaks (cardiac symptoms).", "objective": "", "remediation": {"steps": [{"teach": "Liothyronine is **synthetic T3**, which has a much **shorter half-life** than T4.", "stem": "Liothyronine half-life compared with T4:", "options": [{"letter": "A", "text": "Shorter"}, {"letter": "B", "text": "Longer"}], "answer": "A", "explanation": "Shorter → multiple daily doses.", "clarify": [{"stem": "The fixed 4:1 T4:T3 ratio describes:", "options": [{"letter": "A", "text": "Liotrix"}, {"letter": "B", "text": "Liothyronine"}], "answer": "A", "explanation": "Liotrix is the 4:1 combination; liothyronine is T3 alone."}]}], "checkpoints": [{"stem": "Liothyronine → Composition:", "options": [{"letter": "A", "text": "Porcine gland"}, {"letter": "B", "text": "Synthetic T4"}, {"letter": "C", "text": "T4:T3 4:1"}, {"letter": "D", "text": "Synthetic T3"}], "answer": "D", "explanation": "Liothyronine (Cytomel) = **synthetic T3**."}]}}, {"id": "24", "group": 24, "slide": 15, "section": "T3-containing products", "topic": "T3-containing products", "skill": "Identification", "stem": "What hormones are included in liotrix (Thyrolar)?", "options": [{"letter": "A", "text": "Desiccated porcine thyroid"}, {"letter": "B", "text": "T4:T3 in 4:1 ratio"}, {"letter": "C", "text": "Synthetic T4 alone"}, {"letter": "D", "text": "Synthetic T3 alone"}], "answer": "B", "explanation": "Liotrix = synthetic **T4:T3 fixed 4:1** — extra T3 adds nothing since T4 converts anyway.", "objective": "", "remediation": {"steps": [{"teach": "Liotrix is a **combination** product of the two synthetic hormones.", "stem": "Liotrix contains:", "options": [{"letter": "A", "text": "Both T4 and T3"}, {"letter": "B", "text": "T3 only"}], "answer": "A", "explanation": "Both, in a fixed ratio.", "clarify": [{"stem": "Desiccated porcine thyroid is:", "options": [{"letter": "A", "text": "Armour Thyroid"}, {"letter": "B", "text": "Liotrix"}], "answer": "A", "explanation": "Armour is the animal-derived product."}]}], "checkpoints": [{"stem": "Desiccated porcine thyroid gland → Brand:", "options": [{"letter": "A", "text": "Armour Thyroid"}, {"letter": "B", "text": "Synthroid"}, {"letter": "C", "text": "Thyrolar"}, {"letter": "D", "text": "Cytomel"}], "answer": "A", "explanation": "Armour Thyroid = desiccated **porcine** gland."}]}}, {"id": "25", "group": 25, "slide": 16, "section": "Hypothyroidism in pregnancy", "topic": "Thyroid disease in pregnancy", "skill": "Management", "stem": "How should levothyroxine dosing change when a patient becomes pregnant?", "options": [{"letter": "A", "text": "↓ Dose 25–30%"}, {"letter": "B", "text": "No change until TSH"}, {"letter": "C", "text": "↑ Dose 25–30% now"}, {"letter": "D", "text": "Stop levothyroxine"}], "answer": "C", "explanation": "**Increase daily T4 dose 25–30% as soon as pregnancy is detected**; levothyroxine remains DOC.", "objective": "", "remediation": {"steps": [{"teach": "Pregnancy **raises thyroid hormone requirements**, and hypothyroidism increases pregnancy complications.", "stem": "Thyroid hormone needs in pregnancy:", "options": [{"letter": "A", "text": "Increase"}, {"letter": "B", "text": "Decrease"}], "answer": "A", "explanation": "They increase.", "clarify": [{"stem": "Should you wait for a TSH result before increasing?", "options": [{"letter": "A", "text": "No — increase right away"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "Increase as soon as pregnancy is detected."}]}], "checkpoints": [{"stem": "Hypothyroidism in pregnancy → TSH monitoring frequency:", "options": [{"letter": "A", "text": "Every 4 weeks"}, {"letter": "B", "text": "Once per trimester"}, {"letter": "C", "text": "Annually"}, {"letter": "D", "text": "Every 6 months"}], "answer": "A", "explanation": "TSH **every 4 weeks**, target ~1; resume pre-pregnancy dose after delivery."}]}}, {"id": "26", "group": 26, "slide": 16, "section": "Hypothyroidism in pregnancy", "topic": "Thyroid disease in pregnancy", "skill": "Management", "stem": "How should levothyroxine dosing be adjusted after delivery?", "options": [{"letter": "A", "text": "Resume pre-pregnancy dose"}, {"letter": "B", "text": "Double the current daily dose"}, {"letter": "C", "text": "Stop levothyroxine"}, {"letter": "D", "text": "Keep the pregnancy dose"}], "answer": "A", "explanation": "After delivery, **resume pre-pregnancy dosing**.", "objective": "", "remediation": {"steps": [{"teach": "The extra requirement is due to pregnancy itself, so it goes away after delivery.", "stem": "After delivery, T4 requirement:", "options": [{"letter": "A", "text": "Returns to baseline"}, {"letter": "B", "text": "Keeps rising"}], "answer": "A", "explanation": "Returns to baseline.", "clarify": [{"stem": "Is stopping levothyroxine postpartum appropriate in primary hypothyroidism?", "options": [{"letter": "A", "text": "No — lifelong"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "Therapy is lifelong."}]}], "checkpoints": [{"stem": "Hypothyroidism in pregnancy → Drug of choice:", "options": [{"letter": "A", "text": "Armour Thyroid"}, {"letter": "B", "text": "Liothyronine"}, {"letter": "C", "text": "Liotrix"}, {"letter": "D", "text": "Levothyroxine"}], "answer": "D", "explanation": "**Levothyroxine** remains the drug of choice."}]}}, {"id": "27", "group": 27, "slide": 18, "section": "Hyperthyroidism — patient case", "topic": "Goals of therapy", "skill": "Identification", "stem": "Which diagnosis is suggested by a diffuse, nontender goiter, a thyroid bruit, low TSH, and elevated free T4?", "options": [{"letter": "A", "text": "Toxic multinodular goiter"}, {"letter": "B", "text": "Hashimoto thyroiditis"}, {"letter": "C", "text": "Toxic adenoma"}, {"letter": "D", "text": "Graves' disease"}], "answer": "D", "explanation": "Diffuse goiter with a **bruit** and hyperthyroid labs = **Graves' disease**.", "objective": "", "remediation": {"steps": [{"teach": "A **bruit** means increased vascularity of a **diffusely** enlarged gland — nodules point elsewhere.", "stem": "Gland in this case is:", "options": [{"letter": "A", "text": "Diffuse, no nodules"}, {"letter": "B", "text": "Nodular"}], "answer": "A", "explanation": "Diffuse → Graves', not adenoma/MNG.", "clarify": [{"stem": "Low TSH + high FT4 indicates:", "options": [{"letter": "A", "text": "Hyperthyroidism"}, {"letter": "B", "text": "Hypothyroidism"}], "answer": "A", "explanation": "Hyperthyroid labs; Hashimoto is hypothyroid."}]}], "checkpoints": [{"stem": "Toxic adenoma / toxic MNG → Key exam difference from Graves':", "options": [{"letter": "A", "text": "Diffuse enlargement"}, {"letter": "B", "text": "Nodules"}, {"letter": "C", "text": "Bruit"}, {"letter": "D", "text": "Tenderness"}], "answer": "B", "explanation": "Toxic adenoma and MNG are **nodular**; Graves' is diffuse."}]}}, {"id": "28", "group": 28, "slide": 19, "section": "Hyperthyroidism — goals of therapy", "topic": "Goals of therapy", "skill": "Management", "stem": "In addition to antithyroid drugs and radioactive iodine, what treatment option is used for hyperthyroidism?", "options": [{"letter": "A", "text": "Surgery"}, {"letter": "B", "text": "Glucocorticoids"}, {"letter": "C", "text": "Liothyronine"}, {"letter": "D", "text": "Levothyroxine"}], "answer": "A", "explanation": "Three definitive choices: **antithyroid drugs, RAI ablation, surgery** — chosen by clinical situation and patient preference.", "objective": "", "remediation": {"steps": [{"teach": "The third option physically **removes** the gland (thyroidectomy).", "stem": "Is thyroidectomy a definitive hyperthyroid treatment?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "A", "explanation": "Yes.", "clarify": [{"stem": "Levothyroxine treats:", "options": [{"letter": "A", "text": "Hypothyroidism"}, {"letter": "B", "text": "Hyperthyroidism"}], "answer": "A", "explanation": "Levothyroxine is replacement, not hyperthyroid therapy."}]}], "checkpoints": [{"stem": "Drug class that relieves hyperthyroid symptoms while definitive therapy takes effect:", "options": [{"letter": "A", "text": "Thionamides"}, {"letter": "B", "text": "β-blockers"}, {"letter": "C", "text": "Bisphosphonates"}, {"letter": "D", "text": "Glucocorticoids"}], "answer": "B", "explanation": "**β-blockers** bridge symptoms; they don't treat the gland."}]}}, {"id": "29", "group": 29, "slide": 20, "section": "Hyperthyroidism — initial symptomatic treatment", "topic": "β-blockers", "skill": "Management", "stem": "What initial symptomatic medication is appropriate for newly diagnosed Graves disease with tremor, palpitations, and a heart rate of 92?", "options": [{"letter": "A", "text": "Levothyroxine"}, {"letter": "B", "text": "Methimazole"}, {"letter": "C", "text": "Propranolol"}, {"letter": "D", "text": "Liothyronine"}], "answer": "C", "explanation": "**β-blocker (propranolol IR)** for palpitations, anxiety, tremor, heat intolerance.", "objective": "", "remediation": {"steps": [{"teach": "Symptoms like tremor and palpitations are **adrenergic** — block them for fast relief.", "stem": "Fastest symptom relief comes from:", "options": [{"letter": "A", "text": "β-blocker"}, {"letter": "B", "text": "Thionamide"}], "answer": "A", "explanation": "β-blockers act immediately; thionamides take weeks.", "clarify": [{"stem": "Does methimazole relieve tremor within hours?", "options": [{"letter": "A", "text": "No — takes weeks"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "Thionamides take weeks."}]}], "checkpoints": [{"stem": "β-blocker in hyperthyroidism → Main limitation:", "options": [{"letter": "A", "text": "Worsens tremor"}, {"letter": "B", "text": "Does not treat the thyroid"}, {"letter": "C", "text": "Contraindicated in Graves'"}, {"letter": "D", "text": "Causes agranulocytosis"}], "answer": "B", "explanation": "β-blockers relieve symptoms but **do not treat the thyroid**."}]}}, {"id": "30", "group": 30, "slide": 20, "section": "Hyperthyroidism — initial symptomatic treatment", "topic": "β-blockers", "skill": "Pharmacology", "stem": "What is the titration target for a beta-blocker used in hyperthyroidism?", "options": [{"letter": "A", "text": "Normal TSH"}, {"letter": "B", "text": "Resting pulse ~100–110"}, {"letter": "C", "text": "Resting pulse ~80–90"}, {"letter": "D", "text": "Resting pulse ~50–60"}], "answer": "C", "explanation": "Titrate every **2–3 days** to a **resting pulse of ~80–90 bpm**.", "objective": "", "remediation": {"steps": [{"teach": "The goal is symptom control, not bradycardia.", "stem": "Target is a pulse that is:", "options": [{"letter": "A", "text": "Normal-high (~80s)"}, {"letter": "B", "text": "Bradycardic"}], "answer": "A", "explanation": "~80–90 bpm.", "clarify": [{"stem": "Is TSH the β-blocker titration target?", "options": [{"letter": "A", "text": "No — pulse"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "β-blockers don't change thyroid labs; titrate to pulse."}]}], "checkpoints": [{"stem": "β-blocker dose in hyperthyroidism → Titrate how often:", "options": [{"letter": "A", "text": "Every 4–6 weeks"}, {"letter": "B", "text": "Hourly"}, {"letter": "C", "text": "Every 2–3 days"}, {"letter": "D", "text": "Every 6 months"}], "answer": "C", "explanation": "Titrate **every 2–3 days** as needed."}]}}, {"id": "31", "group": 31, "slide": 20, "section": "Hyperthyroidism — initial symptomatic treatment", "topic": "β-blockers", "skill": "Pharmacology", "stem": "What advantage does atenolol offer over propranolol in hyperthyroidism?", "options": [{"letter": "A", "text": "Treats the gland"}, {"letter": "B", "text": "Blocks T4→T3 conversion"}, {"letter": "C", "text": "Induces Graves' remission"}, {"letter": "D", "text": "More convenient dosing"}], "answer": "D", "explanation": "Atenolol 25–50 mg **once or twice daily** vs propranolol IR **3–4 times daily**.", "objective": "", "remediation": {"steps": [{"teach": "Compare dosing frequency: propranolol IR is dosed **TID–QID**.", "stem": "Atenolol dosing:", "options": [{"letter": "A", "text": "Once or twice daily"}, {"letter": "B", "text": "Four times daily"}], "answer": "A", "explanation": "Once or twice daily.", "clarify": [{"stem": "Do β-blockers induce remission of Graves'?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "No — symptom relief only."}]}], "checkpoints": [{"stem": "Propranolol IR in hyperthyroidism → Dosing frequency:", "options": [{"letter": "A", "text": "Twice weekly"}, {"letter": "B", "text": "Weekly"}, {"letter": "C", "text": "Three to four times daily"}, {"letter": "D", "text": "Once daily"}], "answer": "C", "explanation": "Propranolol IR 10–20 mg **TID–QID**."}]}}, {"id": "32", "group": 32, "slide": 21, "section": "Antithyroid drugs — MOA", "topic": "Thionamides (MMI/PTU)", "skill": "Pharmacology", "stem": "What is the mechanism of action of methimazole and propylthiouracil (PTU)?", "options": [{"letter": "A", "text": "Block TSH receptor"}, {"letter": "B", "text": "Destroy thyroid tissue"}, {"letter": "C", "text": "Inhibit thyroid peroxidase"}, {"letter": "D", "text": "Block β-adrenergic receptors"}], "answer": "C", "explanation": "Thionamides **inhibit thyroid peroxidase** → block hormone synthesis (iodination/coupling).", "objective": "", "remediation": {"steps": [{"teach": "Thionamides act **inside the gland** on the enzyme that iodinates and couples thyroglobulin.", "stem": "Thionamides block hormone:", "options": [{"letter": "A", "text": "Synthesis"}, {"letter": "B", "text": "Release"}], "answer": "A", "explanation": "Synthesis.", "clarify": [{"stem": "Destroying thyroid tissue is the MOA of:", "options": [{"letter": "A", "text": "Radioactive iodine"}, {"letter": "B", "text": "Methimazole"}], "answer": "A", "explanation": "RAI destroys tissue; thionamides block synthesis."}]}], "checkpoints": [{"stem": "PTU and methimazole → Drug class:", "options": [{"letter": "A", "text": "Bisphosphonates"}, {"letter": "B", "text": "Glucocorticoids"}, {"letter": "C", "text": "Iodinated contrast"}, {"letter": "D", "text": "Thionamides"}], "answer": "D", "explanation": "Both are **thionamides**."}]}}, {"id": "33", "group": 33, "slide": 21, "section": "Antithyroid drugs — MOA", "topic": "Thionamides (MMI/PTU)", "skill": "Pharmacology", "stem": "What action does PTU have that methimazole does not?", "options": [{"letter": "A", "text": "Blocks hormone release"}, {"letter": "B", "text": "Blocks peripheral T4→T3"}, {"letter": "C", "text": "Destroys follicular cells"}, {"letter": "D", "text": "Inhibits thyroid peroxidase"}], "answer": "B", "explanation": "**PTU also inhibits peripheral T4→T3 conversion** — one reason it's preferred in thyroid storm.", "objective": "", "remediation": {"steps": [{"teach": "Both thionamides share TPO inhibition; PTU has an **extra peripheral** action.", "stem": "Thyroid peroxidase inhibition is shared by:", "options": [{"letter": "A", "text": "Both MMI and PTU"}, {"letter": "B", "text": "PTU only"}], "answer": "A", "explanation": "Both — so it can't be the unique answer.", "clarify": [{"stem": "PTU's extra action occurs:", "options": [{"letter": "A", "text": "In peripheral tissues"}, {"letter": "B", "text": "Only in the gland"}], "answer": "A", "explanation": "Peripheral T4→T3 conversion."}]}], "checkpoints": [{"stem": "Thyroid storm → Preferred thionamide:", "options": [{"letter": "A", "text": "Liotrix"}, {"letter": "B", "text": "Liothyronine"}, {"letter": "C", "text": "Methimazole"}, {"letter": "D", "text": "PTU"}], "answer": "D", "explanation": "**PTU** — synthesis block plus T4→T3 block."}]}}, {"id": "34", "group": 34, "slide": 21, "section": "Antithyroid drugs — MOA", "topic": "Thionamides (MMI/PTU)", "skill": "Disease process", "stem": "Why does clinical improvement take weeks after a thionamide is started?", "options": [{"letter": "A", "text": "Long half-life of TSH in the blood"}, {"letter": "B", "text": "Slow oral absorption"}, {"letter": "C", "text": "Requires a loading period"}, {"letter": "D", "text": "Stored hormone still released"}], "answer": "D", "explanation": "Thionamides block synthesis but have **no effect on release of preformed hormone** → stores must be used up.", "objective": "", "remediation": {"steps": [{"teach": "The gland has **stored** hormone already made — thionamides only stop new production.", "stem": "Do thionamides block release of stored hormone?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "No.", "clarify": [{"stem": "So during the first weeks the patient should keep taking:", "options": [{"letter": "A", "text": "The β-blocker"}, {"letter": "B", "text": "Nothing else"}], "answer": "A", "explanation": "Continue the β-blocker for symptoms."}]}], "checkpoints": [{"stem": "Thionamide counseling → When to expect improvement:", "options": [{"letter": "A", "text": "Over several weeks"}, {"letter": "B", "text": "Within hours"}, {"letter": "C", "text": "Only after RAI"}, {"letter": "D", "text": "After 12 months"}], "answer": "A", "explanation": "It takes **weeks** to feel better."}]}}, {"id": "35", "group": 35, "slide": 23, "section": "Antithyroid drugs — baseline labs", "topic": "Thionamide monitoring & AEs", "skill": "Pharmacology", "stem": "Which baseline laboratory tests should be obtained before starting methimazole or PTU?", "options": [{"letter": "A", "text": "CBC and CMP"}, {"letter": "B", "text": "HbA1c"}, {"letter": "C", "text": "Urinalysis"}, {"letter": "D", "text": "Lipid panel"}], "answer": "A", "explanation": "Baseline **CBC + CMP** because **agranulocytosis and hepatotoxicity** are rare but serious AEs of both.", "objective": "", "remediation": {"steps": [{"teach": "Think of the two serious thionamide AEs: one hits the **blood**, one hits the **liver**.", "stem": "Thionamide serious AEs:", "options": [{"letter": "A", "text": "Agranulocytosis and hepatotoxicity"}, {"letter": "B", "text": "Hypoglycemia and lactic acidosis"}], "answer": "A", "explanation": "Blood + liver.", "clarify": [{"stem": "Lab that captures neutrophils:", "options": [{"letter": "A", "text": "CBC"}, {"letter": "B", "text": "Lipid panel"}], "answer": "A", "explanation": "CBC; the CMP covers liver tests."}]}], "checkpoints": [{"stem": "On a thionamide → Routine periodic CBC/CMP?", "options": [{"letter": "A", "text": "Yes, monthly"}, {"letter": "B", "text": "No — repeat only for fever or liver symptoms"}, {"letter": "C", "text": "Yes, weekly"}, {"letter": "D", "text": "Only at 1 year"}], "answer": "B", "explanation": "Don't recheck routinely; **repeat with febrile illness or liver-injury symptoms**."}]}}, {"id": "36", "group": 36, "slide": 23, "section": "Antithyroid drugs — adverse effects", "topic": "Thionamide monitoring & AEs", "skill": "Complications", "stem": "What should be suspected when a patient taking methimazole develops fever and a sore throat?", "options": [{"letter": "A", "text": "Hepatotoxicity"}, {"letter": "B", "text": "Thyroid storm"}, {"letter": "C", "text": "Agranulocytosis"}, {"letter": "D", "text": "Lupus-like syndrome"}], "answer": "C", "explanation": "Fever/sore throat on a thionamide = **agranulocytosis** → stop drug, check CBC (usually first 3 months).", "objective": "", "remediation": {"steps": [{"teach": "Fever + sore throat = **infection** risk from loss of neutrophils.", "stem": "Fever/sore throat suggests a problem with:", "options": [{"letter": "A", "text": "White blood cells"}, {"letter": "B", "text": "The liver"}], "answer": "A", "explanation": "WBCs → agranulocytosis.", "clarify": [{"stem": "Jaundice and dark urine suggest:", "options": [{"letter": "A", "text": "Hepatotoxicity"}, {"letter": "B", "text": "Agranulocytosis"}], "answer": "A", "explanation": "Those are liver symptoms."}]}], "checkpoints": [{"stem": "Thionamide agranulocytosis → Usual timing:", "options": [{"letter": "A", "text": "Only in pregnancy"}, {"letter": "B", "text": "First 3 months"}, {"letter": "C", "text": "Only after stopping"}, {"letter": "D", "text": "After 5 years"}], "answer": "B", "explanation": "Usually within the **first 3 months**; stop drug, check CBC."}]}}, {"id": "37", "group": 37, "slide": 23, "section": "Antithyroid drugs — adverse effects", "topic": "Thionamide monitoring & AEs", "skill": "Pharmacology", "stem": "Which thionamide has the greater risk of hepatotoxicity?", "options": [{"letter": "A", "text": "Methimazole"}, {"letter": "B", "text": "Propranolol"}, {"letter": "C", "text": "Atenolol"}, {"letter": "D", "text": "PTU"}], "answer": "D", "explanation": "Hepatotoxicity occurs with both but is **more common with PTU**.", "objective": "", "remediation": {"steps": [{"teach": "One reason **methimazole** is preferred is that it is **better tolerated**.", "stem": "Which thionamide is better tolerated?", "options": [{"letter": "A", "text": "Methimazole"}, {"letter": "B", "text": "PTU"}], "answer": "A", "explanation": "MMI.", "clarify": [{"stem": "Propranolol is a:", "options": [{"letter": "A", "text": "β-blocker"}, {"letter": "B", "text": "Thionamide"}], "answer": "A", "explanation": "Not a thionamide."}]}], "checkpoints": [{"stem": "On PTU: jaundice, dark urine, RUQ pain → Action:", "options": [{"letter": "A", "text": "Stop drug and check LFTs"}, {"letter": "B", "text": "Double the dose"}, {"letter": "C", "text": "Add levothyroxine"}, {"letter": "D", "text": "Continue and recheck in 6 months"}], "answer": "A", "explanation": "Stop the drug and check LFTs — **hepatotoxicity**."}]}}, {"id": "38", "group": 38, "slide": 24, "section": "Methimazole", "topic": "Thionamides (MMI/PTU)", "skill": "Management", "stem": "Which antithyroid drug is preferred for Graves disease in a nonpregnant patient?", "options": [{"letter": "A", "text": "Methimazole"}, {"letter": "B", "text": "Propylthiouracil"}, {"letter": "C", "text": "Atenolol"}, {"letter": "D", "text": "Liothyronine"}], "answer": "A", "explanation": "**Methimazole** is typically the drug of choice: fewer AEs, better tolerated, **once daily**.", "objective": "", "remediation": {"steps": [{"teach": "Pick the thionamide that is **better tolerated** and dosed **once daily**.", "stem": "Once-daily thionamide:", "options": [{"letter": "A", "text": "Methimazole"}, {"letter": "B", "text": "PTU"}], "answer": "A", "explanation": "MMI; PTU is dosed 3–4 times daily.", "clarify": [{"stem": "PTU is preferred specifically in:", "options": [{"letter": "A", "text": "1st trimester and thyroid storm"}, {"letter": "B", "text": "All non-pregnant adults"}], "answer": "A", "explanation": "PTU has niche indications only."}]}], "checkpoints": [{"stem": "PTU → Dosing frequency (adherence issue):", "options": [{"letter": "A", "text": "3–4 times daily"}, {"letter": "B", "text": "Every other day"}, {"letter": "C", "text": "Weekly"}, {"letter": "D", "text": "Once daily"}], "answer": "A", "explanation": "PTU 300–600 mg/day in **3–4 divided doses**."}]}}, {"id": "39", "group": 39, "slide": 24, "section": "Methimazole", "topic": "Thionamides (MMI/PTU)", "skill": "Management", "stem": "Which thionamide is preferred for hyperthyroidism during the second or third trimester?", "options": [{"letter": "A", "text": "Liothyronine"}, {"letter": "B", "text": "Methimazole"}, {"letter": "C", "text": "PTU"}, {"letter": "D", "text": "Radioactive iodine"}], "answer": "B", "explanation": "**MMI** is used in the **2nd–3rd trimesters**; PTU in the 1st.", "objective": "", "remediation": {"steps": [{"teach": "PTU is preferred only in the **first trimester** (less teratogenic); for the rest of pregnancy, switch.", "stem": "After the 1st trimester, switch from PTU to:", "options": [{"letter": "A", "text": "Methimazole"}, {"letter": "B", "text": "RAI"}], "answer": "A", "explanation": "MMI.", "clarify": [{"stem": "RAI during pregnancy is:", "options": [{"letter": "A", "text": "Contraindicated"}, {"letter": "B", "text": "Preferred"}], "answer": "A", "explanation": "RAI is contraindicated in pregnancy."}]}], "checkpoints": [{"stem": "Graves' in 1st trimester → Preferred thionamide:", "options": [{"letter": "A", "text": "Methimazole"}, {"letter": "B", "text": "Atenolol alone"}, {"letter": "C", "text": "PTU"}, {"letter": "D", "text": "Radioactive iodine"}], "answer": "C", "explanation": "**PTU** in the 1st trimester (less teratogenic)."}]}}, {"id": "40", "group": 40, "slide": 24, "section": "Methimazole — monitoring", "topic": "Thionamide monitoring & AEs", "skill": "Pharmacology", "stem": "Which laboratory tests should be checked every 4–6 weeks initially after starting methimazole?", "options": [{"letter": "A", "text": "TSH alone"}, {"letter": "B", "text": "Free T4 and total T3"}, {"letter": "C", "text": "CBC with differential"}, {"letter": "D", "text": "TPO antibodies"}], "answer": "B", "explanation": "Monitor **FT4 + total T3** q4–6 wk — **TSH is misleading early** (stays suppressed).", "objective": "", "remediation": {"steps": [{"teach": "After hyperthyroidism, the pituitary stays **suppressed** for weeks, so TSH lags.", "stem": "Early in therapy, TSH is:", "options": [{"letter": "A", "text": "Misleading (still suppressed)"}, {"letter": "B", "text": "The best marker"}], "answer": "A", "explanation": "Misleading.", "clarify": [{"stem": "CBC and CMP on a thionamide are repeated:", "options": [{"letter": "A", "text": "For fever or liver symptoms"}, {"letter": "B", "text": "Every 4–6 weeks"}], "answer": "A", "explanation": "Not routinely."}]}], "checkpoints": [{"stem": "On methimazole, why is TSH unreliable in the first weeks?", "options": [{"letter": "A", "text": "It stays suppressed"}, {"letter": "B", "text": "MMI interferes with the assay"}, {"letter": "C", "text": "TSH is not made in Graves'"}, {"letter": "D", "text": "It is falsely high"}], "answer": "A", "explanation": "TSH **remains suppressed** for weeks after FT4 normalizes."}]}}, {"id": "41", "group": 41, "slide": 24, "section": "Methimazole — monitoring", "topic": "Thionamides (MMI/PTU)", "skill": "Management", "stem": "How should the methimazole dose be adjusted once free T4 and T3 normalize?", "options": [{"letter": "A", "text": "Decrease by 30–50%"}, {"letter": "B", "text": "Stop abruptly"}, {"letter": "C", "text": "Keep the same dose"}, {"letter": "D", "text": "Increase by 30–50%"}], "answer": "A", "explanation": "Once normal, **↓ MMI 30–50%**, recheck q4–6 wk → maintenance with TSH + FT4 every few months.", "objective": "", "remediation": {"steps": [{"teach": "Once the excess hormone is controlled, a **lower maintenance** dose is needed.", "stem": "After euthyroid, MMI dose usually:", "options": [{"letter": "A", "text": "Goes down"}, {"letter": "B", "text": "Goes up"}], "answer": "A", "explanation": "Goes down.", "clarify": [{"stem": "Is MMI stopped as soon as FT4 normalizes?", "options": [{"letter": "A", "text": "No — continue for 12–18 months"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "Therapy continues 12–18 months."}]}], "checkpoints": [{"stem": "Stable maintenance MMI dose → Monitoring:", "options": [{"letter": "A", "text": "No labs"}, {"letter": "B", "text": "CBC weekly"}, {"letter": "C", "text": "TSH and FT4 every few months"}, {"letter": "D", "text": "TPO antibodies monthly"}], "answer": "C", "explanation": "**TSH + FT4 every few months** on maintenance."}]}}, {"id": "42", "group": 42, "slide": 25, "section": "PTU", "topic": "Thionamides (MMI/PTU)", "skill": "Management", "stem": "Which antithyroid drug is preferred in thyroid storm?", "options": [{"letter": "A", "text": "Liothyronine"}, {"letter": "B", "text": "PTU"}, {"letter": "C", "text": "Methimazole"}, {"letter": "D", "text": "Levothyroxine"}], "answer": "B", "explanation": "**PTU** — blocks synthesis **and** peripheral T4→T3 conversion; can give by NG tube or rectally.", "objective": "", "remediation": {"steps": [{"teach": "In storm you want to cut **active T3** fast — choose the thionamide that also blocks **peripheral conversion**.", "stem": "Thionamide that blocks T4→T3 conversion:", "options": [{"letter": "A", "text": "PTU"}, {"letter": "B", "text": "Methimazole"}], "answer": "A", "explanation": "PTU.", "clarify": [{"stem": "Levothyroxine in thyroid storm would:", "options": [{"letter": "A", "text": "Worsen it"}, {"letter": "B", "text": "Treat it"}], "answer": "A", "explanation": "Adding hormone worsens storm."}]}], "checkpoints": [{"stem": "Thyroid storm → Symptom-control drug added to PTU:", "options": [{"letter": "A", "text": "β-blocker"}, {"letter": "B", "text": "Levothyroxine"}, {"letter": "C", "text": "Teprotumumab"}, {"letter": "D", "text": "Liotrix"}], "answer": "A", "explanation": "Add a **β-blocker** for symptoms."}]}}, {"id": "43", "group": 43, "slide": 25, "section": "Antithyroid drugs — adverse effects", "topic": "Thionamide monitoring & AEs", "skill": "Pharmacology", "stem": "Which thionamide more commonly causes a maculopapular rash?", "options": [{"letter": "A", "text": "Both equally"}, {"letter": "B", "text": "Methimazole"}, {"letter": "C", "text": "Propylthiouracil"}, {"letter": "D", "text": "Neither"}], "answer": "B", "explanation": "Rash, arthralgias, lupus-like syndrome occur with either — **rash especially with MMI**.", "objective": "", "remediation": {"steps": [{"teach": "The slide flags rash as an AE of both thionamides, **especially** one of them.", "stem": "Is rash seen with thionamides?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "A", "explanation": "Yes.", "clarify": [{"stem": "Higher hepatotoxicity is associated with:", "options": [{"letter": "A", "text": "PTU"}, {"letter": "B", "text": "Methimazole"}], "answer": "A", "explanation": "PTU is the liver one; MMI is the rash one."}]}], "checkpoints": [{"stem": "Thionamide (either drug) → Autoimmune-type adverse effect:", "options": [{"letter": "A", "text": "Psoriasis"}, {"letter": "B", "text": "Myasthenia gravis"}, {"letter": "C", "text": "Vitiligo"}, {"letter": "D", "text": "Lupus-like syndrome"}], "answer": "D", "explanation": "**Lupus-like syndrome** and arthralgias can occur with PTU or MMI."}]}}, {"id": "44", "group": 44, "slide": 26, "section": "Graves' — duration and remission", "topic": "Thionamides (MMI/PTU)", "skill": "Management", "stem": "How long is methimazole typically continued for Graves disease when aiming for remission?", "options": [{"letter": "A", "text": "Lifelong therapy"}, {"letter": "B", "text": "3 months"}, {"letter": "C", "text": "4–6 weeks"}, {"letter": "D", "text": "12–18 months"}], "answer": "D", "explanation": "Continue MMI **12–18 months** in hopes of inducing remission.", "objective": "", "remediation": {"steps": [{"teach": "Remission needs a **prolonged** course — longer than a few months but not necessarily lifelong.", "stem": "Is a 4–6-week course enough for remission?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "No — that's just the lab-check interval.", "clarify": [{"stem": "Lifelong thionamide is an option mainly for:", "options": [{"letter": "A", "text": "Toxic adenoma/MNG by choice"}, {"letter": "B", "text": "Every Graves' patient"}], "answer": "A", "explanation": "Nodular disease won't remit; patients may choose lifelong drug."}]}], "checkpoints": [{"stem": "Thionamides for 1–2 years in Graves' → Permanent remission rate:", "options": [{"letter": "A", "text": "~75%"}, {"letter": "B", "text": "~40%"}, {"letter": "C", "text": "~10%"}, {"letter": "D", "text": "~95%"}], "answer": "B", "explanation": "Remission averages **~40%** at 1–2 years."}]}}, {"id": "45", "group": 45, "slide": 26, "section": "Graves' — duration and remission", "topic": "Thionamide monitoring & AEs", "skill": "Diagnostics & imaging", "stem": "What does disappearance of TSI or TRAb at the end of a methimazole course indicate?", "options": [{"letter": "A", "text": "Good prognosis"}, {"letter": "B", "text": "Poor prognosis"}, {"letter": "C", "text": "Relapse imminent"}, {"letter": "D", "text": "Need for RAI"}], "answer": "A", "explanation": "TSI/TRAb disappearing = **good prognostic sign**; persistently elevated = poor.", "objective": "", "remediation": {"steps": [{"teach": "TSI are the **antibodies driving Graves'** — losing them means the disease is quieting.", "stem": "Persistently high TSI suggests:", "options": [{"letter": "A", "text": "Poor prognosis"}, {"letter": "B", "text": "Remission"}], "answer": "A", "explanation": "Poor prognosis/relapse risk.", "clarify": [{"stem": "TSI can be followed to decide when to:", "options": [{"letter": "A", "text": "Taper MMI"}, {"letter": "B", "text": "Start levothyroxine"}], "answer": "A", "explanation": "Some endocrinologists follow them serially to time tapering."}]}], "checkpoints": [{"stem": "Graves' remitted after thionamide → Follow-up:", "options": [{"letter": "A", "text": "RAI anyway"}, {"letter": "B", "text": "TSH annually (watch for recurrence)"}, {"letter": "C", "text": "No follow-up"}, {"letter": "D", "text": "CBC monthly"}], "answer": "B", "explanation": "Recurrence can occur months to years later → **monitor TSH**."}]}}, {"id": "46", "group": 46, "slide": 26, "section": "Graves' — relapse", "topic": "Radioactive iodine (I-131)", "skill": "Management", "stem": "What is the typical next step when Graves disease relapses after 12–18 months of methimazole?", "options": [{"letter": "A", "text": "Levothyroxine"}, {"letter": "B", "text": "Liothyronine"}, {"letter": "C", "text": "Radioactive iodine"}, {"letter": "D", "text": "Long-term β-blocker alone"}], "answer": "C", "explanation": "**RAI** is typically used for relapse; patients may continue thionamides; surgery if meds fail.", "objective": "", "remediation": {"steps": [{"teach": "After drug failure, move to a **definitive** treatment.", "stem": "Definitive Graves' therapies include:", "options": [{"letter": "A", "text": "RAI and surgery"}, {"letter": "B", "text": "β-blockers"}], "answer": "A", "explanation": "RAI or surgery.", "clarify": [{"stem": "Can a relapsed patient choose to continue thionamides?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "A", "explanation": "Yes, if preferred."}]}], "checkpoints": [{"stem": "Graves' meds fail or not tolerated → Other definitive option besides RAI:", "options": [{"letter": "A", "text": "Liotrix"}, {"letter": "B", "text": "Levothyroxine"}, {"letter": "C", "text": "Glucocorticoids"}, {"letter": "D", "text": "Surgery"}], "answer": "D", "explanation": "**Surgery** (thyroidectomy)."}]}}, {"id": "47", "group": 47, "slide": 28, "section": "RAI ablation", "topic": "Radioactive iodine (I-131)", "skill": "Management", "stem": "What is the agent of choice for a toxic adenoma or toxic multinodular goiter?", "options": [{"letter": "A", "text": "Propylthiouracil (PTU)"}, {"letter": "B", "text": "Methimazole"}, {"letter": "C", "text": "Propranolol"}, {"letter": "D", "text": "Radioactive iodine"}], "answer": "D", "explanation": "**I-131** is the agent of choice — nodular disease is unlikely to remit on thionamides.", "objective": "", "remediation": {"steps": [{"teach": "Nodular autonomous disease **won't remit** on drugs — choose a definitive therapy.", "stem": "Do toxic adenoma/MNG remit on thionamides?", "options": [{"letter": "A", "text": "Unlikely"}, {"letter": "B", "text": "Usually"}], "answer": "A", "explanation": "Unlikely.", "clarify": [{"stem": "Propranolol treats:", "options": [{"letter": "A", "text": "Symptoms only"}, {"letter": "B", "text": "The nodule"}], "answer": "A", "explanation": "Symptom relief only."}]}], "checkpoints": [{"stem": "Toxic MNG patient refuses RAI → Drug alternative:", "options": [{"letter": "A", "text": "Lifelong thionamide"}, {"letter": "B", "text": "Levothyroxine"}, {"letter": "C", "text": "Liothyronine"}, {"letter": "D", "text": "Short 6-week MMI course"}], "answer": "A", "explanation": "Patients may choose **lifelong** antithyroid drug therapy."}]}}, {"id": "48", "group": 48, "slide": 28, "section": "RAI ablation", "topic": "Radioactive iodine (I-131)", "skill": "Pharmacology", "stem": "Which type of radiation from iodine-131 produces its therapeutic tissue-destroying effect?", "options": [{"letter": "A", "text": "X-ray"}, {"letter": "B", "text": "Beta"}, {"letter": "C", "text": "Alpha"}, {"letter": "D", "text": "Gamma"}], "answer": "B", "explanation": "**Beta rays** destroy thyroid tissue (therapy); **gamma** rays are diagnostic.", "objective": "", "remediation": {"steps": [{"teach": "I-131 emits two kinds of rays — one for **imaging**, one for **destruction**.", "stem": "Gamma rays from I-131 are used for:", "options": [{"letter": "A", "text": "Diagnosis"}, {"letter": "B", "text": "Therapy"}], "answer": "A", "explanation": "Diagnosis.", "clarify": [{"stem": "I-131 MOA in hyperthyroidism:", "options": [{"letter": "A", "text": "Destroys thyroid tissue"}, {"letter": "B", "text": "Inhibits thyroid peroxidase"}], "answer": "A", "explanation": "Tissue destruction; TPO inhibition is thionamides."}]}], "checkpoints": [{"stem": "Radioactive iodine → Mechanism of action:", "options": [{"letter": "A", "text": "Destroys thyroid tissue"}, {"letter": "B", "text": "Inhibits thyroid peroxidase"}, {"letter": "C", "text": "Blocks T4→T3"}, {"letter": "D", "text": "Blocks β-receptors"}], "answer": "A", "explanation": "RAI **destroys thyroid tissue** (gradually)."}]}}, {"id": "49", "group": 49, "slide": 28, "section": "RAI ablation", "topic": "Radioactive iodine (I-131)", "skill": "Pharmacology", "stem": "What is an absolute contraindication to radioactive iodine treatment?", "options": [{"letter": "A", "text": "Prior methimazole pretreatment"}, {"letter": "B", "text": "Sulfa allergy"}, {"letter": "C", "text": "Age over 50"}, {"letter": "D", "text": "Pregnancy and lactation"}], "answer": "D", "explanation": "RAI is **contraindicated in pregnancy and lactation** — get a **negative pregnancy test** first.", "objective": "", "remediation": {"steps": [{"teach": "Radiation exposure is unacceptable for a **fetus or nursing infant**.", "stem": "Before RAI in a woman of childbearing age, obtain:", "options": [{"letter": "A", "text": "Negative pregnancy test"}, {"letter": "B", "text": "TPO antibodies"}], "answer": "A", "explanation": "Pregnancy test.", "clarify": [{"stem": "Prior methimazole use:", "options": [{"letter": "A", "text": "Is allowed (stop 2–3 days before)"}, {"letter": "B", "text": "Contraindicates RAI"}], "answer": "A", "explanation": "MMI pretreatment is common."}]}], "checkpoints": [{"stem": "Graves' with moderate–severe ophthalmopathy → Therapy to use with caution:", "options": [{"letter": "A", "text": "Radioactive iodine"}, {"letter": "B", "text": "Surgery"}, {"letter": "C", "text": "Propranolol"}, {"letter": "D", "text": "Methimazole"}], "answer": "A", "explanation": "RAI **may worsen Graves' ophthalmopathy**."}]}}, {"id": "50", "group": 50, "slide": 29, "section": "RAI ablation", "topic": "Radioactive iodine (I-131)", "skill": "Complications", "stem": "What is the most common long-term outcome after radioactive iodine ablation?", "options": [{"letter": "A", "text": "Agranulocytosis"}, {"letter": "B", "text": "Persistent hyperthyroidism"}, {"letter": "C", "text": "Thyroid cancer"}, {"letter": "D", "text": "Hypothyroidism"}], "answer": "D", "explanation": "Large majority become **hypothyroid → lifelong levothyroxine**.", "objective": "", "remediation": {"steps": [{"teach": "RAI **destroys** thyroid tissue — what's left often can't make enough hormone.", "stem": "Destroying thyroid tissue tends to cause:", "options": [{"letter": "A", "text": "Too little hormone"}, {"letter": "B", "text": "Too much hormone long-term"}], "answer": "A", "explanation": "Hypothyroidism.", "clarify": [{"stem": "Thyroid cancer risk after RAI:", "options": [{"letter": "A", "text": "Slightly ↑ in some studies"}, {"letter": "B", "text": "The most common outcome"}], "answer": "A", "explanation": "A small possible increase, not the usual outcome."}]}], "checkpoints": [{"stem": "Hypothyroid after RAI → Treatment:", "options": [{"letter": "A", "text": "Methimazole"}, {"letter": "B", "text": "PTU"}, {"letter": "C", "text": "Lifelong levothyroxine"}, {"letter": "D", "text": "Repeat RAI"}], "answer": "C", "explanation": "**Lifelong T4** replacement."}]}}, {"id": "51", "group": 51, "slide": 29, "section": "RAI ablation", "topic": "Radioactive iodine (I-131)", "skill": "Management", "stem": "What treatment can cover transient worsening of hyperthyroidism after radioactive iodine therapy?", "options": [{"letter": "A", "text": "β-blocker"}, {"letter": "B", "text": "Liothyronine"}, {"letter": "C", "text": "Levothyroxine"}, {"letter": "D", "text": "Glucocorticoid"}], "answer": "A", "explanation": "RAI can cause a **transient flare** → use **β-blockers**.", "objective": "", "remediation": {"steps": [{"teach": "RAI can **transiently worsen** hyperthyroidism before tissue is destroyed — treat the adrenergic symptoms.", "stem": "Flare symptoms (palpitations, tremor) are best controlled by:", "options": [{"letter": "A", "text": "β-blocker"}, {"letter": "B", "text": "Levothyroxine"}], "answer": "A", "explanation": "β-blocker.", "clarify": [{"stem": "Giving T4 during a hyperthyroid flare would:", "options": [{"letter": "A", "text": "Worsen it"}, {"letter": "B", "text": "Help it"}], "answer": "A", "explanation": "Worsen it."}]}], "checkpoints": [{"stem": "Pretreated with methimazole before RAI → When to stop MMI:", "options": [{"letter": "A", "text": "Continue through RAI"}, {"letter": "B", "text": "Day after RAI"}, {"letter": "C", "text": "2–3 days before RAI"}, {"letter": "D", "text": "2–3 months before RAI"}], "answer": "C", "explanation": "Stop MMI **2–3 days before** RAI."}]}}, {"id": "52", "group": 52, "slide": 29, "section": "RAI ablation", "topic": "Radioactive iodine (I-131)", "skill": "Counseling & prevention", "stem": "After how long may radioactive iodine be repeated if hyperthyroidism persists?", "options": [{"letter": "A", "text": "Never repeated"}, {"letter": "B", "text": "2 weeks"}, {"letter": "C", "text": "5 years"}, {"letter": "D", "text": "6 months"}], "answer": "D", "explanation": "RAI destroys tissue **gradually**; may **repeat in 6 months** if still hyperthyroid.", "objective": "", "remediation": {"steps": [{"teach": "RAI works **gradually**, so you must wait months to judge the effect.", "stem": "RAI effect on thyroid tissue is:", "options": [{"letter": "A", "text": "Gradual"}, {"letter": "B", "text": "Immediate"}], "answer": "A", "explanation": "Gradual.", "clarify": [{"stem": "Repeating RAI at 2 weeks would be:", "options": [{"letter": "A", "text": "Too early"}, {"letter": "B", "text": "Standard"}], "answer": "A", "explanation": "Too early."}]}], "checkpoints": [{"stem": "Radioactive iodine → Common adverse effect:", "options": [{"letter": "A", "text": "Hypoglycemia"}, {"letter": "B", "text": "Lupus-like syndrome"}, {"letter": "C", "text": "Agranulocytosis"}, {"letter": "D", "text": "Dry mouth / taste loss"}], "answer": "D", "explanation": "**Dry mouth**, sometimes loss of taste."}]}}, {"id": "53", "group": 53, "slide": 30, "section": "Thyroid eye disease", "topic": "Thyroid eye disease", "skill": "Pharmacology", "stem": "What does teprotumumab target in thyroid eye disease?", "options": [{"letter": "A", "text": "TNF-α"}, {"letter": "B", "text": "CD20"}, {"letter": "C", "text": "IGF-1 receptor"}, {"letter": "D", "text": "Thyroid peroxidase"}], "answer": "C", "explanation": "**Teprotumumab = anti-IGF-1R** monoclonal antibody (IV q3 wk × 8) for TED.", "objective": "", "remediation": {"steps": [{"teach": "TED is driven by TSI and **IGF-1 receptors** on orbital fibroblasts.", "stem": "Receptor on orbital fibroblasts targeted in TED:", "options": [{"letter": "A", "text": "IGF-1R"}, {"letter": "B", "text": "β1-receptor"}], "answer": "A", "explanation": "IGF-1R.", "clarify": [{"stem": "Anti-CD20 antibody used in TED:", "options": [{"letter": "A", "text": "Rituximab"}, {"letter": "B", "text": "Teprotumumab"}], "answer": "A", "explanation": "Rituximab targets CD20."}]}], "checkpoints": [{"stem": "Rituximab → Target:", "options": [{"letter": "A", "text": "IL-6"}, {"letter": "B", "text": "IGF-1R"}, {"letter": "C", "text": "TSH receptor"}, {"letter": "D", "text": "CD20"}], "answer": "D", "explanation": "Rituximab = **anti-CD20**."}]}}, {"id": "54", "group": 54, "slide": 30, "section": "Thyroid eye disease", "topic": "Thyroid eye disease", "skill": "Counseling & prevention", "stem": "What is a key lifestyle measure for a patient with thyroid eye disease?", "options": [{"letter": "A", "text": "Weight loss"}, {"letter": "B", "text": "Caffeine avoidance"}, {"letter": "C", "text": "Low-iodine diet"}, {"letter": "D", "text": "Smoking cessation"}], "answer": "D", "explanation": "**Quit smoking and avoid all smoke**; plus lubricants, sunglasses, nocturnal masks, selenium.", "objective": "", "remediation": {"steps": [{"teach": "A modifiable exposure strongly worsens Graves' eye disease.", "stem": "Cigarette smoke and TED:", "options": [{"letter": "A", "text": "Worsens it"}, {"letter": "B", "text": "No effect"}], "answer": "A", "explanation": "Worsens it.", "clarify": [{"stem": "Other local TED measure:", "options": [{"letter": "A", "text": "Eye lubricants"}, {"letter": "B", "text": "Iodine supplements"}], "answer": "A", "explanation": "Lubricants, sunglasses, nocturnal masks."}]}], "checkpoints": [{"stem": "Supplement recommended in thyroid eye disease:", "options": [{"letter": "A", "text": "Selenium"}, {"letter": "B", "text": "Iodine"}, {"letter": "C", "text": "Iron"}, {"letter": "D", "text": "Calcium"}], "answer": "A", "explanation": "**Selenium** supplements."}]}}, {"id": "55", "group": 55, "slide": 32, "section": "Thyroid eye disease", "topic": "Thyroid eye disease", "skill": "Counseling & prevention", "stem": "What should be specifically assessed at every visit for Graves disease?", "options": [{"letter": "A", "text": "Hearing"}, {"letter": "B", "text": "Eyes and vision"}, {"letter": "C", "text": "Hair loss and skin"}, {"letter": "D", "text": "Gait"}], "answer": "B", "explanation": "Ask about **eyes/vision** every visit, do a primary-care eye exam, refer to a **TED-experienced** ophthalmologist.", "objective": "", "remediation": {"steps": [{"teach": "Graves' has a well-known **extra-thyroidal** complication affecting the orbit.", "stem": "Graves' extra-thyroidal complication:", "options": [{"letter": "A", "text": "Ophthalmopathy"}, {"letter": "B", "text": "Hearing loss"}], "answer": "A", "explanation": "Ophthalmopathy (TED).", "clarify": [{"stem": "Moderate–severe TED → refer to:", "options": [{"letter": "A", "text": "TED-experienced ophthalmologist"}, {"letter": "B", "text": "Audiologist"}], "answer": "A", "explanation": "Ophthalmology with TED expertise + endocrinology."}]}], "checkpoints": [{"stem": "Moderate–severe, sight-threatening TED → Who should co-manage:", "options": [{"letter": "A", "text": "Dermatology"}, {"letter": "B", "text": "Primary care alone"}, {"letter": "C", "text": "Rheumatology"}, {"letter": "D", "text": "Endocrinology + TED ophthalmology"}], "answer": "D", "explanation": "Input from **endocrinology and TED-experienced ophthalmology**."}]}}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  const LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  function shuffleOptions(item) {
+    if (!item || !item.options || item.options.length < 2) return;
+    const key = (item.options.find(o => o.letter === item.answer) || {}).text;
+    const texts = item.options.map(o => o.text);
+    for (let i = texts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [texts[i], texts[j]] = [texts[j], texts[i]]; }
+    item.options = texts.map((t, i) => ({ letter: LET[i], text: t }));
+    item.answer = (item.options.find(o => o.text === key) || {}).letter;
+  }
+  // Tutor questions get fresh option order on every open, like the main exam
+  if (EXAM_DATA.shuffleTutorOptions !== false) {
+    questions.forEach(q => {
+      const r = q.remediation; if (!r) return;
+      (r.steps || []).forEach(s => { shuffleOptions(s); (s.clarify || []).forEach(shuffleOptions); });
+      (r.checkpoints || []).forEach(shuffleOptions);
+    });
+  }
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter (FIRST attempt — this is what is scored)
+  const tutor = {};          // question id -> tutor session (see startTutor)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);
+  let page = 0;
+  let lastGrade = null;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const optText = (item, letter) => { const o = item.options.find(x => x.letter === letter); return o ? o.text : ''; };
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  // ================= Adaptive tutor engine =================
+  // A session is a growing "trail" of nodes rendered under the missed question.
+  // Node kinds: step | clarify | checkpoint (answerable), note (text only).
+  function hasTutor(q) { return !!(q.remediation && q.remediation.steps && q.remediation.steps.length); }
+
+  function startTutor(q) {
+    const t = { status: 'active', phase: 'steps', trail: [], step: 0, clar: 0, wrong: [], cp: 0 };
+    tutor[q.id] = t;
+    pushStep(q, t, false);
+  }
+
+  function pushStep(q, t, retry) {
+    const steps = q.remediation.steps;
+    if (t.step >= steps.length) return finishSteps(q, t);
+    t.trail.push({ kind: 'step', item: steps[t.step], sIdx: t.step, retry: retry,
+                   elim: retry ? t.wrong.slice() : [], chosen: null, revealed: false });
+  }
+
+  function nextStep(q, t) { t.step++; t.clar = 0; t.wrong = []; pushStep(q, t, false); }
+
+  function pushClarify(q, t) {
+    const cl = q.remediation.steps[t.step].clarify || [];
+    if (t.clar < cl.length) {
+      t.trail.push({ kind: 'clarify', item: cl[t.clar], sIdx: t.step, chosen: null, revealed: false });
+      t.clar++;
+      return true;
+    }
+    return false;
+  }
+
+  function finishSteps(q, t) {
+    t.phase = 'checkpoint';
+    t.trail.push({ kind: 'note', cls: 'reveal',
+      html: '<b>Back to Question ' + esc(q.id) + ':</b> the answer is <b>' + esc(q.answer) + '. ' + fmt(optText(q, q.answer)) + '</b>' +
+            (q.explanation ? '<div style="margin-top:4px">' + fmt(q.explanation) + '</div>' : '') });
+    pushCheckpoint(q, t);
+  }
+
+  function pushCheckpoint(q, t) {
+    const cps = q.remediation.checkpoints || [];
+    if (t.cp < cps.length) {
+      t.trail.push({ kind: 'checkpoint', item: cps[t.cp], chosen: null, revealed: false, n: t.cp + 1 });
+    } else if (!cps.length) {
+      t.status = 'mastered'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Pathway complete — continue the case.' });
+    } else {
+      t.status = 'review'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'review',
+        html: '⚑ Flagged for review — this concept is saved to your missed list. Continue the case when ready.' });
+    }
+  }
+
+  function tutorAnswer(q, idx, letter) {
+    const t = tutor[q.id];
+    const node = t.trail[idx];
+    if (!node || node.chosen !== null || idx !== t.trail.length - 1) return;
+    node.chosen = letter;
+    const ok = letter === node.item.answer;
+
+    if (node.kind === 'step') {
+      if (ok) return nextStep(q, t);
+      t.wrong.push(letter);
+      if (pushClarify(q, t)) return;
+      // Out of simpler questions: teach the step's answer, then move on
+      node.revealed = true;
+      return nextStep(q, t);
+    }
+    if (node.kind === 'clarify') {
+      if (ok) return pushStep(q, t, true);              // foundation fixed -> retry the step
+      if (pushClarify(q, t)) return;                    // still shaky -> go simpler again
+      node.revealed = true;                             // teach the basic fact, then retry the step
+      return pushStep(q, t, true);
+    }
+    if (node.kind === 'checkpoint') {
+      if (ok) {
+        t.status = 'mastered'; t.phase = 'done';
+        t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Mastered — you applied it to a new case. Continue below.' });
+        return;
+      }
+      node.revealed = true;
+      t.cp++;
+      const more = t.cp < (q.remediation.checkpoints || []).length;
+      if (more) t.trail.push({ kind: 'note', cls: 'info', html: 'Same concept, one more case:' });
+      return pushCheckpoint(q, t);
+    }
+  }
+
+  // A question is "resolved" (lets its follow-up appear) once answered right,
+  // answered wrong without a pathway, or its pathway has finished.
+  function resolved(q) {
+    if (answers[q.id] === undefined) return false;
+    if (answers[q.id] === q.answer || !hasTutor(q)) return true;
+    return tutor[q.id] && tutor[q.id].status !== 'active';
+  }
+
+  function tutorStatus(q) {
+    const t = tutor[q.id];
+    return t ? t.status : null;
+  }
+
+  function nodeHtml(q, node, idx, interactive) {
+    if (node.kind === 'note') return '<div class="tnote ' + node.cls + '">' + node.html + '</div>';
+    const it = node.item;
+    const answered = node.chosen !== null;
+    const live = interactive && !answered;
+    let label;
+    if (node.kind === 'step') label = '<span class="tlabel">Step ' + (node.sIdx + 1) + ' of ' + q.remediation.steps.length + (node.retry ? ' · try again' : '') + '</span>';
+    else if (node.kind === 'clarify') label = '<span class="tlabel clar">Let\'s go simpler</span>';
+    else label = '<span class="tlabel cp">Mastery check' + ((q.remediation.checkpoints || []).length > 1 ? ' ' + node.n : '') + '</span>';
+
+    let html = '<div class="tnode' + (answered ? ' done' : ' active') + '" data-tq="' + esc(q.id) + '" data-tidx="' + idx + '">' + label;
+    if (it.teach && !(node.kind === 'step' && node.retry)) html += '<div class="teach">' + fmt(it.teach) + '</div>';
+    html += '<div class="stem">' + fmt(it.stem) + '</div>';
+    it.options.forEach(o => {
+      let cls = 'opt';
+      const elim = node.elim && node.elim.indexOf(o.letter) !== -1;
+      if (answered) {
+        if (o.letter === node.chosen) cls += node.chosen === it.answer ? ' correct' : ' incorrect';
+        else if (node.revealed && o.letter === it.answer) cls += ' correct';
+      }
+      if (elim) cls += ' elim';
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (live && !elim ? '' : ' disabled') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      const ok = node.chosen === it.answer;
+      if (ok || node.revealed) {
+        html += '<div class="feedback ' + (ok ? 'good' : 'bad') + '"><div class="verdict">' +
+          (ok ? '✓ Correct' : '✗ Answer: ' + esc(it.answer) + '. ' + fmt(optText(it, it.answer))) + '</div>' +
+          (it.explanation ? '<div>' + fmt(it.explanation) + '</div>' : '') + '</div>';
+      } else {
+        html += '<div class="nudge">✗ Not yet — let\'s break it down.</div>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function trailHtml(q, interactive) {
+    const t = tutor[q.id];
+    if (!t) return '';
+    let html = '<div class="tutor"><div class="tutor-head">Guided review</div>';
+    t.trail.forEach((n, i) => { html += nodeHtml(q, n, i, interactive); });
+    html += '</div>';
+    return html;
+  }
+
+  // ================= Rendering =================
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + fmt(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + fmt(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    const wrong = answered && chosen !== q.answer;
+    const tutoring = wrong && hasTutor(q);
+    const t = tutor[q.id];
+    // While the pathway is still in its teaching steps (exam mode), the correct answer stays hidden
+    const hideKey = mode === 'exam' && tutoring && t && t.phase === 'steps';
+    const status = tutoring ? tutorStatus(q) : null;
+
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    if (status === 'mastered') html += '<span class="badge mastered">Mastered after review</span>';
+    else if (status === 'review') html += '<span class="badge review">Flagged for review</span>';
+    else if (status === 'active') html += '<span class="badge active">Guided review in progress</span>';
+    html += '<div class="stem">' + fmt(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === chosen) cls += chosen === q.answer ? ' correct' : ' incorrect';
+        else if (o.letter === q.answer && !hideKey) cls += ' correct';
+        else if (!hideKey) cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      if (hideKey) {
+        html += '<div class="feedback tutoring"><div class="verdict">✗ Not quite — the answer stays hidden while we build up to it.</div>' +
+          '<div>Work through the guided questions below.</div></div>';
+      } else {
+        html += feedbackHtml(q, chosen);
+      }
+    }
+    if (tutoring && t) {
+      if (mode === 'exam') html += trailHtml(q, true);
+      else html += '<details class="trail"><summary>Guided review path (' +
+        t.trail.filter(n => n.kind !== 'note').length + ' questions)</summary>' + trailHtml(q, false) + '</details>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: a follow-up appears only once the question before it is
+    // resolved — answered correctly, or its guided review has finished.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && resolved(group[shown - 1])) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      const blocked = group[shown - 1];
+      const inTutor = answers[blocked.id] !== undefined && !resolved(blocked);
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') + ' in this case — ' +
+        (inTutor ? 'finish the guided review to continue' : 'answer above to continue') + '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Main-question clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll(':scope > .opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          const q = byId[qid];
+          answers[qid] = btn.getAttribute('data-letter');
+          if (answers[qid] !== q.answer && hasTutor(q)) startTutor(q);
+          renderPage(true);
+        });
+      });
+    });
+    // Tutor clicks
+    $('main').querySelectorAll('.tnode.active').forEach(nodeEl => {
+      const q = byId[nodeEl.getAttribute('data-tq')];
+      const idx = +nodeEl.getAttribute('data-tidx');
+      nodeEl.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || btn.disabled) return;
+          tutorAnswer(q, idx, btn.getAttribute('data-letter'));
+          renderPage(true);
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) {
+      window.scrollTo(0, savedY);
+      // Bring the newest tutor question / unlocked follow-up into view if it landed below the fold
+      const target = $('main').querySelector('.tnode.active') || $('main').querySelector('.tnote.mastered, .tnote.review');
+      if (target) {
+        const r = target.getBoundingClientRect();
+        const navH = $('navbar').offsetHeight || 0;
+        if (r.bottom > window.innerHeight - navH) {
+          window.scrollBy({ top: Math.min(r.top - 80, r.bottom - (window.innerHeight - navH) + 16), behavior: 'smooth' });
+        }
+      }
+    } else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  // ================= Grading =================
+  // Two lenses for the results page:
+  //   topic — WHAT you were tested on (e.g. "Paget's disease of bone"). Falls back to `section`.
+  //   skill — WHAT KIND of thinking (Identification, Disease process, Diagnostics & imaging,
+  //           Management, Complications…). Optional; the skill card is hidden when no question has one.
+  const topicOf = q => q.topic || q.section || 'All questions';
+  const skillOf = q => q.skill || null;
+
+  function tally(list, keyFn) {
+    const m = {};
+    list.forEach(q => {
+      const k = keyFn(q); if (!k) return;
+      if (!m[k]) m[k] = { name: k, correct: 0, total: 0, mastered: 0, review: 0, missed: 0 };
+      const e = m[k];
+      e.total++;
+      if (answers[q.id] === q.answer) { e.correct++; return; }
+      if (answers[q.id] === undefined) return;
+      const st = tutor[q.id] ? tutor[q.id].status : null;
+      if (st === 'mastered') e.mastered++; else if (st === 'review') e.review++; else e.missed++;
+    });
+    return Object.keys(m).map(k => { const e = m[k]; e.pct = e.total ? e.correct / e.total : 0; return e; })
+      .sort((a, b) => a.pct - b.pct || b.total - a.total);        // weakest first
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    graded.forEach(q => { if (answers[q.id] === q.answer) correct++; });
+    const ts = { started: 0, mastered: 0, review: 0, active: 0, tq: 0, tqRight: 0 };
+    Object.keys(tutor).forEach(id => {
+      const t = tutor[id];
+      ts.started++; ts[t.status]++;
+      t.trail.forEach(n => { if (n.kind !== 'note' && n.chosen !== null) { ts.tq++; if (n.chosen === n.item.answer) ts.tqRight++; } });
+    });
+    return { correct, graded: graded.length, total: questions.length, partial,
+             topics: tally(graded, topicOf), skills: tally(graded, skillOf), ts };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  // Lowest-scoring entries (ties included) — only meaningful when there's something to compare
+  function weakest(entries) {
+    if (entries.length < 2) return [];
+    const lo = entries[0].pct, hi = entries[entries.length - 1].pct;
+    if (lo === hi) return [];                                       // all equal: nothing stands out
+    return entries.filter(e => e.pct === lo);
+  }
+
+  function barsHtml(entries) {
+    const weakSet = weakest(entries).map(e => e.name);
+    return entries.map(e => {
+      const p = Math.round(e.pct * 100);
+      const cls = p >= 80 ? 'hi' : (weakSet.indexOf(e.name) !== -1 ? 'lo' : '');
+      const meta = [];
+      if (e.review) meta.push(e.review + ' flagged');
+      if (e.missed) meta.push(e.missed + ' missed');
+      if (e.mastered) meta.push(e.mastered + ' relearned in guided review');
+      return '<div class="bar-row"><div class="bar-head"><span class="nm">' + esc(e.name) +
+        (weakSet.indexOf(e.name) !== -1 ? '<span class="sec-tag weak">WEAKEST</span>' : '') +
+        '</span><span class="pc"><b>' + p + '%</b> · ' + e.correct + '/' + e.total + '</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + cls + '" style="width:' + Math.max(p, 2) + '%"></div></div>' +
+        (meta.length ? '<div class="bar-meta">' + meta.join(' · ') + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+    const hasSkills = r.skills.length > 0;
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + ' · first attempts</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.ts.started) html += '<div class="score-note">' + r.ts.mastered + ' of ' + r.ts.started +
+      ' missed concept' + (r.ts.started === 1 ? '' : 's') + ' relearned in guided review</div>';
+    else if (r.partial) html += '<div class="score-note">Unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    // ---- What to work on ----
+    const wTopic = weakest(r.topics), wSkill = weakest(r.skills);
+    const missed = missedQuestions();
+    html += '<div class="card"><h2>What to work on</h2><div class="sub">Ranked from the questions you missed on the first try</div>';
+    if (!missed.length) {
+      html += '<div class="focus-box ok"><div class="v">Nothing missed — every question right on the first try.</div></div>';
+    } else {
+      html += '<div class="focus-grid">';
+      if (wTopic.length) html += '<div class="focus-box"><div class="k">Weakest topic</div><div class="v">' +
+        wTopic.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wTopic.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      if (wSkill.length) html += '<div class="focus-box"><div class="k">Weakest skill</div><div class="v">' +
+        wSkill.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wSkill.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      html += '</div>';
+      // One line per missed concept: flagged first, then plain misses, then ones already relearned
+      const rank = { review: 0, active: 0, missed: 1, mastered: 2 };
+      const items = missed.map(q => {
+        const st = tutor[q.id] ? tutor[q.id].status : 'missed';
+        return { q, st: st === 'active' ? 'review' : st };
+      }).sort((a, b) => rank[a.st] - rank[b.st]);
+      const label = { review: 'Still shaky', missed: 'Missed', mastered: 'Relearned' };
+      html += '<ul class="todo">' + items.map(it => {
+        const sk = skillOf(it.q);
+        return '<li><span class="dot ' + it.st + '"></span><span class="what"><b>' + esc(topicOf(it.q)) + '</b>' +
+          (sk ? ' — ' + esc(sk) : '') + ' <span style="color:var(--ink-soft)">(Q' + esc(it.q.id) + ')</span></span>' +
+          '<span class="tag ' + it.st + '">' + label[it.st] + '</span></li>';
+      }).join('') + '</ul>';
+    }
+    html += '</div>';
+
+    // ---- By topic / by skill ----
+    html += '<div class="card"><h2>By topic</h2><div class="sub">First-attempt score for each disease or concept</div>' + barsHtml(r.topics) + '</div>';
+    if (hasSkills) html += '<div class="card"><h2>By skill</h2><div class="sub">Which kind of question trips you up, across all topics</div>' + barsHtml(r.skills) + '</div>';
+
+    if (r.ts.started) {
+      html += '<div class="card"><h2>Guided review</h2><div class="sub" style="margin-bottom:12px">How the tutor pathways went</div><div class="tutor-stats">' +
+        '<div class="tstat t"><b>' + r.ts.started + '</b>concepts reviewed</div>' +
+        '<div class="tstat m"><b>' + r.ts.mastered + '</b>passed mastery check</div>' +
+        '<div class="tstat r"><b>' + (r.ts.review + r.ts.active) + '</b>still shaky</div>' +
+        '<div class="tstat"><b>' + r.ts.tqRight + '/' + r.ts.tq + '</b>tutor questions right</div>' +
+        '</div></div>';
+    }
+
+    html += '<div class="results-actions">';
+    if (missed.length) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed.length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + fmt(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  const plain = s => String(s == null ? '' : s).replace(/\*\*(.+?)\*\*/g, '$1');
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id + ' — ' + topicOf(q) + (skillOf(q) ? ' / ' + skillOf(q) : '')];
+      if (group[0].id !== q.id) lines.push('Case: ' + plain(group[0].stem));
+      lines.push(plain(q.stem));
+      q.options.forEach(o => lines.push(o.letter + '. ' + plain(o.text)));
+      lines.push('My answer: ' + answers[q.id]);
+      lines.push('Correct answer: ' + q.answer + '. ' + plain(optText(q, q.answer)));
+      if (q.explanation) lines.push('Rationale: ' + plain(q.explanation));
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      const t = tutor[q.id];
+      if (t) {
+        const st = { mastered: 'MASTERED on re-check', review: 'STILL NEEDS REVIEW (missed mastery check)', active: 'guided review not finished' }[t.status];
+        lines.push('Guided review: ' + st);
+        t.trail.forEach(n => {
+          if (n.kind === 'note' || n.chosen === null) return;
+          const ok = n.chosen === n.item.answer;
+          lines.push('  ' + (ok ? '✓ ' : '✗ ') + plain(n.item.stem) + ' → ' + plain(optText(n.item, n.item.answer)));
+        });
+      }
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => !resolved(q))) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(tutor).forEach(k => delete tutor[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

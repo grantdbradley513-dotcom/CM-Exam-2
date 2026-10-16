@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- Adaptive tutor ---------- */
+  :root { --tutor: #5b3fa6; --tutor-bg: #f5f2fc; --tutor-line: #ddd3f3; }
+  .feedback.tutoring { background: var(--amber-bg); border-left: 4px solid var(--amber); margin-bottom: 22px; }
+  .feedback.tutoring .verdict { color: var(--amber); }
+  /* Guided review: a quiet rail instead of a filled box, so nested cards don't stack up visually */
+  .tutor { border-left: 3px solid var(--tutor-line); padding: 2px 0 2px 16px; margin: 0 0 6px 4px; }
+  .tutor-head { font-weight: 700; color: var(--tutor); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+  .tnode { background: var(--card); border: 1px solid var(--tutor-line); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+  .tnode.active { border-color: var(--tutor); box-shadow: 0 2px 10px rgba(91,63,166,0.10); }
+  .tnode.done { background: #fcfcfe; }
+  .tlabel { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--tutor); margin-bottom: 8px; }
+  .tlabel.cp { color: #fff; background: var(--tutor); border-radius: 6px; padding: 1px 8px; }
+  .tlabel.clar { color: var(--amber); }
+  .teach { border-left: 3px solid var(--tutor); padding: 2px 0 2px 12px; margin-bottom: 12px; font-size: 0.95em; white-space: pre-wrap; color: var(--ink); }
+  .tnode .stem { margin-bottom: 12px; font-weight: 500; }
+  .tnode .opt { padding: 8px 12px; margin-bottom: 8px; }
+  .tnode .feedback { margin-top: 10px; }
+  .tnode .nudge { margin-top: 8px; color: var(--amber); font-weight: 600; font-size: 0.9em; }
+  .opt.elim { opacity: 0.45; text-decoration: line-through; border-style: dashed; }
+  .tnote { border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 0.95em; }
+  .tnote.reveal { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .tnote.mastered { background: var(--green-bg); border-left: 4px solid var(--green); font-weight: 600; }
+  .tnote.review { background: var(--red-bg); border-left: 4px solid var(--red); font-weight: 600; }
+  .tnote.info { color: var(--ink-soft); padding: 0 2px; margin-bottom: 10px; font-style: italic; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 6px; padding: 1px 8px; margin-left: 8px; vertical-align: middle; }
+  .badge.mastered { background: var(--green-bg); color: var(--green); }
+  .badge.review { background: var(--red-bg); color: var(--red); }
+  .badge.active { background: var(--tutor-bg); color: var(--tutor); }
+  details.trail { margin-top: 12px; }
+  details.trail summary { cursor: pointer; color: var(--tutor); font-weight: 600; font-size: 0.9rem; }
+  details.trail .tutor { margin-top: 12px; }
+
+  .qcard > .feedback + .tutor { margin-top: 22px; }
+
+  /* ---------- Results: study plan ---------- */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 16px; }
+  .card h2 { font-size: 1.02rem; margin-bottom: 4px; }
+  .card .sub { font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 14px; }
+  .focus-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 640px) { .focus-grid { grid-template-columns: 1fr 1fr; } }
+  .focus-box { border-radius: 10px; padding: 12px 14px; background: var(--red-bg); border-left: 4px solid var(--red); }
+  .focus-box.ok { background: var(--green-bg); border-left-color: var(--green); }
+  .focus-box .k { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+  .focus-box .v { font-weight: 700; font-size: 1.02rem; margin-top: 2px; }
+  .focus-box .n { font-size: 0.85rem; color: var(--ink-soft); }
+  .todo { list-style: none; }
+  .todo li { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border); font-size: 0.93rem; }
+  .todo li:first-child { border-top: none; }
+  .todo .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; transform: translateY(-1px); }
+  .todo .dot.review { background: var(--red); } .todo .dot.missed { background: var(--amber); } .todo .dot.mastered { background: var(--green); }
+  .todo .what { flex: 1; }
+  .todo .what b { font-weight: 600; }
+  .todo .tag { flex: none; font-size: 0.75rem; font-weight: 700; color: var(--ink-soft); }
+  .todo .tag.review { color: var(--red); } .todo .tag.missed { color: var(--amber); } .todo .tag.mastered { color: var(--green); }
+  .bar-row { margin-bottom: 14px; }
+  .bar-row:last-child { margin-bottom: 2px; }
+  .bar-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.92rem; margin-bottom: 5px; }
+  .bar-head .nm { font-weight: 600; }
+  .bar-head .pc { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+  .bar-head .pc b { color: var(--ink); }
+  .bar-meta { font-size: 0.78rem; color: var(--ink-soft); margin-top: 3px; }
+  .tutor-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 640px) { .tutor-stats { grid-template-columns: repeat(4, 1fr); } }
+  .tstat { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; color: var(--ink-soft); }
+  .tstat b { display: block; font-size: 1.4rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tstat.m b { color: var(--green); } .tstat.r b { color: var(--red); } .tstat.t b { color: var(--tutor); }
+
+  /* Background infographic (added by Claude) */
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(244, 246, 250, 0.55), rgba(244, 246, 250, 0.55)),
+      url("data:image/png;base64,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");
+    background-repeat: no-repeat, no-repeat;
+    background-position: center center, center center;
+    background-size: cover, cover;
+    background-attachment: fixed, fixed;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, topic?, skill?, image?,
+//    remediation?: {                      // OPTIONAL — adaptive tutor pathway for a wrong first answer
+//      steps: [{ teach?, stem, options, answer, explanation?,
+//                clarify?: [{ teach?, stem, options, answer, explanation? }] }],   // simpler questions used when a step is missed
+//      checkpoints?: [{ teach?, stem, options, answer, explanation? }]             // mastery check(s): a new vignette on the same concept
+//    } }] }
+// Questions without `remediation` behave exactly like the classic exam (answer revealed immediately).
+// **double asterisks** in any text render as bold.
+const EXAM_DATA = {"title": "Rheumatology Pharmacotherapy (Gout, RA, SLE) — Keyword Practice (Adaptive)", "questions": [{"id": "1", "group": 1, "slide": 8, "section": "Gout — acute flare", "topic": "Gout — acute flare therapy", "skill": "Management", "stem": "What medication is the next option for gout flares refractory to prolonged courses of steroids, colchicine, and NSAIDs?", "options": [{"letter": "A", "text": "Tocilizumab"}, {"letter": "B", "text": "Anakinra"}, {"letter": "C", "text": "Pegloticase"}, {"letter": "D", "text": "Febuxostat"}, {"letter": "E", "text": "Probenecid"}], "answer": "B", "explanation": "Flares refractory to the usual flare drugs → **anakinra**, an **IL-1 antagonist** (also an RA biologic).", "objective": "", "remediation": {"steps": [{"teach": "This is still a **flare** problem (inflammation), not a urate-lowering problem — you need an **anti-inflammatory biologic**, not a ULT drug.", "stem": "Refractory gout FLARE needs a drug that:", "options": [{"letter": "A", "text": "Lowers serum urate"}, {"letter": "B", "text": "Blocks IL-1 inflammation"}], "answer": "B", "explanation": "Flare = inflammation → block the cytokine (IL-1); urate-lowering drugs don't stop an active flare.", "clarify": [{"stem": "Pegloticase and probenecid are used for:", "options": [{"letter": "A", "text": "Stopping an acute flare"}, {"letter": "B", "text": "Lowering urate long-term"}], "answer": "B", "explanation": "Both are urate-lowering therapy, not flare treatment."}]}], "checkpoints": [{"stem": "Anakinra → Mechanism:", "options": [{"letter": "A", "text": "IL-1 receptor antagonist"}, {"letter": "B", "text": "IL-6 receptor antagonist"}, {"letter": "C", "text": "TNF-α inhibitor"}, {"letter": "D", "text": "Xanthine oxidase inhibitor"}], "answer": "A", "explanation": "Anakinra (Kineret) = **IL-1 receptor antagonist**."}, {"stem": "IL-1 antagonist used for gout flares that fail standard therapy →", "options": [{"letter": "A", "text": "Indomethacin"}, {"letter": "B", "text": "Anakinra"}, {"letter": "C", "text": "Allopurinol"}, {"letter": "D", "text": "Colchicine"}], "answer": "B", "explanation": "**Anakinra** is the refractory-flare drug."}]}}, {"id": "2", "group": 2, "slide": 9, "section": "Gout — acute flare", "topic": "Gout — acute flare therapy", "skill": "Management", "stem": "What is the preferred treatment for a gout flare involving one or two joints when the patient cannot take oral medication and infection is unlikely?", "options": [{"letter": "A", "text": "Oral indomethacin, high dose"}, {"letter": "B", "text": "Pegloticase IV infusion"}, {"letter": "C", "text": "Oral colchicine loading dose"}, {"letter": "D", "text": "Allopurinol 100 mg daily"}, {"letter": "E", "text": "Intra-articular glucocorticoid"}], "answer": "E", "explanation": "**Intra-articular steroid** is for 1–2 joints when the patient can't tolerate oral therapy and **infection is unlikely**.", "objective": "", "remediation": {"steps": [{"teach": "\"Can't take PO\" rules out all the oral flare drugs; the remaining flare option is a **local injection** into the joint.", "stem": "Which flare option avoids the oral route?", "options": [{"letter": "A", "text": "Colchicine tablets"}, {"letter": "B", "text": "Joint injection of a steroid"}], "answer": "B", "explanation": "Intra-articular glucocorticoid bypasses the GI tract.", "clarify": [{"stem": "Pegloticase/allopurinol treat:", "options": [{"letter": "A", "text": "Chronic hyperuricemia"}, {"letter": "B", "text": "The acute flare itself"}], "answer": "A", "explanation": "They are urate-lowering therapy, not flare drugs."}]}], "checkpoints": [{"stem": "Intra-articular steroid for gout → Must be confident that:", "options": [{"letter": "A", "text": "HLA-B*5801 is negative"}, {"letter": "B", "text": "CrCl is above 50"}, {"letter": "C", "text": "Urate is below 6"}, {"letter": "D", "text": "Joint infection is unlikely"}], "answer": "D", "explanation": "Never inject a steroid into a possibly **septic** joint."}, {"stem": "Single swollen knee, gout, NPO post-op day, no infection suspected → Flare treatment:", "options": [{"letter": "A", "text": "Probenecid"}, {"letter": "B", "text": "Oral colchicine"}, {"letter": "C", "text": "Intra-articular glucocorticoid"}, {"letter": "D", "text": "Oral prednisone"}], "answer": "C", "explanation": "Can't take PO + 1–2 joints + infection unlikely → **intra-articular** steroid."}]}}, {"id": "3", "group": 3, "slide": 9, "section": "Gout — acute flare", "topic": "Gout — acute flare therapy", "skill": "Pharmacology", "stem": "Which drug class should be avoided for a gout flare in a patient with active infection, poorly controlled diabetes, or a recent operation?", "options": [{"letter": "A", "text": "NSAIDs (e.g., indomethacin)"}, {"letter": "B", "text": "Ice, rest, elevation"}, {"letter": "C", "text": "Colchicine (oral)"}, {"letter": "D", "text": "Systemic corticosteroids"}], "answer": "D", "explanation": "Steroids worsen infection, hyperglycemia, and wound healing → **avoid steroids**; use colchicine or an NSAID as tolerated.", "objective": "", "remediation": {"steps": [{"teach": "Think about which drug **raises blood glucose** and is **immunosuppressive**.", "stem": "Which drug causes hyperglycemia and immunosuppression?", "options": [{"letter": "A", "text": "Colchicine"}, {"letter": "B", "text": "Prednisone"}], "answer": "B", "explanation": "Glucocorticoids → hyperglycemia, immunosuppression, impaired healing.", "clarify": [{"stem": "Colchicine's main problem is:", "options": [{"letter": "A", "text": "Hyperglycemia"}, {"letter": "B", "text": "GI upset (N/V/D)"}], "answer": "B", "explanation": "Colchicine is GI-limited, not a glucose problem."}]}], "checkpoints": [{"stem": "Gout flare in a patient with cellulitis → Reasonable flare drug:", "options": [{"letter": "A", "text": "Prednisone 40 mg"}, {"letter": "B", "text": "Colchicine"}, {"letter": "C", "text": "Medrol dose pack"}, {"letter": "D", "text": "Intra-articular steroid"}], "answer": "B", "explanation": "Infection → no steroids → **colchicine** (or NSAID)."}, {"stem": "Prednisone is avoided for gout flares in which setting?", "options": [{"letter": "A", "text": "Uncontrolled diabetes"}, {"letter": "B", "text": "Normal renal function"}, {"letter": "C", "text": "Within 24 h of onset"}, {"letter": "D", "text": "First MTP involvement"}], "answer": "A", "explanation": "Avoid steroids in **infection, poorly controlled DM, post-op**."}]}}, {"id": "4", "group": 4, "slide": 10, "section": "Gout — acute flare", "topic": "Gout — acute flare therapy", "skill": "Management", "stem": "Within what time after onset must a Medrol dose pack be started to be effective for a gout flare?", "options": [{"letter": "A", "text": "First 48–72 hours"}, {"letter": "B", "text": "First 6 hours"}, {"letter": "C", "text": "First 7 days"}, {"letter": "D", "text": "First 2 weeks"}, {"letter": "E", "text": "Any time in the flare"}], "answer": "A", "explanation": "Medrol dose pack works **if started early — first 48–72 h**. (Colchicine's window is 24–48 h.)", "objective": "", "remediation": {"steps": [{"teach": "Two flare drugs have an **early-start window**; Medrol's is slightly longer than colchicine's.", "stem": "Colchicine's window is 24–48 h. Medrol's window is:", "options": [{"letter": "A", "text": "Shorter — under 12 h"}, {"letter": "B", "text": "A bit longer — 48–72 h"}], "answer": "B", "explanation": "Medrol pack = first 48–72 h.", "clarify": [{"stem": "A late presenter (day 4) is better served by:", "options": [{"letter": "A", "text": "Medrol pack"}, {"letter": "B", "text": "NSAID or prednisone 40 mg"}], "answer": "B", "explanation": "Windows have passed → NSAID or prednisone with taper."}]}], "checkpoints": [{"stem": "Gout flare presenting on day 4 → Better choice:", "options": [{"letter": "A", "text": "Start allopurinol"}, {"letter": "B", "text": "Colchicine 1.2 mg loading"}, {"letter": "C", "text": "Prednisone 40 mg/day then taper"}, {"letter": "D", "text": "Medrol dose pack"}], "answer": "C", "explanation": "Colchicine (24–48 h) and Medrol (48–72 h) windows passed → **NSAID or prednisone**."}, {"stem": "Medrol dose pack timing for gout:", "options": [{"letter": "A", "text": "Start when urate <6"}, {"letter": "B", "text": "Start after 2 weeks"}, {"letter": "C", "text": "Start within 48–72 h of onset"}, {"letter": "D", "text": "Start only at night"}], "answer": "C", "explanation": "Early start — **48–72 h**."}]}}, {"id": "5", "group": 5, "slide": 11, "section": "Gout — colchicine", "topic": "Colchicine", "skill": "Pharmacology", "stem": "What is the mechanism of action of colchicine?", "options": [{"letter": "A", "text": "Blocks urate reabsorption at the PCT"}, {"letter": "B", "text": "Converts uric acid to allantoin"}, {"letter": "C", "text": "Inhibits xanthine oxidase"}, {"letter": "D", "text": "↓ Leukocyte mobility and phagocytosis"}, {"letter": "E", "text": "Reversibly inhibits COX"}], "answer": "D", "explanation": "Colchicine **↓ leukocyte mobility, ↓ phagocytosis** in joints, ↓ urate crystal deposition — it does not lower urate.", "objective": "", "remediation": {"steps": [{"teach": "Colchicine treats the **inflammatory cell response** to crystals, not urate production or excretion.", "stem": "Colchicine's target is:", "options": [{"letter": "A", "text": "Uric acid production"}, {"letter": "B", "text": "White cells entering the joint"}], "answer": "B", "explanation": "It inhibits leukocyte entry/phagocytosis.", "clarify": [{"stem": "Xanthine oxidase inhibition describes:", "options": [{"letter": "A", "text": "Colchicine"}, {"letter": "B", "text": "Allopurinol"}], "answer": "B", "explanation": "Allopurinol/febuxostat block xanthine oxidase."}, {"stem": "Converting uric acid to allantoin describes:", "options": [{"letter": "A", "text": "Pegloticase"}, {"letter": "B", "text": "Colchicine"}], "answer": "A", "explanation": "Pegloticase is a recombinant uricase."}]}], "checkpoints": [{"stem": "Does colchicine lower serum urate?", "options": [{"letter": "A", "text": "No — it blocks leukocyte-driven inflammation"}, {"letter": "B", "text": "Yes — it is uricosuric"}, {"letter": "C", "text": "Yes — it inhibits xanthine oxidase"}, {"letter": "D", "text": "Yes — it is a uricase"}], "answer": "A", "explanation": "Colchicine is anti-inflammatory (leukocyte), **not** urate-lowering."}, {"stem": "Drug that ↓ leukocyte migration and phagocytosis in a gouty joint →", "options": [{"letter": "A", "text": "Colchicine"}, {"letter": "B", "text": "Probenecid"}, {"letter": "C", "text": "Febuxostat"}, {"letter": "D", "text": "Pegloticase"}], "answer": "A", "explanation": "**Colchicine**."}]}}, {"id": "6", "group": 6, "slide": 11, "section": "Gout — colchicine", "topic": "Colchicine", "skill": "Pharmacology", "stem": "What are the most common adverse effects of colchicine?", "options": [{"letter": "A", "text": "Nausea, vomiting, diarrhea"}, {"letter": "B", "text": "Hyperglycemia and mood change"}, {"letter": "C", "text": "Retinal toxicity"}, {"letter": "D", "text": "Hemorrhagic cystitis"}], "answer": "A", "explanation": "Colchicine's signature AE is **GI — N/V/D**, abdominal pain; GI symptoms hit ½ of patients **before** pain relief.", "objective": "", "remediation": {"steps": [{"teach": "Colchicine is famous for its effect on the **gut**.", "stem": "Colchicine AEs are mainly:", "options": [{"letter": "A", "text": "Ocular"}, {"letter": "B", "text": "Gastrointestinal"}], "answer": "B", "explanation": "GI upset dominates.", "clarify": [{"stem": "Hyperglycemia and mood change belong to:", "options": [{"letter": "A", "text": "Colchicine"}, {"letter": "B", "text": "Corticosteroids"}], "answer": "B", "explanation": "Those are steroid AEs."}]}], "checkpoints": [{"stem": "Counseling on colchicine for a flare →", "options": [{"letter": "A", "text": "GI upset may come before pain relief"}, {"letter": "B", "text": "Urine will turn red"}, {"letter": "C", "text": "Expect blurry vision"}, {"letter": "D", "text": "Weight gain is expected"}], "answer": "A", "explanation": "GI symptoms occur in **½ of patients before relief**."}, {"stem": "Diarrhea after starting a gout flare drug → Likely culprit:", "options": [{"letter": "A", "text": "Allopurinol"}, {"letter": "B", "text": "Probenecid"}, {"letter": "C", "text": "Colchicine"}, {"letter": "D", "text": "Prednisone"}], "answer": "C", "explanation": "**Colchicine** → N/V/D."}]}}, {"id": "7", "group": 7, "slide": 11, "section": "Gout — colchicine", "topic": "Colchicine", "skill": "Pharmacology", "stem": "Which interacting drugs should be avoided with colchicine in a patient with renal or hepatic dysfunction?", "options": [{"letter": "A", "text": "Proton pump inhibitors"}, {"letter": "B", "text": "Antihistamines"}, {"letter": "C", "text": "Folic acid"}, {"letter": "D", "text": "CYP450 inhibitors"}], "answer": "D", "explanation": "Avoid colchicine with renal/hepatic dysfunction when other drugs affecting those organs are on board — think **CYP450 inhibitors** (e.g., clarithromycin) and renal impairment.", "objective": "", "remediation": {"steps": [{"teach": "Colchicine toxicity rises when its **metabolism** is blocked — think of the liver enzyme system.", "stem": "Colchicine is metabolized via:", "options": [{"letter": "A", "text": "CYP450 enzymes"}, {"letter": "B", "text": "Xanthine oxidase"}], "answer": "A", "explanation": "CYP450 inhibitors raise colchicine levels.", "clarify": [{"stem": "Clarithromycin is a:", "options": [{"letter": "A", "text": "CYP450 inhibitor"}, {"letter": "B", "text": "CYP450 inducer"}], "answer": "A", "explanation": "Strong CYP3A4 inhibitor → colchicine toxicity."}]}], "checkpoints": [{"stem": "Gout flare + CKD + on clarithromycin → Flare drug:", "options": [{"letter": "A", "text": "Colchicine"}, {"letter": "B", "text": "Probenecid"}, {"letter": "C", "text": "Indomethacin"}, {"letter": "D", "text": "Prednisone"}], "answer": "D", "explanation": "No colchicine (CYP450/renal), no NSAID (CKD) → **prednisone**."}, {"stem": "Colchicine is cautioned in which organ dysfunctions?", "options": [{"letter": "A", "text": "Renal or hepatic"}, {"letter": "B", "text": "Retinal or skin"}, {"letter": "C", "text": "Thyroid or adrenal"}, {"letter": "D", "text": "Cardiac or pulmonary"}], "answer": "A", "explanation": "**Renal/hepatic** dysfunction (± CYP450 drugs)."}]}}, {"id": "8", "group": 8, "slide": 12, "section": "Gout — colchicine", "topic": "Colchicine", "skill": "Management", "stem": "Within what time after onset should colchicine be started for most patients to respond to treatment of an acute gout flare?", "options": [{"letter": "A", "text": "48–72 hours"}, {"letter": "B", "text": "2 weeks"}, {"letter": "C", "text": "24–48 hours"}, {"letter": "D", "text": "1 week"}, {"letter": "E", "text": "1 month"}], "answer": "C", "explanation": "Colchicine works best if started within **24–48 h** of onset (Medrol: 48–72 h).", "objective": "", "remediation": {"steps": [{"teach": "Colchicine has the **shortest** early-start window of the flare drugs.", "stem": "Colchicine's window is:", "options": [{"letter": "A", "text": "Longer than Medrol's"}, {"letter": "B", "text": "Shorter than Medrol's"}], "answer": "B", "explanation": "Colchicine 24–48 h < Medrol 48–72 h.", "clarify": [{"stem": "48–72 h is the window for:", "options": [{"letter": "A", "text": "Colchicine"}, {"letter": "B", "text": "Medrol dose pack"}], "answer": "B", "explanation": "That's the Medrol pack window."}]}], "checkpoints": [{"stem": "Acute colchicine regimen →", "options": [{"letter": "A", "text": "100 mg daily, titrate up"}, {"letter": "B", "text": "40 mg daily, then taper"}, {"letter": "C", "text": "0.6 mg every hour until diarrhea"}, {"letter": "D", "text": "1.2 mg, then 0.6 mg 1 hour later"}], "answer": "D", "explanation": "**1.2 mg (2 × 0.6) then 0.6 mg 1 h later**."}, {"stem": "Podagra that began 12 h ago, normal kidneys → Colchicine is:", "options": [{"letter": "A", "text": "Only for prophylaxis"}, {"letter": "B", "text": "Too late to work"}, {"letter": "C", "text": "Contraindicated"}, {"letter": "D", "text": "A good choice — within window"}], "answer": "D", "explanation": "Within **24–48 h** → colchicine works."}]}}, {"id": "9", "group": 9, "slide": 13, "section": "Gout — acute flare", "topic": "Gout — acute flare therapy", "skill": "Pharmacology", "stem": "What is the mechanism of action of indomethacin?", "options": [{"letter": "A", "text": "Reversible COX inhibition"}, {"letter": "B", "text": "Uricase activity"}, {"letter": "C", "text": "Xanthine oxidase inhibition"}, {"letter": "D", "text": "IL-1 receptor blockade"}, {"letter": "E", "text": "↓ Leukocyte phagocytosis"}], "answer": "A", "explanation": "NSAIDs **reversibly inhibit cyclooxygenase** → ↓ prostaglandin synthesis.", "objective": "", "remediation": {"steps": [{"teach": "Indomethacin is an **NSAID**; all NSAIDs share one enzyme target.", "stem": "NSAIDs reduce:", "options": [{"letter": "A", "text": "Uric acid synthesis"}, {"letter": "B", "text": "Prostaglandin synthesis"}], "answer": "B", "explanation": "COX inhibition → ↓ prostaglandins.", "clarify": [{"stem": "↓ Leukocyte phagocytosis describes:", "options": [{"letter": "A", "text": "Indomethacin"}, {"letter": "B", "text": "Colchicine"}], "answer": "B", "explanation": "That's colchicine's MOA."}]}], "checkpoints": [{"stem": "Indomethacin → Drug class:", "options": [{"letter": "A", "text": "IL-1 antagonist"}, {"letter": "B", "text": "Uricosuric"}, {"letter": "C", "text": "NSAID"}, {"letter": "D", "text": "Xanthine oxidase inhibitor"}], "answer": "C", "explanation": "Indomethacin (Indocin) = **NSAID**."}, {"stem": "NSAIDs work by inhibiting:", "options": [{"letter": "A", "text": "Xanthine oxidase"}, {"letter": "B", "text": "Dihydrofolate reductase"}, {"letter": "C", "text": "TNF-α"}, {"letter": "D", "text": "Cyclooxygenase"}], "answer": "D", "explanation": "Reversible **COX** inhibition."}]}}, {"id": "10", "group": 10, "slide": 13, "section": "Gout — acute flare", "topic": "Gout — acute flare therapy", "skill": "Management", "stem": "What advantage do NSAIDs have over colchicine for an acute gout flare?", "options": [{"letter": "A", "text": "Less GI toxicity"}, {"letter": "B", "text": "Lower serum urate"}, {"letter": "C", "text": "No renal risk"}, {"letter": "D", "text": "Safe in any CKD stage"}], "answer": "A", "explanation": "NSAIDs are **as effective as colchicine** for many patients with **less GI toxicity**; give large doses × 24–48 h, then taper over 3–4 days.", "objective": "", "remediation": {"steps": [{"teach": "Colchicine's big drawback is its **GI** side effects — compare against that.", "stem": "Colchicine's main drawback:", "options": [{"letter": "A", "text": "GI toxicity"}, {"letter": "B", "text": "Raises urate"}], "answer": "A", "explanation": "Colchicine → N/V/D in many patients.", "clarify": [{"stem": "Do NSAIDs lower serum urate?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "NSAIDs are anti-inflammatory only."}]}], "checkpoints": [{"stem": "NSAID dosing pattern for a gout flare →", "options": [{"letter": "A", "text": "Single dose only"}, {"letter": "B", "text": "High dose 24–48 h, then taper 3–4 d"}, {"letter": "C", "text": "Weekly dosing"}, {"letter": "D", "text": "Low dose daily for life"}], "answer": "B", "explanation": "**Large doses × 24–48 h then taper** over 3–4 days."}, {"stem": "Flare drug as effective as colchicine but gentler on the gut →", "options": [{"letter": "A", "text": "Probenecid"}, {"letter": "B", "text": "Pegloticase"}, {"letter": "C", "text": "Allopurinol"}, {"letter": "D", "text": "Indomethacin"}], "answer": "D", "explanation": "**NSAIDs** (indomethacin)."}]}}, {"id": "11", "group": 11, "slide": 14, "section": "Gout — urate-lowering therapy", "topic": "Urate-lowering therapy principles", "skill": "Management", "stem": "Which finding in a patient with gout is an indication for urate-lowering therapy?", "options": [{"letter": "A", "text": "Flare that responded to an NSAID"}, {"letter": "B", "text": "One mild flare, now resolved"}, {"letter": "C", "text": "Family history of gout"}, {"letter": "D", "text": "Tophi or structural joint damage"}], "answer": "D", "explanation": "ULT indications: **frequent/disabling flares, tophi or structural joint damage**, or high risk of severe gout.", "objective": "", "remediation": {"steps": [{"teach": "ULT is for **chronic, damaging, or frequent** disease — not a single uncomplicated attack.", "stem": "Tophi indicate:", "options": [{"letter": "A", "text": "A first mild attack"}, {"letter": "B", "text": "Chronic urate deposition"}], "answer": "B", "explanation": "Tophi = chronic deposits → ULT.", "clarify": [{"stem": "A single resolved mild flare by itself:", "options": [{"letter": "A", "text": "Mandates ULT"}, {"letter": "B", "text": "Doesn't meet ULT criteria"}], "answer": "B", "explanation": "ULT criteria need frequent flares, tophi/damage, or high risk."}]}], "checkpoints": [{"stem": "ULT criterion besides tophi →", "options": [{"letter": "A", "text": "Any elevated urate in a well patient"}, {"letter": "B", "text": "Podagra alone"}, {"letter": "C", "text": "One flare at night"}, {"letter": "D", "text": "Frequent or disabling flares"}], "answer": "D", "explanation": "**Frequent/disabling flares** (also high-risk features)."}, {"stem": "Second flare this year + a tophus on the ear → Plan:", "options": [{"letter": "A", "text": "Probenecid for flare"}, {"letter": "B", "text": "Diet change only"}, {"letter": "C", "text": "Start urate-lowering therapy"}, {"letter": "D", "text": "Flare treatment only"}], "answer": "C", "explanation": "Tophus = **ULT** indication."}]}}, {"id": "12", "group": 12, "slide": 15, "section": "Gout — urate-lowering therapy", "topic": "Urate-lowering therapy principles", "skill": "Management", "stem": "What is the serum urate target during urate-lowering therapy in a patient without tophi?", "options": [{"letter": "A", "text": "<3 mg/dL"}, {"letter": "B", "text": "<7.5 mg/dL"}, {"letter": "C", "text": "<8 mg/dL"}, {"letter": "D", "text": "<10 mg/dL"}, {"letter": "E", "text": "<6 mg/dL"}], "answer": "E", "explanation": "Target serum urate **<6 mg/dL**; **<5 mg/dL** if tophi.", "objective": "", "remediation": {"steps": [{"teach": "Urate must be kept **below its saturation level** so crystals dissolve; the general target is a single round number.", "stem": "The general urate goal is:", "options": [{"letter": "A", "text": "<6 mg/dL"}, {"letter": "B", "text": "<8 mg/dL"}], "answer": "A", "explanation": "<6 mg/dL.", "clarify": [{"stem": "Patients with tophi need a target that is:", "options": [{"letter": "A", "text": "Lower (<5)"}, {"letter": "B", "text": "Higher (<7)"}], "answer": "A", "explanation": "Tophi → <5 mg/dL."}]}], "checkpoints": [{"stem": "Urate target with tophi →", "options": [{"letter": "A", "text": "<5 mg/dL"}, {"letter": "B", "text": "<6 mg/dL"}, {"letter": "C", "text": "<8 mg/dL"}, {"letter": "D", "text": "<7 mg/dL"}], "answer": "A", "explanation": "Tophi → **<5 mg/dL**."}, {"stem": "After starting allopurinol, first urate recheck at:", "options": [{"letter": "A", "text": "2–4 weeks"}, {"letter": "B", "text": "1 year"}, {"letter": "C", "text": "24 hours"}, {"letter": "D", "text": "6 months"}], "answer": "A", "explanation": "Check urate at **2–4 weeks**, adjust, then 3 mo → q6 mo × 1 yr → yearly."}]}}, {"id": "13", "group": 13, "slide": 16, "section": "Gout — urate-lowering therapy", "topic": "Urate-lowering therapy principles", "skill": "Management", "stem": "When should urate-lowering therapy ideally be started in relation to a gout flare?", "options": [{"letter": "A", "text": "Only after 6 months"}, {"letter": "B", "text": "≥2 weeks after the flare"}, {"letter": "C", "text": "Only once tophi appear"}, {"letter": "D", "text": "During the first 24 h"}], "answer": "B", "explanation": "Wait **≥2 weeks after a flare** (a good idea, not a must); either way, give flare **prophylaxis**.", "objective": "", "remediation": {"steps": [{"teach": "Changing urate levels **provokes flares**, so you avoid starting ULT in the middle of one.", "stem": "Starting ULT during an active flare tends to:", "options": [{"letter": "A", "text": "Worsen/prolong the flare"}, {"letter": "B", "text": "Cure it faster"}], "answer": "A", "explanation": "Urate shifts provoke flares → wait.", "clarify": [{"stem": "If you do start ULT early, add:", "options": [{"letter": "A", "text": "Flare prophylaxis"}, {"letter": "B", "text": "Nothing extra"}], "answer": "A", "explanation": "Prophylaxis covers ULT-initiation flares."}]}], "checkpoints": [{"stem": "Starting ULT shortly after a flare → Alternative to waiting:", "options": [{"letter": "A", "text": "Double the allopurinol dose"}, {"letter": "B", "text": "Add probenecid"}, {"letter": "C", "text": "Stop all NSAIDs"}, {"letter": "D", "text": "Give prophylaxis (colchicine/prednisone)"}], "answer": "D", "explanation": "Alternative = start with **flare prophylaxis**."}, {"stem": "Recommended wait after a flare before starting allopurinol:", "options": [{"letter": "A", "text": "48 hours"}, {"letter": "B", "text": "Not needed ever"}, {"letter": "C", "text": "At least 6 months"}, {"letter": "D", "text": "At least 2 weeks"}], "answer": "D", "explanation": "**≥2 weeks**."}]}}, {"id": "14", "group": 14, "slide": 16, "section": "Gout — urate-lowering therapy", "topic": "Urate-lowering therapy principles", "skill": "Management", "stem": "What should be prescribed with allopurinol when it is first started?", "options": [{"letter": "A", "text": "Colchicine prophylaxis"}, {"letter": "B", "text": "Daily folic acid"}, {"letter": "C", "text": "Cholestyramine powder"}, {"letter": "D", "text": "Probenecid add-on"}, {"letter": "E", "text": "Pegloticase infusion"}], "answer": "A", "explanation": "**Regardless of timing**, give flare **prophylaxis** (colchicine 0.6 mg QD–BID or an NSAID; prednisone acceptable) when starting ULT.", "objective": "", "remediation": {"steps": [{"teach": "ULT initiation **triggers gout flares** — you need something to **prevent** them.", "stem": "Starting ULT commonly causes:", "options": [{"letter": "A", "text": "A gout flare"}, {"letter": "B", "text": "Hypouricemia symptoms"}], "answer": "A", "explanation": "Initiation flares are expected.", "clarify": [{"stem": "Folic acid is co-prescribed with:", "options": [{"letter": "A", "text": "Allopurinol"}, {"letter": "B", "text": "Methotrexate"}], "answer": "B", "explanation": "Folic acid goes with MTX."}]}], "checkpoints": [{"stem": "Why give colchicine when starting allopurinol?", "options": [{"letter": "A", "text": "Block xanthine oxidase"}, {"letter": "B", "text": "Prevent initiation flares"}, {"letter": "C", "text": "Prevent rash"}, {"letter": "D", "text": "Boost urate excretion"}], "answer": "B", "explanation": "Prophylaxis **prevents flares** provoked by ULT."}, {"stem": "Prophylaxis options when initiating ULT →", "options": [{"letter": "A", "text": "Anakinra or tocilizumab"}, {"letter": "B", "text": "Pegloticase or probenecid"}, {"letter": "C", "text": "Colchicine or NSAID"}, {"letter": "D", "text": "Folic acid or vitamin D"}], "answer": "C", "explanation": "**Colchicine or NSAID** (prednisone alternative)."}]}}, {"id": "15", "group": 15, "slide": 17, "section": "Gout — xanthine oxidase inhibitors", "topic": "Xanthine oxidase inhibitors", "skill": "Pharmacology", "stem": "What is the mechanism of action of allopurinol?", "options": [{"letter": "A", "text": "Blocks urate reabsorption at the PCT"}, {"letter": "B", "text": "↓ Leukocyte migration"}, {"letter": "C", "text": "Inhibits COX"}, {"letter": "D", "text": "Inhibits xanthine oxidase"}, {"letter": "E", "text": "Converts uric acid to allantoin"}], "answer": "D", "explanation": "Purine analog that **inhibits xanthine oxidase** → blocks the last 2 steps of uric acid synthesis → ↓ production.", "objective": "", "remediation": {"steps": [{"teach": "Allopurinol **reduces production** of uric acid by blocking an enzyme in purine breakdown.", "stem": "Allopurinol lowers urate by ↓:", "options": [{"letter": "A", "text": "Production"}, {"letter": "B", "text": "Reabsorption"}], "answer": "A", "explanation": "It cuts synthesis.", "clarify": [{"stem": "Blocking urate reabsorption at the PCT describes:", "options": [{"letter": "A", "text": "Probenecid"}, {"letter": "B", "text": "Allopurinol"}], "answer": "A", "explanation": "Probenecid is the uricosuric."}]}], "checkpoints": [{"stem": "Allopurinol and febuxostat share which class?", "options": [{"letter": "A", "text": "Uricosurics"}, {"letter": "B", "text": "IL-1 antagonists"}, {"letter": "C", "text": "Uricases"}, {"letter": "D", "text": "Xanthine oxidase inhibitors"}], "answer": "D", "explanation": "Both are **XOIs**."}, {"stem": "Drug that reduces uric acid synthesis via xanthine oxidase →", "options": [{"letter": "A", "text": "Colchicine"}, {"letter": "B", "text": "Allopurinol"}, {"letter": "C", "text": "Pegloticase"}, {"letter": "D", "text": "Probenecid"}], "answer": "B", "explanation": "**Allopurinol** (and febuxostat)."}]}}, {"id": "16", "group": 16, "slide": 17, "section": "Gout — xanthine oxidase inhibitors", "topic": "Xanthine oxidase inhibitors", "skill": "Management", "stem": "Which urate-lowering medication is first-line for a patient with gout, chronic kidney disease, and a history of kidney stones?", "options": [{"letter": "A", "text": "Indomethacin"}, {"letter": "B", "text": "Allopurinol"}, {"letter": "C", "text": "Pegloticase"}, {"letter": "D", "text": "Colchicine"}, {"letter": "E", "text": "Probenecid"}], "answer": "B", "explanation": "**Allopurinol** is first-line ULT — **also first-line with ↓ kidney function and nephrolithiasis** (renally dose-adjusted).", "objective": "", "remediation": {"steps": [{"teach": "Stones and low CrCl knock out the drug that **increases urinary urate**; the first-line agent instead lowers production.", "stem": "Which drug is contraindicated with stones or CrCl <50?", "options": [{"letter": "A", "text": "Allopurinol"}, {"letter": "B", "text": "Probenecid"}], "answer": "B", "explanation": "Probenecid ↑ uricosuria → stones.", "clarify": [{"stem": "Colchicine and indomethacin are:", "options": [{"letter": "A", "text": "First-line ULT"}, {"letter": "B", "text": "Flare drugs, not ULT"}], "answer": "B", "explanation": "They don't lower urate."}]}], "checkpoints": [{"stem": "Allopurinol in CKD stage ≥3 →", "options": [{"letter": "A", "text": "Contraindicated"}, {"letter": "B", "text": "Use only with pegloticase"}, {"letter": "C", "text": "Dose-adjust but still first line"}, {"letter": "D", "text": "Switch to probenecid"}], "answer": "C", "explanation": "Renally **dose-adjust**; still first line."}, {"stem": "First-line urate-lowering drug overall →", "options": [{"letter": "A", "text": "Probenecid"}, {"letter": "B", "text": "Pegloticase"}, {"letter": "C", "text": "Febuxostat"}, {"letter": "D", "text": "Allopurinol"}], "answer": "D", "explanation": "**Allopurinol**."}]}}, {"id": "17", "group": 17, "slide": 18, "section": "Gout — xanthine oxidase inhibitors", "topic": "Xanthine oxidase inhibitors", "skill": "Pharmacology", "stem": "Which genetic test should be obtained before allopurinol in Chinese, Thai, Korean, and African American patients?", "options": [{"letter": "A", "text": "CYP2C19"}, {"letter": "B", "text": "HLA-B27"}, {"letter": "C", "text": "G6PD"}, {"letter": "D", "text": "TPMT"}, {"letter": "E", "text": "HLA-B*5801"}], "answer": "E", "explanation": "**HLA-B*5801**-positive → **don't use allopurinol** (severe cutaneous adverse reactions, SCARs).", "objective": "", "remediation": {"steps": [{"teach": "The test predicts a **severe skin reaction** to allopurinol; it is an **HLA** allele.", "stem": "The danger being screened for is:", "options": [{"letter": "A", "text": "Severe cutaneous reaction"}, {"letter": "B", "text": "Bone marrow suppression"}], "answer": "A", "explanation": "HLA-B*5801 → SCARs.", "clarify": [{"stem": "TPMT is checked before:", "options": [{"letter": "A", "text": "Allopurinol"}, {"letter": "B", "text": "Azathioprine"}], "answer": "B", "explanation": "TPMT → azathioprine."}, {"stem": "G6PD deficiency contraindicates:", "options": [{"letter": "A", "text": "Pegloticase"}, {"letter": "B", "text": "Allopurinol"}], "answer": "A", "explanation": "G6PD → pegloticase (and HCQ caution)."}]}], "checkpoints": [{"stem": "HLA-B*5801 positive → ULT choice:", "options": [{"letter": "A", "text": "Colchicine alone"}, {"letter": "B", "text": "Allopurinol with prednisone"}, {"letter": "C", "text": "Allopurinol at low dose"}, {"letter": "D", "text": "Febuxostat"}], "answer": "D", "explanation": "Positive → **no allopurinol** → febuxostat."}, {"stem": "HLA-B*5801 positivity predicts which allopurinol reaction?", "options": [{"letter": "A", "text": "Hepatotoxicity"}, {"letter": "B", "text": "Retinal toxicity"}, {"letter": "C", "text": "Severe cutaneous reaction (SCAR)"}, {"letter": "D", "text": "Pancreatitis"}], "answer": "C", "explanation": "**SCARs** (e.g., SJS/TEN)."}]}}, {"id": "18", "group": 18, "slide": 18, "section": "Gout — xanthine oxidase inhibitors", "topic": "Xanthine oxidase inhibitors", "skill": "Management", "stem": "What should be done when a patient develops a new rash while taking allopurinol?", "options": [{"letter": "A", "text": "Add probenecid"}, {"letter": "B", "text": "Continue at same dose"}, {"letter": "C", "text": "Stop allopurinol"}, {"letter": "D", "text": "Increase the dose"}, {"letter": "E", "text": "Add antihistamine, continue"}], "answer": "C", "explanation": "Rash or hypersensitivity signs → **stop allopurinol** in ANY patient; switch to febuxostat.", "objective": "", "remediation": {"steps": [{"teach": "A rash can herald a **severe hypersensitivity** reaction — don't push through it.", "stem": "Allopurinol rash should be treated as:", "options": [{"letter": "A", "text": "A harmless side effect"}, {"letter": "B", "text": "Possible severe hypersensitivity"}], "answer": "B", "explanation": "Rash = stop.", "clarify": [{"stem": "Does a negative HLA-B*5801 make rash safe to ignore?", "options": [{"letter": "A", "text": "No — stop for rash in all"}, {"letter": "B", "text": "Yes — keep going"}], "answer": "A", "explanation": "Stop for rash in every patient."}]}], "checkpoints": [{"stem": "After stopping allopurinol for rash → Alternate XOI:", "options": [{"letter": "A", "text": "Febuxostat"}, {"letter": "B", "text": "Anakinra"}, {"letter": "C", "text": "Probenecid"}, {"letter": "D", "text": "Colchicine"}], "answer": "A", "explanation": "Switch to **febuxostat**."}, {"stem": "Allopurinol rash rule:", "options": [{"letter": "A", "text": "Reduce the dose"}, {"letter": "B", "text": "Push through"}, {"letter": "C", "text": "Stop the drug"}, {"letter": "D", "text": "Treat with steroids, continue"}], "answer": "C", "explanation": "**Stop**."}]}}, {"id": "19", "group": 19, "slide": 18, "section": "Gout — xanthine oxidase inhibitors", "topic": "Xanthine oxidase inhibitors", "skill": "Management", "stem": "Which oral urate-lowering medication is the next option for a patient who stopped allopurinol because of a rash and has a creatinine clearance of 40?", "options": [{"letter": "A", "text": "Febuxostat"}, {"letter": "B", "text": "Pegloticase"}, {"letter": "C", "text": "Probenecid"}, {"letter": "D", "text": "Colchicine"}, {"letter": "E", "text": "Indomethacin"}], "answer": "A", "explanation": "**Febuxostat** is the alternate XOI; probenecid is out (CrCl <50) and pegloticase is IV for refractory gout.", "objective": "", "remediation": {"steps": [{"teach": "You need a drug that lowers production like allopurinol, because **CrCl 40** rules out the uricosuric.", "stem": "Probenecid is contraindicated when CrCl is below:", "options": [{"letter": "A", "text": "15 mL/min"}, {"letter": "B", "text": "50 mL/min"}], "answer": "B", "explanation": "CrCl <50 → no probenecid.", "clarify": [{"stem": "Pegloticase is reserved for:", "options": [{"letter": "A", "text": "First alternative after a rash"}, {"letter": "B", "text": "Refractory gout (IV)"}], "answer": "B", "explanation": "Pegloticase = refractory, IV."}]}], "checkpoints": [{"stem": "Febuxostat → Caution with:", "options": [{"letter": "A", "text": "G6PD deficiency"}, {"letter": "B", "text": "Retinal disease"}, {"letter": "C", "text": "Sulfa allergy"}, {"letter": "D", "text": "Significant cardiac history"}], "answer": "D", "explanation": "Consider carefully with **significant cardiac PMH** (board-standard: CV-death warning)."}, {"stem": "Alternate oral XOI when allopurinol can't be used →", "options": [{"letter": "A", "text": "Leflunomide"}, {"letter": "B", "text": "Sulfasalazine"}, {"letter": "C", "text": "Probenecid"}, {"letter": "D", "text": "Febuxostat"}], "answer": "D", "explanation": "**Febuxostat (Uloric)**."}]}}, {"id": "20", "group": 20, "slide": 19, "section": "Gout — uricosurics", "topic": "Probenecid & pegloticase", "skill": "Pharmacology", "stem": "What is the mechanism of action of probenecid?", "options": [{"letter": "A", "text": "↓ Leukocyte phagocytosis in joint"}, {"letter": "B", "text": "Converts uric acid to allantoin"}, {"letter": "C", "text": "Blocks PCT urate reabsorption"}, {"letter": "D", "text": "Inhibits xanthine oxidase"}], "answer": "C", "explanation": "Uricosuric: **inhibits renal tubular reabsorption** of uric acid at the PCT → ↑ excretion → ↓ serum urate.", "objective": "", "remediation": {"steps": [{"teach": "Probenecid is a **uricosuric** — it makes the kidney dump more urate.", "stem": "Probenecid increases urate:", "options": [{"letter": "A", "text": "Production"}, {"letter": "B", "text": "Excretion"}], "answer": "B", "explanation": "↑ renal excretion.", "clarify": [{"stem": "Converting urate to allantoin is:", "options": [{"letter": "A", "text": "Probenecid"}, {"letter": "B", "text": "Pegloticase"}], "answer": "B", "explanation": "Pegloticase = uricase."}]}], "checkpoints": [{"stem": "Ideal probenecid patient →", "options": [{"letter": "A", "text": "Under-excreter, normal kidneys"}, {"letter": "B", "text": "Kidney stone history"}, {"letter": "C", "text": "Overproducer with CKD"}, {"letter": "D", "text": "Refractory tophaceous gout"}], "answer": "A", "explanation": "**Impaired renal excretion** with normal kidneys and no stones."}, {"stem": "Uricosuric drug for gout →", "options": [{"letter": "A", "text": "Febuxostat"}, {"letter": "B", "text": "Allopurinol"}, {"letter": "C", "text": "Probenecid"}, {"letter": "D", "text": "Pegloticase"}], "answer": "C", "explanation": "**Probenecid (Benemid)**."}]}}, {"id": "21", "group": 21, "slide": 19, "section": "Gout — uricosurics", "topic": "Probenecid & pegloticase", "skill": "Pharmacology", "stem": "Below what creatinine clearance is probenecid contraindicated?", "options": [{"letter": "A", "text": "15 mL/min"}, {"letter": "B", "text": "50 mL/min"}, {"letter": "C", "text": "90 mL/min"}, {"letter": "D", "text": "30 mL/min"}], "answer": "B", "explanation": "Probenecid is contraindicated in renal impairment **CrCl <50 mL/min** and with **nephrolithiasis history**.", "objective": "", "remediation": {"steps": [{"teach": "Probenecid depends on **working kidneys** to excrete urate; the cutoff is fairly generous.", "stem": "Probenecid needs:", "options": [{"letter": "A", "text": "Renal failure to work"}, {"letter": "B", "text": "Adequate renal function"}], "answer": "B", "explanation": "It works through the kidney.", "clarify": [{"stem": "GFR <30 is the cutoff for:", "options": [{"letter": "A", "text": "Methotrexate"}, {"letter": "B", "text": "Probenecid"}], "answer": "A", "explanation": "MTX contraindicated GFR <30; probenecid at CrCl <50."}]}], "checkpoints": [{"stem": "Probenecid is also contraindicated with:", "options": [{"letter": "A", "text": "HLA-B*5801"}, {"letter": "B", "text": "CHF"}, {"letter": "C", "text": "History of kidney stones"}, {"letter": "D", "text": "Sulfa allergy"}], "answer": "C", "explanation": "Uricosuria → **stones**."}, {"stem": "Under-excreter, CrCl 40 → Probenecid?", "options": [{"letter": "A", "text": "Yes — full dose"}, {"letter": "B", "text": "Yes — with colchicine"}, {"letter": "C", "text": "Yes — with pegloticase"}, {"letter": "D", "text": "No — use allopurinol"}], "answer": "D", "explanation": "CrCl <50 → **no probenecid**."}]}}, {"id": "22", "group": 22, "slide": 20, "section": "Gout — uricosurics", "topic": "Probenecid & pegloticase", "skill": "Counseling & prevention", "stem": "What counseling should be provided to help prevent kidney stones during probenecid treatment?", "options": [{"letter": "A", "text": "Drink plenty of fluids"}, {"letter": "B", "text": "Take it only during flares"}, {"letter": "C", "text": "Take with high-protein meals"}, {"letter": "D", "text": "Avoid all dairy products"}], "answer": "A", "explanation": "Start low, titrate over weeks, and **maintain hydration/urine flow** to prevent uric acid stones.", "objective": "", "remediation": {"steps": [{"teach": "Probenecid pushes **more urate into the urine**, which can crystallize into stones unless urine stays dilute.", "stem": "Stone risk falls with:", "options": [{"letter": "A", "text": "More fluid intake"}, {"letter": "B", "text": "Less fluid intake"}], "answer": "A", "explanation": "Dilute urine → fewer stones.", "clarify": [{"stem": "Probenecid dosing starts:", "options": [{"letter": "A", "text": "High, then taper"}, {"letter": "B", "text": "Low, then titrate"}], "answer": "B", "explanation": "Start low to avoid marked uricosuria."}]}], "checkpoints": [{"stem": "Why start probenecid at a low dose?", "options": [{"letter": "A", "text": "Avoid marked uricosuria/stones"}, {"letter": "B", "text": "Prevent QT prolongation"}, {"letter": "C", "text": "Prevent hypoglycemia"}, {"letter": "D", "text": "Avoid rebound flares"}], "answer": "A", "explanation": "Low start → avoids **marked uricosuria and stones**."}, {"stem": "Key patient teaching on probenecid →", "options": [{"letter": "A", "text": "Stop if urate drops"}, {"letter": "B", "text": "Limit fluids"}, {"letter": "C", "text": "Drink plenty of fluids"}, {"letter": "D", "text": "Take with antacids"}], "answer": "C", "explanation": "**Hydrate**."}]}}, {"id": "23", "group": 23, "slide": 21, "section": "Gout — pegloticase", "topic": "Probenecid & pegloticase", "skill": "Pharmacology", "stem": "What is the mechanism of action of pegloticase?", "options": [{"letter": "A", "text": "Blocks urate reabsorption at the PCT"}, {"letter": "B", "text": "Inhibits IL-1 signaling in joints"}, {"letter": "C", "text": "Inhibits xanthine oxidase"}, {"letter": "D", "text": "Converts uric acid to allantoin"}], "answer": "D", "explanation": "Recombinant **uricase**: uric acid → **allantoin**, a water-soluble metabolite readily excreted by the kidneys.", "objective": "", "remediation": {"steps": [{"teach": "Pegloticase is an **enzyme** humans lack — it breaks uric acid down into something very soluble.", "stem": "Pegloticase is a:", "options": [{"letter": "A", "text": "Uricase enzyme"}, {"letter": "B", "text": "Xanthine oxidase inhibitor"}], "answer": "A", "explanation": "Recombinant uricase.", "clarify": [{"stem": "Xanthine oxidase inhibition is:", "options": [{"letter": "A", "text": "Pegloticase"}, {"letter": "B", "text": "Allopurinol/febuxostat"}], "answer": "B", "explanation": "XOIs block production."}]}], "checkpoints": [{"stem": "Pegloticase → Indication and route:", "options": [{"letter": "A", "text": "Prophylaxis, SQ weekly"}, {"letter": "B", "text": "Acute flare, PO daily"}, {"letter": "C", "text": "Refractory gout, IV q8 weeks"}, {"letter": "D", "text": "First-line ULT, PO"}], "answer": "C", "explanation": "**Refractory gout, IV infusion every 8 weeks**."}, {"stem": "Gout refractory to oral ULT →", "options": [{"letter": "A", "text": "Colchicine"}, {"letter": "B", "text": "Probenecid"}, {"letter": "C", "text": "Pegloticase"}, {"letter": "D", "text": "Indomethacin"}], "answer": "C", "explanation": "**Pegloticase (Krystexxa)**."}]}}, {"id": "24", "group": 24, "slide": 21, "section": "Gout — pegloticase", "topic": "Probenecid & pegloticase", "skill": "Pharmacology", "stem": "Which major risk of pegloticase requires premedication?", "options": [{"letter": "A", "text": "Pulmonary fibrosis"}, {"letter": "B", "text": "Hemorrhagic cystitis and hematuria"}, {"letter": "C", "text": "Anaphylaxis / infusion reaction"}, {"letter": "D", "text": "Retinal toxicity and vision loss"}], "answer": "C", "explanation": "**Anaphylaxis/infusion reactions** (urticaria, dyspnea, chest discomfort) → pre-medicate with **antihistamine, acetaminophen, corticosteroid**.", "objective": "", "remediation": {"steps": [{"teach": "Pegloticase is a **foreign protein given IV** — the immune system may react to it during the infusion.", "stem": "IV foreign proteins classically cause:", "options": [{"letter": "A", "text": "Infusion/allergic reactions"}, {"letter": "B", "text": "Retinal damage"}], "answer": "A", "explanation": "Infusion reactions/anaphylaxis.", "clarify": [{"stem": "Hemorrhagic cystitis is linked to:", "options": [{"letter": "A", "text": "Cyclophosphamide"}, {"letter": "B", "text": "Pegloticase"}], "answer": "A", "explanation": "That's cyclophosphamide."}]}], "checkpoints": [{"stem": "Pegloticase pre-medications →", "options": [{"letter": "A", "text": "Folic acid and vitamin D"}, {"letter": "B", "text": "Cholestyramine"}, {"letter": "C", "text": "Antihistamine, acetaminophen, steroid"}, {"letter": "D", "text": "Colchicine and allopurinol"}], "answer": "C", "explanation": "**Antihistamine + APAP + corticosteroid**."}, {"stem": "Weekly drug co-given with pegloticase to boost response and cut infusion reactions →", "options": [{"letter": "A", "text": "Methotrexate"}, {"letter": "B", "text": "Probenecid"}, {"letter": "C", "text": "Febuxostat"}, {"letter": "D", "text": "Leflunomide"}], "answer": "A", "explanation": "**Weekly oral MTX** (+ folic acid)."}]}}, {"id": "25", "group": 25, "slide": 21, "section": "Gout — pegloticase", "topic": "Probenecid & pegloticase", "skill": "Pharmacology", "stem": "In which condition is pegloticase contraindicated?", "options": [{"letter": "A", "text": "Low TPMT activity"}, {"letter": "B", "text": "Sulfa allergy"}, {"letter": "C", "text": "HLA-B*5801 positivity"}, {"letter": "D", "text": "G6PD deficiency"}, {"letter": "E", "text": "CrCl <50"}], "answer": "D", "explanation": "Pegloticase is **contraindicated in G6PD deficiency** (hemolysis risk).", "objective": "", "remediation": {"steps": [{"teach": "The contraindication is an **enzyme deficiency of red cells** that predisposes to hemolysis.", "stem": "G6PD deficiency causes:", "options": [{"letter": "A", "text": "Hepatotoxicity"}, {"letter": "B", "text": "Hemolytic anemia"}], "answer": "B", "explanation": "Oxidant stress → hemolysis.", "clarify": [{"stem": "HLA-B*5801 is screened before:", "options": [{"letter": "A", "text": "Allopurinol"}, {"letter": "B", "text": "Pegloticase"}], "answer": "A", "explanation": "HLA-B*5801 → allopurinol."}]}], "checkpoints": [{"stem": "Other rheum drug that needs G6PD caution →", "options": [{"letter": "A", "text": "Etanercept"}, {"letter": "B", "text": "Hydroxychloroquine"}, {"letter": "C", "text": "Leflunomide"}, {"letter": "D", "text": "Anakinra"}], "answer": "B", "explanation": "**HCQ** — G6PD deficiency caution (hemolysis)."}, {"stem": "Refractory gout patient with G6PD deficiency → Pegloticase?", "options": [{"letter": "A", "text": "Yes — at half dose"}, {"letter": "B", "text": "No — contraindicated"}, {"letter": "C", "text": "Yes — with pre-meds"}, {"letter": "D", "text": "Yes — with MTX"}], "answer": "B", "explanation": "**Contraindicated**."}]}}, {"id": "26", "group": 26, "slide": 27, "section": "RA — goals & non-pharm", "topic": "RA goals, non-pharm & pretreatment", "skill": "Management", "stem": "What is the lecture's main message about rheumatoid arthritis treatment?", "options": [{"letter": "A", "text": "Aggressive early treatment"}, {"letter": "B", "text": "Steroids as monotherapy"}, {"letter": "C", "text": "Wait for erosions first"}, {"letter": "D", "text": "NSAIDs alone for a year"}], "answer": "A", "explanation": "**More aggressive EARLY treatment** improves outlook and **prevents irreversible joint injury** — DMARDs go in early.", "objective": "", "remediation": {"steps": [{"teach": "RA damage is **irreversible**, so the timing of disease-modifying therapy matters most.", "stem": "Joint destruction in RA is:", "options": [{"letter": "A", "text": "Irreversible"}, {"letter": "B", "text": "Fully reversible"}], "answer": "A", "explanation": "Damage can't be undone → treat early.", "clarify": [{"stem": "NSAIDs/steroids alone:", "options": [{"letter": "A", "text": "Don't change progression"}, {"letter": "B", "text": "Prevent joint damage"}], "answer": "A", "explanation": "Only DMARDs modify disease."}]}], "checkpoints": [{"stem": "Goal of RA therapy →", "options": [{"letter": "A", "text": "Symptom control only"}, {"letter": "B", "text": "Avoid all DMARDs"}, {"letter": "C", "text": "Normal RF titer"}, {"letter": "D", "text": "Complete remission"}], "answer": "D", "explanation": "Goal = **induce complete remission**, slow destructive changes."}, {"stem": "Best timing to start a DMARD in RA →", "options": [{"letter": "A", "text": "Only if RF positive"}, {"letter": "B", "text": "After deformities"}, {"letter": "C", "text": "Early, at diagnosis"}, {"letter": "D", "text": "After 1 year of NSAIDs"}], "answer": "C", "explanation": "**Early**."}]}}, {"id": "27", "group": 27, "slide": 28, "section": "RA — goals & non-pharm", "topic": "RA goals, non-pharm & pretreatment", "skill": "Counseling & prevention", "stem": "Which dietary supplement is recommended as a nonpharmacologic measure for rheumatoid arthritis?", "options": [{"letter": "A", "text": "Low-purine diet"}, {"letter": "B", "text": "High-protein diet"}, {"letter": "C", "text": "Vitamin C megadose"}, {"letter": "D", "text": "High-dose fish oil"}], "answer": "D", "explanation": "RA non-pharm: rest, weight loss if obese, nutritional counseling with **high-dose fish oil**, exercise, PT/OT, surgery for severe disease.", "objective": "", "remediation": {"steps": [{"teach": "The supplement is an **omega-3** source with anti-inflammatory effects.", "stem": "Omega-3 fatty acids come from:", "options": [{"letter": "A", "text": "Fish oil"}, {"letter": "B", "text": "Red meat"}], "answer": "A", "explanation": "Fish oil = omega-3.", "clarify": [{"stem": "Low-purine diet is for:", "options": [{"letter": "A", "text": "RA"}, {"letter": "B", "text": "Gout"}], "answer": "B", "explanation": "Purine restriction is a gout measure."}]}], "checkpoints": [{"stem": "Obesity in RA predicts:", "options": [{"letter": "A", "text": "Better MTX response"}, {"letter": "B", "text": "Poor treatment response"}, {"letter": "C", "text": "Milder disease"}, {"letter": "D", "text": "Lower RF titer"}], "answer": "B", "explanation": "Obesity → **poor response** regardless of therapy; weight loss helps."}, {"stem": "RA non-pharm list includes:", "options": [{"letter": "A", "text": "Strict bed rest"}, {"letter": "B", "text": "Sun avoidance only"}, {"letter": "C", "text": "Fish oil, exercise, PT/OT"}, {"letter": "D", "text": "Low-purine diet"}], "answer": "C", "explanation": "Rest, weight loss, **fish oil**, exercise, PT/OT."}]}}, {"id": "28", "group": 28, "slide": 29, "section": "RA — pretreatment evaluation", "topic": "RA goals, non-pharm & pretreatment", "skill": "Diagnostics & imaging", "stem": "Which infections should be screened for before starting a DMARD or immunosuppressant for rheumatoid arthritis or SLE?", "options": [{"letter": "A", "text": "Strep and influenza"}, {"letter": "B", "text": "HIV and syphilis only"}, {"letter": "C", "text": "Hep B, Hep C, latent TB"}, {"letter": "D", "text": "Urine culture only"}], "answer": "C", "explanation": "Screen **Hep B, Hep C, latent TB** and **treat before starting** DMARDs/immunosuppressives — for all autoimmune diseases.", "objective": "", "remediation": {"steps": [{"teach": "Immunosuppression can **reactivate** dormant infections — think latent lung infection and chronic viral liver infections.", "stem": "TB screening matters because immunosuppression can:", "options": [{"letter": "A", "text": "Cure latent TB"}, {"letter": "B", "text": "Reactivate latent TB"}], "answer": "B", "explanation": "Reactivation risk.", "clarify": [{"stem": "Positive latent TB screen before a TNF inhibitor →", "options": [{"letter": "A", "text": "Start TNF anyway"}, {"letter": "B", "text": "Treat TB first"}], "answer": "B", "explanation": "Treat latent TB first."}]}], "checkpoints": [{"stem": "Positive TB screen, needs a TNF inhibitor →", "options": [{"letter": "A", "text": "Use infliximab instead"}, {"letter": "B", "text": "Skip DMARDs"}, {"letter": "C", "text": "Treat latent TB first"}, {"letter": "D", "text": "Start anyway"}], "answer": "C", "explanation": "**Treat latent TB first**."}, {"stem": "Viral screens before RA immunosuppression →", "options": [{"letter": "A", "text": "Hepatitis A and E"}, {"letter": "B", "text": "HPV and HSV"}, {"letter": "C", "text": "Hepatitis B and C"}, {"letter": "D", "text": "EBV and CMV"}], "answer": "C", "explanation": "**Hep B and Hep C** (+ latent TB)."}]}}, {"id": "29", "group": 29, "slide": 29, "section": "RA — pretreatment evaluation", "topic": "RA goals, non-pharm & pretreatment", "skill": "Diagnostics & imaging", "stem": "What baseline evaluation is required before starting hydroxychloroquine?", "options": [{"letter": "A", "text": "Ophthalmologic exam"}, {"letter": "B", "text": "TPMT genotype"}, {"letter": "C", "text": "HLA-B*5801 typing"}, {"letter": "D", "text": "Echocardiogram"}, {"letter": "E", "text": "Chest x-ray (PA/lateral)"}], "answer": "A", "explanation": "HCQ → **baseline eye exam**, then fundoscopic + visual-field exams **every 6–12 months** (retinal toxicity).", "objective": "", "remediation": {"steps": [{"teach": "HCQ's most feared toxicity involves the **retina**.", "stem": "HCQ's most feared AE affects the:", "options": [{"letter": "A", "text": "Eye"}, {"letter": "B", "text": "Liver"}], "answer": "A", "explanation": "Retinal/visual-field changes.", "clarify": [{"stem": "Chest x-ray is the baseline for:", "options": [{"letter": "A", "text": "Hydroxychloroquine"}, {"letter": "B", "text": "Methotrexate"}], "answer": "B", "explanation": "CXR before MTX (pulmonary toxicity)."}]}], "checkpoints": [{"stem": "Before methotrexate → Consider which imaging:", "options": [{"letter": "A", "text": "Eye exam"}, {"letter": "B", "text": "DEXA scan"}, {"letter": "C", "text": "Chest x-ray"}, {"letter": "D", "text": "Renal ultrasound"}], "answer": "C", "explanation": "**CXR** (pneumonitis/fibrosis risk)."}, {"stem": "HCQ eye monitoring interval →", "options": [{"letter": "A", "text": "Only if symptomatic"}, {"letter": "B", "text": "Every 5 years"}, {"letter": "C", "text": "Every week"}, {"letter": "D", "text": "Every 6–12 months"}], "answer": "D", "explanation": "Fundoscopic + visual-field exam **q6–12 mo**."}]}}, {"id": "30", "group": 30, "slide": 32, "section": "RA — NSAIDs & steroids", "topic": "Glucocorticoids & NSAIDs", "skill": "Pharmacology", "stem": "What is the key limitation of NSAIDs in rheumatoid arthritis?", "options": [{"letter": "A", "text": "Don't prevent joint damage"}, {"letter": "B", "text": "Require weekly dosing only"}, {"letter": "C", "text": "Cause retinal toxicity often"}, {"letter": "D", "text": "Raise serum urate levels"}], "answer": "A", "explanation": "NSAIDs give **symptomatic relief** for mild RA but **do not modify disease or prevent joint damage**; avoid combining with steroids (GI risk).", "objective": "", "remediation": {"steps": [{"teach": "Ask whether the drug **changes the disease course** or just relieves symptoms.", "stem": "NSAIDs in RA are:", "options": [{"letter": "A", "text": "Symptomatic only"}, {"letter": "B", "text": "Disease-modifying"}], "answer": "A", "explanation": "Symptom relief only.", "clarify": [{"stem": "The disease-modifying class is:", "options": [{"letter": "A", "text": "DMARDs"}, {"letter": "B", "text": "NSAIDs"}], "answer": "A", "explanation": "DMARDs modify RA."}]}], "checkpoints": [{"stem": "NSAIDs + steroids together in RA →", "options": [{"letter": "A", "text": "Protects the kidney"}, {"letter": "B", "text": "Avoid — GI risk"}, {"letter": "C", "text": "Required with MTX"}, {"letter": "D", "text": "Preferred combo"}], "answer": "B", "explanation": "**Avoid** combining — additive GI toxicity."}, {"stem": "Drug class that relieves RA symptoms but doesn't alter progression →", "options": [{"letter": "A", "text": "IL-6 inhibitors"}, {"letter": "B", "text": "TNF inhibitors"}, {"letter": "C", "text": "NSAIDs"}, {"letter": "D", "text": "DMARDs"}], "answer": "C", "explanation": "**NSAIDs** (and steroids)."}]}}, {"id": "31", "group": 31, "slide": 34, "section": "RA — NSAIDs & steroids", "topic": "Glucocorticoids & NSAIDs", "skill": "Management", "stem": "What is the best role for low-dose prednisone in rheumatoid arthritis?", "options": [{"letter": "A", "text": "Lifelong monotherapy"}, {"letter": "B", "text": "Replace DMARDs if mild"}, {"letter": "C", "text": "Prevent erosions long-term"}, {"letter": "D", "text": "Bridge until DMARD works"}], "answer": "D", "explanation": "Low-dose steroid (**5–10 mg/day**) is best as **bridging therapy** while awaiting DMARD effect; it **does NOT alter disease progression**.", "objective": "", "remediation": {"steps": [{"teach": "Steroids act fast but **don't change progression**; DMARDs change progression but act slowly.", "stem": "Do glucocorticoids alter RA progression?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "Anti-inflammatory/immunosuppressive only.", "clarify": [{"stem": "MTX takes about how long to work?", "options": [{"letter": "A", "text": "3–6 weeks"}, {"letter": "B", "text": "1 day"}], "answer": "A", "explanation": "Slow onset → need a bridge."}]}], "checkpoints": [{"stem": "Low-dose prednisone in RA →", "options": [{"letter": "A", "text": "40 mg/day"}, {"letter": "B", "text": "5–10 mg/day"}, {"letter": "C", "text": "1–2 mg/kg/day"}, {"letter": "D", "text": "100 mg/day"}], "answer": "B", "explanation": "Low dose = **5–10 mg/day**."}, {"stem": "Steroid AE list in RA includes:", "options": [{"letter": "A", "text": "Hemorrhagic cystitis"}, {"letter": "B", "text": "Agranulocytosis"}, {"letter": "C", "text": "↓ Bone mineral density"}, {"letter": "D", "text": "Retinal toxicity"}], "answer": "C", "explanation": "↑BG, ↑BP, ↑lipids, **↓BMD**, PUD, weight gain, infection, mood."}]}}, {"id": "32", "group": 32, "slide": 36, "section": "RA — methotrexate", "topic": "Methotrexate", "skill": "Management", "stem": "Which DMARD is preferred initially for newly diagnosed rheumatoid arthritis?", "options": [{"letter": "A", "text": "Etanercept"}, {"letter": "B", "text": "Leflunomide"}, {"letter": "C", "text": "Sulfasalazine"}, {"letter": "D", "text": "Hydroxychloroquine"}, {"letter": "E", "text": "Methotrexate"}], "answer": "E", "explanation": "**Methotrexate** is the initial treatment of choice for early or established RA, with superior long-term outcomes; backbone of combos.", "objective": "", "remediation": {"steps": [{"teach": "One conventional DMARD is the **backbone** that nearly every combination is built on.", "stem": "Triple therapy is built around:", "options": [{"letter": "A", "text": "Methotrexate"}, {"letter": "B", "text": "Leflunomide"}], "answer": "A", "explanation": "MTX + SSZ + HCQ.", "clarify": [{"stem": "Leflunomide is used when:", "options": [{"letter": "A", "text": "Other conventional DMARDs are contraindicated"}, {"letter": "B", "text": "First line in all"}], "answer": "A", "explanation": "Leflunomide = last conventional choice."}]}], "checkpoints": [{"stem": "Methotrexate → Typical time to response:", "options": [{"letter": "A", "text": "6 months"}, {"letter": "B", "text": "3–6 weeks"}, {"letter": "C", "text": "2 days"}, {"letter": "D", "text": "1 year"}], "answer": "B", "explanation": "Response in **3–6 weeks**."}, {"stem": "DMARD with the best long-term outcome data in RA →", "options": [{"letter": "A", "text": "Anakinra"}, {"letter": "B", "text": "Sulfasalazine"}, {"letter": "C", "text": "Methotrexate"}, {"letter": "D", "text": "Hydroxychloroquine"}], "answer": "C", "explanation": "**MTX**."}]}}, {"id": "33", "group": 33, "slide": 36, "section": "RA — methotrexate", "topic": "Methotrexate", "skill": "Pharmacology", "stem": "In which condition is methotrexate contraindicated?", "options": [{"letter": "A", "text": "Retinal disease"}, {"letter": "B", "text": "G6PD deficiency"}, {"letter": "C", "text": "Heavy alcohol use"}, {"letter": "D", "text": "Sulfa allergy"}, {"letter": "E", "text": "HLA-B*5801 positivity"}], "answer": "C", "explanation": "MTX contraindications: **pregnancy/inadequate contraception (Cat X), liver disease or excessive alcohol, GFR <30**.", "objective": "", "remediation": {"steps": [{"teach": "Methotrexate's organ toxicity centers on the **liver**.", "stem": "MTX can cause:", "options": [{"letter": "A", "text": "Hemorrhagic cystitis"}, {"letter": "B", "text": "Hepatotoxicity"}], "answer": "B", "explanation": "↑LFTs → liver damage.", "clarify": [{"stem": "Sulfa allergy rules out:", "options": [{"letter": "A", "text": "Sulfasalazine"}, {"letter": "B", "text": "Methotrexate"}], "answer": "A", "explanation": "Sulfa → SSZ."}]}], "checkpoints": [{"stem": "Methotrexate renal cutoff →", "options": [{"letter": "A", "text": "Avoid if CrCl <90"}, {"letter": "B", "text": "Avoid if CrCl <50 only for gout"}, {"letter": "C", "text": "No renal limit"}, {"letter": "D", "text": "Avoid if GFR <30"}], "answer": "D", "explanation": "Severe renal impairment **GFR <30**."}, {"stem": "RA + cirrhosis → DMARDs to avoid:", "options": [{"letter": "A", "text": "Low-dose prednisone"}, {"letter": "B", "text": "Hydroxychloroquine"}, {"letter": "C", "text": "Methotrexate and leflunomide"}, {"letter": "D", "text": "Etanercept"}], "answer": "C", "explanation": "Liver disease → **no MTX, no leflunomide**."}]}}, {"id": "34", "group": 34, "slide": 37, "section": "RA — methotrexate", "topic": "Methotrexate", "skill": "Counseling & prevention", "stem": "How often is methotrexate taken for rheumatoid arthritis?", "options": [{"letter": "A", "text": "Once weekly"}, {"letter": "B", "text": "Twice daily"}, {"letter": "C", "text": "Every 8 weeks"}, {"letter": "D", "text": "Once daily"}], "answer": "A", "explanation": "MTX is **ONCE WEEKLY** — daily dosing is a potentially lethal error.", "objective": "", "remediation": {"steps": [{"teach": "RA methotrexate is a **low-dose, infrequent** regimen; the error to avoid is taking it every day.", "stem": "Taking RA methotrexate daily is:", "options": [{"letter": "A", "text": "A dangerous error"}, {"letter": "B", "text": "Standard"}], "answer": "A", "explanation": "Weekly only.", "clarify": [{"stem": "The DAILY pill paired with MTX is:", "options": [{"letter": "A", "text": "Folic acid"}, {"letter": "B", "text": "Methotrexate"}], "answer": "A", "explanation": "Folic acid is daily."}]}], "checkpoints": [{"stem": "MTX counseling → Report:", "options": [{"letter": "A", "text": "Orange urine"}, {"letter": "B", "text": "Mouth sores, cough, bruising"}, {"letter": "C", "text": "Injection-site redness"}, {"letter": "D", "text": "Weight gain"}], "answer": "B", "explanation": "Report **mouth sores (stomatitis), cough/dyspnea, bruising**."}, {"stem": "How often is RA methotrexate taken?", "options": [{"letter": "A", "text": "Every other day"}, {"letter": "B", "text": "Daily"}, {"letter": "C", "text": "Monthly"}, {"letter": "D", "text": "Weekly"}], "answer": "D", "explanation": "**Weekly**."}]}}, {"id": "35", "group": 35, "slide": 37, "section": "RA — methotrexate", "topic": "Methotrexate", "skill": "Pharmacology", "stem": "Which daily supplement helps prevent methotrexate toxicities?", "options": [{"letter": "A", "text": "Iron"}, {"letter": "B", "text": "Vitamin D"}, {"letter": "C", "text": "Cholestyramine"}, {"letter": "D", "text": "Folic acid"}, {"letter": "E", "text": "Pyridoxine"}], "answer": "D", "explanation": "**Daily folic acid** helps prevent MTX side effects/toxicities (GI, stomatitis, cytopenias).", "objective": "", "remediation": {"steps": [{"teach": "Methotrexate is an **antifolate**; replacing the vitamin it antagonizes reduces toxicity.", "stem": "MTX interferes with:", "options": [{"letter": "A", "text": "Vitamin K metabolism"}, {"letter": "B", "text": "Folate metabolism"}], "answer": "B", "explanation": "Antifolate.", "clarify": [{"stem": "Cholestyramine is used to wash out:", "options": [{"letter": "A", "text": "Leflunomide"}, {"letter": "B", "text": "Methotrexate"}], "answer": "A", "explanation": "Cholestyramine → leflunomide."}]}], "checkpoints": [{"stem": "MTX hematologic toxicity →", "options": [{"letter": "A", "text": "Eosinophilia"}, {"letter": "B", "text": "Thrombocytosis"}, {"letter": "C", "text": "Pancytopenia"}, {"letter": "D", "text": "Polycythemia"}], "answer": "C", "explanation": "**Pancytopenia**."}, {"stem": "Supplement paired with every MTX prescription →", "options": [{"letter": "A", "text": "Vitamin B12"}, {"letter": "B", "text": "Calcium"}, {"letter": "C", "text": "Folic acid"}, {"letter": "D", "text": "Magnesium"}], "answer": "C", "explanation": "**Folic acid**."}]}}, {"id": "36", "group": 36, "slide": 37, "section": "RA — methotrexate", "topic": "Methotrexate", "skill": "Pharmacology", "stem": "What complication is suggested by a new dry cough and dyspnea in a patient taking weekly methotrexate?", "options": [{"letter": "A", "text": "Pulmonary embolism"}, {"letter": "B", "text": "Acute asthma exacerbation"}, {"letter": "C", "text": "MTX pneumonitis/fibrosis"}, {"letter": "D", "text": "Sarcoidosis flare"}], "answer": "C", "explanation": "MTX pulmonary toxicity = **pneumonitis/fibrosis** (why a baseline CXR is considered).", "objective": "", "remediation": {"steps": [{"teach": "Methotrexate has a **pulmonary** toxicity listed among its signature AEs.", "stem": "MTX's lung toxicity is:", "options": [{"letter": "A", "text": "Interstitial (pneumonitis/fibrosis)"}, {"letter": "B", "text": "Bronchospasm"}], "answer": "A", "explanation": "Pneumonitis/fibrosis.", "clarify": [{"stem": "Baseline CXR before MTX is for:", "options": [{"letter": "A", "text": "Gout tophi"}, {"letter": "B", "text": "Detecting lung toxicity"}], "answer": "B", "explanation": "CXR to compare for lung toxicity."}]}], "checkpoints": [{"stem": "Methotrexate toxicity list →", "options": [{"letter": "A", "text": "Stomatitis, pancytopenia, ↑LFTs"}, {"letter": "B", "text": "Hemorrhagic cystitis, alopecia"}, {"letter": "C", "text": "Retinal toxicity, QT"}, {"letter": "D", "text": "HTN, hyperlipidemia"}], "answer": "A", "explanation": "GI/**stomatitis**, **pancytopenia**, pulmonary, **↑LFTs**, phototoxicity, teratogenic."}, {"stem": "DMARD that causes pulmonary fibrosis →", "options": [{"letter": "A", "text": "Hydroxychloroquine"}, {"letter": "B", "text": "Sulfasalazine"}, {"letter": "C", "text": "Etanercept"}, {"letter": "D", "text": "Methotrexate"}], "answer": "D", "explanation": "**MTX**."}]}}, {"id": "37", "group": 37, "slide": 37, "section": "RA — methotrexate", "topic": "Methotrexate", "skill": "Diagnostics & imaging", "stem": "What is the next step for a patient taking methotrexate who has persistently elevated liver tests?", "options": [{"letter": "A", "text": "Check HLA-B*5801"}, {"letter": "B", "text": "Check TPMT"}, {"letter": "C", "text": "Switch to daily dosing"}, {"letter": "D", "text": "Add cholestyramine"}, {"letter": "E", "text": "Liver biopsy"}], "answer": "E", "explanation": "MTX hepatotoxicity: **persistently elevated LFTs → liver biopsy**.", "objective": "", "remediation": {"steps": [{"teach": "Persistent enzyme elevation on MTX raises concern for **fibrosis**, which needs tissue to confirm.", "stem": "Persistent ↑LFTs on MTX raise concern for:", "options": [{"letter": "A", "text": "Liver fibrosis"}, {"letter": "B", "text": "Pancreatitis"}], "answer": "A", "explanation": "Hepatotoxicity.", "clarify": [{"stem": "Cholestyramine washout is for:", "options": [{"letter": "A", "text": "Methotrexate"}, {"letter": "B", "text": "Leflunomide"}], "answer": "B", "explanation": "Leflunomide has the very long half-life."}]}], "checkpoints": [{"stem": "MTX lab monitoring →", "options": [{"letter": "A", "text": "TPMT yearly"}, {"letter": "B", "text": "Eye exam q6–12 mo"}, {"letter": "C", "text": "Urate q2–4 wk"}, {"letter": "D", "text": "CBC/CMP at 4 wk, then q2–3 mo"}], "answer": "D", "explanation": "**CBC/CMP at 4 weeks, then every 2–3 months**."}, {"stem": "Persistently abnormal LFTs on MTX → Evaluate with:", "options": [{"letter": "A", "text": "Chest x-ray"}, {"letter": "B", "text": "Eye exam"}, {"letter": "C", "text": "Liver biopsy"}, {"letter": "D", "text": "Urinalysis"}], "answer": "C", "explanation": "**Biopsy**."}]}}, {"id": "38", "group": 38, "slide": 38, "section": "RA — methotrexate combos", "topic": "Methotrexate", "skill": "Management", "stem": "Which medications make up triple therapy for rheumatoid arthritis?", "options": [{"letter": "A", "text": "MTX + sulfasalazine + HCQ"}, {"letter": "B", "text": "MTX + infliximab + anakinra"}, {"letter": "C", "text": "MTX + leflunomide + etanercept"}, {"letter": "D", "text": "HCQ + prednisone + NSAID"}], "answer": "A", "explanation": "**Triple therapy = methotrexate + sulfasalazine + hydroxychloroquine** — for inadequate response or moderate–high activity.", "objective": "", "remediation": {"steps": [{"teach": "Triple therapy combines **three conventional** (non-biologic) DMARDs.", "stem": "Triple therapy uses:", "options": [{"letter": "A", "text": "Conventional DMARDs only"}, {"letter": "B", "text": "Biologics only"}], "answer": "A", "explanation": "All conventional.", "clarify": [{"stem": "TNF inhibitor + anakinra together is:", "options": [{"letter": "A", "text": "Standard"}, {"letter": "B", "text": "Never done (infection)"}], "answer": "B", "explanation": "Never TNF + non-TNF biologic."}]}], "checkpoints": [{"stem": "Inadequate response on MTX monotherapy → Options:", "options": [{"letter": "A", "text": "Add anakinra to a TNF inhibitor"}, {"letter": "B", "text": "Double steroids indefinitely"}, {"letter": "C", "text": "Add HCQ/SSZ, leflunomide, or a TNF inhibitor"}, {"letter": "D", "text": "Stop MTX, start NSAID"}], "answer": "C", "explanation": "Add conventional DMARDs (triple) or leflunomide, **or add a TNF inhibitor** (keep MTX)."}, {"stem": "Three conventional DMARDs in triple therapy →", "options": [{"letter": "A", "text": "SSZ, HCQ, leflunomide"}, {"letter": "B", "text": "MTX, SSZ, HCQ"}, {"letter": "C", "text": "MTX, AZA, MMF"}, {"letter": "D", "text": "MTX, leflunomide, HCQ"}], "answer": "B", "explanation": "**MTX + SSZ + HCQ**."}]}}, {"id": "39", "group": 39, "slide": 39, "section": "RA — hydroxychloroquine", "topic": "Hydroxychloroquine", "skill": "Pharmacology", "stem": "What is the most feared adverse effect of hydroxychloroquine?", "options": [{"letter": "A", "text": "Retinal toxicity"}, {"letter": "B", "text": "Pulmonary fibrosis"}, {"letter": "C", "text": "Hemorrhagic cystitis"}, {"letter": "D", "text": "Hepatotoxicity"}, {"letter": "E", "text": "Bone marrow suppression"}], "answer": "A", "explanation": "**Ocular effects — retinal/visual-field changes (macular damage)** are the most feared (rare) HCQ AE.", "objective": "", "remediation": {"steps": [{"teach": "The most feared HCQ toxicity is the reason for its **routine specialist exam**.", "stem": "HCQ monitoring centers on the:", "options": [{"letter": "A", "text": "Bladder"}, {"letter": "B", "text": "Eyes"}], "answer": "B", "explanation": "Eye exams q6–12 mo.", "clarify": [{"stem": "HCQ causes marrow suppression?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "HCQ does NOT suppress marrow."}]}], "checkpoints": [{"stem": "HCQ cardiac adverse effect →", "options": [{"letter": "A", "text": "Pericarditis"}, {"letter": "B", "text": "Bradycardia from β-block"}, {"letter": "C", "text": "Heart failure"}, {"letter": "D", "text": "QT prolongation"}], "answer": "D", "explanation": "**Prolonged QT**, ventricular arrhythmias."}, {"stem": "Blurred vision / visual-field loss on an RA or SLE drug →", "options": [{"letter": "A", "text": "Sulfasalazine"}, {"letter": "B", "text": "Methotrexate"}, {"letter": "C", "text": "Hydroxychloroquine"}, {"letter": "D", "text": "Etanercept"}], "answer": "C", "explanation": "**HCQ retinal toxicity** → stop, ophthalmology."}]}}, {"id": "40", "group": 40, "slide": 39, "section": "RA — hydroxychloroquine", "topic": "Hydroxychloroquine", "skill": "Identification", "stem": "Which conventional DMARD lacks bone marrow, renal, and hepatic toxicity?", "options": [{"letter": "A", "text": "Leflunomide (Arava)"}, {"letter": "B", "text": "Methotrexate"}, {"letter": "C", "text": "Hydroxychloroquine"}, {"letter": "D", "text": "Sulfasalazine (Azulfidine)"}], "answer": "C", "explanation": "**HCQ does NOT cause** renal/hepatic dysfunction or bone marrow suppression — among the safest DMARDs.", "objective": "", "remediation": {"steps": [{"teach": "Eliminate the drugs known for **liver** or **blood count** toxicity.", "stem": "Leflunomide's signature toxicity is:", "options": [{"letter": "A", "text": "Hepatotoxicity"}, {"letter": "B", "text": "Retinal"}], "answer": "A", "explanation": "Liver.", "clarify": [{"stem": "Sulfasalazine can cause:", "options": [{"letter": "A", "text": "No blood effects"}, {"letter": "B", "text": "Agranulocytosis"}], "answer": "B", "explanation": "SSZ → leukopenia/agranulocytosis."}]}], "checkpoints": [{"stem": "HCQ → Onset of benefit:", "options": [{"letter": "A", "text": "Within 24 hours"}, {"letter": "B", "text": "Weeks to months"}, {"letter": "C", "text": "Only after 2 years"}, {"letter": "D", "text": "Within 3 days"}], "answer": "B", "explanation": "6 weeks to several months (max 3–6 mo in SLE)."}, {"stem": "Safest conventional DMARD for marrow/liver/kidney →", "options": [{"letter": "A", "text": "Azathioprine"}, {"letter": "B", "text": "Methotrexate"}, {"letter": "C", "text": "Leflunomide"}, {"letter": "D", "text": "Hydroxychloroquine"}], "answer": "D", "explanation": "**HCQ**."}]}}, {"id": "41", "group": 41, "slide": 40, "section": "RA — sulfasalazine", "topic": "Sulfasalazine & leflunomide", "skill": "Pharmacology", "stem": "In which patients should sulfasalazine be avoided?", "options": [{"letter": "A", "text": "Heart failure"}, {"letter": "B", "text": "Sulfa allergy"}, {"letter": "C", "text": "Retinal disease"}, {"letter": "D", "text": "Low TPMT activity"}], "answer": "B", "explanation": "**AVOID sulfasalazine in sulfa allergy.**", "objective": "", "remediation": {"steps": [{"teach": "The drug's **name** gives away the allergy.", "stem": "Sulfasalazine contains a:", "options": [{"letter": "A", "text": "Sulfa moiety"}, {"letter": "B", "text": "Penicillin ring"}], "answer": "A", "explanation": "Sulfa.", "clarify": [{"stem": "Heart failure rules out:", "options": [{"letter": "A", "text": "Sulfasalazine"}, {"letter": "B", "text": "TNF inhibitors"}], "answer": "B", "explanation": "CHF → avoid TNF inhibitors."}]}], "checkpoints": [{"stem": "Sulfasalazine → Drug class:", "options": [{"letter": "A", "text": "Aminosalicylate"}, {"letter": "B", "text": "Antimalarial"}, {"letter": "C", "text": "Alkylating agent"}, {"letter": "D", "text": "Antifolate"}], "answer": "A", "explanation": "Anti-inflammatory **aminosalicylate**."}, {"stem": "RA + sulfa allergy → Avoid:", "options": [{"letter": "A", "text": "Hydroxychloroquine"}, {"letter": "B", "text": "Sulfasalazine"}, {"letter": "C", "text": "Methotrexate"}, {"letter": "D", "text": "Adalimumab"}], "answer": "B", "explanation": "**SSZ**."}]}}, {"id": "42", "group": 42, "slide": 40, "section": "RA — sulfasalazine", "topic": "Sulfasalazine & leflunomide", "skill": "Pharmacology", "stem": "Which serious hematologic adverse effect of sulfasalazine requires CBC monitoring?", "options": [{"letter": "A", "text": "Agranulocytosis"}, {"letter": "B", "text": "Thrombocytosis"}, {"letter": "C", "text": "Eosinophilia"}, {"letter": "D", "text": "Polycythemia"}], "answer": "A", "explanation": "SSZ → **leukopenia/agranulocytosis** and ↑ liver enzymes → routine **CBC + LFT** monitoring.", "objective": "", "remediation": {"steps": [{"teach": "SSZ can **wipe out white cells** — the classic sulfa-drug blood problem.", "stem": "Agranulocytosis = severe loss of:", "options": [{"letter": "A", "text": "Neutrophils"}, {"letter": "B", "text": "Red cells"}], "answer": "A", "explanation": "Granulocytes.", "clarify": [{"stem": "SSZ GI upset is minimized by:", "options": [{"letter": "A", "text": "Taking on empty stomach"}, {"letter": "B", "text": "Low start, take with food"}], "answer": "B", "explanation": "Start low, with food."}]}], "checkpoints": [{"stem": "Sulfasalazine → Time to judge efficacy:", "options": [{"letter": "A", "text": "2 weeks"}, {"letter": "B", "text": "About 6 months"}, {"letter": "C", "text": "48 hours"}, {"letter": "D", "text": "5 years"}], "answer": "B", "explanation": "Onset 1–3 mo; needs **6 months** to judge."}, {"stem": "Agranulocytosis on a conventional DMARD →", "options": [{"letter": "A", "text": "Folic acid"}, {"letter": "B", "text": "Sulfasalazine"}, {"letter": "C", "text": "Prednisone"}, {"letter": "D", "text": "Hydroxychloroquine"}], "answer": "B", "explanation": "**SSZ**."}]}}, {"id": "43", "group": 43, "slide": 41, "section": "RA — leflunomide", "topic": "Sulfasalazine & leflunomide", "skill": "Pharmacology", "stem": "Which drug accelerates leflunomide elimination when toxicity occurs or pregnancy is planned?", "options": [{"letter": "A", "text": "Vitamin K"}, {"letter": "B", "text": "Folic acid"}, {"letter": "C", "text": "N-acetylcysteine"}, {"letter": "D", "text": "Cholestyramine"}], "answer": "D", "explanation": "Leflunomide has an **extremely long half-life** → **cholestyramine** washout for toxicity or pregnancy.", "objective": "", "remediation": {"steps": [{"teach": "Leflunomide lingers for a very long time; a **bile-acid binder** pulls it out of circulation.", "stem": "Leflunomide's half-life is:", "options": [{"letter": "A", "text": "Extremely long"}, {"letter": "B", "text": "Very short"}], "answer": "A", "explanation": "Very long → needs washout.", "clarify": [{"stem": "Folic acid is paired with:", "options": [{"letter": "A", "text": "Leflunomide"}, {"letter": "B", "text": "Methotrexate"}], "answer": "B", "explanation": "Folic acid → MTX."}]}], "checkpoints": [{"stem": "Leflunomide → Signature toxicity:", "options": [{"letter": "A", "text": "Hepatotoxicity"}, {"letter": "B", "text": "Agranulocytosis"}, {"letter": "C", "text": "Hemorrhagic cystitis"}, {"letter": "D", "text": "Retinal toxicity"}], "answer": "A", "explanation": "**Liver toxicity** → monthly then periodic LFTs; also teratogenic."}, {"stem": "When is leflunomide chosen in RA?", "options": [{"letter": "A", "text": "First line for all"}, {"letter": "B", "text": "Other conventional DMARDs contraindicated"}, {"letter": "C", "text": "Only with infliximab"}, {"letter": "D", "text": "Only in pregnancy"}], "answer": "B", "explanation": "When **all other conventional DMARDs are contraindicated**."}]}}, {"id": "44", "group": 44, "slide": 42, "section": "RA — biologic DMARDs", "topic": "TNF-α inhibitors", "skill": "Management", "stem": "According to the lecture, what should be done when a patient with rheumatoid arthritis fails one TNF inhibitor?", "options": [{"letter": "A", "text": "Stop all DMARD therapy"}, {"letter": "B", "text": "Add anakinra to the TNF inhibitor"}, {"letter": "C", "text": "Try another TNF inhibitor"}, {"letter": "D", "text": "Switch to NSAID monotherapy"}], "answer": "C", "explanation": "**Fail one TNF-α inhibitor → try another**; never combine TNF with a non-TNF biologic.", "objective": "", "remediation": {"steps": [{"teach": "Failing one agent in the class doesn't mean the **whole class** will fail.", "stem": "Response to one TNF inhibitor predicts all others?", "options": [{"letter": "A", "text": "No — try another"}, {"letter": "B", "text": "Yes — class is done"}], "answer": "A", "explanation": "Try another.", "clarify": [{"stem": "TNF inhibitor + anakinra together:", "options": [{"letter": "A", "text": "Preferred"}, {"letter": "B", "text": "Never (infection risk)"}], "answer": "B", "explanation": "Never combine with non-TNF biologic."}]}], "checkpoints": [{"stem": "Failed etanercept → Reasonable next biologic:", "options": [{"letter": "A", "text": "Pegloticase"}, {"letter": "B", "text": "Etanercept + tocilizumab"}, {"letter": "C", "text": "Etanercept + anakinra"}, {"letter": "D", "text": "Adalimumab"}], "answer": "D", "explanation": "Another TNF inhibitor — e.g., **adalimumab**."}, {"stem": "After one TNF inhibitor fails →", "options": [{"letter": "A", "text": "Switch to a different TNF inhibitor"}, {"letter": "B", "text": "Never use biologics again"}, {"letter": "C", "text": "Use NSAIDs only"}, {"letter": "D", "text": "Add a second biologic"}], "answer": "A", "explanation": "**Try another TNF inhibitor**."}]}}, {"id": "45", "group": 45, "slide": 42, "section": "RA — biologic DMARDs", "topic": "TNF-α inhibitors", "skill": "Pharmacology", "stem": "With what treatment should a TNF-alpha inhibitor never be combined?", "options": [{"letter": "A", "text": "Methotrexate"}, {"letter": "B", "text": "A non-TNF biologic"}, {"letter": "C", "text": "Low-dose prednisone"}, {"letter": "D", "text": "Folic acid"}], "answer": "B", "explanation": "TNF inhibitors are **never** given with non-TNF biologics (e.g., anakinra) — infection risk. **TNF + MTX is standard of care.**", "objective": "", "remediation": {"steps": [{"teach": "Stacking **two biologic immunosuppressants** multiplies infection risk.", "stem": "TNF inhibitor + methotrexate is:", "options": [{"letter": "A", "text": "Standard of care"}, {"letter": "B", "text": "Forbidden"}], "answer": "A", "explanation": "TNF + MTX is standard.", "clarify": [{"stem": "Anakinra is a:", "options": [{"letter": "A", "text": "Non-TNF biologic"}, {"letter": "B", "text": "TNF inhibitor"}], "answer": "A", "explanation": "Anakinra = IL-1 antagonist."}]}], "checkpoints": [{"stem": "Why avoid TNF inhibitor + anakinra?", "options": [{"letter": "A", "text": "QT prolongation"}, {"letter": "B", "text": "Retinal toxicity"}, {"letter": "C", "text": "Serious infection risk"}, {"letter": "D", "text": "Hyperuricemia"}], "answer": "C", "explanation": "**Infections**."}, {"stem": "Biologic partner that is standard with a TNF inhibitor →", "options": [{"letter": "A", "text": "Tocilizumab"}, {"letter": "B", "text": "Methotrexate (not a biologic)"}, {"letter": "C", "text": "Anakinra"}, {"letter": "D", "text": "Belimumab"}], "answer": "B", "explanation": "**MTX**."}]}}, {"id": "46", "group": 46, "slide": 44, "section": "RA — TNF-α inhibitors", "topic": "TNF-α inhibitors", "skill": "Pharmacology", "stem": "What are the major infection risks of TNF-alpha inhibitors?", "options": [{"letter": "A", "text": "TB, sepsis, fungal infections"}, {"letter": "B", "text": "Cellulitis and impetigo only"}, {"letter": "C", "text": "UTI and hemorrhagic cystitis"}, {"letter": "D", "text": "Strep pharyngitis and otitis"}], "answer": "A", "explanation": "TNF inhibitors ↑ **TB (reactivation), sepsis, fungal opportunistic** infections; also pancytopenia; **no live vaccines**.", "objective": "", "remediation": {"steps": [{"teach": "TNF-α is key for **granuloma** maintenance — blocking it lets latent infections escape.", "stem": "TNF blockade most classically reactivates:", "options": [{"letter": "A", "text": "Tuberculosis"}, {"letter": "B", "text": "Gout"}], "answer": "A", "explanation": "Latent TB.", "clarify": [{"stem": "Live vaccines on a TNF inhibitor are:", "options": [{"letter": "A", "text": "Avoided"}, {"letter": "B", "text": "Encouraged"}], "answer": "A", "explanation": "No live vaccines on therapy."}]}], "checkpoints": [{"stem": "TNF inhibitor → Vaccine rule:", "options": [{"letter": "A", "text": "No live vaccines on therapy"}, {"letter": "B", "text": "Vaccines only in flares"}, {"letter": "C", "text": "Live vaccines preferred"}, {"letter": "D", "text": "No inactivated vaccines"}], "answer": "A", "explanation": "**No live vaccines** — update vaccines before starting."}, {"stem": "Infection to screen for before any TNF inhibitor →", "options": [{"letter": "A", "text": "Strep throat"}, {"letter": "B", "text": "Latent TB"}, {"letter": "C", "text": "Influenza"}, {"letter": "D", "text": "H. pylori"}], "answer": "B", "explanation": "**Latent TB**."}]}}, {"id": "47", "group": 47, "slide": 44, "section": "RA — TNF-α inhibitors", "topic": "TNF-α inhibitors", "skill": "Pharmacology", "stem": "Which comorbidity is a major contraindication to TNF-alpha inhibitors?", "options": [{"letter": "A", "text": "Osteoarthritis"}, {"letter": "B", "text": "Hypertension"}, {"letter": "C", "text": "Hyperlipidemia"}, {"letter": "D", "text": "Heart failure"}], "answer": "D", "explanation": "TNF inhibitors can **worsen or cause heart failure** → extreme caution/mostly contraindicated in **CHF**.", "objective": "", "remediation": {"steps": [{"teach": "This class can **cause or worsen** a cardiac condition.", "stem": "TNF inhibitors can worsen:", "options": [{"letter": "A", "text": "Hypothyroidism"}, {"letter": "B", "text": "Heart failure"}], "answer": "B", "explanation": "CHF.", "clarify": [{"stem": "HTN and hyperlipidemia are AEs of:", "options": [{"letter": "A", "text": "Tocilizumab"}, {"letter": "B", "text": "TNF inhibitors"}], "answer": "A", "explanation": "Tocilizumab → HTN, HLD."}]}], "checkpoints": [{"stem": "RA + CHF needs a biologic →", "options": [{"letter": "A", "text": "Infliximab"}, {"letter": "B", "text": "Tocilizumab"}, {"letter": "C", "text": "Etanercept"}, {"letter": "D", "text": "Adalimumab"}], "answer": "B", "explanation": "No TNF inhibitor → **non-TNF** (tocilizumab or anakinra)."}, {"stem": "Patient with CHF → Avoid which class?", "options": [{"letter": "A", "text": "IL-6 inhibitors"}, {"letter": "B", "text": "Aminosalicylates"}, {"letter": "C", "text": "Antimalarials"}, {"letter": "D", "text": "TNF-α inhibitors"}], "answer": "D", "explanation": "**TNF inhibitors**."}]}}, {"id": "48", "group": 48, "slide": 45, "section": "RA — TNF-α inhibitors", "topic": "TNF-α inhibitors", "skill": "Identification", "stem": "Which IV TNF inhibitor must be used with methotrexate?", "options": [{"letter": "A", "text": "Etanercept"}, {"letter": "B", "text": "Certolizumab"}, {"letter": "C", "text": "Infliximab"}, {"letter": "D", "text": "Golimumab"}, {"letter": "E", "text": "Adalimumab"}], "answer": "C", "explanation": "**Infliximab** — IV, chimeric mAb; **must be used with MTX** because anti-infliximab antibodies form with monotherapy.", "objective": "", "remediation": {"steps": [{"teach": "The **chimeric** (-ximab) antibody is the most immunogenic — it needs MTX to suppress anti-drug antibodies.", "stem": "-ximab means:", "options": [{"letter": "A", "text": "Chimeric antibody"}, {"letter": "B", "text": "Fully human antibody"}], "answer": "A", "explanation": "Chimeric → immunogenic.", "clarify": [{"stem": "Etanercept, adalimumab, golimumab are given:", "options": [{"letter": "A", "text": "IV"}, {"letter": "B", "text": "SQ"}], "answer": "B", "explanation": "They're subcutaneous."}]}], "checkpoints": [{"stem": "Infliximab → Characteristic AE:", "options": [{"letter": "A", "text": "Hemorrhagic cystitis"}, {"letter": "B", "text": "Hyperuricemia"}, {"letter": "C", "text": "Retinal toxicity"}, {"letter": "D", "text": "Infusion reactions"}], "answer": "D", "explanation": "**Infusion reactions** (fever, chills, urticaria) → steroid/antihistamine pre-med."}, {"stem": "Biologic that cannot be used alone in RA →", "options": [{"letter": "A", "text": "Tocilizumab"}, {"letter": "B", "text": "Adalimumab"}, {"letter": "C", "text": "Infliximab"}, {"letter": "D", "text": "Etanercept"}], "answer": "C", "explanation": "**Infliximab** (anti-drug antibodies)."}]}}, {"id": "49", "group": 49, "slide": 45, "section": "RA — TNF-α inhibitors", "topic": "TNF-α inhibitors", "skill": "Identification", "stem": "What type of biologic is etanercept (Enbrel)?", "options": [{"letter": "A", "text": "Anti-BLyS monoclonal antibody"}, {"letter": "B", "text": "TNF receptor–Fc fusion protein"}, {"letter": "C", "text": "IL-6 receptor monoclonal antibody"}, {"letter": "D", "text": "IL-1 receptor antagonist protein"}], "answer": "B", "explanation": "Etanercept = **TNF inhibitor**, receptor–Fc fusion protein (**-cept**), SQ; injection-site reaction most common.", "objective": "", "remediation": {"steps": [{"teach": "The suffix **-cept** signals a **receptor fusion protein**.", "stem": "-cept drugs are:", "options": [{"letter": "A", "text": "Receptor fusion proteins"}, {"letter": "B", "text": "Monoclonal antibodies"}], "answer": "A", "explanation": "-mab = monoclonal antibody; -cept = receptor fusion.", "clarify": [{"stem": "Etanercept blocks:", "options": [{"letter": "A", "text": "TNF-α"}, {"letter": "B", "text": "IL-6"}], "answer": "A", "explanation": "TNF."}]}], "checkpoints": [{"stem": "Etanercept → Most common AE:", "options": [{"letter": "A", "text": "Injection-site reaction"}, {"letter": "B", "text": "Hemorrhagic cystitis"}, {"letter": "C", "text": "Retinal toxicity"}, {"letter": "D", "text": "Pancreatitis"}], "answer": "A", "explanation": "**Local injection-site reaction**."}, {"stem": "Etanercept route →", "options": [{"letter": "A", "text": "Oral daily"}, {"letter": "B", "text": "SQ injection"}, {"letter": "C", "text": "IV infusion only"}, {"letter": "D", "text": "Intra-articular"}], "answer": "B", "explanation": "**SQ**."}]}}, {"id": "50", "group": 50, "slide": 46, "section": "RA — TNF-α inhibitors", "topic": "TNF-α inhibitors", "skill": "Identification", "stem": "To which biologic class do adalimumab, golimumab, and certolizumab belong?", "options": [{"letter": "A", "text": "TNF-α inhibitors"}, {"letter": "B", "text": "IL-6 receptor antagonists"}, {"letter": "C", "text": "IL-1 receptor antagonists"}, {"letter": "D", "text": "Anti-BLyS antibodies"}], "answer": "A", "explanation": "Etanercept, infliximab, **golimumab, certolizumab, adalimumab** are all **TNF-α inhibitors**.", "objective": "", "remediation": {"steps": [{"teach": "Only **two** RA biologics in this lecture are interleukin blockers; everything else is a TNF blocker.", "stem": "The RA interleukin inhibitors are:", "options": [{"letter": "A", "text": "Anakinra and tocilizumab"}, {"letter": "B", "text": "Adalimumab and golimumab"}], "answer": "A", "explanation": "Anakinra (IL-1), tocilizumab (IL-6).", "clarify": [{"stem": "Anti-BLyS describes:", "options": [{"letter": "A", "text": "Adalimumab"}, {"letter": "B", "text": "Belimumab (SLE)"}], "answer": "B", "explanation": "Belimumab is the SLE B-cell drug."}]}], "checkpoints": [{"stem": "TNF inhibitor given SQ once monthly →", "options": [{"letter": "A", "text": "Anakinra"}, {"letter": "B", "text": "Infliximab"}, {"letter": "C", "text": "Tocilizumab"}, {"letter": "D", "text": "Golimumab"}], "answer": "D", "explanation": "**Golimumab (Simponi)** monthly; certolizumab q2 wk."}, {"stem": "Adalimumab (Humira) blocks:", "options": [{"letter": "A", "text": "IL-1"}, {"letter": "B", "text": "TNF-α"}, {"letter": "C", "text": "IL-6"}, {"letter": "D", "text": "BLyS"}], "answer": "B", "explanation": "**TNF-α**."}]}}, {"id": "51", "group": 51, "slide": 47, "section": "RA — interleukin inhibitors", "topic": "Interleukin inhibitors", "skill": "Identification", "stem": "What type of biologic is anakinra (Kineret)?", "options": [{"letter": "A", "text": "IL-6 receptor antagonist"}, {"letter": "B", "text": "TNF-α inhibitor"}, {"letter": "C", "text": "Anti-BLyS antibody"}, {"letter": "D", "text": "IL-1 receptor antagonist"}], "answer": "D", "explanation": "Anakinra = **IL-1 receptor antagonist**, SQ daily (normal renal function), **modest** RA benefit; also the refractory gout-flare drug.", "objective": "", "remediation": {"steps": [{"teach": "Anakinra blocks the **lower-numbered** interleukin of the two RA IL drugs.", "stem": "The RA IL inhibitors block:", "options": [{"letter": "A", "text": "IL-1 and IL-6"}, {"letter": "B", "text": "IL-4 and IL-13"}], "answer": "A", "explanation": "IL-1 (anakinra), IL-6 (tocilizumab).", "clarify": [{"stem": "Tocilizumab blocks:", "options": [{"letter": "A", "text": "IL-6"}, {"letter": "B", "text": "IL-1"}], "answer": "A", "explanation": "Tocilizumab = IL-6."}]}], "checkpoints": [{"stem": "Anakinra → Dosing:", "options": [{"letter": "A", "text": "SQ monthly"}, {"letter": "B", "text": "IV every 8 weeks"}, {"letter": "C", "text": "SQ daily"}, {"letter": "D", "text": "PO weekly"}], "answer": "C", "explanation": "**SQ daily** (needs normal renal function)."}, {"stem": "IL-1 receptor antagonist used in RA and refractory gout →", "options": [{"letter": "A", "text": "Belimumab"}, {"letter": "B", "text": "Tocilizumab"}, {"letter": "C", "text": "Etanercept"}, {"letter": "D", "text": "Anakinra"}], "answer": "D", "explanation": "**Anakinra**."}]}}, {"id": "52", "group": 52, "slide": 47, "section": "RA — interleukin inhibitors", "topic": "Interleukin inhibitors", "skill": "Identification", "stem": "What type of biologic is tocilizumab (Actemra)?", "options": [{"letter": "A", "text": "Anti-BLyS antibody"}, {"letter": "B", "text": "IL-1 receptor antagonist"}, {"letter": "C", "text": "IL-6 receptor antagonist"}, {"letter": "D", "text": "TNF-α inhibitor"}], "answer": "C", "explanation": "Tocilizumab = **IL-6 receptor antagonist**, SQ q2 wk or IV q4 wk.", "objective": "", "remediation": {"steps": [{"teach": "Tocilizumab blocks the **higher-numbered** interleukin of the two RA IL drugs.", "stem": "Anakinra blocks IL-1, so tocilizumab blocks:", "options": [{"letter": "A", "text": "TNF-α"}, {"letter": "B", "text": "IL-6"}], "answer": "B", "explanation": "IL-6.", "clarify": [{"stem": "TNF-α inhibitors include:", "options": [{"letter": "A", "text": "Adalimumab"}, {"letter": "B", "text": "Tocilizumab"}], "answer": "A", "explanation": "Tocilizumab is not a TNF blocker."}]}], "checkpoints": [{"stem": "Tocilizumab → Labs to monitor:", "options": [{"letter": "A", "text": "LFTs and lipids"}, {"letter": "B", "text": "Eye exam"}, {"letter": "C", "text": "TPMT"}, {"letter": "D", "text": "Uric acid"}], "answer": "A", "explanation": "AEs: **↑LFTs, HTN, hyperlipidemia** → LFTs, lipids."}, {"stem": "IL-6 receptor antagonist →", "options": [{"letter": "A", "text": "Anakinra"}, {"letter": "B", "text": "Golimumab"}, {"letter": "C", "text": "Infliximab"}, {"letter": "D", "text": "Tocilizumab"}], "answer": "D", "explanation": "**Tocilizumab**."}]}}, {"id": "53", "group": 53, "slide": 49, "section": "RA — pregnancy", "topic": "Pregnancy & rheum drugs", "skill": "Management", "stem": "Which DMARD is preferred for a patient with rheumatoid arthritis who could become pregnant?", "options": [{"letter": "A", "text": "Leflunomide"}, {"letter": "B", "text": "Sulfasalazine"}, {"letter": "C", "text": "Etanercept"}, {"letter": "D", "text": "Methotrexate"}], "answer": "B", "explanation": "**Sulfasalazine** = DOC with pregnancy potential (long-term safety data); HCQ and low-dose steroids also acceptable.", "objective": "", "remediation": {"steps": [{"teach": "Two DMARDs are **teratogens** (one is Category X); pick the drug with **long-term safety data**.", "stem": "Methotrexate in pregnancy is:", "options": [{"letter": "A", "text": "Category X"}, {"letter": "B", "text": "Safe"}], "answer": "A", "explanation": "MTX = Category X.", "clarify": [{"stem": "Leflunomide is:", "options": [{"letter": "A", "text": "Teratogenic"}, {"letter": "B", "text": "Safe in pregnancy"}], "answer": "A", "explanation": "Teratogenic — cholestyramine washout."}]}], "checkpoints": [{"stem": "Methotrexate → Pregnancy category:", "options": [{"letter": "A", "text": "A"}, {"letter": "B", "text": "X"}, {"letter": "C", "text": "C"}, {"letter": "D", "text": "B"}], "answer": "B", "explanation": "**Category X**."}, {"stem": "RA drugs generally safe in pregnancy →", "options": [{"letter": "A", "text": "MTX, HCQ"}, {"letter": "B", "text": "Low-dose steroid, HCQ, SSZ"}, {"letter": "C", "text": "Leflunomide, SSZ"}, {"letter": "D", "text": "MTX, leflunomide"}], "answer": "B", "explanation": "**Low-dose corticosteroids, HCQ, SSZ**."}]}}, {"id": "54", "group": 54, "slide": 49, "section": "RA — pregnancy", "topic": "Pregnancy & rheum drugs", "skill": "Counseling & prevention", "stem": "How far before planned conception should most rheumatoid arthritis medications be stopped?", "options": [{"letter": "A", "text": "3 months"}, {"letter": "B", "text": "2 weeks"}, {"letter": "C", "text": "48 hours"}, {"letter": "D", "text": "2 years"}], "answer": "A", "explanation": "Most RA meds must be **stopped 3 months before conception** — and the **male partner's** RA meds can also harm the fetus.", "objective": "", "remediation": {"steps": [{"teach": "Drug effects on gametes/early pregnancy last a while after the last dose; the washout spans **a full quarter-year**.", "stem": "Stopping right at conception is:", "options": [{"letter": "A", "text": "Too late"}, {"letter": "B", "text": "Adequate"}], "answer": "A", "explanation": "Must stop well before.", "clarify": [{"stem": "Does the male partner's RA medication matter?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "B", "explanation": "Male partner's meds can harm the fetus too."}]}], "checkpoints": [{"stem": "Whose RA medications matter for fetal risk?", "options": [{"letter": "A", "text": "Both partners'"}, {"letter": "B", "text": "Neither's"}, {"letter": "C", "text": "Father's only"}, {"letter": "D", "text": "Mother's only"}], "answer": "A", "explanation": "**Male partner's** meds count too."}, {"stem": "Washout before conception for most RA drugs →", "options": [{"letter": "A", "text": "1 year"}, {"letter": "B", "text": "3 months"}, {"letter": "C", "text": "1 week"}, {"letter": "D", "text": "1 month"}], "answer": "B", "explanation": "**3 months**."}]}}, {"id": "55", "group": 55, "slide": 55, "section": "SLE — non-pharm", "topic": "SLE — approach by severity", "skill": "Counseling & prevention", "stem": "What is a key nonpharmacologic counseling point for a patient with SLE?", "options": [{"letter": "A", "text": "Strict bed rest"}, {"letter": "B", "text": "Strict low-purine diet"}, {"letter": "C", "text": "High-dose fish oil daily"}, {"letter": "D", "text": "Strict sun protection"}], "answer": "D", "explanation": "SLE: rest/exercise balance, diet (low salt, vitamin D), no smoking, **sun protection**, **avoid photosensitizing drugs**, support.", "objective": "", "remediation": {"steps": [{"teach": "Lupus skin disease is triggered by **UV light**.", "stem": "Photosensitivity is a feature of:", "options": [{"letter": "A", "text": "SLE"}, {"letter": "B", "text": "Gout"}], "answer": "A", "explanation": "SLE → photosensitive rash.", "clarify": [{"stem": "Low-purine diet is for:", "options": [{"letter": "A", "text": "Gout"}, {"letter": "B", "text": "SLE"}], "answer": "A", "explanation": "Gout."}]}], "checkpoints": [{"stem": "SLE nutrition point →", "options": [{"letter": "A", "text": "High sodium"}, {"letter": "B", "text": "Vitamin D, perhaps low salt"}, {"letter": "C", "text": "High-purine diet"}, {"letter": "D", "text": "Gluten-free"}], "answer": "B", "explanation": "Diet **perhaps low salt**, think **vitamin D**."}, {"stem": "SLE patient education →", "options": [{"letter": "A", "text": "Daily sunscreen and protective clothing"}, {"letter": "B", "text": "Avoid all exercise"}, {"letter": "C", "text": "Avoid dairy"}, {"letter": "D", "text": "Take NSAIDs daily"}], "answer": "A", "explanation": "**Sun protection**."}]}}, {"id": "56", "group": 56, "slide": 58, "section": "SLE — disease monitoring", "topic": "SLE — approach by severity", "skill": "Diagnostics & imaging", "stem": "Which laboratory measures fluctuate with SLE disease activity and flares?", "options": [{"letter": "A", "text": "HLA-B27 and ESR only"}, {"letter": "B", "text": "Uric acid and CK"}, {"letter": "C", "text": "Anti-dsDNA and C3/C4"}, {"letter": "D", "text": "RF and anti-CCP"}], "answer": "C", "explanation": "**Anti-dsDNA** (fluctuates with activity) and **C3/C4** (consumed in active disease), plus CBC, ESR/CRP, UA with sediment, Cr/eGFR.", "objective": "", "remediation": {"steps": [{"teach": "Active lupus **consumes complement** and raises a specific autoantibody titer.", "stem": "In active SLE, C3/C4 are:", "options": [{"letter": "A", "text": "High"}, {"letter": "B", "text": "Low (consumed)"}], "answer": "B", "explanation": "Consumed → low.", "clarify": [{"stem": "RF is the classic antibody of:", "options": [{"letter": "A", "text": "SLE"}, {"letter": "B", "text": "Rheumatoid arthritis"}], "answer": "B", "explanation": "RF → RA."}]}], "checkpoints": [{"stem": "SLE flare definition →", "options": [{"letter": "A", "text": "Any symptom at all"}, {"letter": "B", "text": "Fever alone"}, {"letter": "C", "text": "Positive ANA"}, {"letter": "D", "text": "Measurable ↑ activity that changes therapy"}], "answer": "D", "explanation": "A **measurable increase in disease activity meaningful enough to change therapy**."}, {"stem": "Treatment response in SLE → Anti-dsDNA should:", "options": [{"letter": "A", "text": "Fall"}, {"letter": "B", "text": "Stay unchanged"}, {"letter": "C", "text": "Rise"}, {"letter": "D", "text": "Turn into RF"}], "answer": "A", "explanation": "**↓ dsDNA, C3/C4 normalize**."}]}}, {"id": "57", "group": 57, "slide": 59, "section": "SLE — hydroxychloroquine", "topic": "Hydroxychloroquine", "skill": "Management", "stem": "Which medication is the cornerstone of treatment for essentially every patient with SLE?", "options": [{"letter": "A", "text": "Azathioprine"}, {"letter": "B", "text": "High-dose prednisone"}, {"letter": "C", "text": "Cyclophosphamide"}, {"letter": "D", "text": "Belimumab"}, {"letter": "E", "text": "Hydroxychloroquine"}], "answer": "E", "explanation": "**HCQ (Plaquenil)** is the cornerstone — skin, joints, serositis, fatigue; delays renal damage, improves survival.", "objective": "", "remediation": {"steps": [{"teach": "The cornerstone is an **antimalarial** that's also used in RA.", "stem": "HCQ's drug class is:", "options": [{"letter": "A", "text": "Antimalarial"}, {"letter": "B", "text": "Alkylating agent"}], "answer": "A", "explanation": "Antimalarial.", "clarify": [{"stem": "Cyclophosphamide is reserved for:", "options": [{"letter": "A", "text": "All SLE patients"}, {"letter": "B", "text": "Severe organ-threatening SLE"}], "answer": "B", "explanation": "CTX = severe only, 3–6 mo."}]}], "checkpoints": [{"stem": "Mild SLE (skin + joints only) →", "options": [{"letter": "A", "text": "Plasmapheresis"}, {"letter": "B", "text": "Rituximab"}, {"letter": "C", "text": "Hydroxychloroquine + sun protection"}, {"letter": "D", "text": "Cyclophosphamide"}], "answer": "C", "explanation": "Mild = **HCQ** + non-pharm."}, {"stem": "SLE drug given to nearly every patient long-term →", "options": [{"letter": "A", "text": "Cytoxan"}, {"letter": "B", "text": "Benlysta"}, {"letter": "C", "text": "Plaquenil"}, {"letter": "D", "text": "Imuran"}], "answer": "C", "explanation": "**Plaquenil (HCQ)**."}]}}, {"id": "58", "group": 58, "slide": 59, "section": "SLE — hydroxychloroquine", "topic": "Hydroxychloroquine", "skill": "Identification", "stem": "Which rheumatologic medication has antithrombotic effects and is safe in pregnancy?", "options": [{"letter": "A", "text": "Mycophenolate"}, {"letter": "B", "text": "Leflunomide"}, {"letter": "C", "text": "Hydroxychloroquine"}, {"letter": "D", "text": "Cyclophosphamide"}, {"letter": "E", "text": "Methotrexate"}], "answer": "C", "explanation": "HCQ is anti-inflammatory, immunomodulatory, **antithrombotic** (↓ platelet aggregation), and **safe in pregnancy**.", "objective": "", "remediation": {"steps": [{"teach": "Cross off the **teratogens** first.", "stem": "Cyclophosphamide is:", "options": [{"letter": "A", "text": "Safe in pregnancy"}, {"letter": "B", "text": "Teratogenic"}], "answer": "B", "explanation": "Teratogenic.", "clarify": [{"stem": "MTX and leflunomide in pregnancy are:", "options": [{"letter": "A", "text": "Preferred"}, {"letter": "B", "text": "Contraindicated"}], "answer": "B", "explanation": "Both teratogenic."}]}], "checkpoints": [{"stem": "SLE patient becomes pregnant → HCQ:", "options": [{"letter": "A", "text": "Stop immediately"}, {"letter": "B", "text": "Continue it"}, {"letter": "C", "text": "Switch to MTX"}, {"letter": "D", "text": "Switch to cyclophosphamide"}], "answer": "B", "explanation": "**Continue HCQ** — safe."}, {"stem": "HCQ caution →", "options": [{"letter": "A", "text": "Sulfa allergy"}, {"letter": "B", "text": "HLA-B*5801"}, {"letter": "C", "text": "G6PD deficiency"}, {"letter": "D", "text": "Low TPMT"}], "answer": "C", "explanation": "**G6PD deficiency** (hemolytic anemia)."}]}}, {"id": "59", "group": 59, "slide": 61, "section": "SLE — corticosteroids", "topic": "Glucocorticoids & NSAIDs", "skill": "Management", "stem": "What prednisone dose is used for SLE with lupus nephritis or central nervous system involvement?", "options": [{"letter": "A", "text": "None — HCQ alone"}, {"letter": "B", "text": "Low dose 5–10 mg/day"}, {"letter": "C", "text": "40 mg once, no taper"}, {"letter": "D", "text": "High dose 1–2 mg/kg/day"}], "answer": "D", "explanation": "**High dose 1–2 mg/kg/day** is for significant organ involvement, particularly **renal and CNS**; low dose 5–10 mg/day for constitutional/MSK complaints.", "objective": "", "remediation": {"steps": [{"teach": "Organ-threatening disease needs **much more** steroid than aches and fatigue.", "stem": "Low-dose 5–10 mg/day treats:", "options": [{"letter": "A", "text": "Lupus nephritis"}, {"letter": "B", "text": "Constitutional/MSK complaints"}], "answer": "B", "explanation": "Low dose = constitutional/MSK.", "clarify": [{"stem": "Renal/CNS lupus is:", "options": [{"letter": "A", "text": "Mild"}, {"letter": "B", "text": "Organ-threatening"}], "answer": "B", "explanation": "Severe → high dose."}]}], "checkpoints": [{"stem": "SLE fatigue and arthralgia → Prednisone dose:", "options": [{"letter": "A", "text": "5–10 mg/day"}, {"letter": "B", "text": "40 mg/day × 3–6 mo"}, {"letter": "C", "text": "1–2 mg/kg/day"}, {"letter": "D", "text": "None ever"}], "answer": "A", "explanation": "**Low dose 5–10 mg/day**."}, {"stem": "SLE steroid monitoring →", "options": [{"letter": "A", "text": "Uric acid"}, {"letter": "B", "text": "TPMT"}, {"letter": "C", "text": "Eye exam only"}, {"letter": "D", "text": "BP, BMD, glucose, lipids"}], "answer": "D", "explanation": "**BP, bone density, glucose, lipids**."}]}}, {"id": "60", "group": 60, "slide": 62, "section": "SLE — immunosuppressants", "topic": "SLE immunosuppressants", "skill": "Management", "stem": "Which alkylating agent is used for severe organ-threatening SLE involving the central nervous system, vasculature, or kidneys and is limited to 3–6 months?", "options": [{"letter": "A", "text": "Belimumab"}, {"letter": "B", "text": "Hydroxychloroquine"}, {"letter": "C", "text": "Azathioprine"}, {"letter": "D", "text": "Cyclophosphamide"}, {"letter": "E", "text": "Mycophenolate"}], "answer": "D", "explanation": "**Cyclophosphamide (Cytoxan)** — alkylating immunosuppressant (↓ DNA synthesis) for serious organ involvement; **3–6 months only** due to toxicity.", "objective": "", "remediation": {"steps": [{"teach": "The drug is an **alkylating agent**, too toxic for long-term use.", "stem": "Alkylating agents work by:", "options": [{"letter": "A", "text": "Blocking BLyS"}, {"letter": "B", "text": "Damaging DNA / ↓ DNA synthesis"}], "answer": "B", "explanation": "↓ DNA synthesis.", "clarify": [{"stem": "Azathioprine's MOA is:", "options": [{"letter": "A", "text": "Alkylation"}, {"letter": "B", "text": "Inhibits purine synthesis"}], "answer": "B", "explanation": "AZA = purine synthesis inhibitor."}]}], "checkpoints": [{"stem": "Cyclophosphamide → Why limited to 3–6 months?", "options": [{"letter": "A", "text": "Causes RA"}, {"letter": "B", "text": "Significant toxicity"}, {"letter": "C", "text": "Cost"}, {"letter": "D", "text": "Loses efficacy"}], "answer": "B", "explanation": "**Significant adverse effects**."}, {"stem": "SLE with seizures/psychosis → Add to high-dose steroids:", "options": [{"letter": "A", "text": "NSAID"}, {"letter": "B", "text": "Hydroxychloroquine alone"}, {"letter": "C", "text": "Cyclophosphamide"}, {"letter": "D", "text": "Sulfasalazine"}], "answer": "C", "explanation": "Severe CNS → **cyclophosphamide**."}]}}, {"id": "61", "group": 61, "slide": 63, "section": "SLE — immunosuppressants", "topic": "SLE immunosuppressants", "skill": "Pharmacology", "stem": "What is the characteristic genitourinary adverse effect of cyclophosphamide?", "options": [{"letter": "A", "text": "Urinary retention"}, {"letter": "B", "text": "Hemorrhagic cystitis"}, {"letter": "C", "text": "Uric acid stones"}, {"letter": "D", "text": "Interstitial nephritis"}], "answer": "B", "explanation": "Cyclophosphamide → **hemorrhagic cystitis**, plus myelosuppression, teratogenicity, alopecia, stomatitis. Teach: hydrate, void often.", "objective": "", "remediation": {"steps": [{"teach": "A toxic metabolite concentrates in the **bladder**.", "stem": "Blood in urine on cyclophosphamide suggests:", "options": [{"letter": "A", "text": "Gout"}, {"letter": "B", "text": "Bladder injury"}], "answer": "B", "explanation": "Hemorrhagic cystitis.", "clarify": [{"stem": "Uric acid stones are a risk with:", "options": [{"letter": "A", "text": "Probenecid"}, {"letter": "B", "text": "Cyclophosphamide"}], "answer": "A", "explanation": "Probenecid → stones."}]}], "checkpoints": [{"stem": "Cyclophosphamide counseling →", "options": [{"letter": "A", "text": "Take weekly only"}, {"letter": "B", "text": "Hydrate and void frequently"}, {"letter": "C", "text": "Avoid all fluids"}, {"letter": "D", "text": "Take with grapefruit"}], "answer": "B", "explanation": "**Hydrate/void often** to protect the bladder."}, {"stem": "Cyclophosphamide hematologic AE →", "options": [{"letter": "A", "text": "Polycythemia"}, {"letter": "B", "text": "None"}, {"letter": "C", "text": "Myelosuppression"}, {"letter": "D", "text": "Thrombocytosis"}], "answer": "C", "explanation": "**Myelosuppression**."}]}}, {"id": "62", "group": 62, "slide": 64, "section": "SLE — immunosuppressants", "topic": "SLE immunosuppressants", "skill": "Pharmacology", "stem": "What test should be performed before starting azathioprine?", "options": [{"letter": "A", "text": "HLA-B27"}, {"letter": "B", "text": "HLA-B*5801"}, {"letter": "C", "text": "G6PD level"}, {"letter": "D", "text": "Ophthalmologic exam"}, {"letter": "E", "text": "TPMT genotype/activity"}], "answer": "E", "explanation": "**TPMT** activity predicts azathioprine myelotoxicity — check before starting; CBC weekly × 1 month, then q3 months.", "objective": "", "remediation": {"steps": [{"teach": "The test is for an **enzyme** that metabolizes thiopurines; low activity → toxic accumulation.", "stem": "Low TPMT activity on azathioprine causes:", "options": [{"letter": "A", "text": "Retinal toxicity"}, {"letter": "B", "text": "Severe myelosuppression"}], "answer": "B", "explanation": "Toxic thiopurine levels → marrow suppression.", "clarify": [{"stem": "HLA-B*5801 is tested before:", "options": [{"letter": "A", "text": "Allopurinol"}, {"letter": "B", "text": "Azathioprine"}], "answer": "A", "explanation": "HLA-B*5801 → allopurinol."}]}], "checkpoints": [{"stem": "Azathioprine → CBC monitoring:", "options": [{"letter": "A", "text": "Only at baseline"}, {"letter": "B", "text": "Weekly × 1 month, then q3 months"}, {"letter": "C", "text": "Every 2 years"}, {"letter": "D", "text": "Yearly"}], "answer": "B", "explanation": "**Weekly × 1 mo, then q3 mo**."}, {"stem": "Which SLE/RA drug needs TPMT testing?", "options": [{"letter": "A", "text": "Mycophenolate"}, {"letter": "B", "text": "Belimumab"}, {"letter": "C", "text": "Cyclophosphamide"}, {"letter": "D", "text": "Azathioprine"}], "answer": "D", "explanation": "**Azathioprine**."}]}}, {"id": "63", "group": 63, "slide": 64, "section": "SLE — immunosuppressants", "topic": "SLE immunosuppressants", "skill": "Pharmacology", "stem": "Which SLE immunosuppressant should be suspected when a patient develops abdominal pain and elevated lipase?", "options": [{"letter": "A", "text": "Belimumab infusion reaction"}, {"letter": "B", "text": "Cyclophosphamide cystitis"}, {"letter": "C", "text": "HCQ retinopathy"}, {"letter": "D", "text": "Azathioprine pancreatitis"}], "answer": "D", "explanation": "Azathioprine → **pancreatitis**, hepatotoxicity, myelosuppression → stop AZA.", "objective": "", "remediation": {"steps": [{"teach": "One SLE drug lists **pancreatitis** among its AEs, alongside hepatotoxicity.", "stem": "Elevated lipase points to the:", "options": [{"letter": "A", "text": "Bladder"}, {"letter": "B", "text": "Pancreas"}], "answer": "B", "explanation": "Pancreatitis.", "clarify": [{"stem": "Cyclophosphamide's organ-specific AE is:", "options": [{"letter": "A", "text": "Pancreatitis"}, {"letter": "B", "text": "Hemorrhagic cystitis"}], "answer": "B", "explanation": "CTX → bladder."}]}], "checkpoints": [{"stem": "Azathioprine → MOA:", "options": [{"letter": "A", "text": "Inhibits purine synthesis"}, {"letter": "B", "text": "Blocks IL-6"}, {"letter": "C", "text": "Blocks BLyS"}, {"letter": "D", "text": "Alkylates DNA"}], "answer": "A", "explanation": "**Inhibits purine synthesis** → interferes with DNA/RNA synthesis."}, {"stem": "Azathioprine adverse effects →", "options": [{"letter": "A", "text": "Hyperuricemia only"}, {"letter": "B", "text": "Hepatotoxicity, pancreatitis, myelosuppression"}, {"letter": "C", "text": "Hemorrhagic cystitis"}, {"letter": "D", "text": "QT prolongation only"}], "answer": "B", "explanation": "**Hepatotoxicity, pancreatitis, myelosuppression**."}]}}, {"id": "64", "group": 64, "slide": 65, "section": "SLE — immunosuppressants", "topic": "SLE immunosuppressants", "skill": "Management", "stem": "For which SLE manifestation is mycophenolate (CellCept) particularly useful?", "options": [{"letter": "A", "text": "Oral ulcers"}, {"letter": "B", "text": "Fatigue"}, {"letter": "C", "text": "Lupus nephritis"}, {"letter": "D", "text": "Discoid rash"}], "answer": "C", "explanation": "Mycophenolate is useful in lupus, **especially nephritis**; PO; blocks proliferation of activated T & B cells.", "objective": "", "remediation": {"steps": [{"teach": "MMF is a **severe-tier** option alongside cyclophosphamide for one organ in particular.", "stem": "Mycophenolate appears in the:", "options": [{"letter": "A", "text": "Mild tier only"}, {"letter": "B", "text": "Moderate and severe tiers"}], "answer": "B", "explanation": "Both moderate and severe.", "clarify": [{"stem": "Skin/joint-only lupus is treated with:", "options": [{"letter": "A", "text": "Mycophenolate"}, {"letter": "B", "text": "Hydroxychloroquine"}], "answer": "B", "explanation": "Mild → HCQ."}]}], "checkpoints": [{"stem": "Mycophenolate → MOA:", "options": [{"letter": "A", "text": "Blocks IL-1"}, {"letter": "B", "text": "Inhibits xanthine oxidase"}, {"letter": "C", "text": "Blocks activated T- and B-cell proliferation"}, {"letter": "D", "text": "Alkylates DNA"}], "answer": "C", "explanation": "**Blocks proliferation of activated T & B cells** → ↓ antibodies."}, {"stem": "Nephritis + PO + T/B-cell blocker →", "options": [{"letter": "A", "text": "Cyclophosphamide"}, {"letter": "B", "text": "Mycophenolate"}, {"letter": "C", "text": "Belimumab"}, {"letter": "D", "text": "HCQ"}], "answer": "B", "explanation": "**Mycophenolate**."}]}}, {"id": "65", "group": 65, "slide": 66, "section": "SLE — immunosuppressants", "topic": "SLE immunosuppressants", "skill": "Pharmacology", "stem": "What is the mechanism of action of belimumab (Benlysta)?", "options": [{"letter": "A", "text": "Purine synthesis inhibitor"}, {"letter": "B", "text": "mAb against BLyS"}, {"letter": "C", "text": "TNF-α inhibitor"}, {"letter": "D", "text": "IL-6 receptor antagonist"}], "answer": "B", "explanation": "Belimumab = **monoclonal antibody against B-lymphocyte stimulator (BLyS)** → ↓ abnormal B cells; add-on for moderate SLE.", "objective": "", "remediation": {"steps": [{"teach": "Belimumab targets a factor that keeps **B cells** alive.", "stem": "BLyS stimulates:", "options": [{"letter": "A", "text": "Osteoclasts"}, {"letter": "B", "text": "B lymphocytes"}], "answer": "B", "explanation": "B-cell survival factor.", "clarify": [{"stem": "Tocilizumab blocks:", "options": [{"letter": "A", "text": "BLyS"}, {"letter": "B", "text": "IL-6"}], "answer": "B", "explanation": "Tocilizumab = IL-6."}]}], "checkpoints": [{"stem": "Belimumab → Vaccine rule:", "options": [{"letter": "A", "text": "Only live vaccines"}, {"letter": "B", "text": "No vaccines ever"}, {"letter": "C", "text": "No live vaccines 30 d before/during"}, {"letter": "D", "text": "Live vaccines encouraged"}], "answer": "C", "explanation": "**No live vaccines 30 days before or during**."}, {"stem": "Anti-BLyS add-on for moderate SLE →", "options": [{"letter": "A", "text": "Belimumab"}, {"letter": "B", "text": "Anakinra"}, {"letter": "C", "text": "Infliximab"}, {"letter": "D", "text": "Leflunomide"}], "answer": "A", "explanation": "**Belimumab**."}]}}, {"id": "66", "group": 66, "slide": 68, "section": "SLE — treatment by severity", "topic": "SLE — approach by severity", "skill": "Management", "stem": "What is the next step for SLE involving the skin and joints with serositis that is not controlled by hydroxychloroquine?", "options": [{"letter": "A", "text": "Add azathioprine (check TPMT)"}, {"letter": "B", "text": "Switch HCQ to infliximab"}, {"letter": "C", "text": "Add anakinra (IL-1 blocker)"}, {"letter": "D", "text": "Stop HCQ, start cyclophosphamide"}], "answer": "A", "explanation": "Moderate (skin, joints, **serositis**) → keep HCQ and **add** MTX, MMF, **AZA**, leflunomide, belimumab, anifrolumab, or steroids.", "objective": "", "remediation": {"steps": [{"teach": "Serositis bumps lupus to the **moderate** tier — you **add** to HCQ, you don't jump to the severe-tier alkylator.", "stem": "Skin + joints + serositis is:", "options": [{"letter": "A", "text": "Moderate SLE"}, {"letter": "B", "text": "Severe SLE"}], "answer": "A", "explanation": "Moderate.", "clarify": [{"stem": "Cyclophosphamide is reserved for:", "options": [{"letter": "A", "text": "Severe (nephritis/CNS)"}, {"letter": "B", "text": "Moderate"}], "answer": "A", "explanation": "Severe tier."}]}], "checkpoints": [{"stem": "Moderate SLE add-ons include:", "options": [{"letter": "A", "text": "MTX, MMF, AZA, belimumab"}, {"letter": "B", "text": "Pegloticase, probenecid"}, {"letter": "C", "text": "Plasmapheresis only"}, {"letter": "D", "text": "Anakinra, etanercept"}], "answer": "A", "explanation": "**MTX, MMF, AZA, leflunomide, belimumab, anifrolumab, steroids**."}, {"stem": "In moderate SLE, HCQ should be:", "options": [{"letter": "A", "text": "Continued"}, {"letter": "B", "text": "Tapered off"}, {"letter": "C", "text": "Stopped"}, {"letter": "D", "text": "Replaced by NSAIDs"}], "answer": "A", "explanation": "**Keep HCQ** and add."}]}}, {"id": "67", "group": 67, "slide": 68, "section": "SLE — treatment by severity", "topic": "SLE — approach by severity", "skill": "Disease process", "stem": "Which organ involvement defines severe SLE?", "options": [{"letter": "A", "text": "Fatigue and painless oral ulcers"}, {"letter": "B", "text": "Malar rash and arthralgia only"}, {"letter": "C", "text": "Pleuritis or pericarditis alone"}, {"letter": "D", "text": "Nephritis, alveolar hemorrhage, CNS"}], "answer": "D", "explanation": "Severe = **lupus nephritis, alveolar hemorrhage, CNS involvement** → belimumab, voclosporin, CTX, MMF, rituximab, IVIG, plasmapheresis, high-dose steroids.", "objective": "", "remediation": {"steps": [{"teach": "Mild = skin/joints; moderate adds serositis; severe means **organ-threatening** disease.", "stem": "Serositis alone is:", "options": [{"letter": "A", "text": "Severe"}, {"letter": "B", "text": "Moderate"}], "answer": "B", "explanation": "Moderate.", "clarify": [{"stem": "Lupus nephritis is:", "options": [{"letter": "A", "text": "Severe"}, {"letter": "B", "text": "Mild"}], "answer": "A", "explanation": "Organ-threatening → severe."}]}], "checkpoints": [{"stem": "Voclosporin (Lupkynis) is mainly for:", "options": [{"letter": "A", "text": "Discoid rash"}, {"letter": "B", "text": "Arthralgia"}, {"letter": "C", "text": "Lupus nephritis"}, {"letter": "D", "text": "Gout"}], "answer": "C", "explanation": "**Lupus nephritis**."}, {"stem": "SLE with proteinuria + RBC casts → Tier:", "options": [{"letter": "A", "text": "Drug-induced"}, {"letter": "B", "text": "Moderate"}, {"letter": "C", "text": "Severe"}, {"letter": "D", "text": "Mild"}], "answer": "C", "explanation": "Nephritis = **severe**."}]}}, {"id": "68", "group": 68, "slide": 69, "section": "Drug-induced lupus", "topic": "Drug-induced lupus", "skill": "Identification", "stem": "Which drugs carry the highest risk of drug-induced lupus?", "options": [{"letter": "A", "text": "Metformin and insulin"}, {"letter": "B", "text": "Etanercept and adalimumab"}, {"letter": "C", "text": "Procainamide and hydralazine"}, {"letter": "D", "text": "Allopurinol and colchicine"}], "answer": "C", "explanation": "**High risk: procainamide, hydralazine**; others: quinidine, methyldopa, isoniazid, minocycline, PTU, phenytoin, statins, CCB, thiazide, ACEI.", "objective": "", "remediation": {"steps": [{"teach": "The two high-risk drugs are an **antiarrhythmic** and an **antihypertensive vasodilator**.", "stem": "Procainamide is an:", "options": [{"letter": "A", "text": "Antiarrhythmic"}, {"letter": "B", "text": "Antibiotic"}], "answer": "A", "explanation": "Class IA antiarrhythmic.", "clarify": [{"stem": "Hydralazine is a:", "options": [{"letter": "A", "text": "Gout drug"}, {"letter": "B", "text": "Vasodilator antihypertensive"}], "answer": "B", "explanation": "Arterial vasodilator."}]}], "checkpoints": [{"stem": "Other drug-induced lupus culprits →", "options": [{"letter": "A", "text": "Allopurinol, febuxostat"}, {"letter": "B", "text": "Folic acid, vitamin D"}, {"letter": "C", "text": "Acetaminophen, ibuprofen"}, {"letter": "D", "text": "Isoniazid, minocycline, PTU"}], "answer": "D", "explanation": "**Isoniazid, minocycline, PTU**, quinidine, methyldopa, phenytoin, etc."}, {"stem": "Fever, arthritis, pleuritis on long-term hydralazine → Suspect:", "options": [{"letter": "A", "text": "Gout flare"}, {"letter": "B", "text": "Drug-induced lupus"}, {"letter": "C", "text": "RA"}, {"letter": "D", "text": "TB reactivation"}], "answer": "B", "explanation": "**Drug-induced lupus**."}]}}, {"id": "69", "group": 69, "slide": 70, "section": "Drug-induced lupus", "topic": "Drug-induced lupus", "skill": "Diagnostics & imaging", "stem": "Which antibody is positive in 90–95% of patients with drug-induced lupus?", "options": [{"letter": "A", "text": "Rheumatoid factor"}, {"letter": "B", "text": "Antihistone"}, {"letter": "C", "text": "Anti-Smith"}, {"letter": "D", "text": "Anti-dsDNA"}], "answer": "B", "explanation": "Drug-induced lupus: **antihistone+ 90–95%**; anti-dsDNA and anti-Smith **rare (<5%)**; kidney involvement 0–5%.", "objective": "", "remediation": {"steps": [{"teach": "The two antibodies most specific for **idiopathic** SLE are rare in the drug-induced form.", "stem": "In drug-induced lupus, anti-dsDNA is:", "options": [{"letter": "A", "text": "Common (>80%)"}, {"letter": "B", "text": "Rare (<5%)"}], "answer": "B", "explanation": "Rare.", "clarify": [{"stem": "RF is the antibody of:", "options": [{"letter": "A", "text": "Drug-induced lupus"}, {"letter": "B", "text": "Rheumatoid arthritis"}], "answer": "B", "explanation": "RF → RA."}]}], "checkpoints": [{"stem": "Drug-induced vs idiopathic lupus → Feature that's rare in drug-induced:", "options": [{"letter": "A", "text": "Arthralgia"}, {"letter": "B", "text": "Kidney involvement"}, {"letter": "C", "text": "Fever"}, {"letter": "D", "text": "Pleuritis"}], "answer": "B", "explanation": "Kidney involvement only **0–5%**."}, {"stem": "Antihistone+, dsDNA−, on procainamide →", "options": [{"letter": "A", "text": "RA"}, {"letter": "B", "text": "Gout"}, {"letter": "C", "text": "Idiopathic SLE"}, {"letter": "D", "text": "Drug-induced lupus"}], "answer": "D", "explanation": "**Drug-induced lupus**."}]}}, {"id": "70", "group": 70, "slide": 71, "section": "Drug-induced lupus", "topic": "Drug-induced lupus", "skill": "Management", "stem": "What is the treatment for drug-induced lupus?", "options": [{"letter": "A", "text": "Stop the culprit drug"}, {"letter": "B", "text": "Lifelong cyclophosphamide"}, {"letter": "C", "text": "Add belimumab, keep drug"}, {"letter": "D", "text": "Continue drug, add HCQ"}], "answer": "A", "explanation": "**Discontinue the offending drug** — findings resolve; treat **like idiopathic SLE until symptoms resolve**.", "objective": "", "remediation": {"steps": [{"teach": "Removing the **cause** is the key step; symptoms then resolve.", "stem": "After stopping the culprit, drug-induced lupus usually:", "options": [{"letter": "A", "text": "Resolves"}, {"letter": "B", "text": "Becomes permanent"}], "answer": "A", "explanation": "Resolves.", "clarify": [{"stem": "Continuing the culprit drug is:", "options": [{"letter": "A", "text": "Fine"}, {"letter": "B", "text": "Wrong — stop it"}], "answer": "B", "explanation": "Stop the drug first."}]}], "checkpoints": [{"stem": "Drug-induced lupus onset after starting therapy →", "options": [{"letter": "A", "text": "Hours"}, {"letter": "B", "text": "Minutes"}, {"letter": "C", "text": "Only after 20 years"}, {"letter": "D", "text": "Months to years"}], "answer": "D", "explanation": "Months–years (typically 1–5 months; hydralazine/procainamide >3 years possible)."}, {"stem": "First step for drug-induced lupus →", "options": [{"letter": "A", "text": "Start belimumab"}, {"letter": "B", "text": "Start probenecid"}, {"letter": "C", "text": "Start cyclophosphamide"}, {"letter": "D", "text": "Stop the offending drug"}], "answer": "D", "explanation": "**Stop the drug**."}]}}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  const LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  function shuffleOptions(item) {
+    if (!item || !item.options || item.options.length < 2) return;
+    const key = (item.options.find(o => o.letter === item.answer) || {}).text;
+    const texts = item.options.map(o => o.text);
+    for (let i = texts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [texts[i], texts[j]] = [texts[j], texts[i]]; }
+    item.options = texts.map((t, i) => ({ letter: LET[i], text: t }));
+    item.answer = (item.options.find(o => o.text === key) || {}).letter;
+  }
+  // Tutor questions get fresh option order on every open, like the main exam
+  if (EXAM_DATA.shuffleTutorOptions !== false) {
+    questions.forEach(q => {
+      const r = q.remediation; if (!r) return;
+      (r.steps || []).forEach(s => { shuffleOptions(s); (s.clarify || []).forEach(shuffleOptions); });
+      (r.checkpoints || []).forEach(shuffleOptions);
+    });
+  }
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter (FIRST attempt — this is what is scored)
+  const tutor = {};          // question id -> tutor session (see startTutor)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);
+  let page = 0;
+  let lastGrade = null;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const optText = (item, letter) => { const o = item.options.find(x => x.letter === letter); return o ? o.text : ''; };
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  // ================= Adaptive tutor engine =================
+  // A session is a growing "trail" of nodes rendered under the missed question.
+  // Node kinds: step | clarify | checkpoint (answerable), note (text only).
+  function hasTutor(q) { return !!(q.remediation && q.remediation.steps && q.remediation.steps.length); }
+
+  function startTutor(q) {
+    const t = { status: 'active', phase: 'steps', trail: [], step: 0, clar: 0, wrong: [], cp: 0 };
+    tutor[q.id] = t;
+    pushStep(q, t, false);
+  }
+
+  function pushStep(q, t, retry) {
+    const steps = q.remediation.steps;
+    if (t.step >= steps.length) return finishSteps(q, t);
+    t.trail.push({ kind: 'step', item: steps[t.step], sIdx: t.step, retry: retry,
+                   elim: retry ? t.wrong.slice() : [], chosen: null, revealed: false });
+  }
+
+  function nextStep(q, t) { t.step++; t.clar = 0; t.wrong = []; pushStep(q, t, false); }
+
+  function pushClarify(q, t) {
+    const cl = q.remediation.steps[t.step].clarify || [];
+    if (t.clar < cl.length) {
+      t.trail.push({ kind: 'clarify', item: cl[t.clar], sIdx: t.step, chosen: null, revealed: false });
+      t.clar++;
+      return true;
+    }
+    return false;
+  }
+
+  function finishSteps(q, t) {
+    t.phase = 'checkpoint';
+    t.trail.push({ kind: 'note', cls: 'reveal',
+      html: '<b>Back to Question ' + esc(q.id) + ':</b> the answer is <b>' + esc(q.answer) + '. ' + fmt(optText(q, q.answer)) + '</b>' +
+            (q.explanation ? '<div style="margin-top:4px">' + fmt(q.explanation) + '</div>' : '') });
+    pushCheckpoint(q, t);
+  }
+
+  function pushCheckpoint(q, t) {
+    const cps = q.remediation.checkpoints || [];
+    if (t.cp < cps.length) {
+      t.trail.push({ kind: 'checkpoint', item: cps[t.cp], chosen: null, revealed: false, n: t.cp + 1 });
+    } else if (!cps.length) {
+      t.status = 'mastered'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Pathway complete — continue the case.' });
+    } else {
+      t.status = 'review'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'review',
+        html: '⚑ Flagged for review — this concept is saved to your missed list. Continue the case when ready.' });
+    }
+  }
+
+  function tutorAnswer(q, idx, letter) {
+    const t = tutor[q.id];
+    const node = t.trail[idx];
+    if (!node || node.chosen !== null || idx !== t.trail.length - 1) return;
+    node.chosen = letter;
+    const ok = letter === node.item.answer;
+
+    if (node.kind === 'step') {
+      if (ok) return nextStep(q, t);
+      t.wrong.push(letter);
+      if (pushClarify(q, t)) return;
+      // Out of simpler questions: teach the step's answer, then move on
+      node.revealed = true;
+      return nextStep(q, t);
+    }
+    if (node.kind === 'clarify') {
+      if (ok) return pushStep(q, t, true);              // foundation fixed -> retry the step
+      if (pushClarify(q, t)) return;                    // still shaky -> go simpler again
+      node.revealed = true;                             // teach the basic fact, then retry the step
+      return pushStep(q, t, true);
+    }
+    if (node.kind === 'checkpoint') {
+      if (ok) {
+        t.status = 'mastered'; t.phase = 'done';
+        t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Mastered — you applied it to a new case. Continue below.' });
+        return;
+      }
+      node.revealed = true;
+      t.cp++;
+      const more = t.cp < (q.remediation.checkpoints || []).length;
+      if (more) t.trail.push({ kind: 'note', cls: 'info', html: 'Same concept, one more case:' });
+      return pushCheckpoint(q, t);
+    }
+  }
+
+  // A question is "resolved" (lets its follow-up appear) once answered right,
+  // answered wrong without a pathway, or its pathway has finished.
+  function resolved(q) {
+    if (answers[q.id] === undefined) return false;
+    if (answers[q.id] === q.answer || !hasTutor(q)) return true;
+    return tutor[q.id] && tutor[q.id].status !== 'active';
+  }
+
+  function tutorStatus(q) {
+    const t = tutor[q.id];
+    return t ? t.status : null;
+  }
+
+  function nodeHtml(q, node, idx, interactive) {
+    if (node.kind === 'note') return '<div class="tnote ' + node.cls + '">' + node.html + '</div>';
+    const it = node.item;
+    const answered = node.chosen !== null;
+    const live = interactive && !answered;
+    let label;
+    if (node.kind === 'step') label = '<span class="tlabel">Step ' + (node.sIdx + 1) + ' of ' + q.remediation.steps.length + (node.retry ? ' · try again' : '') + '</span>';
+    else if (node.kind === 'clarify') label = '<span class="tlabel clar">Let\'s go simpler</span>';
+    else label = '<span class="tlabel cp">Mastery check' + ((q.remediation.checkpoints || []).length > 1 ? ' ' + node.n : '') + '</span>';
+
+    let html = '<div class="tnode' + (answered ? ' done' : ' active') + '" data-tq="' + esc(q.id) + '" data-tidx="' + idx + '">' + label;
+    if (it.teach && !(node.kind === 'step' && node.retry)) html += '<div class="teach">' + fmt(it.teach) + '</div>';
+    html += '<div class="stem">' + fmt(it.stem) + '</div>';
+    it.options.forEach(o => {
+      let cls = 'opt';
+      const elim = node.elim && node.elim.indexOf(o.letter) !== -1;
+      if (answered) {
+        if (o.letter === node.chosen) cls += node.chosen === it.answer ? ' correct' : ' incorrect';
+        else if (node.revealed && o.letter === it.answer) cls += ' correct';
+      }
+      if (elim) cls += ' elim';
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (live && !elim ? '' : ' disabled') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      const ok = node.chosen === it.answer;
+      if (ok || node.revealed) {
+        html += '<div class="feedback ' + (ok ? 'good' : 'bad') + '"><div class="verdict">' +
+          (ok ? '✓ Correct' : '✗ Answer: ' + esc(it.answer) + '. ' + fmt(optText(it, it.answer))) + '</div>' +
+          (it.explanation ? '<div>' + fmt(it.explanation) + '</div>' : '') + '</div>';
+      } else {
+        html += '<div class="nudge">✗ Not yet — let\'s break it down.</div>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function trailHtml(q, interactive) {
+    const t = tutor[q.id];
+    if (!t) return '';
+    let html = '<div class="tutor"><div class="tutor-head">Guided review</div>';
+    t.trail.forEach((n, i) => { html += nodeHtml(q, n, i, interactive); });
+    html += '</div>';
+    return html;
+  }
+
+  // ================= Rendering =================
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + fmt(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + fmt(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    const wrong = answered && chosen !== q.answer;
+    const tutoring = wrong && hasTutor(q);
+    const t = tutor[q.id];
+    // While the pathway is still in its teaching steps (exam mode), the correct answer stays hidden
+    const hideKey = mode === 'exam' && tutoring && t && t.phase === 'steps';
+    const status = tutoring ? tutorStatus(q) : null;
+
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    if (status === 'mastered') html += '<span class="badge mastered">Mastered after review</span>';
+    else if (status === 'review') html += '<span class="badge review">Flagged for review</span>';
+    else if (status === 'active') html += '<span class="badge active">Guided review in progress</span>';
+    html += '<div class="stem">' + fmt(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === chosen) cls += chosen === q.answer ? ' correct' : ' incorrect';
+        else if (o.letter === q.answer && !hideKey) cls += ' correct';
+        else if (!hideKey) cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      if (hideKey) {
+        html += '<div class="feedback tutoring"><div class="verdict">✗ Not quite — the answer stays hidden while we build up to it.</div>' +
+          '<div>Work through the guided questions below.</div></div>';
+      } else {
+        html += feedbackHtml(q, chosen);
+      }
+    }
+    if (tutoring && t) {
+      if (mode === 'exam') html += trailHtml(q, true);
+      else html += '<details class="trail"><summary>Guided review path (' +
+        t.trail.filter(n => n.kind !== 'note').length + ' questions)</summary>' + trailHtml(q, false) + '</details>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: a follow-up appears only once the question before it is
+    // resolved — answered correctly, or its guided review has finished.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && resolved(group[shown - 1])) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      const blocked = group[shown - 1];
+      const inTutor = answers[blocked.id] !== undefined && !resolved(blocked);
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') + ' in this case — ' +
+        (inTutor ? 'finish the guided review to continue' : 'answer above to continue') + '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Main-question clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll(':scope > .opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          const q = byId[qid];
+          answers[qid] = btn.getAttribute('data-letter');
+          if (answers[qid] !== q.answer && hasTutor(q)) startTutor(q);
+          renderPage(true);
+        });
+      });
+    });
+    // Tutor clicks
+    $('main').querySelectorAll('.tnode.active').forEach(nodeEl => {
+      const q = byId[nodeEl.getAttribute('data-tq')];
+      const idx = +nodeEl.getAttribute('data-tidx');
+      nodeEl.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || btn.disabled) return;
+          tutorAnswer(q, idx, btn.getAttribute('data-letter'));
+          renderPage(true);
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) {
+      window.scrollTo(0, savedY);
+      // Bring the newest tutor question / unlocked follow-up into view if it landed below the fold
+      const target = $('main').querySelector('.tnode.active') || $('main').querySelector('.tnote.mastered, .tnote.review');
+      if (target) {
+        const r = target.getBoundingClientRect();
+        const navH = $('navbar').offsetHeight || 0;
+        if (r.bottom > window.innerHeight - navH) {
+          window.scrollBy({ top: Math.min(r.top - 80, r.bottom - (window.innerHeight - navH) + 16), behavior: 'smooth' });
+        }
+      }
+    } else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  // ================= Grading =================
+  // Two lenses for the results page:
+  //   topic — WHAT you were tested on (e.g. "Paget's disease of bone"). Falls back to `section`.
+  //   skill — WHAT KIND of thinking (Identification, Disease process, Diagnostics & imaging,
+  //           Management, Complications…). Optional; the skill card is hidden when no question has one.
+  const topicOf = q => q.topic || q.section || 'All questions';
+  const skillOf = q => q.skill || null;
+
+  function tally(list, keyFn) {
+    const m = {};
+    list.forEach(q => {
+      const k = keyFn(q); if (!k) return;
+      if (!m[k]) m[k] = { name: k, correct: 0, total: 0, mastered: 0, review: 0, missed: 0 };
+      const e = m[k];
+      e.total++;
+      if (answers[q.id] === q.answer) { e.correct++; return; }
+      if (answers[q.id] === undefined) return;
+      const st = tutor[q.id] ? tutor[q.id].status : null;
+      if (st === 'mastered') e.mastered++; else if (st === 'review') e.review++; else e.missed++;
+    });
+    return Object.keys(m).map(k => { const e = m[k]; e.pct = e.total ? e.correct / e.total : 0; return e; })
+      .sort((a, b) => a.pct - b.pct || b.total - a.total);        // weakest first
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    graded.forEach(q => { if (answers[q.id] === q.answer) correct++; });
+    const ts = { started: 0, mastered: 0, review: 0, active: 0, tq: 0, tqRight: 0 };
+    Object.keys(tutor).forEach(id => {
+      const t = tutor[id];
+      ts.started++; ts[t.status]++;
+      t.trail.forEach(n => { if (n.kind !== 'note' && n.chosen !== null) { ts.tq++; if (n.chosen === n.item.answer) ts.tqRight++; } });
+    });
+    return { correct, graded: graded.length, total: questions.length, partial,
+             topics: tally(graded, topicOf), skills: tally(graded, skillOf), ts };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  // Lowest-scoring entries (ties included) — only meaningful when there's something to compare
+  function weakest(entries) {
+    if (entries.length < 2) return [];
+    const lo = entries[0].pct, hi = entries[entries.length - 1].pct;
+    if (lo === hi) return [];                                       // all equal: nothing stands out
+    return entries.filter(e => e.pct === lo);
+  }
+
+  function barsHtml(entries) {
+    const weakSet = weakest(entries).map(e => e.name);
+    return entries.map(e => {
+      const p = Math.round(e.pct * 100);
+      const cls = p >= 80 ? 'hi' : (weakSet.indexOf(e.name) !== -1 ? 'lo' : '');
+      const meta = [];
+      if (e.review) meta.push(e.review + ' flagged');
+      if (e.missed) meta.push(e.missed + ' missed');
+      if (e.mastered) meta.push(e.mastered + ' relearned in guided review');
+      return '<div class="bar-row"><div class="bar-head"><span class="nm">' + esc(e.name) +
+        (weakSet.indexOf(e.name) !== -1 ? '<span class="sec-tag weak">WEAKEST</span>' : '') +
+        '</span><span class="pc"><b>' + p + '%</b> · ' + e.correct + '/' + e.total + '</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + cls + '" style="width:' + Math.max(p, 2) + '%"></div></div>' +
+        (meta.length ? '<div class="bar-meta">' + meta.join(' · ') + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+    const hasSkills = r.skills.length > 0;
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + ' · first attempts</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.ts.started) html += '<div class="score-note">' + r.ts.mastered + ' of ' + r.ts.started +
+      ' missed concept' + (r.ts.started === 1 ? '' : 's') + ' relearned in guided review</div>';
+    else if (r.partial) html += '<div class="score-note">Unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    // ---- What to work on ----
+    const wTopic = weakest(r.topics), wSkill = weakest(r.skills);
+    const missed = missedQuestions();
+    html += '<div class="card"><h2>What to work on</h2><div class="sub">Ranked from the questions you missed on the first try</div>';
+    if (!missed.length) {
+      html += '<div class="focus-box ok"><div class="v">Nothing missed — every question right on the first try.</div></div>';
+    } else {
+      html += '<div class="focus-grid">';
+      if (wTopic.length) html += '<div class="focus-box"><div class="k">Weakest topic</div><div class="v">' +
+        wTopic.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wTopic.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      if (wSkill.length) html += '<div class="focus-box"><div class="k">Weakest skill</div><div class="v">' +
+        wSkill.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wSkill.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      html += '</div>';
+      // One line per missed concept: flagged first, then plain misses, then ones already relearned
+      const rank = { review: 0, active: 0, missed: 1, mastered: 2 };
+      const items = missed.map(q => {
+        const st = tutor[q.id] ? tutor[q.id].status : 'missed';
+        return { q, st: st === 'active' ? 'review' : st };
+      }).sort((a, b) => rank[a.st] - rank[b.st]);
+      const label = { review: 'Still shaky', missed: 'Missed', mastered: 'Relearned' };
+      html += '<ul class="todo">' + items.map(it => {
+        const sk = skillOf(it.q);
+        return '<li><span class="dot ' + it.st + '"></span><span class="what"><b>' + esc(topicOf(it.q)) + '</b>' +
+          (sk ? ' — ' + esc(sk) : '') + ' <span style="color:var(--ink-soft)">(Q' + esc(it.q.id) + ')</span></span>' +
+          '<span class="tag ' + it.st + '">' + label[it.st] + '</span></li>';
+      }).join('') + '</ul>';
+    }
+    html += '</div>';
+
+    // ---- By topic / by skill ----
+    html += '<div class="card"><h2>By topic</h2><div class="sub">First-attempt score for each disease or concept</div>' + barsHtml(r.topics) + '</div>';
+    if (hasSkills) html += '<div class="card"><h2>By skill</h2><div class="sub">Which kind of question trips you up, across all topics</div>' + barsHtml(r.skills) + '</div>';
+
+    if (r.ts.started) {
+      html += '<div class="card"><h2>Guided review</h2><div class="sub" style="margin-bottom:12px">How the tutor pathways went</div><div class="tutor-stats">' +
+        '<div class="tstat t"><b>' + r.ts.started + '</b>concepts reviewed</div>' +
+        '<div class="tstat m"><b>' + r.ts.mastered + '</b>passed mastery check</div>' +
+        '<div class="tstat r"><b>' + (r.ts.review + r.ts.active) + '</b>still shaky</div>' +
+        '<div class="tstat"><b>' + r.ts.tqRight + '/' + r.ts.tq + '</b>tutor questions right</div>' +
+        '</div></div>';
+    }
+
+    html += '<div class="results-actions">';
+    if (missed.length) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed.length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + fmt(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  const plain = s => String(s == null ? '' : s).replace(/\*\*(.+?)\*\*/g, '$1');
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id + ' — ' + topicOf(q) + (skillOf(q) ? ' / ' + skillOf(q) : '')];
+      if (group[0].id !== q.id) lines.push('Case: ' + plain(group[0].stem));
+      lines.push(plain(q.stem));
+      q.options.forEach(o => lines.push(o.letter + '. ' + plain(o.text)));
+      lines.push('My answer: ' + answers[q.id]);
+      lines.push('Correct answer: ' + q.answer + '. ' + plain(optText(q, q.answer)));
+      if (q.explanation) lines.push('Rationale: ' + plain(q.explanation));
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      const t = tutor[q.id];
+      if (t) {
+        const st = { mastered: 'MASTERED on re-check', review: 'STILL NEEDS REVIEW (missed mastery check)', active: 'guided review not finished' }[t.status];
+        lines.push('Guided review: ' + st);
+        t.trail.forEach(n => {
+          if (n.kind === 'note' || n.chosen === null) return;
+          const ok = n.chosen === n.item.answer;
+          lines.push('  ' + (ok ? '✓ ' : '✗ ') + plain(n.item.stem) + ' → ' + plain(optText(n.item, n.item.answer)));
+        });
+      }
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => !resolved(q))) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(tutor).forEach(k => delete tutor[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

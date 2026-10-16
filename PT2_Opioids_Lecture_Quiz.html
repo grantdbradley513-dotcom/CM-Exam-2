@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- Adaptive tutor ---------- */
+  :root { --tutor: #5b3fa6; --tutor-bg: #f5f2fc; --tutor-line: #ddd3f3; }
+  .feedback.tutoring { background: var(--amber-bg); border-left: 4px solid var(--amber); margin-bottom: 22px; }
+  .feedback.tutoring .verdict { color: var(--amber); }
+  /* Guided review: a quiet rail instead of a filled box, so nested cards don't stack up visually */
+  .tutor { border-left: 3px solid var(--tutor-line); padding: 2px 0 2px 16px; margin: 0 0 6px 4px; }
+  .tutor-head { font-weight: 700; color: var(--tutor); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+  .tnode { background: var(--card); border: 1px solid var(--tutor-line); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+  .tnode.active { border-color: var(--tutor); box-shadow: 0 2px 10px rgba(91,63,166,0.10); }
+  .tnode.done { background: #fcfcfe; }
+  .tlabel { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--tutor); margin-bottom: 8px; }
+  .tlabel.cp { color: #fff; background: var(--tutor); border-radius: 6px; padding: 1px 8px; }
+  .tlabel.clar { color: var(--amber); }
+  .teach { border-left: 3px solid var(--tutor); padding: 2px 0 2px 12px; margin-bottom: 12px; font-size: 0.95em; white-space: pre-wrap; color: var(--ink); }
+  .tnode .stem { margin-bottom: 12px; font-weight: 500; }
+  .tnode .opt { padding: 8px 12px; margin-bottom: 8px; }
+  .tnode .feedback { margin-top: 10px; }
+  .tnode .nudge { margin-top: 8px; color: var(--amber); font-weight: 600; font-size: 0.9em; }
+  .opt.elim { opacity: 0.45; text-decoration: line-through; border-style: dashed; }
+  .tnote { border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 0.95em; }
+  .tnote.reveal { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .tnote.mastered { background: var(--green-bg); border-left: 4px solid var(--green); font-weight: 600; }
+  .tnote.review { background: var(--red-bg); border-left: 4px solid var(--red); font-weight: 600; }
+  .tnote.info { color: var(--ink-soft); padding: 0 2px; margin-bottom: 10px; font-style: italic; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 6px; padding: 1px 8px; margin-left: 8px; vertical-align: middle; }
+  .badge.mastered { background: var(--green-bg); color: var(--green); }
+  .badge.review { background: var(--red-bg); color: var(--red); }
+  .badge.active { background: var(--tutor-bg); color: var(--tutor); }
+  details.trail { margin-top: 12px; }
+  details.trail summary { cursor: pointer; color: var(--tutor); font-weight: 600; font-size: 0.9rem; }
+  details.trail .tutor { margin-top: 12px; }
+
+  .qcard > .feedback + .tutor { margin-top: 22px; }
+
+  /* ---------- Results: study plan ---------- */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 16px; }
+  .card h2 { font-size: 1.02rem; margin-bottom: 4px; }
+  .card .sub { font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 14px; }
+  .focus-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 640px) { .focus-grid { grid-template-columns: 1fr 1fr; } }
+  .focus-box { border-radius: 10px; padding: 12px 14px; background: var(--red-bg); border-left: 4px solid var(--red); }
+  .focus-box.ok { background: var(--green-bg); border-left-color: var(--green); }
+  .focus-box .k { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+  .focus-box .v { font-weight: 700; font-size: 1.02rem; margin-top: 2px; }
+  .focus-box .n { font-size: 0.85rem; color: var(--ink-soft); }
+  .todo { list-style: none; }
+  .todo li { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border); font-size: 0.93rem; }
+  .todo li:first-child { border-top: none; }
+  .todo .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; transform: translateY(-1px); }
+  .todo .dot.review { background: var(--red); } .todo .dot.missed { background: var(--amber); } .todo .dot.mastered { background: var(--green); }
+  .todo .what { flex: 1; }
+  .todo .what b { font-weight: 600; }
+  .todo .tag { flex: none; font-size: 0.75rem; font-weight: 700; color: var(--ink-soft); }
+  .todo .tag.review { color: var(--red); } .todo .tag.missed { color: var(--amber); } .todo .tag.mastered { color: var(--green); }
+  .bar-row { margin-bottom: 14px; }
+  .bar-row:last-child { margin-bottom: 2px; }
+  .bar-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.92rem; margin-bottom: 5px; }
+  .bar-head .nm { font-weight: 600; }
+  .bar-head .pc { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+  .bar-head .pc b { color: var(--ink); }
+  .bar-meta { font-size: 0.78rem; color: var(--ink-soft); margin-top: 3px; }
+  .tutor-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 640px) { .tutor-stats { grid-template-columns: repeat(4, 1fr); } }
+  .tstat { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; color: var(--ink-soft); }
+  .tstat b { display: block; font-size: 1.4rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tstat.m b { color: var(--green); } .tstat.r b { color: var(--red); } .tstat.t b { color: var(--tutor); }
+
+  /* Background infographic (added by Claude) */
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(244, 246, 250, 0.55), rgba(244, 246, 250, 0.55)),
+      url("data:image/png;base64,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");
+    background-repeat: no-repeat, no-repeat;
+    background-position: center center, center center;
+    background-size: cover, cover;
+    background-attachment: fixed, fixed;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, topic?, skill?, image?,
+//    remediation?: {                      // OPTIONAL — adaptive tutor pathway for a wrong first answer
+//      steps: [{ teach?, stem, options, answer, explanation?,
+//                clarify?: [{ teach?, stem, options, answer, explanation? }] }],   // simpler questions used when a step is missed
+//      checkpoints?: [{ teach?, stem, options, answer, explanation? }]             // mastery check(s): a new vignette on the same concept
+//    } }] }
+// Questions without `remediation` behave exactly like the classic exam (answer revealed immediately).
+// **double asterisks** in any text render as bold.
+const EXAM_DATA = {"title": "Opioids — Keyword Practice (Adaptive)", "questions": [{"id": "1", "group": 1, "slide": 2, "section": "Opioids — definitions", "topic": "Opioid receptors & MOA", "skill": "Management", "stem": "For what severity of pain are opioid analgesics indicated as a class?", "options": [{"letter": "A", "text": "Moderate to severe"}, {"letter": "B", "text": "Mild pain only"}, {"letter": "C", "text": "Neuropathic pain only"}, {"letter": "D", "text": "Mild to moderate"}], "answer": "A", "explanation": "Opioids are used for **moderate to severe** acute pain (surgery, trauma) or chronic disease pain (cancer, arthritis).", "objective": "", "remediation": {"steps": [{"teach": "Think of where opioids are used: **surgery, trauma, cancer**. Those are not mild pains.", "stem": "Post-op pain after a laparotomy → Typical severity:", "options": [{"letter": "A", "text": "Mild"}, {"letter": "B", "text": "Moderate to severe"}], "answer": "B", "explanation": "Surgical and trauma pain are **moderate to severe**.", "clarify": [{"stem": "Are opioids first-line for mild pain?", "options": [{"letter": "A", "text": "No — reserved for moderate–severe pain"}, {"letter": "B", "text": "Yes — first-line for any pain"}], "answer": "A", "explanation": "Opioids are for **moderate to severe** pain."}]}], "checkpoints": [{"stem": "Opioid class indication → Two settings named in the lecture:", "options": [{"letter": "A", "text": "Tension headache and mild sprains"}, {"letter": "B", "text": "Surgery/trauma and chronic cancer or arthritis pain"}, {"letter": "C", "text": "Fibromyalgia and migraine"}, {"letter": "D", "text": "Dental pain only"}], "answer": "B", "explanation": "Acute pain from **surgery/trauma** or chronic pain from **cancer/arthritis**."}, {"stem": "Severity of pain opioids are indicated for →", "options": [{"letter": "A", "text": "Mild"}, {"letter": "B", "text": "Mild to moderate"}, {"letter": "C", "text": "Moderate to severe"}, {"letter": "D", "text": "Any severity"}], "answer": "C", "explanation": "**Moderate to severe** pain."}]}}, {"id": "2", "group": 2, "slide": 3, "section": "Opioid receptors", "topic": "Opioid receptors & MOA", "skill": "Pharmacology", "stem": "Which opioid receptor mediates both analgesia and respiratory depression?", "options": [{"letter": "A", "text": "Delta (δ)"}, {"letter": "B", "text": "Kappa (κ)"}, {"letter": "C", "text": "Mu (μ)"}, {"letter": "D", "text": "Sigma (σ)"}], "answer": "C", "explanation": "The **μ (mu)** receptor is the major receptor for analgesia **and** respiratory depression (μ2: resp depression, miosis, euphoria, ↓GI motility).", "objective": "", "remediation": {"steps": [{"teach": "Morphine and **all** opioids (and tramadol) are agonists at this receptor. Its subtype 2 causes respiratory depression.", "stem": "Which receptor subtypes are numbered 1 and 2 on the lecture table?", "options": [{"letter": "A", "text": "Mu (μ1/μ2)"}, {"letter": "B", "text": "Kappa (κ1/κ2)"}], "answer": "A", "explanation": "**μ1** = supraspinal analgesia; **μ2** = respiratory depression, miosis, euphoria, ↓GI motility.", "clarify": [{"stem": "Kappa receptor's hallmark effect →", "options": [{"letter": "A", "text": "Sedation"}, {"letter": "B", "text": "Respiratory depression"}], "answer": "A", "explanation": "κ = spinal analgesia, **sedation**, miosis, blocks ADH."}]}], "checkpoints": [{"stem": "μ2 receptor activation → Effect:", "options": [{"letter": "A", "text": "Blocks ADH release"}, {"letter": "B", "text": "Respiratory depression"}, {"letter": "C", "text": "Spinal analgesia only"}, {"letter": "D", "text": "Cough stimulation"}], "answer": "B", "explanation": "μ2 → **respiratory depression**, miosis, euphoria, ↓GI motility."}, {"stem": "Major opioid receptor for analgesia →", "options": [{"letter": "A", "text": "Delta"}, {"letter": "B", "text": "Kappa"}, {"letter": "C", "text": "Mu"}, {"letter": "D", "text": "Nicotinic"}], "answer": "C", "explanation": "**Mu** — also mediates respiratory depression."}]}}, {"id": "3", "group": 3, "slide": 3, "section": "Opioid receptors", "topic": "Opioid receptors & MOA", "skill": "Pharmacology", "stem": "What is a hallmark effect of kappa opioid receptor activation besides spinal analgesia?", "options": [{"letter": "A", "text": "Euphoria"}, {"letter": "B", "text": "Decreased GI motility"}, {"letter": "C", "text": "Sedation"}, {"letter": "D", "text": "Respiratory depression"}], "answer": "C", "explanation": "**κ (kappa)** = spinal analgesia, **sedation**, miosis, and blocks ADH release (dynorphins).", "objective": "", "remediation": {"steps": [{"teach": "Respiratory depression, euphoria and ↓GI motility all belong to the **μ2** column of the table. Kappa is the 'sleepy' receptor.", "stem": "Euphoria is listed under which receptors?", "options": [{"letter": "A", "text": "μ and δ"}, {"letter": "B", "text": "κ only"}], "answer": "A", "explanation": "Euphoria = **μ2 and δ**; not κ.", "clarify": [{"stem": "Respiratory depression → receptor:", "options": [{"letter": "A", "text": "μ (mu)"}, {"letter": "B", "text": "κ (kappa)"}], "answer": "A", "explanation": "Respiratory depression is a **μ2** effect."}]}], "checkpoints": [{"stem": "Opioid receptor that blocks ADH release →", "options": [{"letter": "A", "text": "Mu"}, {"letter": "B", "text": "Delta"}, {"letter": "C", "text": "Kappa"}, {"letter": "D", "text": "Sigma"}], "answer": "C", "explanation": "**κ** blocks ADH release."}, {"stem": "Endogenous ligand of the kappa receptor →", "options": [{"letter": "A", "text": "Enkephalins"}, {"letter": "B", "text": "Dynorphins"}, {"letter": "C", "text": "Substance P"}, {"letter": "D", "text": "Serotonin"}], "answer": "B", "explanation": "**Dynorphins** act at κ; enkephalins at δ."}]}}, {"id": "4", "group": 4, "slide": 3, "section": "Opioid receptors", "topic": "Opioid receptors & MOA", "skill": "Pharmacology", "stem": "What receptor type and signaling mechanism are shared by mu, kappa, and delta opioid receptors?", "options": [{"letter": "A", "text": "GPCR inhibiting adenylyl cyclase"}, {"letter": "B", "text": "Receptor tyrosine kinase"}, {"letter": "C", "text": "Nuclear receptor altering transcription"}, {"letter": "D", "text": "Ligand-gated sodium ion channel"}], "answer": "A", "explanation": "All opioid receptors are **G-protein coupled** and **inhibit adenylyl cyclase**.", "objective": "", "remediation": {"steps": [{"teach": "Opioids are **inhibitory** — they dampen neuronal signaling via a second-messenger system, not by opening a channel directly.", "stem": "Opioid receptor activation → effect on cAMP:", "options": [{"letter": "A", "text": "↓ cAMP"}, {"letter": "B", "text": "↑ cAMP"}], "answer": "A", "explanation": "They inhibit **adenylyl cyclase** → ↓cAMP.", "clarify": [{"stem": "Opioid receptors are coupled to:", "options": [{"letter": "A", "text": "G proteins"}, {"letter": "B", "text": "Tyrosine kinases"}], "answer": "A", "explanation": "They are **GPCRs**."}]}], "checkpoints": [{"stem": "Opioid receptor activation → Enzyme inhibited:", "options": [{"letter": "A", "text": "Cyclooxygenase"}, {"letter": "B", "text": "Adenylyl cyclase"}, {"letter": "C", "text": "Xanthine oxidase"}, {"letter": "D", "text": "Monoamine oxidase"}], "answer": "B", "explanation": "Opioid GPCRs inhibit **adenylyl cyclase**."}, {"stem": "μ receptor → Receptor family:", "options": [{"letter": "A", "text": "Ion channel"}, {"letter": "B", "text": "G-protein coupled receptor"}, {"letter": "C", "text": "Enzyme-linked receptor"}, {"letter": "D", "text": "Intracellular receptor"}], "answer": "B", "explanation": "**GPCR**."}]}}, {"id": "5", "group": 5, "slide": 7, "section": "Opioid effects — CNS & respiratory", "topic": "Opioid effects by body system", "skill": "Disease process", "stem": "How do opioids cause respiratory depression?", "options": [{"letter": "A", "text": "↓ Brainstem sensitivity to CO₂"}, {"letter": "B", "text": "↑ Airway secretions and mucus plugging"}, {"letter": "C", "text": "Diaphragm muscle paralysis"}, {"letter": "D", "text": "Bronchospasm from histamine"}], "answer": "A", "explanation": "Opioids **decrease sensitivity to CO₂**; it occurs at normal doses and worsens with dose until breathing stops.", "objective": "", "remediation": {"steps": [{"teach": "Normally a rising **CO₂** is the main drive to breathe. Opioids blunt the respiratory center's response to it.", "stem": "What normally drives the urge to breathe?", "options": [{"letter": "A", "text": "Rising CO₂"}, {"letter": "B", "text": "Falling glucose"}], "answer": "A", "explanation": "The brainstem responds to **CO₂**.", "clarify": [{"stem": "Does opioid respiratory depression occur at normal doses?", "options": [{"letter": "A", "text": "Yes — and it worsens with dose"}, {"letter": "B", "text": "No — only in overdose"}], "answer": "A", "explanation": "It occurs at **normal doses** and escalates with dose."}]}], "checkpoints": [{"stem": "Opioid-induced CO₂ retention → Consequence in the brain:", "options": [{"letter": "A", "text": "Cerebral vasoconstriction"}, {"letter": "B", "text": "Cerebral vasodilation → ↑ ICP"}, {"letter": "C", "text": "Seizures"}, {"letter": "D", "text": "Stroke"}], "answer": "B", "explanation": "CO₂ retention **dilates cerebral vessels → ↑ICP**."}, {"stem": "Opioid respiratory depression → Due to:", "options": [{"letter": "A", "text": "↓ Response to CO₂"}, {"letter": "B", "text": "Airway edema"}, {"letter": "C", "text": "Muscle weakness"}, {"letter": "D", "text": "Histamine bronchospasm"}], "answer": "A", "explanation": "**↓ CO₂ sensitivity**."}]}}, {"id": "6", "group": 6, "slide": 7, "section": "Opioid effects — tolerance", "topic": "Opioid effects by body system", "skill": "Pharmacology", "stem": "To which two opioid effects does little or no tolerance develop?", "options": [{"letter": "A", "text": "Miosis and constipation"}, {"letter": "B", "text": "Euphoria and analgesia"}, {"letter": "C", "text": "Sedation and nausea"}, {"letter": "D", "text": "Respiratory depression and sedation"}], "answer": "A", "explanation": "Tolerance develops to most opioid effects **except miosis and constipation** — pinpoint pupils and constipation persist.", "objective": "", "remediation": {"steps": [{"teach": "Think about what a long-term opioid user still has: **pinpoint pupils** and a **sluggish gut**.", "stem": "Chronic opioid user, years on therapy → Pupils:", "options": [{"letter": "A", "text": "Still pinpoint (miosis)"}, {"letter": "B", "text": "Normal size"}], "answer": "A", "explanation": "Little tolerance to **miosis**.", "clarify": [{"stem": "Chronic opioid user → Does constipation resolve with time?", "options": [{"letter": "A", "text": "No — it persists"}, {"letter": "B", "text": "Yes — tolerance develops"}], "answer": "A", "explanation": "Little tolerance to **constipation** — so start a bowel regimen."}]}], "checkpoints": [{"stem": "Opioid miosis → Receptors involved:", "options": [{"letter": "A", "text": "μ and κ (parasympathetic to the eye)"}, {"letter": "B", "text": "δ only"}, {"letter": "C", "text": "α1-adrenergic"}, {"letter": "D", "text": "Nicotinic"}], "answer": "A", "explanation": "Miosis = **μ & κ** stimulation, enhanced parasympathetic tone."}, {"stem": "Chronic opioid therapy → Which AE persists (no tolerance)?", "options": [{"letter": "A", "text": "Nausea"}, {"letter": "B", "text": "Sedation"}, {"letter": "C", "text": "Constipation"}, {"letter": "D", "text": "Euphoria"}], "answer": "C", "explanation": "**Constipation** (and miosis) persist."}]}}, {"id": "7", "group": 7, "slide": 8, "section": "Opioid effects — GI, biliary, CV", "topic": "Opioid effects by body system", "skill": "Disease process", "stem": "How do opioids cause nausea and vomiting?", "options": [{"letter": "A", "text": "Peripheral vagal nerve blockade"}, {"letter": "B", "text": "Direct irritation of the gastric mucosa lining"}, {"letter": "C", "text": "Chemoreceptor trigger zone stimulation"}, {"letter": "D", "text": "Histamine release in the gut"}], "answer": "C", "explanation": "Opioid **emesis** is from direct stimulation of the **chemoreceptor trigger zone** (CTZ) in the brainstem.", "objective": "", "remediation": {"steps": [{"teach": "Opioid receptors in the **brainstem** control N/V. The vomiting center is triggered by a sensing zone there.", "stem": "Opioid N/V is primarily a:", "options": [{"letter": "A", "text": "Central (brainstem) effect"}, {"letter": "B", "text": "Local stomach irritation"}], "answer": "A", "explanation": "It's **central** — the CTZ.", "clarify": [{"stem": "Histamine release from opioids causes mainly:", "options": [{"letter": "A", "text": "Itching/urticaria"}, {"letter": "B", "text": "Vomiting"}], "answer": "A", "explanation": "Histamine → **pruritus/urticaria**, not emesis."}]}], "checkpoints": [{"stem": "Chemoreceptor trigger zone stimulation → Opioid effect:", "options": [{"letter": "A", "text": "Miosis"}, {"letter": "B", "text": "Nausea/vomiting"}, {"letter": "C", "text": "Constipation"}, {"letter": "D", "text": "Sedation"}], "answer": "B", "explanation": "CTZ → **nausea/vomiting**."}, {"stem": "Opioid emesis → Site of action:", "options": [{"letter": "A", "text": "Chemoreceptor trigger zone"}, {"letter": "B", "text": "Gastric parietal cells"}, {"letter": "C", "text": "Small bowel mucosa"}, {"letter": "D", "text": "Hepatocytes"}], "answer": "A", "explanation": "**CTZ**."}]}}, {"id": "8", "group": 8, "slide": 8, "section": "Opioid effects — GI, biliary, CV", "topic": "Opioid effects by body system", "skill": "Disease process", "stem": "What effect do opioids have on the biliary tract?", "options": [{"letter": "A", "text": "Sphincter constriction → ↑ biliary pressure"}, {"letter": "B", "text": "↑ Bile flow into duodenum"}, {"letter": "C", "text": "Gallbladder relaxation with bile stasis and dilation"}, {"letter": "D", "text": "Sphincter of Oddi relaxation → ↓ pressure"}], "answer": "A", "explanation": "Opioids cause **gallbladder contraction and biliary sphincter constriction** → biliary spasm and ↑ biliary pressure.", "objective": "", "remediation": {"steps": [{"teach": "Opioids **↑ smooth-muscle and sphincter tone** throughout the GI tract (anal sphincter, bladder sphincter).", "stem": "Opioids → Sphincter tone in general:", "options": [{"letter": "A", "text": "Increased"}, {"letter": "B", "text": "Decreased"}], "answer": "A", "explanation": "Opioids **↑ sphincter tone**.", "clarify": [{"stem": "Increased sphincter of Oddi tone → Result:", "options": [{"letter": "A", "text": "Biliary spasm"}, {"letter": "B", "text": "Faster bile drainage"}], "answer": "A", "explanation": "↑ tone → **biliary spasm**, ↑ pressure."}]}], "checkpoints": [{"stem": "Opioid with a specific caution in biliary colic/cholecystitis (sphincter of Oddi spasm) →", "options": [{"letter": "A", "text": "Methadone"}, {"letter": "B", "text": "Meperidine"}, {"letter": "C", "text": "Tramadol"}, {"letter": "D", "text": "Naltrexone"}], "answer": "B", "explanation": "The lecture flags **meperidine**."}, {"stem": "Opioid effect on biliary pressure →", "options": [{"letter": "A", "text": "Decreased"}, {"letter": "B", "text": "Increased"}, {"letter": "C", "text": "No change"}, {"letter": "D", "text": "Variable"}], "answer": "B", "explanation": "**↑ biliary pressure** from sphincter constriction."}]}}, {"id": "9", "group": 9, "slide": 8, "section": "Opioid effects — GI, biliary, CV", "topic": "Opioid effects by body system", "skill": "Pharmacology", "stem": "What cardiovascular effects can occur with high-dose opioids?", "options": [{"letter": "A", "text": "Hypotension and bradycardia"}, {"letter": "B", "text": "Hypotension and tachycardia"}, {"letter": "C", "text": "Hypertension and tachycardia"}, {"letter": "D", "text": "Hypertension and bradycardia"}], "answer": "A", "explanation": "Peripheral vasodilation, ↓PVR and inhibited baroreceptor reflexes → **hypotension and bradycardia** at high doses.", "objective": "", "remediation": {"steps": [{"teach": "Opioids cause **peripheral vasodilation** AND **inhibit baroreceptor reflexes**, so the heart can't compensate with a fast rate.", "stem": "Peripheral vasodilation → Effect on BP:", "options": [{"letter": "A", "text": "↓ BP"}, {"letter": "B", "text": "↑ BP"}], "answer": "A", "explanation": "Vasodilation lowers **BP**.", "clarify": [{"stem": "With baroreceptor reflexes inhibited, does reflex tachycardia occur?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "Reflexes are blunted → **bradycardia** instead."}]}], "checkpoints": [{"stem": "Opioid CV mechanism →", "options": [{"letter": "A", "text": "Vasoconstriction"}, {"letter": "B", "text": "Peripheral vasodilation + inhibited baroreceptor reflexes"}, {"letter": "C", "text": "β1 stimulation"}, {"letter": "D", "text": "↑ PVR"}], "answer": "B", "explanation": "**Vasodilation, ↓PVR, blunted baroreceptors**."}, {"stem": "Opioid withdrawal (the opposite) → Vital signs:", "options": [{"letter": "A", "text": "Bradycardia, hypotension"}, {"letter": "B", "text": "Tachycardia, hypertension"}, {"letter": "C", "text": "Hypothermia"}, {"letter": "D", "text": "Bradypnea"}], "answer": "B", "explanation": "Withdrawal is the opposite: **tachycardia, HTN**."}]}}, {"id": "10", "group": 10, "slide": 9, "section": "Opioid effects — histamine, hormones", "topic": "Opioid effects by body system", "skill": "Pharmacology", "stem": "What causes itching, hives, and flushing without wheezing after morphine administration?", "options": [{"letter": "A", "text": "Toxic metabolite"}, {"letter": "B", "text": "Histamine release"}, {"letter": "C", "text": "IgE-mediated allergy"}, {"letter": "D", "text": "Serotonin syndrome"}], "answer": "B", "explanation": "Opioid **histamine release** → urticaria, pruritus, sweating, vasodilation; it is **not necessarily an allergy** (true allergy is rare).", "objective": "", "remediation": {"steps": [{"teach": "Opioids directly cause mast cells to release a mediator — no antibody involved. **True opioid allergy is rare.**", "stem": "Is true opioid allergy common?", "options": [{"letter": "A", "text": "No — rare"}, {"letter": "B", "text": "Yes — common"}], "answer": "A", "explanation": "True allergy is **rare**.", "clarify": [{"stem": "Urticaria and pruritus are classic effects of:", "options": [{"letter": "A", "text": "Histamine"}, {"letter": "B", "text": "Serotonin"}], "answer": "A", "explanation": "**Histamine** → itch/hives."}]}], "checkpoints": [{"stem": "Opioid-induced itching/urticaria → Treat with:", "options": [{"letter": "A", "text": "Naloxone"}, {"letter": "B", "text": "Hydroxyzine or diphenhydramine"}, {"letter": "C", "text": "Ondansetron"}, {"letter": "D", "text": "Stop all opioids permanently"}], "answer": "B", "explanation": "**Hydroxyzine or diphenhydramine**."}, {"stem": "Opioid histamine release → May exacerbate:", "options": [{"letter": "A", "text": "Asthma"}, {"letter": "B", "text": "Gout"}, {"letter": "C", "text": "Hypothyroidism"}, {"letter": "D", "text": "Glaucoma"}], "answer": "A", "explanation": "Histamine release can **exacerbate asthma**."}]}}, {"id": "11", "group": 11, "slide": 11, "section": "Opioid classification", "topic": "Opioid receptors & MOA", "skill": "Identification", "stem": "How is hydrocodone classified in this lecture?", "options": [{"letter": "A", "text": "Moderate (weak) agonist only"}, {"letter": "B", "text": "Moderate-to-strong agonist"}, {"letter": "C", "text": "Mixed agonist-antagonist"}, {"letter": "D", "text": "Strong agonist"}], "answer": "B", "explanation": "**Hydrocodone** is the lecture's **moderate-to-strong** agonist; codeine is the moderate agonist.", "objective": "", "remediation": {"steps": [{"teach": "The lecture has three agonist tiers: strong (morphine group), **one drug** in the middle tier, and codeine at the bottom.", "stem": "Codeine → Classification:", "options": [{"letter": "A", "text": "Moderate agonist"}, {"letter": "B", "text": "Strong agonist"}], "answer": "A", "explanation": "**Codeine** = moderate agonist.", "clarify": [{"stem": "Oxycodone → Classification:", "options": [{"letter": "A", "text": "Strong agonist"}, {"letter": "B", "text": "Moderate agonist"}], "answer": "A", "explanation": "Oxycodone is a **strong** agonist."}]}], "checkpoints": [{"stem": "Codeine → Classification:", "options": [{"letter": "A", "text": "Strong agonist"}, {"letter": "B", "text": "Moderate-to-strong agonist"}, {"letter": "C", "text": "Moderate agonist"}, {"letter": "D", "text": "Antagonist"}], "answer": "C", "explanation": "**Moderate agonist**."}, {"stem": "Only 'moderate-to-strong' agonist in the lecture →", "options": [{"letter": "A", "text": "Oxycodone"}, {"letter": "B", "text": "Hydrocodone"}, {"letter": "C", "text": "Codeine"}, {"letter": "D", "text": "Tramadol"}], "answer": "B", "explanation": "**Hydrocodone**."}]}}, {"id": "12", "group": 12, "slide": 12, "section": "Morphine — indications", "topic": "Morphine", "skill": "Management", "stem": "Which opioid is described as relieving dyspnea in acute pulmonary edema with anxiety?", "options": [{"letter": "A", "text": "IV morphine"}, {"letter": "B", "text": "Oral codeine"}, {"letter": "C", "text": "Fentanyl patch"}, {"letter": "D", "text": "Tramadol"}], "answer": "A", "explanation": "**IV morphine** relieves pulmonary edema dyspnea via **vasodilation** plus anti-anxiety effect.", "objective": "", "remediation": {"steps": [{"teach": "The reference opioid has several non-pain indications: **MI pain**, cough, and a cardiopulmonary emergency where vasodilation helps.", "stem": "How does the right opioid help pulmonary edema?", "options": [{"letter": "A", "text": "Vasodilation + anxiolysis"}, {"letter": "B", "text": "Bronchodilation"}], "answer": "A", "explanation": "**Vasodilation** + anti-anxiety.", "clarify": [{"stem": "Fentanyl patch for an acute emergency?", "options": [{"letter": "A", "text": "No — slow onset, not for acute pain"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "Patches are **slow onset**; not for acute use."}]}], "checkpoints": [{"stem": "Morphine → Indications include:", "options": [{"letter": "A", "text": "Opioid detox maintenance"}, {"letter": "B", "text": "Pain of MI"}, {"letter": "C", "text": "Alcohol use disorder"}, {"letter": "D", "text": "Seizure prophylaxis"}], "answer": "B", "explanation": "Morphine treats **MI pain** (and pulmonary edema dyspnea)."}, {"stem": "Pulmonary edema dyspnea → Opioid:", "options": [{"letter": "A", "text": "Meperidine"}, {"letter": "B", "text": "Methadone"}, {"letter": "C", "text": "IV morphine"}, {"letter": "D", "text": "Codeine"}], "answer": "C", "explanation": "**IV morphine**."}]}}, {"id": "13", "group": 13, "slide": 12, "section": "Morphine — indications", "topic": "Codeine", "skill": "Management", "stem": "Which opioid does the lecture describe as more effective than morphine for cough suppression?", "options": [{"letter": "A", "text": "Codeine"}, {"letter": "B", "text": "Fentanyl"}, {"letter": "C", "text": "Meperidine"}, {"letter": "D", "text": "Tramadol"}], "answer": "A", "explanation": "Morphine can relieve cough, but **codeine** is actually better (μ receptors in the medulla).", "objective": "", "remediation": {"steps": [{"teach": "Pick the **moderate** agonist that is classically sold as a cough syrup.", "stem": "Cough syrup opioid (Schedule V preparations) →", "options": [{"letter": "A", "text": "Codeine"}, {"letter": "B", "text": "Fentanyl"}], "answer": "A", "explanation": "**Codeine** cough syrups.", "clarify": [{"stem": "Meperidine's niche →", "options": [{"letter": "A", "text": "Obstetrics"}, {"letter": "B", "text": "Cough"}], "answer": "A", "explanation": "Meperidine = **obstetrics**."}]}], "checkpoints": [{"stem": "Codeine → Antitussive site of action:", "options": [{"letter": "A", "text": "μ receptors in the medulla"}, {"letter": "B", "text": "Peripheral H1 receptors"}, {"letter": "C", "text": "Bronchial β2 receptors"}, {"letter": "D", "text": "Spinal κ receptors"}], "answer": "A", "explanation": "**Medullary μ receptors**."}, {"stem": "Best opioid antitussive per the lecture →", "options": [{"letter": "A", "text": "Morphine"}, {"letter": "B", "text": "Codeine"}, {"letter": "C", "text": "Methadone"}, {"letter": "D", "text": "Hydromorphone"}], "answer": "B", "explanation": "**Codeine**."}]}}, {"id": "14", "group": 14, "slide": 13, "section": "Morphine — contraindications (class)", "topic": "Morphine", "skill": "Pharmacology", "stem": "Which condition is a contraindication or precaution for opioid use?", "options": [{"letter": "A", "text": "Cancer pain"}, {"letter": "B", "text": "Pain of acute MI"}, {"letter": "C", "text": "Severe COPD"}, {"letter": "D", "text": "Labor pain"}], "answer": "C", "explanation": "**Severe pulmonary disease** (severe COPD, ↓ pulmonary reserve) is a class caution — opioids depress respiration.", "objective": "", "remediation": {"steps": [{"teach": "The danger is the **μ2 effect** that suppresses breathing. Which patient has the least respiratory reserve?", "stem": "Opioids' most dangerous effect →", "options": [{"letter": "A", "text": "Respiratory depression"}, {"letter": "B", "text": "Constipation"}], "answer": "A", "explanation": "**Respiratory depression**.", "clarify": [{"stem": "Cancer pain → Opioid indication or contraindication?", "options": [{"letter": "A", "text": "Indication"}, {"letter": "B", "text": "Contraindication"}], "answer": "A", "explanation": "Cancer pain is an **indication**."}]}], "checkpoints": [{"stem": "Opioid class contraindication →", "options": [{"letter": "A", "text": "Arthritis pain"}, {"letter": "B", "text": "Concurrent MAOI therapy"}, {"letter": "C", "text": "Post-op pain"}, {"letter": "D", "text": "MI pain"}], "answer": "B", "explanation": "**MAOIs** and other CNS depressants."}, {"stem": "Patient with decreased pulmonary reserve → Opioids:", "options": [{"letter": "A", "text": "Preferred"}, {"letter": "B", "text": "Caution/contraindicated"}, {"letter": "C", "text": "Safe at any dose"}, {"letter": "D", "text": "Only IV"}], "answer": "B", "explanation": "**Caution** — severe pulmonary disease."}]}}, {"id": "15", "group": 15, "slide": 13, "section": "Morphine — contraindications (class)", "topic": "Morphine", "skill": "Pharmacology", "stem": "Why are opioids contraindicated in severe head injury?", "options": [{"letter": "A", "text": "Lower the seizure threshold"}, {"letter": "B", "text": "Precipitate withdrawal"}, {"letter": "C", "text": "Cause cerebral vasoconstriction and ischemia"}, {"letter": "D", "text": "CO₂ retention → ↑ intracranial pressure"}], "answer": "D", "explanation": "Respiratory depression → **CO₂ retention → cerebral vasodilation → ↑ intracranial pressure**.", "objective": "", "remediation": {"steps": [{"teach": "Follow the chain: opioids depress breathing → a blood gas rises → that gas dilates brain vessels.", "stem": "Hypoventilation → Which blood gas rises?", "options": [{"letter": "A", "text": "CO₂"}, {"letter": "B", "text": "O₂"}], "answer": "A", "explanation": "**CO₂** rises.", "clarify": [{"stem": "CO₂ effect on cerebral vessels →", "options": [{"letter": "A", "text": "Dilation"}, {"letter": "B", "text": "Constriction"}], "answer": "A", "explanation": "CO₂ **dilates** cerebral vessels → ↑ICP."}]}], "checkpoints": [{"stem": "Opioid in head injury → Feared consequence:", "options": [{"letter": "A", "text": "Hypoglycemia"}, {"letter": "B", "text": "↑ Intracranial pressure"}, {"letter": "C", "text": "Hyperkalemia"}, {"letter": "D", "text": "Diarrhea"}], "answer": "B", "explanation": "**↑ ICP**."}, {"stem": "Opioid class contraindication →", "options": [{"letter": "A", "text": "Severe head injury"}, {"letter": "B", "text": "Osteoarthritis"}, {"letter": "C", "text": "Renal stones"}, {"letter": "D", "text": "Fracture pain"}], "answer": "A", "explanation": "**Severe head injury**."}]}}, {"id": "16", "group": 16, "slide": 13, "section": "Morphine — contraindications (class)", "topic": "Morphine", "skill": "Management", "stem": "How should morphine dosing be adjusted in renal or hepatic dysfunction?", "options": [{"letter": "A", "text": "Switch to meperidine"}, {"letter": "B", "text": "No change; renal function is irrelevant"}, {"letter": "C", "text": "Reduce dose and lengthen interval"}, {"letter": "D", "text": "Double the dose"}], "answer": "C", "explanation": "Prolonged action, accumulation and **active metabolites** → **reduce dose, lengthen interval**.", "objective": "", "remediation": {"steps": [{"teach": "Morphine is metabolized by the liver and its **active metabolites** are cleared by the kidney. If clearance falls, drug accumulates.", "stem": "Reduced clearance → Drug levels:", "options": [{"letter": "A", "text": "Accumulate"}, {"letter": "B", "text": "Fall"}], "answer": "A", "explanation": "Drug and **active metabolites accumulate**.", "clarify": [{"stem": "Meperidine for chronic/repeated dosing?", "options": [{"letter": "A", "text": "No — toxic metabolite"}, {"letter": "B", "text": "Yes — preferred"}], "answer": "A", "explanation": "Meperidine has a **toxic metabolite**."}]}], "checkpoints": [{"stem": "Opioid preferred over morphine in renal insufficiency →", "options": [{"letter": "A", "text": "Codeine"}, {"letter": "B", "text": "Fentanyl"}, {"letter": "C", "text": "Meperidine"}, {"letter": "D", "text": "Hydrocodone"}], "answer": "B", "explanation": "**Fentanyl** — no active metabolites."}, {"stem": "Why morphine accumulates in renal failure →", "options": [{"letter": "A", "text": "Active metabolites"}, {"letter": "B", "text": "Poor absorption"}, {"letter": "C", "text": "Protein binding"}, {"letter": "D", "text": "Short half-life"}], "answer": "A", "explanation": "**Active metabolites**."}]}}, {"id": "17", "group": 17, "slide": 14, "section": "Morphine — kinetics & monitoring", "topic": "Morphine", "skill": "Pharmacology", "stem": "Which route of morphine administration produces the most reliable response?", "options": [{"letter": "A", "text": "IV"}, {"letter": "B", "text": "Transdermal"}, {"letter": "C", "text": "Rectal"}, {"letter": "D", "text": "Oral IR"}], "answer": "A", "explanation": "Oral absorption is **erratic and slow** with extensive **first-pass**, so **IV** gives the most reliable response (ER oral gives steadier levels).", "objective": "", "remediation": {"steps": [{"teach": "Oral morphine has a big problem: **first-pass metabolism** and erratic GI absorption. Which route bypasses the gut entirely?", "stem": "Route that bypasses first-pass metabolism →", "options": [{"letter": "A", "text": "IV"}, {"letter": "B", "text": "Oral"}], "answer": "A", "explanation": "**IV** bypasses the liver's first pass.", "clarify": [{"stem": "Oral morphine absorption →", "options": [{"letter": "A", "text": "Erratic and slow"}, {"letter": "B", "text": "Rapid and complete"}], "answer": "A", "explanation": "**Erratic and slow**."}]}], "checkpoints": [{"stem": "Morphine IV → Time to peak effect:", "options": [{"letter": "A", "text": "~5 min"}, {"letter": "B", "text": "~20 min"}, {"letter": "C", "text": "~2 h"}, {"letter": "D", "text": "~12 h"}], "answer": "B", "explanation": "IV peak ~**20 min**; duration 4–6 h."}, {"stem": "Most reliable morphine route →", "options": [{"letter": "A", "text": "Oral"}, {"letter": "B", "text": "Rectal"}, {"letter": "C", "text": "IV"}, {"letter": "D", "text": "Intranasal"}], "answer": "C", "explanation": "**IV**."}]}}, {"id": "18", "group": 18, "slide": 16, "section": "Morphine — preparations & dosing", "topic": "Morphine", "skill": "Management", "stem": "What is an appropriate use for MS Contin, the oral extended-release form of morphine?", "options": [{"letter": "A", "text": "Chronic pain only"}, {"letter": "B", "text": "Breakthrough pain"}, {"letter": "C", "text": "Opioid-naïve acute pain"}, {"letter": "D", "text": "Acute post-op pain"}], "answer": "A", "explanation": "Oral **ER morphine (MS Contin) is for chronic pain only** — no long-acting opioids for opioid-naïve acute pain.", "objective": "", "remediation": {"steps": [{"teach": "Extended-release products give steady levels for **around-the-clock** needs — they're not for short, acute episodes.", "stem": "Breakthrough pain → Best formulation:", "options": [{"letter": "A", "text": "Short-acting PRN"}, {"letter": "B", "text": "Extended-release"}], "answer": "A", "explanation": "Breakthrough = **short-acting PRN**.", "clarify": [{"stem": "Long-acting opioid for opioid-naïve acute pain?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "**No** long-acting opioids for naïve acute pain."}]}], "checkpoints": [{"stem": "ER oxycodone (OxyContin) → Reserved for:", "options": [{"letter": "A", "text": "Acute dental pain"}, {"letter": "B", "text": "Chronic pain"}, {"letter": "C", "text": "Cough"}, {"letter": "D", "text": "Post-op day 1"}], "answer": "B", "explanation": "ER oxycodone, like MS Contin, is for **chronic pain**."}, {"stem": "MS Contin → Indication:", "options": [{"letter": "A", "text": "Chronic pain only"}, {"letter": "B", "text": "Acute pain"}, {"letter": "C", "text": "Cough"}, {"letter": "D", "text": "Labor"}], "answer": "A", "explanation": "**Chronic pain only**."}]}}, {"id": "19", "group": 19, "slide": 16, "section": "Morphine — preparations & dosing", "topic": "Morphine", "skill": "Pharmacology", "stem": "What oral morphine dose is approximately equivalent to 10 mg of IV morphine?", "options": [{"letter": "A", "text": "5 mg"}, {"letter": "B", "text": "10 mg"}, {"letter": "C", "text": "20–30 mg"}, {"letter": "D", "text": "100–150 mg"}], "answer": "C", "explanation": "**10 mg IV = 20–30 mg PO** — oral morphine loses much to first-pass metabolism.", "objective": "", "remediation": {"steps": [{"teach": "Oral morphine undergoes heavy **first-pass** metabolism, so the oral dose must be **larger** than the IV dose.", "stem": "Oral dose compared with IV dose for the same effect →", "options": [{"letter": "A", "text": "Larger"}, {"letter": "B", "text": "Smaller"}], "answer": "A", "explanation": "**Larger** — first-pass loss.", "clarify": [{"stem": "Is the oral:IV ratio ~10:1?", "options": [{"letter": "A", "text": "No — about 2–3:1"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "About **2–3×**: 10 mg IV = 20–30 mg PO."}]}], "checkpoints": [{"stem": "Why oral morphine needs a higher dose than IV →", "options": [{"letter": "A", "text": "Renal excretion"}, {"letter": "B", "text": "First-pass metabolism"}, {"letter": "C", "text": "Protein binding"}, {"letter": "D", "text": "Histamine release"}], "answer": "B", "explanation": "Extensive **first-pass** metabolism."}, {"stem": "Morphine IV:PO conversion →", "options": [{"letter": "A", "text": "10 mg IV = 10 mg PO"}, {"letter": "B", "text": "10 mg IV = 20–30 mg PO"}, {"letter": "C", "text": "10 mg IV = 100 mg PO"}, {"letter": "D", "text": "10 mg IV = 5 mg PO"}], "answer": "B", "explanation": "**10 IV = 20–30 PO**."}]}}, {"id": "20", "group": 20, "slide": 17, "section": "Hydromorphone (Dilaudid)", "topic": "Hydromorphone", "skill": "Pharmacology", "stem": "How does hydromorphone (Dilaudid) compare with morphine in potency per milligram?", "options": [{"letter": "A", "text": "Equal"}, {"letter": "B", "text": "~2×"}, {"letter": "C", "text": "~5×"}, {"letter": "D", "text": "~100×"}], "answer": "C", "explanation": "Hydromorphone is **~5× more potent** per mg than morphine; fentanyl is ~100×.", "objective": "", "remediation": {"steps": [{"teach": "Anchor the extremes: **fentanyl ~100×**, **methadone ≈ morphine**. Dilaudid is high-potency but nowhere near fentanyl.", "stem": "Fentanyl → potency vs morphine:", "options": [{"letter": "A", "text": "~100×"}, {"letter": "B", "text": "~5×"}], "answer": "A", "explanation": "**Fentanyl ~100×**.", "clarify": [{"stem": "Methadone analgesia vs morphine →", "options": [{"letter": "A", "text": "About equal"}, {"letter": "B", "text": "~5× stronger"}], "answer": "A", "explanation": "Methadone ≈ **morphine**."}]}], "checkpoints": [{"stem": "Hydromorphone → Onset and duration vs morphine:", "options": [{"letter": "A", "text": "Much faster/shorter"}, {"letter": "B", "text": "Similar"}, {"letter": "C", "text": "Much longer (12 h)"}, {"letter": "D", "text": "72-hour patch"}], "answer": "B", "explanation": "Onset and duration **similar** to morphine."}, {"stem": "~5× morphine's potency per mg →", "options": [{"letter": "A", "text": "Fentanyl"}, {"letter": "B", "text": "Hydromorphone"}, {"letter": "C", "text": "Codeine"}, {"letter": "D", "text": "Methadone"}], "answer": "B", "explanation": "**Hydromorphone**."}]}}, {"id": "21", "group": 21, "slide": 17, "section": "Hydromorphone (Dilaudid)", "topic": "Hydromorphone", "skill": "Pharmacology", "stem": "Which adverse effect is greater with hydromorphone than with morphine?", "options": [{"letter": "A", "text": "Constipation"}, {"letter": "B", "text": "Sedation and somnolence"}, {"letter": "C", "text": "Respiratory depression"}, {"letter": "D", "text": "Nausea/vomiting"}], "answer": "C", "explanation": "Hydromorphone: **less** sedation, N/V and constipation — but **more respiratory depression**.", "objective": "", "remediation": {"steps": [{"teach": "Dilaudid trades off: it is 'cleaner' for the gut and sedation, but its potency makes the most dangerous effect worse.", "stem": "Hydromorphone → Constipation vs morphine:", "options": [{"letter": "A", "text": "Less"}, {"letter": "B", "text": "More"}], "answer": "A", "explanation": "**Less** constipation (and N/V, sedation).", "clarify": [{"stem": "Most dangerous opioid AE →", "options": [{"letter": "A", "text": "Respiratory depression"}, {"letter": "B", "text": "Nausea"}], "answer": "A", "explanation": "**Respiratory depression**."}]}], "checkpoints": [{"stem": "Hydromorphone → Best-fit indication:", "options": [{"letter": "A", "text": "Mild headache"}, {"letter": "B", "text": "Short course for severe acute pain refractory to others"}, {"letter": "C", "text": "Cough"}, {"letter": "D", "text": "Opioid detox"}], "answer": "B", "explanation": "**Severe acute pain refractory** to other meds; high-dose needs."}, {"stem": "Hydromorphone produces LESS of which AE than morphine?", "options": [{"letter": "A", "text": "Respiratory depression"}, {"letter": "B", "text": "Nausea/vomiting"}, {"letter": "C", "text": "Addiction"}, {"letter": "D", "text": "Miosis"}], "answer": "B", "explanation": "Less **N/V**, sedation, constipation."}]}}, {"id": "22", "group": 22, "slide": 18, "section": "Meperidine (Demerol)", "topic": "Meperidine", "skill": "Management", "stem": "Which opioid is commonly used in obstetrics when a laboring patient needs IV or IM analgesia?", "options": [{"letter": "A", "text": "Codeine"}, {"letter": "B", "text": "Meperidine"}, {"letter": "C", "text": "Fentanyl patch"}, {"letter": "D", "text": "Methadone"}], "answer": "B", "explanation": "**Meperidine** is common in **obstetrics** — less dampening of uterine contractions than morphine.", "objective": "", "remediation": {"steps": [{"teach": "Opioids can **↓ uterine contraction strength/frequency**. The OB favorite dampens contractions less than morphine.", "stem": "Opioids → Effect on uterine contractions:", "options": [{"letter": "A", "text": "↓ Strength and frequency"}, {"letter": "B", "text": "↑ Strength"}], "answer": "A", "explanation": "Opioids may **↓ contractions**.", "clarify": [{"stem": "Fentanyl patch for acute labor pain?", "options": [{"letter": "A", "text": "No — patches not for acute pain"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "Patches: **not for acute pain**."}]}], "checkpoints": [{"stem": "Meperidine → Why preferred in obstetrics:", "options": [{"letter": "A", "text": "Longest duration"}, {"letter": "B", "text": "Less dampening of uterine contractions"}, {"letter": "C", "text": "No respiratory depression"}, {"letter": "D", "text": "Oral only"}], "answer": "B", "explanation": "**Less uterine dampening**."}, {"stem": "Obstetric opioid of choice in this lecture →", "options": [{"letter": "A", "text": "Hydromorphone"}, {"letter": "B", "text": "Meperidine"}, {"letter": "C", "text": "Oxycodone"}, {"letter": "D", "text": "Tramadol"}], "answer": "B", "explanation": "**Meperidine (Demerol)**."}]}}, {"id": "23", "group": 23, "slide": 18, "section": "Meperidine (Demerol)", "topic": "Meperidine", "skill": "Pharmacology", "stem": "What causes twitching, anxiety, and seizures after large or repeated doses of meperidine?", "options": [{"letter": "A", "text": "Toxic metabolite accumulation"}, {"letter": "B", "text": "Histamine release"}, {"letter": "C", "text": "QT prolongation"}, {"letter": "D", "text": "Precipitated opioid withdrawal"}], "answer": "A", "explanation": "Buildup of meperidine's **toxic metabolite** → anxiety, muscle twitches, rarely **serotonin syndrome or seizures**.", "objective": "", "remediation": {"steps": [{"teach": "This is a **dose-accumulation** problem — the parent drug is fine, but something it is broken down into builds up.", "stem": "Problem appears with:", "options": [{"letter": "A", "text": "Large or repeated doses"}, {"letter": "B", "text": "A single small dose"}], "answer": "A", "explanation": "**Accumulation** with repeated dosing.", "clarify": [{"stem": "QT prolongation is the hallmark of:", "options": [{"letter": "A", "text": "Methadone"}, {"letter": "B", "text": "Meperidine"}], "answer": "A", "explanation": "**Methadone** → QT/torsades."}]}], "checkpoints": [{"stem": "Meperidine → Pain type it should NOT be used for:", "options": [{"letter": "A", "text": "Acute pain"}, {"letter": "B", "text": "Chronic pain"}, {"letter": "C", "text": "Obstetric pain"}, {"letter": "D", "text": "Post-op pain"}], "answer": "B", "explanation": "**NOT for chronic pain** — toxic metabolite."}, {"stem": "Meperidine toxic metabolite → Rare serious effects:", "options": [{"letter": "A", "text": "Hepatic failure"}, {"letter": "B", "text": "Serotonin syndrome or seizures"}, {"letter": "C", "text": "Agranulocytosis"}, {"letter": "D", "text": "Hyperkalemia"}], "answer": "B", "explanation": "**Serotonin syndrome, seizures**."}]}}, {"id": "24", "group": 24, "slide": 19, "section": "Methadone", "topic": "Methadone", "skill": "Management", "stem": "What is the primary indication for methadone?", "options": [{"letter": "A", "text": "Opioid overdose reversal"}, {"letter": "B", "text": "Opioid addiction detox and maintenance"}, {"letter": "C", "text": "Acute post-operative pain in the opioid-naïve"}, {"letter": "D", "text": "Cough"}], "answer": "B", "explanation": "Methadone is used **primarily for detox, treatment and maintenance of opioid addiction** (also oral severe chronic pain).", "objective": "", "remediation": {"steps": [{"teach": "Methadone is a **long-acting** oral agonist with **less euphoria** — ideal for steadily replacing an abused opioid.", "stem": "Methadone → Duration and euphoria vs morphine:", "options": [{"letter": "A", "text": "Longer, less euphoria"}, {"letter": "B", "text": "Shorter, more euphoria"}], "answer": "A", "explanation": "**Longer, less euphoria**.", "clarify": [{"stem": "Opioid overdose reversal →", "options": [{"letter": "A", "text": "Naloxone"}, {"letter": "B", "text": "Methadone"}], "answer": "A", "explanation": "**Naloxone** reverses overdose."}]}], "checkpoints": [{"stem": "Methadone → Secondary indication:", "options": [{"letter": "A", "text": "Severe chronic pain in patients intolerant of other opioids"}, {"letter": "B", "text": "Labor analgesia"}, {"letter": "C", "text": "Antitussive"}, {"letter": "D", "text": "Acute MI pain"}], "answer": "A", "explanation": "Oral **severe chronic pain**."}, {"stem": "Opioid used for addiction maintenance (certified programs) →", "options": [{"letter": "A", "text": "Meperidine"}, {"letter": "B", "text": "Methadone"}, {"letter": "C", "text": "Tramadol"}, {"letter": "D", "text": "Codeine"}], "answer": "B", "explanation": "**Methadone**."}]}}, {"id": "25", "group": 25, "slide": 19, "section": "Methadone", "topic": "Methadone", "skill": "Pharmacology", "stem": "What serious adverse effect distinguishes methadone from morphine?", "options": [{"letter": "A", "text": "Sphincter of Oddi spasm"}, {"letter": "B", "text": "QT prolongation / torsades"}, {"letter": "C", "text": "Serotonin syndrome"}, {"letter": "D", "text": "Seizures from toxic metabolite"}], "answer": "B", "explanation": "Methadone adds **arrhythmias — QT prolongation / torsades** (large doses; ↑ risk with ↓K⁺/↓Mg²⁺).", "objective": "", "remediation": {"steps": [{"teach": "Methadone's add-on AEs are **cardiac**: arrhythmias, ECG abnormalities, palpitations.", "stem": "Methadone's extra AE organ system →", "options": [{"letter": "A", "text": "Cardiac"}, {"letter": "B", "text": "Biliary"}], "answer": "A", "explanation": "**Cardiac** — arrhythmias.", "clarify": [{"stem": "Seizures from a toxic metabolite →", "options": [{"letter": "A", "text": "Meperidine"}, {"letter": "B", "text": "Methadone"}], "answer": "A", "explanation": "That's **meperidine**."}]}], "checkpoints": [{"stem": "Electrolytes that ↑ methadone torsades risk when low →", "options": [{"letter": "A", "text": "Na⁺ and Ca²⁺"}, {"letter": "B", "text": "K⁺ and Mg²⁺"}, {"letter": "C", "text": "Phosphate and Cl⁻"}, {"letter": "D", "text": "Glucose"}], "answer": "B", "explanation": "**Hypokalemia, hypomagnesemia**."}, {"stem": "Opioid causing QT prolongation →", "options": [{"letter": "A", "text": "Fentanyl"}, {"letter": "B", "text": "Methadone"}, {"letter": "C", "text": "Codeine"}, {"letter": "D", "text": "Hydromorphone"}], "answer": "B", "explanation": "**Methadone**."}]}}, {"id": "26", "group": 26, "slide": 19, "section": "Methadone", "topic": "Methadone", "skill": "Pharmacology", "stem": "What monitoring is required during methadone treatment?", "options": [{"letter": "A", "text": "ECG at start and dose changes"}, {"letter": "B", "text": "Monthly liver function tests"}, {"letter": "C", "text": "Serum methadone drug levels"}, {"letter": "D", "text": "Daily urine output and creatinine"}], "answer": "A", "explanation": "Because of QT risk, get an **ECG at initiation and with dose changes**; check K⁺/Mg²⁺.", "objective": "", "remediation": {"steps": [{"teach": "Monitor for methadone's signature AE — an interval measured on a heart tracing.", "stem": "QT interval is measured on:", "options": [{"letter": "A", "text": "ECG"}, {"letter": "B", "text": "Echocardiogram"}], "answer": "A", "explanation": "**ECG**.", "clarify": [{"stem": "When should it be repeated?", "options": [{"letter": "A", "text": "With dose changes"}, {"letter": "B", "text": "Never after baseline"}], "answer": "A", "explanation": "At start **and dose changes**."}]}], "checkpoints": [{"stem": "Methadone patient with K⁺ 3.0 → Concern:", "options": [{"letter": "A", "text": "Seizure"}, {"letter": "B", "text": "Torsades de pointes"}, {"letter": "C", "text": "Biliary spasm"}, {"letter": "D", "text": "Serotonin syndrome"}], "answer": "B", "explanation": "Low K⁺ → **torsades** risk; correct K⁺/Mg²⁺."}, {"stem": "Methadone monitoring →", "options": [{"letter": "A", "text": "ECG"}, {"letter": "B", "text": "Thyroid panel"}, {"letter": "C", "text": "Uric acid"}, {"letter": "D", "text": "CBC"}], "answer": "A", "explanation": "**ECG**."}]}}, {"id": "27", "group": 27, "slide": 20, "section": "Fentanyl (Duragesic)", "topic": "Fentanyl", "skill": "Pharmacology", "stem": "How does fentanyl's potency compare with morphine's?", "options": [{"letter": "A", "text": "~5×"}, {"letter": "B", "text": "~10×"}, {"letter": "C", "text": "~100×"}, {"letter": "D", "text": "Equal"}], "answer": "C", "explanation": "**Fentanyl ~100× morphine** — highly lipophilic, rapid onset, short duration IV.", "objective": "", "remediation": {"steps": [{"teach": "Fentanyl is the **most potent** opioid in the lecture — far above hydromorphone's ~5×.", "stem": "Hydromorphone → potency vs morphine:", "options": [{"letter": "A", "text": "~5×"}, {"letter": "B", "text": "~100×"}], "answer": "A", "explanation": "Hydromorphone ~**5×**.", "clarify": [{"stem": "Strongest opioid in the lecture's rank →", "options": [{"letter": "A", "text": "Fentanyl"}, {"letter": "B", "text": "Hydromorphone"}], "answer": "A", "explanation": "**Fentanyl** > hydromorphone > oxycodone…"}]}], "checkpoints": [{"stem": "Fentanyl IV → Onset/duration:", "options": [{"letter": "A", "text": "Slow onset, 12 h"}, {"letter": "B", "text": "Rapid onset, short duration"}, {"letter": "C", "text": "Slow onset, 72 h"}, {"letter": "D", "text": "Onset 1 h, 24 h"}], "answer": "B", "explanation": "IV peak ~5 min, lasts **15–30 min**."}, {"stem": "~100× morphine's potency →", "options": [{"letter": "A", "text": "Hydromorphone"}, {"letter": "B", "text": "Fentanyl"}, {"letter": "C", "text": "Methadone"}, {"letter": "D", "text": "Oxycodone"}], "answer": "B", "explanation": "**Fentanyl**."}]}}, {"id": "28", "group": 28, "slide": 21, "section": "Fentanyl — patch rules", "topic": "Fentanyl", "skill": "Management", "stem": "For which patients is a transdermal fentanyl patch inappropriate?", "options": [{"letter": "A", "text": "Opioid-tolerant patients with chronic pain"}, {"letter": "B", "text": "Stable cancer pain"}, {"letter": "C", "text": "Renal insufficiency"}, {"letter": "D", "text": "Opioid-naïve patients with acute pain"}], "answer": "D", "explanation": "Fentanyl patches are **not for acute pain or opioid-naïve patients** — slow onset/long duration, and respiratory depression risk.", "objective": "", "remediation": {"steps": [{"teach": "A patch builds a **skin depot** → slow onset, long duration. The most significant AE is respiratory depression in someone not used to opioids.", "stem": "Fentanyl patch onset →", "options": [{"letter": "A", "text": "Slow"}, {"letter": "B", "text": "Immediate"}], "answer": "A", "explanation": "Skin depot → **slow onset**.", "clarify": [{"stem": "Most significant fentanyl AE →", "options": [{"letter": "A", "text": "Respiratory depression in an opioid-naïve patient"}, {"letter": "B", "text": "Hepatotoxicity"}], "answer": "A", "explanation": "**Respiratory depression** in naïve patients."}]}], "checkpoints": [{"stem": "Opioid-naïve post-op patient → Fentanyl patch?", "options": [{"letter": "A", "text": "Yes — first-line"}, {"letter": "B", "text": "No — not for acute pain or opioid-naïve"}, {"letter": "C", "text": "Yes, half dose"}, {"letter": "D", "text": "Only with naloxone"}], "answer": "B", "explanation": "**No**."}, {"stem": "Fentanyl patch → Appropriate patient:", "options": [{"letter": "A", "text": "Opioid-naïve acute pain"}, {"letter": "B", "text": "Opioid-tolerant chronic pain"}, {"letter": "C", "text": "Acute dental pain"}, {"letter": "D", "text": "Labor"}], "answer": "B", "explanation": "**Chronic pain**, opioid-tolerant."}]}}, {"id": "29", "group": 29, "slide": 21, "section": "Fentanyl — patch rules", "topic": "Fentanyl", "skill": "Management", "stem": "Which opioid is preferred over morphine for severe pain in a patient with renal insufficiency?", "options": [{"letter": "A", "text": "Fentanyl"}, {"letter": "B", "text": "Codeine"}, {"letter": "C", "text": "Meperidine"}, {"letter": "D", "text": "Morphine ER"}], "answer": "A", "explanation": "**Fentanyl** is preferred in renal insufficiency — **no active metabolites**.", "objective": "", "remediation": {"steps": [{"teach": "Morphine's problem in renal failure is accumulation of **active metabolites**. Choose the drug that has none.", "stem": "Morphine in renal failure →", "options": [{"letter": "A", "text": "Active metabolites accumulate"}, {"letter": "B", "text": "Safe at usual dose"}], "answer": "A", "explanation": "**Active metabolites** accumulate.", "clarify": [{"stem": "Meperidine → metabolite profile:", "options": [{"letter": "A", "text": "Toxic metabolite"}, {"letter": "B", "text": "No metabolites"}], "answer": "A", "explanation": "Meperidine has a **toxic metabolite**."}]}], "checkpoints": [{"stem": "Why fentanyl is preferred in renal insufficiency →", "options": [{"letter": "A", "text": "Shorter half-life"}, {"letter": "B", "text": "No active metabolites"}, {"letter": "C", "text": "Less constipation"}, {"letter": "D", "text": "Oral only"}], "answer": "B", "explanation": "**No active metabolites**."}, {"stem": "Renal failure + severe pain → Opioid:", "options": [{"letter": "A", "text": "Morphine"}, {"letter": "B", "text": "Meperidine"}, {"letter": "C", "text": "Fentanyl"}, {"letter": "D", "text": "Codeine"}], "answer": "C", "explanation": "**Fentanyl**."}]}}, {"id": "30", "group": 30, "slide": 21, "section": "Fentanyl — patch rules", "topic": "Fentanyl", "skill": "Counseling & prevention", "stem": "How often should a fentanyl (Duragesic) patch be changed?", "options": [{"letter": "A", "text": "Every 12 hours"}, {"letter": "B", "text": "Every 24 hours"}, {"letter": "C", "text": "Every 72 hours"}, {"letter": "D", "text": "Every 7 days"}], "answer": "C", "explanation": "Duragesic patches are **changed every 72 hours**.", "objective": "", "remediation": {"steps": [{"teach": "Patches form a **skin depot** with a long duration — longer than a single day.", "stem": "Patch duration → Longer than 24 h?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "A", "explanation": "Yes — the depot lasts **days**.", "clarify": [{"stem": "Patch interval in days →", "options": [{"letter": "A", "text": "3 days"}, {"letter": "B", "text": "7 days"}], "answer": "A", "explanation": "**72 h = 3 days**."}]}], "checkpoints": [{"stem": "Used fentanyl patch → Counseling:", "options": [{"letter": "A", "text": "Flush or cut in half to reuse"}, {"letter": "B", "text": "Careful disposal — can kill children or pets; wash hands"}, {"letter": "C", "text": "No special handling"}, {"letter": "D", "text": "Reapply to a new site"}], "answer": "B", "explanation": "Used patches can be **fatal** to children/pets."}, {"stem": "Duragesic → Change every:", "options": [{"letter": "A", "text": "24 h"}, {"letter": "B", "text": "48 h"}, {"letter": "C", "text": "72 h"}, {"letter": "D", "text": "96 h"}], "answer": "C", "explanation": "**72 hours**."}]}}, {"id": "31", "group": 31, "slide": 23, "section": "Oxycodone", "topic": "Oxycodone & hydrocodone", "skill": "Counseling & prevention", "stem": "What is a key counseling point for OxyContin, the extended-release form of oxycodone?", "options": [{"letter": "A", "text": "Take only at bedtime"}, {"letter": "B", "text": "Chew for faster relief"}, {"letter": "C", "text": "Never break, crush or chew"}, {"letter": "D", "text": "Take with grapefruit juice"}], "answer": "C", "explanation": "**Never break, crush or chew ER** — rapid absorption of a potentially **lethal dose**; ER abuse implicated in many deaths.", "objective": "", "remediation": {"steps": [{"teach": "ER tablets hold many hours' worth of drug. Defeating the release mechanism dumps it **all at once**.", "stem": "Crushing an ER tablet → Release:", "options": [{"letter": "A", "text": "All at once"}, {"letter": "B", "text": "Slower"}], "answer": "A", "explanation": "**Dose dumping**.", "clarify": [{"stem": "Crushed OxyContin → Risk:", "options": [{"letter": "A", "text": "Potentially lethal overdose"}, {"letter": "B", "text": "Reduced effect"}], "answer": "A", "explanation": "**Lethal** dose."}]}], "checkpoints": [{"stem": "Oxycodone ER → Reserved for:", "options": [{"letter": "A", "text": "Acute pain"}, {"letter": "B", "text": "Chronic pain"}, {"letter": "C", "text": "Cough"}, {"letter": "D", "text": "Opioid detox"}], "answer": "B", "explanation": "**ER only for chronic pain**."}, {"stem": "Patient crushes OxyContin → Concern:", "options": [{"letter": "A", "text": "Lethal dose dump"}, {"letter": "B", "text": "Loss of efficacy"}, {"letter": "C", "text": "Allergy"}, {"letter": "D", "text": "Constipation"}], "answer": "A", "explanation": "**Dose dump**."}]}}, {"id": "32", "group": 32, "slide": 24, "section": "Hydrocodone", "topic": "Oxycodone & hydrocodone", "skill": "Counseling & prevention", "stem": "What is the maximum total daily acetaminophen dose for a patient taking Norco, Vicodin, or Lortab who also uses over-the-counter Tylenol?", "options": [{"letter": "A", "text": "1 g"}, {"letter": "B", "text": "2 g"}, {"letter": "C", "text": "4 g"}, {"letter": "D", "text": "8 g"}], "answer": "C", "explanation": "Total **APAP ≤ 4 g/day** from all sources — warn about hidden acetaminophen in combos.", "objective": "", "remediation": {"steps": [{"teach": "Norco, Vicodin and Lortab are hydrocodone **+ acetaminophen**. Extra Tylenol stacks on top.", "stem": "Norco contains hydrocodone plus:", "options": [{"letter": "A", "text": "Acetaminophen"}, {"letter": "B", "text": "Ibuprofen"}], "answer": "A", "explanation": "**APAP**.", "clarify": [{"stem": "Excess APAP → Organ toxicity:", "options": [{"letter": "A", "text": "Liver"}, {"letter": "B", "text": "Kidney"}], "answer": "A", "explanation": "**Hepatotoxicity**."}]}], "checkpoints": [{"stem": "Opioid–APAP combos → Counseling point:", "options": [{"letter": "A", "text": "Take extra Tylenol for breakthrough"}, {"letter": "B", "text": "Don't take additional acetaminophen"}, {"letter": "C", "text": "Double up if pain persists"}, {"letter": "D", "text": "Take with alcohol"}], "answer": "B", "explanation": "**No extra APAP**."}, {"stem": "Daily acetaminophen max →", "options": [{"letter": "A", "text": "2 g"}, {"letter": "B", "text": "3 g"}, {"letter": "C", "text": "4 g"}, {"letter": "D", "text": "6 g"}], "answer": "C", "explanation": "**4 g/day**."}]}}, {"id": "33", "group": 33, "slide": 24, "section": "Hydrocodone", "topic": "Oxycodone & hydrocodone", "skill": "Management", "stem": "Besides moderate to severe pain, what is another use for hydrocodone?", "options": [{"letter": "A", "text": "Antidiarrheal"}, {"letter": "B", "text": "Alcohol use disorder"}, {"letter": "C", "text": "Antitussive"}, {"letter": "D", "text": "Opioid detox"}], "answer": "C", "explanation": "Hydrocodone is used for persistent moderate-to-severe pain and as an **antitussive** (Hycodan, Hydromet, Tussionex).", "objective": "", "remediation": {"steps": [{"teach": "Several opioids suppress the **cough reflex**; hydrocodone is sold in cough products.", "stem": "Opioids → Effect on cough reflex:", "options": [{"letter": "A", "text": "Suppress"}, {"letter": "B", "text": "Stimulate"}], "answer": "A", "explanation": "**Suppress**.", "clarify": [{"stem": "Alcohol use disorder opioid-class drug →", "options": [{"letter": "A", "text": "Naltrexone"}, {"letter": "B", "text": "Hydrocodone"}], "answer": "A", "explanation": "**Naltrexone**."}]}], "checkpoints": [{"stem": "Hycodan / Hydromet → Hydrocodone combined with:", "options": [{"letter": "A", "text": "Chlorpheniramine"}, {"letter": "B", "text": "Homatropine"}, {"letter": "C", "text": "Acetaminophen"}, {"letter": "D", "text": "Promethazine"}], "answer": "B", "explanation": "**Homatropine** (board-standard)."}, {"stem": "Hydrocodone indication →", "options": [{"letter": "A", "text": "Antitussive"}, {"letter": "B", "text": "Overdose reversal"}, {"letter": "C", "text": "Opioid maintenance"}, {"letter": "D", "text": "Seizures"}], "answer": "A", "explanation": "**Antitussive**."}]}}, {"id": "34", "group": 34, "slide": 25, "section": "Codeine", "topic": "Codeine", "skill": "Management", "stem": "What are the indications for codeine?", "options": [{"letter": "A", "text": "Mild-to-moderate pain and cough"}, {"letter": "B", "text": "Severe cancer pain unresponsive to others"}, {"letter": "C", "text": "Opioid addiction maintenance"}, {"letter": "D", "text": "Overdose reversal"}], "answer": "A", "explanation": "Codeine (moderate agonist): **mild-to-moderate pain** and **cough** (medullary μ receptors).", "objective": "", "remediation": {"steps": [{"teach": "Codeine is the **moderate** (weakest) tier agonist — match it to lower-intensity pain, plus its classic syrup use.", "stem": "Codeine strength tier →", "options": [{"letter": "A", "text": "Moderate (weak)"}, {"letter": "B", "text": "Strong"}], "answer": "A", "explanation": "**Moderate** agonist.", "clarify": [{"stem": "Addiction maintenance opioid →", "options": [{"letter": "A", "text": "Methadone"}, {"letter": "B", "text": "Codeine"}], "answer": "A", "explanation": "**Methadone**."}]}], "checkpoints": [{"stem": "Codeine cough suppression → Receptor site:", "options": [{"letter": "A", "text": "Medullary μ receptors"}, {"letter": "B", "text": "Peripheral H1"}, {"letter": "C", "text": "Spinal κ"}, {"letter": "D", "text": "Bronchial β2"}], "answer": "A", "explanation": "**μ in the medulla**."}, {"stem": "Opioid for mild–moderate pain and cough →", "options": [{"letter": "A", "text": "Fentanyl"}, {"letter": "B", "text": "Codeine"}, {"letter": "C", "text": "Hydromorphone"}, {"letter": "D", "text": "Methadone"}], "answer": "B", "explanation": "**Codeine**."}]}}, {"id": "35", "group": 35, "slide": 25, "section": "Codeine", "topic": "Codeine", "skill": "Pharmacology", "stem": "How should a reported codeine allergy consisting of severe nausea and constipation be interpreted?", "options": [{"letter": "A", "text": "Expected AE, not an allergy"}, {"letter": "B", "text": "True IgE allergy — avoid all opioids"}, {"letter": "C", "text": "Withdrawal"}, {"letter": "D", "text": "Serotonin syndrome"}], "answer": "A", "explanation": "Codeine's **N/V/constipation are thought to be more severe** — an AE, **not an allergy**, though patients may report it as one.", "objective": "", "remediation": {"steps": [{"teach": "N/V and constipation are **class AEs** of every opioid; codeine just tends to cause more of them.", "stem": "Nausea and constipation are:", "options": [{"letter": "A", "text": "Expected opioid AEs"}, {"letter": "B", "text": "Immune reactions"}], "answer": "A", "explanation": "**Expected AEs**.", "clarify": [{"stem": "True opioid allergy is:", "options": [{"letter": "A", "text": "Rare"}, {"letter": "B", "text": "Common"}], "answer": "A", "explanation": "**Rare**."}]}], "checkpoints": [{"stem": "Cross-sensitivity between morphine-like, meperidine-like and methadone-like opioids →", "options": [{"letter": "A", "text": "Very likely"}, {"letter": "B", "text": "Unlikely"}, {"letter": "C", "text": "Always present"}, {"letter": "D", "text": "Only with IV"}], "answer": "B", "explanation": "Cross-sensitivity is **unlikely**."}, {"stem": "Codeine N/V/constipation →", "options": [{"letter": "A", "text": "Allergy"}, {"letter": "B", "text": "More severe expected AE"}, {"letter": "C", "text": "Overdose"}, {"letter": "D", "text": "Rare idiosyncrasy"}], "answer": "B", "explanation": "**Expected AE**, often mislabeled."}]}}, {"id": "36", "group": 36, "slide": 25, "section": "Codeine", "topic": "DEA schedules & GA PA prescribing", "skill": "Identification", "stem": "What DEA schedule applies to a codeine combination product containing less than 90 mg per dosage unit?", "options": [{"letter": "A", "text": "Schedule II"}, {"letter": "B", "text": "Schedule III"}, {"letter": "C", "text": "Schedule IV"}, {"letter": "D", "text": "Schedule V"}, {"letter": "E", "text": "Unscheduled (OTC)"}], "answer": "B", "explanation": "Codeine alone = **Schedule II**; combination products <90 mg/unit = **Schedule III**; cough syrups <200 mg/100 mL = Schedule V.", "objective": "", "remediation": {"steps": [{"teach": "Plain codeine is in the **high-abuse, no-refill** schedule. Mixing a small amount with another drug drops it **one** schedule.", "stem": "Single-agent codeine → Schedule:", "options": [{"letter": "A", "text": "II"}, {"letter": "B", "text": "IV"}], "answer": "A", "explanation": "Codeine alone = **II**.", "clarify": [{"stem": "Codeine cough syrup (<200 mg/100 mL) → Schedule:", "options": [{"letter": "A", "text": "V"}, {"letter": "B", "text": "III"}], "answer": "A", "explanation": "Low-dose syrups = **V**."}]}], "checkpoints": [{"stem": "Single-agent codeine → Schedule:", "options": [{"letter": "A", "text": "II"}, {"letter": "B", "text": "III"}, {"letter": "C", "text": "IV"}, {"letter": "D", "text": "V"}], "answer": "A", "explanation": "**Schedule II**."}, {"stem": "Codeine combo <90 mg/unit →", "options": [{"letter": "A", "text": "II"}, {"letter": "B", "text": "III"}, {"letter": "C", "text": "IV"}, {"letter": "D", "text": "V"}], "answer": "B", "explanation": "**Schedule III**."}]}}, {"id": "37", "group": 37, "slide": 26, "section": "DEA & controlled substances", "topic": "DEA schedules & GA PA prescribing", "skill": "Identification", "stem": "What is the defining feature of a Schedule I controlled substance?", "options": [{"letter": "A", "text": "Lowest abuse potential of all schedules"}, {"letter": "B", "text": "No currently accepted medical use"}, {"letter": "C", "text": "Requires written Rx, no refills"}, {"letter": "D", "text": "Up to 5 refills"}], "answer": "B", "explanation": "**Schedule I** = high abuse, **no accepted medical use**, unsafe under supervision (heroin, LSD, marijuana).", "objective": "", "remediation": {"steps": [{"teach": "Schedule I drugs can't be prescribed at all — think heroin and LSD.", "stem": "Heroin → Can it be prescribed?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes, written Rx"}], "answer": "A", "explanation": "**No** — Schedule I.", "clarify": [{"stem": "Written Rx, no refills →", "options": [{"letter": "A", "text": "Schedule II"}, {"letter": "B", "text": "Schedule I"}], "answer": "A", "explanation": "That's **Schedule II**."}]}], "checkpoints": [{"stem": "Example of a Schedule I drug →", "options": [{"letter": "A", "text": "Morphine"}, {"letter": "B", "text": "Heroin"}, {"letter": "C", "text": "Tramadol"}, {"letter": "D", "text": "Codeine syrup"}], "answer": "B", "explanation": "**Heroin**."}, {"stem": "No accepted medical use → Schedule:", "options": [{"letter": "A", "text": "I"}, {"letter": "B", "text": "II"}, {"letter": "C", "text": "III"}, {"letter": "D", "text": "V"}], "answer": "A", "explanation": "**Schedule I**."}]}}, {"id": "38", "group": 38, "slide": 26, "section": "DEA & controlled substances", "topic": "DEA schedules & GA PA prescribing", "skill": "Identification", "stem": "For which controlled-substance schedules may physician assistants in Georgia register to prescribe?", "options": [{"letter": "A", "text": "Schedules I–V"}, {"letter": "B", "text": "Schedules II–V"}, {"letter": "C", "text": "Schedules III–V"}, {"letter": "D", "text": "Schedules IV–V"}, {"letter": "E", "text": "None — PAs can't prescribe"}], "answer": "C", "explanation": "**Georgia PAs may prescribe Schedule III–V**, plus the HB557 exception for 5 days of hydrocodone/oxycodone products.", "objective": "", "remediation": {"steps": [{"teach": "GA PAs are generally excluded from the **high-abuse, written-only, no-refill** schedule.", "stem": "Can a GA PA routinely prescribe Schedule II?", "options": [{"letter": "A", "text": "No (except HB557 carve-out)"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "**No**, except HB557.", "clarify": [{"stem": "Schedule I → anyone can prescribe?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "No one prescribes **Schedule I**."}]}], "checkpoints": [{"stem": "GA HB557 → PAs may prescribe:", "options": [{"letter": "A", "text": "30 days of any Schedule II"}, {"letter": "B", "text": "5 days of hydrocodone/oxycodone products to adults ≥18"}, {"letter": "C", "text": "Methadone maintenance"}, {"letter": "D", "text": "Fentanyl patches"}], "answer": "B", "explanation": "**5 days**, hydrocodone/oxycodone, **≥18**."}, {"stem": "GA PA prescribing → Schedules:", "options": [{"letter": "A", "text": "II–V"}, {"letter": "B", "text": "III–V"}, {"letter": "C", "text": "I–II"}, {"letter": "D", "text": "V only"}], "answer": "B", "explanation": "**III–V**."}]}}, {"id": "39", "group": 39, "slide": 27, "section": "Schedules of controlled substances", "topic": "DEA schedules & GA PA prescribing", "skill": "Identification", "stem": "What rule applies to Schedule II prescriptions?", "options": [{"letter": "A", "text": "Oral or faxed, 5 refills"}, {"letter": "B", "text": "Written, no refills"}, {"letter": "C", "text": "No prescription needed"}, {"letter": "D", "text": "Up to 6 refills"}], "answer": "B", "explanation": "**Schedule II = written Rx, no refills**; III–V may be oral, written or faxed with up to 5 refills.", "objective": "", "remediation": {"steps": [{"teach": "Schedule II = **highest abuse with medical use** → the strictest prescribing rules.", "stem": "Schedule II refills →", "options": [{"letter": "A", "text": "None"}, {"letter": "B", "text": "Up to 5"}], "answer": "A", "explanation": "**No refills**.", "clarify": [{"stem": "Schedule III–V refills →", "options": [{"letter": "A", "text": "Up to 5"}, {"letter": "B", "text": "None"}], "answer": "A", "explanation": "Up to **5 refills**."}]}], "checkpoints": [{"stem": "Hydrocodone–APAP (Norco) → Schedule:", "options": [{"letter": "A", "text": "II"}, {"letter": "B", "text": "III"}, {"letter": "C", "text": "IV"}, {"letter": "D", "text": "V"}], "answer": "A", "explanation": "Hydrocodone combos are **Schedule II**."}, {"stem": "Schedule II Rx →", "options": [{"letter": "A", "text": "Written, no refills"}, {"letter": "B", "text": "Faxed, 5 refills"}, {"letter": "C", "text": "Oral OK"}, {"letter": "D", "text": "OTC"}], "answer": "A", "explanation": "**Written, no refills**."}]}}, {"id": "40", "group": 40, "slide": 28, "section": "Schedules of controlled substances", "topic": "DEA schedules & GA PA prescribing", "skill": "Identification", "stem": "May a physician assistant in Georgia prescribe Percocet for a 30-year-old with acute pain?", "options": [{"letter": "A", "text": "Never — Schedule II"}, {"letter": "B", "text": "Only if under 18"}, {"letter": "C", "text": "Yes — 5 days (HB557)"}, {"letter": "D", "text": "Yes — 30 days with refills"}], "answer": "C", "explanation": "**HB557**: GA PAs (per job description and delegating physician) may prescribe **5 days of hydrocodone/oxycodone products** to patients **≥18**.", "objective": "", "remediation": {"steps": [{"teach": "Percocet (oxycodone + APAP) is Schedule II, normally off-limits to GA PAs — but there's a specific **legislative carve-out**.", "stem": "Percocet → Schedule:", "options": [{"letter": "A", "text": "II"}, {"letter": "B", "text": "III"}], "answer": "A", "explanation": "Oxycodone combos = **Schedule II**.", "clarify": [{"stem": "HB557 patient age requirement →", "options": [{"letter": "A", "text": "≥18 years"}, {"letter": "B", "text": "Any age"}], "answer": "A", "explanation": "**Adults ≥18**."}]}], "checkpoints": [{"stem": "HB557 maximum supply →", "options": [{"letter": "A", "text": "3 days"}, {"letter": "B", "text": "5 days"}, {"letter": "C", "text": "14 days"}, {"letter": "D", "text": "30 days"}], "answer": "B", "explanation": "**5 days**."}, {"stem": "HB557 covers which products?", "options": [{"letter": "A", "text": "Hydrocodone or oxycodone products"}, {"letter": "B", "text": "Fentanyl patches"}, {"letter": "C", "text": "Methadone"}, {"letter": "D", "text": "Any Schedule II stimulant"}], "answer": "A", "explanation": "**Hydrocodone/oxycodone** products."}]}}, {"id": "41", "group": 41, "slide": 31, "section": "Tramadol (Ultram)", "topic": "Tramadol", "skill": "Pharmacology", "stem": "What is the mechanism of action of tramadol (Ultram)?", "options": [{"letter": "A", "text": "COX inhibition"}, {"letter": "B", "text": "κ agonist only"}, {"letter": "C", "text": "Weak μ agonist + NE/5-HT reuptake block"}, {"letter": "D", "text": "Pure μ-receptor antagonist, like naloxone"}], "answer": "C", "explanation": "Tramadol has some **μ activity plus weak norepinephrine and serotonin reuptake inhibition**.", "objective": "", "remediation": {"steps": [{"teach": "Tramadol is a hybrid: partly opioid, partly **antidepressant-like** (monoamine reuptake).", "stem": "Does tramadol act at μ receptors?", "options": [{"letter": "A", "text": "Yes — some activity"}, {"letter": "B", "text": "No"}], "answer": "A", "explanation": "Some **μ** activity.", "clarify": [{"stem": "Tramadol's second mechanism affects:", "options": [{"letter": "A", "text": "NE and serotonin reuptake"}, {"letter": "B", "text": "Prostaglandin synthesis"}], "answer": "A", "explanation": "**NE/5-HT reuptake**."}]}], "checkpoints": [{"stem": "Tramadol + SSRI → Why avoid:", "options": [{"letter": "A", "text": "Additive serotonergic effects / seizure risk"}, {"letter": "B", "text": "Opioid antagonism"}, {"letter": "C", "text": "QT prolongation"}, {"letter": "D", "text": "Biliary spasm"}], "answer": "A", "explanation": "Both serotonergic; tramadol **lowers seizure threshold**."}, {"stem": "Weak μ agonist + NE/5-HT reuptake inhibitor →", "options": [{"letter": "A", "text": "Methadone"}, {"letter": "B", "text": "Tramadol"}, {"letter": "C", "text": "Codeine"}, {"letter": "D", "text": "Naltrexone"}], "answer": "B", "explanation": "**Tramadol**."}]}}, {"id": "42", "group": 42, "slide": 31, "section": "Tramadol (Ultram)", "topic": "Tramadol", "skill": "Pharmacology", "stem": "In which patient should tramadol be avoided or considered contraindicated?", "options": [{"letter": "A", "text": "Renal insufficiency"}, {"letter": "B", "text": "Seizure history"}, {"letter": "C", "text": "Labor"}, {"letter": "D", "text": "Acute MI"}], "answer": "B", "explanation": "Tramadol **may lower the seizure threshold** — avoid with **seizure history** or with SSRIs/TCAs.", "objective": "", "remediation": {"steps": [{"teach": "Tramadol's unique danger is **neurologic** — it makes the brain more excitable.", "stem": "Tramadol → Effect on seizure threshold:", "options": [{"letter": "A", "text": "Lowers it"}, {"letter": "B", "text": "Raises it"}], "answer": "A", "explanation": "**Lowers** it.", "clarify": [{"stem": "Renal insufficiency → preferred opioid:", "options": [{"letter": "A", "text": "Fentanyl"}, {"letter": "B", "text": "Tramadol"}], "answer": "A", "explanation": "**Fentanyl** — renal is a fentanyl clue."}]}], "checkpoints": [{"stem": "Tramadol → Avoid with which antidepressants?", "options": [{"letter": "A", "text": "SSRIs and TCAs"}, {"letter": "B", "text": "Bupropion only"}, {"letter": "C", "text": "MAOIs only"}, {"letter": "D", "text": "None"}], "answer": "A", "explanation": "**SSRIs or TCAs**."}, {"stem": "Pain + seizure disorder → Avoid:", "options": [{"letter": "A", "text": "Morphine"}, {"letter": "B", "text": "Tramadol"}, {"letter": "C", "text": "Hydromorphone"}, {"letter": "D", "text": "Fentanyl"}], "answer": "B", "explanation": "**Tramadol**."}]}}, {"id": "43", "group": 43, "slide": 31, "section": "Tramadol (Ultram)", "topic": "Tramadol", "skill": "Pharmacology", "stem": "How does a tramadol overdose respond to naloxone?", "options": [{"letter": "A", "text": "Only partial reversal"}, {"letter": "B", "text": "Worsens toxicity"}, {"letter": "C", "text": "No effect at all"}, {"letter": "D", "text": "Complete, rapid reversal"}], "answer": "A", "explanation": "Tramadol is **only partially reversed by naloxone** — its NE/5-HT effects aren't opioid-receptor mediated.", "objective": "", "remediation": {"steps": [{"teach": "Naloxone only blocks **opioid receptors**. Tramadol works partly through a non-opioid mechanism.", "stem": "Naloxone blocks:", "options": [{"letter": "A", "text": "Opioid receptors"}, {"letter": "B", "text": "Serotonin transporters"}], "answer": "A", "explanation": "Only **opioid receptors**.", "clarify": [{"stem": "Tramadol's reuptake effects → reversed by naloxone?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "**No** — non-opioid mechanism."}]}], "checkpoints": [{"stem": "Tramadol → DEA schedule:", "options": [{"letter": "A", "text": "II"}, {"letter": "B", "text": "III"}, {"letter": "C", "text": "IV"}, {"letter": "D", "text": "V"}], "answer": "C", "explanation": "**Schedule IV**."}, {"stem": "Opioid analgesic only partly reversed by naloxone →", "options": [{"letter": "A", "text": "Morphine"}, {"letter": "B", "text": "Tramadol"}, {"letter": "C", "text": "Fentanyl"}, {"letter": "D", "text": "Oxycodone"}], "answer": "B", "explanation": "**Tramadol**."}]}}, {"id": "44", "group": 44, "slide": 32, "section": "Opioid antagonists", "topic": "Opioid antagonists", "skill": "Pharmacology", "stem": "What is the mechanism of action of naloxone and naltrexone?", "options": [{"letter": "A", "text": "Directly stimulate the brainstem respiratory center"}, {"letter": "B", "text": "Partial μ agonism"}, {"letter": "C", "text": "Binds receptor without activating it"}, {"letter": "D", "text": "Inhibit opioid metabolism"}], "answer": "C", "explanation": "Antagonists bind opioid receptors with **high affinity without activating** them, quickly displacing opioids.", "objective": "", "remediation": {"steps": [{"teach": "An antagonist **occupies** the receptor and **pushes the agonist off**, but produces no effect itself.", "stem": "Antagonist → Activates the receptor?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "**No activation**.", "clarify": [{"stem": "Antagonist affinity for opioid receptors →", "options": [{"letter": "A", "text": "High — displaces opioids"}, {"letter": "B", "text": "Low"}], "answer": "A", "explanation": "**High affinity**."}]}], "checkpoints": [{"stem": "Main use of opioid antagonists →", "options": [{"letter": "A", "text": "Analgesia"}, {"letter": "B", "text": "Reversal of opioid-induced CNS/respiratory depression"}, {"letter": "C", "text": "Cough"}, {"letter": "D", "text": "Diarrhea"}], "answer": "B", "explanation": "**Reversal of overdose** CNS/respiratory depression."}, {"stem": "Naloxone at the μ receptor →", "options": [{"letter": "A", "text": "Full agonist"}, {"letter": "B", "text": "Competitive antagonist"}, {"letter": "C", "text": "Partial agonist"}, {"letter": "D", "text": "Reuptake inhibitor"}], "answer": "B", "explanation": "**Antagonist** — binds without activating."}]}}, {"id": "45", "group": 45, "slide": 33, "section": "Naloxone (Narcan)", "topic": "Opioid antagonists", "skill": "Management", "stem": "What drug should be given to an unresponsive patient with pinpoint pupils and a respiratory rate of 6?", "options": [{"letter": "A", "text": "Naltrexone"}, {"letter": "B", "text": "Methadone"}, {"letter": "C", "text": "Flumazenil"}, {"letter": "D", "text": "Naloxone"}], "answer": "D", "explanation": "Opioid overdose → **naloxone (Narcan)**; works within ~30 seconds IV.", "objective": "", "remediation": {"steps": [{"teach": "**Miosis + respiratory depression + coma** = opioid overdose. Pick the **fast, injectable** antagonist.", "stem": "Pinpoint pupils + respiratory depression → Suspect:", "options": [{"letter": "A", "text": "Opioid overdose"}, {"letter": "B", "text": "Opioid withdrawal"}], "answer": "A", "explanation": "**Opioid overdose**.", "clarify": [{"stem": "Naltrexone → Route/speed:", "options": [{"letter": "A", "text": "Oral, long-acting"}, {"letter": "B", "text": "IV, works in 30 s"}], "answer": "A", "explanation": "Naltrexone is **PO, long-acting** — not for emergencies."}]}], "checkpoints": [{"stem": "Naloxone IV → Onset:", "options": [{"letter": "A", "text": "~30 seconds"}, {"letter": "B", "text": "~20 minutes"}, {"letter": "C", "text": "~2 hours"}, {"letter": "D", "text": "~48 hours"}], "answer": "A", "explanation": "**~30 seconds**."}, {"stem": "Opioid overdose reversal →", "options": [{"letter": "A", "text": "Naltrexone"}, {"letter": "B", "text": "Naloxone"}, {"letter": "C", "text": "Ondansetron"}, {"letter": "D", "text": "Methadone"}], "answer": "B", "explanation": "**Naloxone**."}]}}, {"id": "46", "group": 46, "slide": 33, "section": "Naloxone (Narcan)", "topic": "Opioid antagonists", "skill": "Management", "stem": "What is the key concern after naloxone is given for an overdose of a long-acting opioid such as methadone?", "options": [{"letter": "A", "text": "Wears off first — redose or infuse"}, {"letter": "B", "text": "It causes respiratory depression"}, {"letter": "C", "text": "It cannot reverse methadone"}, {"letter": "D", "text": "It lasts longer than methadone does"}], "answer": "A", "explanation": "Naloxone is **short-acting**; a long-acting opioid can outlast it → **repeat doses or infusion**.", "objective": "", "remediation": {"steps": [{"teach": "Compare durations: the antagonist wears off in a short time, while some opioids last much longer.", "stem": "Naloxone duration →", "options": [{"letter": "A", "text": "Short"}, {"letter": "B", "text": "Long (48 h)"}], "answer": "A", "explanation": "**Short**.", "clarify": [{"stem": "Methadone duration →", "options": [{"letter": "A", "text": "Long"}, {"letter": "B", "text": "Short"}], "answer": "A", "explanation": "Methadone is **long-acting**."}]}], "checkpoints": [{"stem": "Naloxone in an opioid-dependent patient → AE:", "options": [{"letter": "A", "text": "Precipitated withdrawal"}, {"letter": "B", "text": "Bradycardia"}, {"letter": "C", "text": "Hypotension"}, {"letter": "D", "text": "Sedation"}], "answer": "A", "explanation": "**Precipitated withdrawal** (also ↑BP, anxiety, N/V/D, seizure)."}, {"stem": "Re-sedation after naloxone wears off → Fix:", "options": [{"letter": "A", "text": "Repeat doses or infusion"}, {"letter": "B", "text": "Give naltrexone PO"}, {"letter": "C", "text": "Stop monitoring"}, {"letter": "D", "text": "Give flumazenil"}], "answer": "A", "explanation": "**Repeat/infuse**."}]}}, {"id": "47", "group": 47, "slide": 33, "section": "Naltrexone", "topic": "Opioid antagonists", "skill": "Management", "stem": "Which opioid antagonist can reduce craving in a patient with alcohol use disorder?", "options": [{"letter": "A", "text": "Methadone"}, {"letter": "B", "text": "Naloxone"}, {"letter": "C", "text": "Naltrexone"}, {"letter": "D", "text": "Hydromorphone"}], "answer": "C", "explanation": "**Naltrexone** — oral, long-acting; used for **opioid detox** and **chronic alcoholism**.", "objective": "", "remediation": {"steps": [{"teach": "You need the **oral, long-acting** antagonist — not the short-acting injectable rescue drug.", "stem": "Which antagonist is PO and long-acting?", "options": [{"letter": "A", "text": "Naltrexone"}, {"letter": "B", "text": "Naloxone"}], "answer": "A", "explanation": "**Naltrexone**.", "clarify": [{"stem": "Naloxone → Use:", "options": [{"letter": "A", "text": "Overdose reversal"}, {"letter": "B", "text": "Alcohol craving"}], "answer": "A", "explanation": "Naloxone = **overdose reversal**."}]}], "checkpoints": [{"stem": "Naltrexone → Blocks heroin effects for up to:", "options": [{"letter": "A", "text": "30 minutes"}, {"letter": "B", "text": "4 hours"}, {"letter": "C", "text": "48 hours"}, {"letter": "D", "text": "2 weeks"}], "answer": "C", "explanation": "Up to **48 h**."}, {"stem": "Oral opioid antagonist for alcoholism →", "options": [{"letter": "A", "text": "Naloxone"}, {"letter": "B", "text": "Naltrexone"}, {"letter": "C", "text": "Methadone"}, {"letter": "D", "text": "Meperidine"}], "answer": "B", "explanation": "**Naltrexone**."}]}}, {"id": "48", "group": 48, "slide": 34, "section": "Chronic pain management", "topic": "Chronic pain regimen & AE mitigation", "skill": "Management", "stem": "What is the next step for cancer pain that requires a short-acting opioid several times daily or wakes the patient at night?", "options": [{"letter": "A", "text": "Stop opioids"}, {"letter": "B", "text": "Add a second short-acting opioid"}, {"letter": "C", "text": "Fentanyl IV push"}, {"letter": "D", "text": "Scheduled ER + PRN short-acting"}], "answer": "D", "explanation": "Continuous pain → **fixed around-the-clock** regimen: switch to **extended-release**, plus a **PRN short-acting** drug for breakthrough.", "objective": "", "remediation": {"steps": [{"teach": "Continuous pain is best treated on a **fixed schedule**, not chasing it PRN — and with a formulation that lasts through the night.", "stem": "Continuous/frequent pain → Schedule:", "options": [{"letter": "A", "text": "Around-the-clock"}, {"letter": "B", "text": "PRN only"}], "answer": "A", "explanation": "**Fixed, around-the-clock**.", "clarify": [{"stem": "Breakthrough pain on a long-acting regimen → Add:", "options": [{"letter": "A", "text": "PRN short-acting"}, {"letter": "B", "text": "A second ER drug"}], "answer": "A", "explanation": "**PRN short-acting**."}]}], "checkpoints": [{"stem": "Breakthrough pain → Drug type:", "options": [{"letter": "A", "text": "Extended-release"}, {"letter": "B", "text": "Short-acting PRN"}, {"letter": "C", "text": "Antagonist"}, {"letter": "D", "text": "Patch"}], "answer": "B", "explanation": "**Short-acting PRN**."}, {"stem": "Short-acting needed q3h around the clock →", "options": [{"letter": "A", "text": "Switch to ER scheduled + PRN breakthrough"}, {"letter": "B", "text": "Increase PRN frequency"}, {"letter": "C", "text": "Add naloxone"}, {"letter": "D", "text": "Use meperidine"}], "answer": "A", "explanation": "**ER + PRN**."}]}}, {"id": "49", "group": 49, "slide": 35, "section": "Mitigating opioid AEs", "topic": "Chronic pain regimen & AE mitigation", "skill": "Management", "stem": "What approach is recommended for opioid-induced constipation?", "options": [{"letter": "A", "text": "Fluids, fiber, softener, non-stimulant laxative"}, {"letter": "B", "text": "Naloxone"}, {"letter": "C", "text": "Stop the opioid immediately"}, {"letter": "D", "text": "Wait — tolerance develops within 1–2 weeks of use"}], "answer": "A", "explanation": "Constipation has **no tolerance** → start a **bowel regimen**: fluids, fiber, stool softeners, **non-stimulant laxatives**.", "objective": "", "remediation": {"steps": [{"teach": "Recall: constipation is one of the two effects with **little tolerance**, so waiting won't help.", "stem": "Will tolerance to opioid constipation develop?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "**No** — treat proactively.", "clarify": [{"stem": "Naloxone indication →", "options": [{"letter": "A", "text": "Moderate–severe respiratory depression"}, {"letter": "B", "text": "Constipation"}], "answer": "A", "explanation": "Naloxone = **overdose/resp depression**."}]}], "checkpoints": [{"stem": "Laxative type named in the lecture →", "options": [{"letter": "A", "text": "Non-stimulant"}, {"letter": "B", "text": "Stimulant only"}, {"letter": "C", "text": "Opioid"}, {"letter": "D", "text": "Antihistamine"}], "answer": "A", "explanation": "**Non-stimulant** laxatives."}, {"stem": "Opioid constipation → Start:", "options": [{"letter": "A", "text": "Bowel regimen"}, {"letter": "B", "text": "Naloxone"}, {"letter": "C", "text": "Ondansetron"}, {"letter": "D", "text": "Hydroxyzine"}], "answer": "A", "explanation": "**Bowel regimen**."}]}}, {"id": "50", "group": 50, "slide": 35, "section": "Mitigating opioid AEs", "topic": "Chronic pain regimen & AE mitigation", "skill": "Management", "stem": "What pretreatment can be used for opioid-induced nausea?", "options": [{"letter": "A", "text": "Ondansetron"}, {"letter": "B", "text": "Docusate"}, {"letter": "C", "text": "Diphenhydramine cream"}, {"letter": "D", "text": "Naltrexone"}], "answer": "A", "explanation": "Pre-treat N/V with **ondansetron (Zofran) ODT**, hydroxyzine, or prochlorperazine/promethazine (consider sedation).", "objective": "", "remediation": {"steps": [{"teach": "You need an **antiemetic**. Hydroxyzine, prochlorperazine and promethazine also work but add sedation.", "stem": "Docusate is a:", "options": [{"letter": "A", "text": "Stool softener"}, {"letter": "B", "text": "Antiemetic"}], "answer": "A", "explanation": "**Stool softener**.", "clarify": [{"stem": "Prochlorperazine/promethazine → Caution:", "options": [{"letter": "A", "text": "Added sedation"}, {"letter": "B", "text": "Constipation relief"}], "answer": "A", "explanation": "**Sedation**."}]}], "checkpoints": [{"stem": "Opioid itching/urticaria → Treat with:", "options": [{"letter": "A", "text": "Ondansetron"}, {"letter": "B", "text": "Hydroxyzine or diphenhydramine"}, {"letter": "C", "text": "Naloxone"}, {"letter": "D", "text": "Docusate"}], "answer": "B", "explanation": "**Hydroxyzine or diphenhydramine**."}, {"stem": "Antiemetic ODT for opioid nausea →", "options": [{"letter": "A", "text": "Ondansetron"}, {"letter": "B", "text": "Naloxone"}, {"letter": "C", "text": "Senna"}, {"letter": "D", "text": "Tramadol"}], "answer": "A", "explanation": "**Ondansetron (Zofran)**."}]}}, {"id": "51", "group": 51, "slide": 35, "section": "Mitigating opioid AEs", "topic": "Chronic pain regimen & AE mitigation", "skill": "Management", "stem": "What is the first action for mild respiratory depression in a patient receiving a scheduled opioid?", "options": [{"letter": "A", "text": "Reduce the dose by 25%"}, {"letter": "B", "text": "Give naloxone"}, {"letter": "C", "text": "Switch to fentanyl patch"}, {"letter": "D", "text": "Add a benzodiazepine"}], "answer": "A", "explanation": "**Mild** → **reduce dose by 25%**; **moderate–severe** → naloxone.", "objective": "", "remediation": {"steps": [{"teach": "Match intensity of response to severity: **mild** depression doesn't need full reversal (which risks withdrawal and pain).", "stem": "Moderate–severe respiratory depression →", "options": [{"letter": "A", "text": "Naloxone"}, {"letter": "B", "text": "Observe only"}], "answer": "A", "explanation": "**Naloxone**.", "clarify": [{"stem": "Benzodiazepine with opioid → effect:", "options": [{"letter": "A", "text": "Additive CNS/respiratory depression"}, {"letter": "B", "text": "Reverses depression"}], "answer": "A", "explanation": "**Additive** — avoid."}]}], "checkpoints": [{"stem": "Moderate–severe opioid respiratory depression →", "options": [{"letter": "A", "text": "Reduce dose 25%"}, {"letter": "B", "text": "Naloxone"}, {"letter": "C", "text": "Naltrexone PO"}, {"letter": "D", "text": "Add caffeine"}], "answer": "B", "explanation": "**Naloxone**."}, {"stem": "Mild respiratory depression → Dose change:", "options": [{"letter": "A", "text": "↓ 25%"}, {"letter": "B", "text": "↓ 75%"}, {"letter": "C", "text": "↑ 25%"}, {"letter": "D", "text": "No change"}], "answer": "A", "explanation": "**Reduce by 25%**."}]}}, {"id": "52", "group": 52, "slide": 36, "section": "Patient education", "topic": "Patient safety & abuse risk", "skill": "Counseling & prevention", "stem": "Which substance should patients avoid while taking an opioid pain medication?", "options": [{"letter": "A", "text": "Dairy"}, {"letter": "B", "text": "Alcohol"}, {"letter": "C", "text": "Grapefruit"}, {"letter": "D", "text": "Caffeine"}], "answer": "B", "explanation": "**No alcohol**; don't add other pain/sedating meds without telling the provider; disclose all Rx, OTC and herbals.", "objective": "", "remediation": {"steps": [{"teach": "Opioids are **CNS depressants** — avoid anything that adds to sedation and respiratory depression.", "stem": "Alcohol → CNS effect:", "options": [{"letter": "A", "text": "Depressant"}, {"letter": "B", "text": "Stimulant"}], "answer": "A", "explanation": "Alcohol is a **depressant**.", "clarify": [{"stem": "Combining CNS depressants → risk:", "options": [{"letter": "A", "text": "Additive respiratory depression"}, {"letter": "B", "text": "Reduced sedation"}], "answer": "A", "explanation": "**Additive** depression."}]}], "checkpoints": [{"stem": "Elderly patient on opioids → Counseling to avoid falls:", "options": [{"letter": "A", "text": "Rise slowly from lying or sitting"}, {"letter": "B", "text": "Take with grapefruit"}, {"letter": "C", "text": "Double dose at night"}, {"letter": "D", "text": "Exercise right after dosing"}], "answer": "A", "explanation": "**Rise slowly** — orthostasis."}, {"stem": "Opioid counseling → Activity to avoid:", "options": [{"letter": "A", "text": "Walking"}, {"letter": "B", "text": "Driving or operating heavy machinery"}, {"letter": "C", "text": "Reading"}, {"letter": "D", "text": "Eating"}], "answer": "B", "explanation": "**No driving/heavy machinery**."}]}}, {"id": "53", "group": 53, "slide": 37, "section": "Tolerance, dependence, addiction", "topic": "Tolerance, dependence & withdrawal", "skill": "Disease process", "stem": "What term describes withdrawal symptoms that occur when an opioid is stopped or an antagonist is given?", "options": [{"letter": "A", "text": "Addiction (psychological)"}, {"letter": "B", "text": "Physical dependence"}, {"letter": "C", "text": "Tolerance"}, {"letter": "D", "text": "Allergy"}], "answer": "B", "explanation": "**Dependence** = physiologic withdrawal on stopping or antagonist; tolerance = more drug for same effect; addiction = compulsive nonmedical use.", "objective": "", "remediation": {"steps": [{"teach": "Three distinct terms: one is about **needing more drug**, one about **withdrawal**, one about **behavior/obsession**.", "stem": "Needing more drug for the same effect →", "options": [{"letter": "A", "text": "Tolerance"}, {"letter": "B", "text": "Addiction"}], "answer": "A", "explanation": "**Tolerance**.", "clarify": [{"stem": "Overwhelming obsession with obtaining a drug for nonmedical use →", "options": [{"letter": "A", "text": "Addiction"}, {"letter": "B", "text": "Tolerance"}], "answer": "A", "explanation": "**Addiction** (psychological dependence)."}]}], "checkpoints": [{"stem": "Needing larger doses for the same analgesia →", "options": [{"letter": "A", "text": "Dependence"}, {"letter": "B", "text": "Tolerance"}, {"letter": "C", "text": "Addiction"}, {"letter": "D", "text": "Withdrawal"}], "answer": "B", "explanation": "**Tolerance**."}, {"stem": "Physiologic withdrawal on abrupt discontinuation →", "options": [{"letter": "A", "text": "Tolerance"}, {"letter": "B", "text": "Dependence"}, {"letter": "C", "text": "Addiction"}, {"letter": "D", "text": "Pseudoallergy"}], "answer": "B", "explanation": "**Dependence**."}]}}, {"id": "54", "group": 54, "slide": 38, "section": "Duration and long-term use", "topic": "Patient safety & abuse risk", "skill": "Counseling & prevention", "stem": "Approximately what proportion of patients become long-term opioid users after an initial 1-month course?", "options": [{"letter": "A", "text": "1 in 100"}, {"letter": "B", "text": "1 in 20"}, {"letter": "C", "text": "1 in 3"}, {"letter": "D", "text": "9 in 10"}], "answer": "C", "explanation": "Long-term use rises with duration: 3 days → ~5%, 2 weeks → >25%, **1 month → 1 in 3**.", "objective": "", "remediation": {"steps": [{"teach": "Duration drives long-term use. A **3-day** course → ~5% still using at a year; a **2-week** course → >25%.", "stem": "2-week initial course → Long-term use:", "options": [{"letter": "A", "text": ">25%"}, {"letter": "B", "text": "<1%"}], "answer": "A", "explanation": "**>25%**.", "clarify": [{"stem": "Shortest course (3 days) → Long-term use:", "options": [{"letter": "A", "text": "~5%"}, {"letter": "B", "text": "~50%"}], "answer": "A", "explanation": "**~5%**."}]}], "checkpoints": [{"stem": "Prescriber action that limits long-term use →", "options": [{"letter": "A", "text": "Shortest duration, lowest effective dose"}, {"letter": "B", "text": "Long-acting for acute pain"}, {"letter": "C", "text": "Automatic refills"}, {"letter": "D", "text": "30-day supply"}], "answer": "A", "explanation": "**Lowest dose, shortest duration**."}, {"stem": "1-month opioid course → Long-term users:", "options": [{"letter": "A", "text": "~1%"}, {"letter": "B", "text": "~1 in 3"}, {"letter": "C", "text": "~5%"}, {"letter": "D", "text": "~100%"}], "answer": "B", "explanation": "About **1 in 3**."}]}}, {"id": "55", "group": 55, "slide": 39, "section": "Abuse & overdose risk factors", "topic": "Patient safety & abuse risk", "skill": "Counseling & prevention", "stem": "Which factor increases the risk of prescription opioid abuse or overdose?", "options": [{"letter": "A", "text": "Multiple prescribers/pharmacies"}, {"letter": "B", "text": "High income"}, {"letter": "C", "text": "Urban setting"}, {"letter": "D", "text": "A short 3-day initial opioid course"}], "answer": "A", "explanation": "Risk factors: **overlapping Rx from multiple providers/pharmacies**, high daily dose, mental illness, SUD history, **low income, rural**.", "objective": "", "remediation": {"steps": [{"teach": "The lecture's list includes low income and **rural** settings — so the opposites are not risk factors. Look for 'doctor shopping'.", "stem": "Income level linked to ↑ risk →", "options": [{"letter": "A", "text": "Low income"}, {"letter": "B", "text": "High income"}], "answer": "A", "explanation": "**Low income**.", "clarify": [{"stem": "Setting linked to ↑ risk →", "options": [{"letter": "A", "text": "Rural"}, {"letter": "B", "text": "Urban"}], "answer": "A", "explanation": "**Rural** settings."}]}], "checkpoints": [{"stem": "Tool to catch overlapping opioid prescriptions →", "options": [{"letter": "A", "text": "PDMP"}, {"letter": "B", "text": "ECG"}, {"letter": "C", "text": "Urine culture"}, {"letter": "D", "text": "LFTs"}], "answer": "A", "explanation": "**Prescription Drug Monitoring Program**."}, {"stem": "Opioid abuse risk factor →", "options": [{"letter": "A", "text": "History of substance abuse"}, {"letter": "B", "text": "Age 30–40"}, {"letter": "C", "text": "Low daily dose"}, {"letter": "D", "text": "Single prescriber"}], "answer": "A", "explanation": "**SUD history** (also mental illness, high dose)."}]}}, {"id": "56", "group": 56, "slide": 40, "section": "Opioid withdrawal", "topic": "Tolerance, dependence & withdrawal", "skill": "Complications", "stem": "What condition is suggested by rhinorrhea, dilated pupils, diaphoresis, diarrhea, and drug craving?", "options": [{"letter": "A", "text": "Serotonin syndrome"}, {"letter": "B", "text": "Histamine reaction"}, {"letter": "C", "text": "Opioid withdrawal"}, {"letter": "D", "text": "Opioid overdose"}], "answer": "C", "explanation": "Classic **opioid withdrawal** — the **opposite** of opioid effects (mydriasis vs miosis, diarrhea vs constipation).", "objective": "", "remediation": {"steps": [{"teach": "Flip every opioid effect: pinpoint pupils → **dilated**; constipation → **diarrhea**; plus craving.", "stem": "Opioid overdose → Pupils:", "options": [{"letter": "A", "text": "Pinpoint (miosis)"}, {"letter": "B", "text": "Dilated"}], "answer": "A", "explanation": "Overdose = **miosis**.", "clarify": [{"stem": "Drug craving within 8 h of last dose →", "options": [{"letter": "A", "text": "Withdrawal"}, {"letter": "B", "text": "Overdose"}], "answer": "A", "explanation": "Early **withdrawal**."}]}], "checkpoints": [{"stem": "Opioid withdrawal → Pupils:", "options": [{"letter": "A", "text": "Miosis"}, {"letter": "B", "text": "Mydriasis"}, {"letter": "C", "text": "Unequal"}, {"letter": "D", "text": "Unchanged"}], "answer": "B", "explanation": "**Mydriasis**."}, {"stem": "Pupils dilated + rhinorrhea + craving →", "options": [{"letter": "A", "text": "Withdrawal"}, {"letter": "B", "text": "Overdose"}, {"letter": "C", "text": "Allergy"}, {"letter": "D", "text": "Serotonin syndrome"}], "answer": "A", "explanation": "**Opioid withdrawal**."}]}}, {"id": "57", "group": 57, "slide": 40, "section": "Opioid withdrawal", "topic": "Tolerance, dependence & withdrawal", "skill": "Complications", "stem": "What vital-sign changes occur during days 1–7 of opioid withdrawal?", "options": [{"letter": "A", "text": "Bradycardia and hypotension"}, {"letter": "B", "text": "Hypotension with reflex tachycardia"}, {"letter": "C", "text": "Bradypnea and hypothermia"}, {"letter": "D", "text": "Tachycardia and hypertension"}], "answer": "D", "explanation": "Late withdrawal (1–7 d): **tachycardia, hypertension**, N/V/D, fever/chills, tremors, muscle spasms, **seizures**.", "objective": "", "remediation": {"steps": [{"teach": "Withdrawal is the **opposite** of high-dose opioid effects (which cause hypotension and bradycardia).", "stem": "High-dose opioids → HR:", "options": [{"letter": "A", "text": "Bradycardia"}, {"letter": "B", "text": "Tachycardia"}], "answer": "A", "explanation": "Opioids → **bradycardia**.", "clarify": [{"stem": "So withdrawal → HR:", "options": [{"letter": "A", "text": "Tachycardia"}, {"letter": "B", "text": "Bradycardia"}], "answer": "A", "explanation": "The opposite: **tachycardia**."}]}], "checkpoints": [{"stem": "Earliest withdrawal symptoms (within 8 h) →", "options": [{"letter": "A", "text": "Seizures and fever"}, {"letter": "B", "text": "Anxiety and drug craving"}, {"letter": "C", "text": "Tachycardia"}, {"letter": "D", "text": "Muscle spasms"}], "answer": "B", "explanation": "**Anxiety, craving**."}, {"stem": "Withdrawal days 1–7 → Serious neurologic sign:", "options": [{"letter": "A", "text": "Seizures"}, {"letter": "B", "text": "Miosis"}, {"letter": "C", "text": "Sedation"}, {"letter": "D", "text": "Coma"}], "answer": "A", "explanation": "**Seizures**."}]}}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  const LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  function shuffleOptions(item) {
+    if (!item || !item.options || item.options.length < 2) return;
+    const key = (item.options.find(o => o.letter === item.answer) || {}).text;
+    const texts = item.options.map(o => o.text);
+    for (let i = texts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [texts[i], texts[j]] = [texts[j], texts[i]]; }
+    item.options = texts.map((t, i) => ({ letter: LET[i], text: t }));
+    item.answer = (item.options.find(o => o.text === key) || {}).letter;
+  }
+  // Tutor questions get fresh option order on every open, like the main exam
+  if (EXAM_DATA.shuffleTutorOptions !== false) {
+    questions.forEach(q => {
+      const r = q.remediation; if (!r) return;
+      (r.steps || []).forEach(s => { shuffleOptions(s); (s.clarify || []).forEach(shuffleOptions); });
+      (r.checkpoints || []).forEach(shuffleOptions);
+    });
+  }
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter (FIRST attempt — this is what is scored)
+  const tutor = {};          // question id -> tutor session (see startTutor)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);
+  let page = 0;
+  let lastGrade = null;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const optText = (item, letter) => { const o = item.options.find(x => x.letter === letter); return o ? o.text : ''; };
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  // ================= Adaptive tutor engine =================
+  // A session is a growing "trail" of nodes rendered under the missed question.
+  // Node kinds: step | clarify | checkpoint (answerable), note (text only).
+  function hasTutor(q) { return !!(q.remediation && q.remediation.steps && q.remediation.steps.length); }
+
+  function startTutor(q) {
+    const t = { status: 'active', phase: 'steps', trail: [], step: 0, clar: 0, wrong: [], cp: 0 };
+    tutor[q.id] = t;
+    pushStep(q, t, false);
+  }
+
+  function pushStep(q, t, retry) {
+    const steps = q.remediation.steps;
+    if (t.step >= steps.length) return finishSteps(q, t);
+    t.trail.push({ kind: 'step', item: steps[t.step], sIdx: t.step, retry: retry,
+                   elim: retry ? t.wrong.slice() : [], chosen: null, revealed: false });
+  }
+
+  function nextStep(q, t) { t.step++; t.clar = 0; t.wrong = []; pushStep(q, t, false); }
+
+  function pushClarify(q, t) {
+    const cl = q.remediation.steps[t.step].clarify || [];
+    if (t.clar < cl.length) {
+      t.trail.push({ kind: 'clarify', item: cl[t.clar], sIdx: t.step, chosen: null, revealed: false });
+      t.clar++;
+      return true;
+    }
+    return false;
+  }
+
+  function finishSteps(q, t) {
+    t.phase = 'checkpoint';
+    t.trail.push({ kind: 'note', cls: 'reveal',
+      html: '<b>Back to Question ' + esc(q.id) + ':</b> the answer is <b>' + esc(q.answer) + '. ' + fmt(optText(q, q.answer)) + '</b>' +
+            (q.explanation ? '<div style="margin-top:4px">' + fmt(q.explanation) + '</div>' : '') });
+    pushCheckpoint(q, t);
+  }
+
+  function pushCheckpoint(q, t) {
+    const cps = q.remediation.checkpoints || [];
+    if (t.cp < cps.length) {
+      t.trail.push({ kind: 'checkpoint', item: cps[t.cp], chosen: null, revealed: false, n: t.cp + 1 });
+    } else if (!cps.length) {
+      t.status = 'mastered'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Pathway complete — continue the case.' });
+    } else {
+      t.status = 'review'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'review',
+        html: '⚑ Flagged for review — this concept is saved to your missed list. Continue the case when ready.' });
+    }
+  }
+
+  function tutorAnswer(q, idx, letter) {
+    const t = tutor[q.id];
+    const node = t.trail[idx];
+    if (!node || node.chosen !== null || idx !== t.trail.length - 1) return;
+    node.chosen = letter;
+    const ok = letter === node.item.answer;
+
+    if (node.kind === 'step') {
+      if (ok) return nextStep(q, t);
+      t.wrong.push(letter);
+      if (pushClarify(q, t)) return;
+      // Out of simpler questions: teach the step's answer, then move on
+      node.revealed = true;
+      return nextStep(q, t);
+    }
+    if (node.kind === 'clarify') {
+      if (ok) return pushStep(q, t, true);              // foundation fixed -> retry the step
+      if (pushClarify(q, t)) return;                    // still shaky -> go simpler again
+      node.revealed = true;                             // teach the basic fact, then retry the step
+      return pushStep(q, t, true);
+    }
+    if (node.kind === 'checkpoint') {
+      if (ok) {
+        t.status = 'mastered'; t.phase = 'done';
+        t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Mastered — you applied it to a new case. Continue below.' });
+        return;
+      }
+      node.revealed = true;
+      t.cp++;
+      const more = t.cp < (q.remediation.checkpoints || []).length;
+      if (more) t.trail.push({ kind: 'note', cls: 'info', html: 'Same concept, one more case:' });
+      return pushCheckpoint(q, t);
+    }
+  }
+
+  // A question is "resolved" (lets its follow-up appear) once answered right,
+  // answered wrong without a pathway, or its pathway has finished.
+  function resolved(q) {
+    if (answers[q.id] === undefined) return false;
+    if (answers[q.id] === q.answer || !hasTutor(q)) return true;
+    return tutor[q.id] && tutor[q.id].status !== 'active';
+  }
+
+  function tutorStatus(q) {
+    const t = tutor[q.id];
+    return t ? t.status : null;
+  }
+
+  function nodeHtml(q, node, idx, interactive) {
+    if (node.kind === 'note') return '<div class="tnote ' + node.cls + '">' + node.html + '</div>';
+    const it = node.item;
+    const answered = node.chosen !== null;
+    const live = interactive && !answered;
+    let label;
+    if (node.kind === 'step') label = '<span class="tlabel">Step ' + (node.sIdx + 1) + ' of ' + q.remediation.steps.length + (node.retry ? ' · try again' : '') + '</span>';
+    else if (node.kind === 'clarify') label = '<span class="tlabel clar">Let\'s go simpler</span>';
+    else label = '<span class="tlabel cp">Mastery check' + ((q.remediation.checkpoints || []).length > 1 ? ' ' + node.n : '') + '</span>';
+
+    let html = '<div class="tnode' + (answered ? ' done' : ' active') + '" data-tq="' + esc(q.id) + '" data-tidx="' + idx + '">' + label;
+    if (it.teach && !(node.kind === 'step' && node.retry)) html += '<div class="teach">' + fmt(it.teach) + '</div>';
+    html += '<div class="stem">' + fmt(it.stem) + '</div>';
+    it.options.forEach(o => {
+      let cls = 'opt';
+      const elim = node.elim && node.elim.indexOf(o.letter) !== -1;
+      if (answered) {
+        if (o.letter === node.chosen) cls += node.chosen === it.answer ? ' correct' : ' incorrect';
+        else if (node.revealed && o.letter === it.answer) cls += ' correct';
+      }
+      if (elim) cls += ' elim';
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (live && !elim ? '' : ' disabled') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      const ok = node.chosen === it.answer;
+      if (ok || node.revealed) {
+        html += '<div class="feedback ' + (ok ? 'good' : 'bad') + '"><div class="verdict">' +
+          (ok ? '✓ Correct' : '✗ Answer: ' + esc(it.answer) + '. ' + fmt(optText(it, it.answer))) + '</div>' +
+          (it.explanation ? '<div>' + fmt(it.explanation) + '</div>' : '') + '</div>';
+      } else {
+        html += '<div class="nudge">✗ Not yet — let\'s break it down.</div>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function trailHtml(q, interactive) {
+    const t = tutor[q.id];
+    if (!t) return '';
+    let html = '<div class="tutor"><div class="tutor-head">Guided review</div>';
+    t.trail.forEach((n, i) => { html += nodeHtml(q, n, i, interactive); });
+    html += '</div>';
+    return html;
+  }
+
+  // ================= Rendering =================
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + fmt(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + fmt(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    const wrong = answered && chosen !== q.answer;
+    const tutoring = wrong && hasTutor(q);
+    const t = tutor[q.id];
+    // While the pathway is still in its teaching steps (exam mode), the correct answer stays hidden
+    const hideKey = mode === 'exam' && tutoring && t && t.phase === 'steps';
+    const status = tutoring ? tutorStatus(q) : null;
+
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    if (status === 'mastered') html += '<span class="badge mastered">Mastered after review</span>';
+    else if (status === 'review') html += '<span class="badge review">Flagged for review</span>';
+    else if (status === 'active') html += '<span class="badge active">Guided review in progress</span>';
+    html += '<div class="stem">' + fmt(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === chosen) cls += chosen === q.answer ? ' correct' : ' incorrect';
+        else if (o.letter === q.answer && !hideKey) cls += ' correct';
+        else if (!hideKey) cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      if (hideKey) {
+        html += '<div class="feedback tutoring"><div class="verdict">✗ Not quite — the answer stays hidden while we build up to it.</div>' +
+          '<div>Work through the guided questions below.</div></div>';
+      } else {
+        html += feedbackHtml(q, chosen);
+      }
+    }
+    if (tutoring && t) {
+      if (mode === 'exam') html += trailHtml(q, true);
+      else html += '<details class="trail"><summary>Guided review path (' +
+        t.trail.filter(n => n.kind !== 'note').length + ' questions)</summary>' + trailHtml(q, false) + '</details>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: a follow-up appears only once the question before it is
+    // resolved — answered correctly, or its guided review has finished.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && resolved(group[shown - 1])) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      const blocked = group[shown - 1];
+      const inTutor = answers[blocked.id] !== undefined && !resolved(blocked);
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') + ' in this case — ' +
+        (inTutor ? 'finish the guided review to continue' : 'answer above to continue') + '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Main-question clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll(':scope > .opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          const q = byId[qid];
+          answers[qid] = btn.getAttribute('data-letter');
+          if (answers[qid] !== q.answer && hasTutor(q)) startTutor(q);
+          renderPage(true);
+        });
+      });
+    });
+    // Tutor clicks
+    $('main').querySelectorAll('.tnode.active').forEach(nodeEl => {
+      const q = byId[nodeEl.getAttribute('data-tq')];
+      const idx = +nodeEl.getAttribute('data-tidx');
+      nodeEl.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || btn.disabled) return;
+          tutorAnswer(q, idx, btn.getAttribute('data-letter'));
+          renderPage(true);
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) {
+      window.scrollTo(0, savedY);
+      // Bring the newest tutor question / unlocked follow-up into view if it landed below the fold
+      const target = $('main').querySelector('.tnode.active') || $('main').querySelector('.tnote.mastered, .tnote.review');
+      if (target) {
+        const r = target.getBoundingClientRect();
+        const navH = $('navbar').offsetHeight || 0;
+        if (r.bottom > window.innerHeight - navH) {
+          window.scrollBy({ top: Math.min(r.top - 80, r.bottom - (window.innerHeight - navH) + 16), behavior: 'smooth' });
+        }
+      }
+    } else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  // ================= Grading =================
+  // Two lenses for the results page:
+  //   topic — WHAT you were tested on (e.g. "Paget's disease of bone"). Falls back to `section`.
+  //   skill — WHAT KIND of thinking (Identification, Disease process, Diagnostics & imaging,
+  //           Management, Complications…). Optional; the skill card is hidden when no question has one.
+  const topicOf = q => q.topic || q.section || 'All questions';
+  const skillOf = q => q.skill || null;
+
+  function tally(list, keyFn) {
+    const m = {};
+    list.forEach(q => {
+      const k = keyFn(q); if (!k) return;
+      if (!m[k]) m[k] = { name: k, correct: 0, total: 0, mastered: 0, review: 0, missed: 0 };
+      const e = m[k];
+      e.total++;
+      if (answers[q.id] === q.answer) { e.correct++; return; }
+      if (answers[q.id] === undefined) return;
+      const st = tutor[q.id] ? tutor[q.id].status : null;
+      if (st === 'mastered') e.mastered++; else if (st === 'review') e.review++; else e.missed++;
+    });
+    return Object.keys(m).map(k => { const e = m[k]; e.pct = e.total ? e.correct / e.total : 0; return e; })
+      .sort((a, b) => a.pct - b.pct || b.total - a.total);        // weakest first
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    graded.forEach(q => { if (answers[q.id] === q.answer) correct++; });
+    const ts = { started: 0, mastered: 0, review: 0, active: 0, tq: 0, tqRight: 0 };
+    Object.keys(tutor).forEach(id => {
+      const t = tutor[id];
+      ts.started++; ts[t.status]++;
+      t.trail.forEach(n => { if (n.kind !== 'note' && n.chosen !== null) { ts.tq++; if (n.chosen === n.item.answer) ts.tqRight++; } });
+    });
+    return { correct, graded: graded.length, total: questions.length, partial,
+             topics: tally(graded, topicOf), skills: tally(graded, skillOf), ts };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  // Lowest-scoring entries (ties included) — only meaningful when there's something to compare
+  function weakest(entries) {
+    if (entries.length < 2) return [];
+    const lo = entries[0].pct, hi = entries[entries.length - 1].pct;
+    if (lo === hi) return [];                                       // all equal: nothing stands out
+    return entries.filter(e => e.pct === lo);
+  }
+
+  function barsHtml(entries) {
+    const weakSet = weakest(entries).map(e => e.name);
+    return entries.map(e => {
+      const p = Math.round(e.pct * 100);
+      const cls = p >= 80 ? 'hi' : (weakSet.indexOf(e.name) !== -1 ? 'lo' : '');
+      const meta = [];
+      if (e.review) meta.push(e.review + ' flagged');
+      if (e.missed) meta.push(e.missed + ' missed');
+      if (e.mastered) meta.push(e.mastered + ' relearned in guided review');
+      return '<div class="bar-row"><div class="bar-head"><span class="nm">' + esc(e.name) +
+        (weakSet.indexOf(e.name) !== -1 ? '<span class="sec-tag weak">WEAKEST</span>' : '') +
+        '</span><span class="pc"><b>' + p + '%</b> · ' + e.correct + '/' + e.total + '</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + cls + '" style="width:' + Math.max(p, 2) + '%"></div></div>' +
+        (meta.length ? '<div class="bar-meta">' + meta.join(' · ') + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+    const hasSkills = r.skills.length > 0;
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + ' · first attempts</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.ts.started) html += '<div class="score-note">' + r.ts.mastered + ' of ' + r.ts.started +
+      ' missed concept' + (r.ts.started === 1 ? '' : 's') + ' relearned in guided review</div>';
+    else if (r.partial) html += '<div class="score-note">Unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    // ---- What to work on ----
+    const wTopic = weakest(r.topics), wSkill = weakest(r.skills);
+    const missed = missedQuestions();
+    html += '<div class="card"><h2>What to work on</h2><div class="sub">Ranked from the questions you missed on the first try</div>';
+    if (!missed.length) {
+      html += '<div class="focus-box ok"><div class="v">Nothing missed — every question right on the first try.</div></div>';
+    } else {
+      html += '<div class="focus-grid">';
+      if (wTopic.length) html += '<div class="focus-box"><div class="k">Weakest topic</div><div class="v">' +
+        wTopic.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wTopic.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      if (wSkill.length) html += '<div class="focus-box"><div class="k">Weakest skill</div><div class="v">' +
+        wSkill.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wSkill.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      html += '</div>';
+      // One line per missed concept: flagged first, then plain misses, then ones already relearned
+      const rank = { review: 0, active: 0, missed: 1, mastered: 2 };
+      const items = missed.map(q => {
+        const st = tutor[q.id] ? tutor[q.id].status : 'missed';
+        return { q, st: st === 'active' ? 'review' : st };
+      }).sort((a, b) => rank[a.st] - rank[b.st]);
+      const label = { review: 'Still shaky', missed: 'Missed', mastered: 'Relearned' };
+      html += '<ul class="todo">' + items.map(it => {
+        const sk = skillOf(it.q);
+        return '<li><span class="dot ' + it.st + '"></span><span class="what"><b>' + esc(topicOf(it.q)) + '</b>' +
+          (sk ? ' — ' + esc(sk) : '') + ' <span style="color:var(--ink-soft)">(Q' + esc(it.q.id) + ')</span></span>' +
+          '<span class="tag ' + it.st + '">' + label[it.st] + '</span></li>';
+      }).join('') + '</ul>';
+    }
+    html += '</div>';
+
+    // ---- By topic / by skill ----
+    html += '<div class="card"><h2>By topic</h2><div class="sub">First-attempt score for each disease or concept</div>' + barsHtml(r.topics) + '</div>';
+    if (hasSkills) html += '<div class="card"><h2>By skill</h2><div class="sub">Which kind of question trips you up, across all topics</div>' + barsHtml(r.skills) + '</div>';
+
+    if (r.ts.started) {
+      html += '<div class="card"><h2>Guided review</h2><div class="sub" style="margin-bottom:12px">How the tutor pathways went</div><div class="tutor-stats">' +
+        '<div class="tstat t"><b>' + r.ts.started + '</b>concepts reviewed</div>' +
+        '<div class="tstat m"><b>' + r.ts.mastered + '</b>passed mastery check</div>' +
+        '<div class="tstat r"><b>' + (r.ts.review + r.ts.active) + '</b>still shaky</div>' +
+        '<div class="tstat"><b>' + r.ts.tqRight + '/' + r.ts.tq + '</b>tutor questions right</div>' +
+        '</div></div>';
+    }
+
+    html += '<div class="results-actions">';
+    if (missed.length) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed.length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + fmt(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  const plain = s => String(s == null ? '' : s).replace(/\*\*(.+?)\*\*/g, '$1');
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id + ' — ' + topicOf(q) + (skillOf(q) ? ' / ' + skillOf(q) : '')];
+      if (group[0].id !== q.id) lines.push('Case: ' + plain(group[0].stem));
+      lines.push(plain(q.stem));
+      q.options.forEach(o => lines.push(o.letter + '. ' + plain(o.text)));
+      lines.push('My answer: ' + answers[q.id]);
+      lines.push('Correct answer: ' + q.answer + '. ' + plain(optText(q, q.answer)));
+      if (q.explanation) lines.push('Rationale: ' + plain(q.explanation));
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      const t = tutor[q.id];
+      if (t) {
+        const st = { mastered: 'MASTERED on re-check', review: 'STILL NEEDS REVIEW (missed mastery check)', active: 'guided review not finished' }[t.status];
+        lines.push('Guided review: ' + st);
+        t.trail.forEach(n => {
+          if (n.kind === 'note' || n.chosen === null) return;
+          const ok = n.chosen === n.item.answer;
+          lines.push('  ' + (ok ? '✓ ' : '✗ ') + plain(n.item.stem) + ' → ' + plain(optText(n.item, n.item.answer)));
+        });
+      }
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => !resolved(q))) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(tutor).forEach(k => delete tutor[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
