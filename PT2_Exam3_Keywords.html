@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Pharm II Exam 3 — Keywords & Associations (Pain · Rheum · Endocrine)", "questions": [{"id": "1", "group": 1, "stem": "Hypertension, hyperlipidemia and elevated LFTs on an IL-6 receptor antagonist → Drug:", "options": [{"letter": "A", "text": "Etanercept"}, {"letter": "B", "text": "Tocilizumab"}, {"letter": "C", "text": "Rituximab"}, {"letter": "D", "text": "Belimumab"}, {"letter": "E", "text": "Anakinra"}], "answer": "B", "explanation": "Tocilizumab's signature AEs.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "2", "group": 2, "stem": "New lupus-like syndrome in a patient on an antihypertensive → Culprit drug:", "options": [{"letter": "A", "text": "Metoprolol"}, {"letter": "B", "text": "Losartan"}, {"letter": "C", "text": "Hydralazine"}, {"letter": "D", "text": "Clonidine"}, {"letter": "E", "text": "Spironolactone"}], "answer": "C", "explanation": "Hydralazine and procainamide are the high-risk drug-induced-lupus agents.", "objective": "", "section": "SLE"}, {"id": "3", "group": 3, "stem": "Methotrexate → Labs to monitor:", "options": [{"letter": "A", "text": "TSH and FT4"}, {"letter": "B", "text": "Urinalysis only"}, {"letter": "C", "text": "Lipid panel"}, {"letter": "D", "text": "CBC and CMP"}, {"letter": "E", "text": "Uric acid"}], "answer": "D", "explanation": "CBC/CMP at 4 weeks then every 2–3 months (pancytopenia, LFTs); baseline CXR.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "4", "group": 4, "stem": "RA with class III heart failure failing methotrexate → Biologic to AVOID:", "options": [{"letter": "A", "text": "Anakinra"}, {"letter": "B", "text": "Abatacept"}, {"letter": "C", "text": "Tocilizumab"}, {"letter": "D", "text": "Etanercept"}, {"letter": "E", "text": "Rituximab"}], "answer": "D", "explanation": "TNF inhibitors are contraindicated in CHF → use an IL-6 (tocilizumab) or IL-1 (anakinra) agent.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "5", "group": 5, "stem": "Gout flare with active cellulitis or uncontrolled diabetes → Flare drug to AVOID:", "options": [{"letter": "A", "text": "Indomethacin"}, {"letter": "B", "text": "Prednisone"}, {"letter": "C", "text": "Anakinra"}, {"letter": "D", "text": "Colchicine"}, {"letter": "E", "text": "Naproxen"}], "answer": "B", "explanation": "No steroids with active infection, poorly controlled DM, or post-op.", "objective": "", "section": "Gout"}, {"id": "6", "group": 6, "stem": "T2DM with MASH/MASLD → Preferred add-on:", "options": [{"letter": "A", "text": "Glyburide"}, {"letter": "B", "text": "Sitagliptin"}, {"letter": "C", "text": "NPH insulin"}, {"letter": "D", "text": "Semaglutide"}, {"letter": "E", "text": "Glimepiride"}], "answer": "D", "explanation": "GLP-1 RA (or pioglitazone/tirzepatide) for MASH.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "7", "group": 7, "stem": "Hydromorphone compared with morphine → Distinguishing adverse effect:", "options": [{"letter": "A", "text": "More sedation"}, {"letter": "B", "text": "More constipation"}, {"letter": "C", "text": "More nausea"}, {"letter": "D", "text": "More pruritus"}, {"letter": "E", "text": "More respiratory depression"}], "answer": "E", "explanation": "Hydromorphone: less sedation/N/V/constipation but MORE respiratory depression.", "objective": "", "section": "Opioids"}, {"id": "8", "group": 8, "stem": "First-trimester pregnancy or thyroid storm → Thionamide:", "options": [{"letter": "A", "text": "Teprotumumab"}, {"letter": "B", "text": "Liothyronine"}, {"letter": "C", "text": "Levothyroxine"}, {"letter": "D", "text": "Propylthiouracil"}, {"letter": "E", "text": "Methimazole"}], "answer": "D", "explanation": "PTU 1st trimester (then methimazole) and in storm (also blocks T4→T3).", "objective": "", "section": "Thyroid"}, {"id": "9", "group": 9, "stem": "Mild SLE (skin + joints) → Regimen:", "options": [{"letter": "A", "text": "High-dose prednisone"}, {"letter": "B", "text": "Mycophenolate"}, {"letter": "C", "text": "Hydroxychloroquine + sun protection"}, {"letter": "D", "text": "Rituximab"}, {"letter": "E", "text": "Cyclophosphamide"}], "answer": "C", "explanation": "Mild disease = HCQ (± short low-dose prednisone for flares).", "objective": "", "section": "SLE"}, {"id": "10", "group": 10, "stem": "Patient stops injecting into a lipohypertrophic site → Risk:", "options": [{"letter": "A", "text": "Insulin allergy"}, {"letter": "B", "text": "Hypoglycemia"}, {"letter": "C", "text": "DKA"}, {"letter": "D", "text": "Injection-site infection"}, {"letter": "E", "text": "Hyperglycemia"}], "answer": "B", "explanation": "Lipohypertrophy blunts absorption; a healthy site absorbs more → lows. Palpate sites every visit.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "11", "group": 11, "stem": "Before any TNF inhibitor → Mandatory screen:", "options": [{"letter": "A", "text": "Retinal exam"}, {"letter": "B", "text": "TPMT"}, {"letter": "C", "text": "HLA-B*5801"}, {"letter": "D", "text": "Latent TB"}, {"letter": "E", "text": "G6PD"}], "answer": "D", "explanation": "TB (plus hepatitis B/C) before all immunosuppressants; TB screen is non-negotiable for TNF blockers.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "12", "group": 12, "stem": "Every type 1 patient leaves clinic with → Rescue medication:", "options": [{"letter": "A", "text": "Naloxone"}, {"letter": "B", "text": "Hydrocortisone"}, {"letter": "C", "text": "Glucagon (ready-to-use)"}, {"letter": "D", "text": "Oral dextrose only"}, {"letter": "E", "text": "Epinephrine"}], "answer": "C", "explanation": "Glucagon + trained household member, ketone strips, sick-day plan, CGM.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "13", "group": 13, "stem": "Acute muscle spasm, recent MI with arrhythmia → Muscle relaxant to AVOID:", "options": [{"letter": "A", "text": "Metaxalone"}, {"letter": "B", "text": "Tizanidine"}, {"letter": "C", "text": "Methocarbamol"}, {"letter": "D", "text": "Cyclobenzaprine"}, {"letter": "E", "text": "Baclofen"}], "answer": "D", "explanation": "Cyclobenzaprine is TCA-like: CI with recent MI, arrhythmia, heart block, CHF, MAOI within 14 days.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "14", "group": 14, "stem": "Drug-induced lupus confirmed → First management step:", "options": [{"letter": "A", "text": "Plasmapheresis"}, {"letter": "B", "text": "High-dose prednisone"}, {"letter": "C", "text": "Start cyclophosphamide"}, {"letter": "D", "text": "Stop the offending drug"}, {"letter": "E", "text": "Start mycophenolate"}], "answer": "D", "explanation": "Withdraw the drug; treat as SLE only until it resolves.", "objective": "", "section": "SLE"}, {"id": "15", "group": 15, "stem": "Raloxifene → Black box warning:", "options": [{"letter": "A", "text": "DVT/PE"}, {"letter": "B", "text": "Osteosarcoma"}, {"letter": "C", "text": "Hypocalcemia"}, {"letter": "D", "text": "Endometrial cancer"}, {"letter": "E", "text": "MI and stroke"}], "answer": "A", "explanation": "SERM: CI with VTE history/pregnancy; vertebral protection only; hot flashes; no endometrial risk.", "objective": "", "section": "Osteoporosis"}, {"id": "16", "group": 16, "stem": "Upcoming procedure with sedation → Drug to hold for aspiration risk:", "options": [{"letter": "A", "text": "DPP-4 inhibitor"}, {"letter": "B", "text": "Sulfonylurea"}, {"letter": "C", "text": "Metformin"}, {"letter": "D", "text": "SGLT2 inhibitor"}, {"letter": "E", "text": "GLP-1 receptor agonist"}], "answer": "E", "explanation": "Delayed gastric emptying → aspiration under sedation; hold pre-op (daily vs weekly agents differ).", "objective": "", "section": "Type 2 Diabetes"}, {"id": "17", "group": 17, "stem": "Abruptly stopping a steroid taper for gout → Consequence:", "options": [{"letter": "A", "text": "Serotonin syndrome"}, {"letter": "B", "text": "Nephrolithiasis"}, {"letter": "C", "text": "Hypoglycemia"}, {"letter": "D", "text": "Rebound gout flare"}, {"letter": "E", "text": "Agranulocytosis"}], "answer": "D", "explanation": "Taper over 7–10 days; abrupt stop → rebound flare.", "objective": "", "section": "Gout"}, {"id": "18", "group": 18, "stem": "Sick, NPO, or major surgery → Diabetes drug to hold (DKA risk):", "options": [{"letter": "A", "text": "Pioglitazone"}, {"letter": "B", "text": "SGLT2 inhibitor"}, {"letter": "C", "text": "Basal insulin"}, {"letter": "D", "text": "DPP-4 inhibitor"}, {"letter": "E", "text": "Levothyroxine"}], "answer": "B", "explanation": "Hold SGLT2i when sick/NPO/pre-op.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "19", "group": 19, "stem": "Ketoacidosis with a near-normal glucose → Culprit:", "options": [{"letter": "A", "text": "GLP-1 receptor agonist"}, {"letter": "B", "text": "Metformin"}, {"letter": "C", "text": "DPP-4 inhibitor"}, {"letter": "D", "text": "SGLT2 inhibitor"}, {"letter": "E", "text": "Sulfonylurea"}], "answer": "D", "explanation": "Euglycemic DKA (glucose often <250); precipitants: fasting, surgery, illness, keto diet, alcohol, over-cut insulin.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "20", "group": 20, "stem": "Pegloticase infusion → Pre-medication purpose:", "options": [{"letter": "A", "text": "Prevent nephrolithiasis"}, {"letter": "B", "text": "Prevent hepatotoxicity"}, {"letter": "C", "text": "Prevent anaphylaxis/infusion reaction"}, {"letter": "D", "text": "Prevent hypoglycemia"}, {"letter": "E", "text": "Prevent gout flare"}], "answer": "C", "explanation": "Antihistamine + acetaminophen + steroid before each infusion; weekly methotrexate co-therapy → fewer reactions.", "objective": "", "section": "Gout"}, {"id": "21", "group": 21, "stem": "Pinpoint pupils, respiratory rate 6, unresponsive → Immediate drug:", "options": [{"letter": "A", "text": "Flumazenil"}, {"letter": "B", "text": "Atropine"}, {"letter": "C", "text": "N-acetylcysteine"}, {"letter": "D", "text": "Naloxone"}, {"letter": "E", "text": "Naltrexone"}], "answer": "D", "explanation": "Opioid toxidrome → naloxone IV (~30 seconds).", "objective": "", "section": "Opioids"}, {"id": "22", "group": 22, "stem": "Re-sedation after naloxone reversal of a long-acting opioid → Action:", "options": [{"letter": "A", "text": "Flumazenil"}, {"letter": "B", "text": "Observe only"}, {"letter": "C", "text": "Repeat naloxone / infusion"}, {"letter": "D", "text": "Activated charcoal"}, {"letter": "E", "text": "Oral naltrexone"}], "answer": "C", "explanation": "Naloxone is short-acting — re-dose or infuse when the opioid outlasts it.", "objective": "", "section": "Opioids"}, {"id": "23", "group": 23, "stem": "Weak opioid also used as an antitussive; combination products fall to Schedule III → Drug:", "options": [{"letter": "A", "text": "Methadone"}, {"letter": "B", "text": "Codeine"}, {"letter": "C", "text": "Naltrexone"}, {"letter": "D", "text": "Hydromorphone"}, {"letter": "E", "text": "Tramadol"}], "answer": "B", "explanation": "Codeine: mild–moderate pain + cough; Schedule II alone, III in combos.", "objective": "", "section": "Opioids"}, {"id": "24", "group": 24, "stem": "Diffuse inflammatory arthralgia without spasm in an SLE patient → Add to regimen:", "options": [{"letter": "A", "text": "Carisoprodol"}, {"letter": "B", "text": "Tramadol"}, {"letter": "C", "text": "Short-course oral NSAID with food"}, {"letter": "D", "text": "Cyclobenzaprine at bedtime"}, {"letter": "E", "text": "Baclofen"}], "answer": "C", "explanation": "Inflammatory, multi-joint → systemic NSAID; no relaxant without spasm (sedation, serotonin risk with SSRIs).", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "25", "group": 25, "stem": "Most common drug cause of osteoporosis → Drug class:", "options": [{"letter": "A", "text": "Heparin"}, {"letter": "B", "text": "PPIs"}, {"letter": "C", "text": "Anticonvulsants"}, {"letter": "D", "text": "Glucocorticoids"}, {"letter": "E", "text": "Aromatase inhibitors"}], "answer": "D", "explanation": "Prednisone >5 mg for >3 months; teriparatide is indicated for glucocorticoid-induced OP; bisphosphonate first line.", "objective": "", "section": "Osteoporosis"}, {"id": "26", "group": 26, "stem": "Opioid started → Adverse effect to prevent from day 1 because tolerance never develops:", "options": [{"letter": "A", "text": "Sedation"}, {"letter": "B", "text": "Constipation"}, {"letter": "C", "text": "Nausea"}, {"letter": "D", "text": "Respiratory depression"}, {"letter": "E", "text": "Pruritus"}], "answer": "B", "explanation": "No tolerance to constipation (or miosis) → bowel regimen from the first dose.", "objective": "", "section": "Opioids"}, {"id": "27", "group": 27, "stem": "Postmenopausal woman, T-score ≤ −2.5, normal kidneys, no GI disease → First-line drug:", "options": [{"letter": "A", "text": "Romosozumab"}, {"letter": "B", "text": "Alendronate"}, {"letter": "C", "text": "Teriparatide"}, {"letter": "D", "text": "Denosumab"}, {"letter": "E", "text": "Raloxifene"}], "answer": "B", "explanation": "Oral bisphosphonate (alendronate weekly) is first line for most.", "objective": "", "section": "Osteoporosis"}, {"id": "28", "group": 28, "stem": "Seizure disorder patient on an SSRI → Analgesic to AVOID:", "options": [{"letter": "A", "text": "Acetaminophen"}, {"letter": "B", "text": "Tramadol"}, {"letter": "C", "text": "Hydrocodone"}, {"letter": "D", "text": "Morphine"}, {"letter": "E", "text": "Topical lidocaine"}], "answer": "B", "explanation": "Tramadol lowers the seizure threshold and adds serotonergic activity; only partly reversed by naloxone.", "objective": "", "section": "Opioids"}, {"id": "29", "group": 29, "stem": "T2DM with CKD on maximal ACE inhibitor → Add:", "options": [{"letter": "A", "text": "Saxagliptin"}, {"letter": "B", "text": "Dapagliflozin"}, {"letter": "C", "text": "Pioglitazone"}, {"letter": "D", "text": "Glipizide"}, {"letter": "E", "text": "Glyburide"}], "answer": "B", "explanation": "SGLT2i first for CKD progression (start if eGFR ≥20); semaglutide also has a kidney indication.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "30", "group": 30, "stem": "Drug-induced lupus → Characteristic antibody:", "options": [{"letter": "A", "text": "Anticentromere"}, {"letter": "B", "text": "Anti-dsDNA"}, {"letter": "C", "text": "Anti-Ro"}, {"letter": "D", "text": "Antihistone"}, {"letter": "E", "text": "Anti-Smith"}], "answer": "D", "explanation": "Antihistone + in 90–95%; dsDNA/Smith rare; kidney involvement rare; stop the drug.", "objective": "", "section": "SLE"}, {"id": "31", "group": 31, "stem": "RA patient with pregnancy potential → Preferred conventional DMARD:", "options": [{"letter": "A", "text": "Methotrexate"}, {"letter": "B", "text": "Sulfasalazine"}, {"letter": "C", "text": "Leflunomide"}, {"letter": "D", "text": "Cyclophosphamide"}, {"letter": "E", "text": "Mycophenolate"}], "answer": "B", "explanation": "Sulfasalazine (and hydroxychloroquine) are the pregnancy-compatible choices.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "32", "group": 32, "stem": "Falling eGFR in an insulin-treated patient → Expected change:", "options": [{"letter": "A", "text": "No change"}, {"letter": "B", "text": "Insulin needs rise"}, {"letter": "C", "text": "Switch to SGLT2i"}, {"letter": "D", "text": "Insulin needs fall (more lows)"}, {"letter": "E", "text": "Switch to sulfonylurea"}], "answer": "D", "explanation": "Reduced renal insulin clearance → lower doses (~25% at eGFR 10–50, ~50% on dialysis).", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "33", "group": 33, "stem": "Gout flare in CKD on clarithromycin → Flare drug of choice:", "options": [{"letter": "A", "text": "Indomethacin"}, {"letter": "B", "text": "Prednisone"}, {"letter": "C", "text": "Probenecid"}, {"letter": "D", "text": "Colchicine"}, {"letter": "E", "text": "Allopurinol"}], "answer": "B", "explanation": "Renal impairment + CYP450 inhibitor rules out colchicine; CKD rules out NSAIDs → steroid.", "objective": "", "section": "Gout"}, {"id": "34", "group": 34, "stem": "Methotrexate → Absolute contraindication:", "options": [{"letter": "A", "text": "Retinal disease"}, {"letter": "B", "text": "Pregnancy"}, {"letter": "C", "text": "G6PD deficiency"}, {"letter": "D", "text": "Sulfa allergy"}, {"letter": "E", "text": "Heart failure"}], "answer": "B", "explanation": "Category X; also liver disease/alcohol and GFR <30.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "35", "group": 35, "stem": "Anion-gap acidosis without ketones in a diabetic with low eGFR or sepsis → Culprit:", "options": [{"letter": "A", "text": "Empagliflozin"}, {"letter": "B", "text": "Semaglutide"}, {"letter": "C", "text": "Glipizide"}, {"letter": "D", "text": "Pioglitazone"}, {"letter": "E", "text": "Metformin"}], "answer": "E", "explanation": "Metformin-associated lactic acidosis vs SGLT2i euglycemic DKA (that one has ketones).", "objective": "", "section": "Type 2 Diabetes"}, {"id": "36", "group": 36, "stem": "Tizanidine therapy → Lab to monitor:", "options": [{"letter": "A", "text": "TSH"}, {"letter": "B", "text": "Potassium"}, {"letter": "C", "text": "Uric acid"}, {"letter": "D", "text": "LFTs"}, {"letter": "E", "text": "CBC"}], "answer": "D", "explanation": "Tizanidine raises LFTs (plus hypotension/bradycardia from α₂ agonism).", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "37", "group": 37, "stem": "Over-basalized patient (fasting at goal, A1C high, big bedtime-to-morning drop) → Next step:", "options": [{"letter": "A", "text": "Add pioglitazone"}, {"letter": "B", "text": "Add a DPP-4 inhibitor"}, {"letter": "C", "text": "Add a sulfonylurea"}, {"letter": "D", "text": "Increase basal insulin"}, {"letter": "E", "text": "Add a GLP-1 receptor agonist"}], "answer": "E", "explanation": "Add GLP-1 RA or prandial insulin at the largest meal — not more basal.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "38", "group": 38, "stem": "Patient on levothyroxine starts rifampin or phenytoin → Expected change:", "options": [{"letter": "A", "text": "No change"}, {"letter": "B", "text": "Stop levothyroxine"}, {"letter": "C", "text": "Needs more levothyroxine"}, {"letter": "D", "text": "Switch to liothyronine"}, {"letter": "E", "text": "Needs less levothyroxine"}], "answer": "C", "explanation": "CYP inducers ↑ clearance; OCP/estrogen ↑ TBG → may also need more.", "objective": "", "section": "Thyroid"}, {"id": "39", "group": 39, "stem": "T2DM with established ASCVD → Add regardless of A1C:", "options": [{"letter": "A", "text": "Sitagliptin"}, {"letter": "B", "text": "Semaglutide"}, {"letter": "C", "text": "NPH insulin"}, {"letter": "D", "text": "Glipizide"}, {"letter": "E", "text": "Glyburide"}], "answer": "B", "explanation": "ASCVD → GLP-1 RA with proven CV benefit (semaglutide/dulaglutide/liraglutide) or an SGLT2i.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "40", "group": 40, "stem": "Patient on sertraline needs a relaxant for spasm → Relaxant to AVOID:", "options": [{"letter": "A", "text": "Cyclobenzaprine"}, {"letter": "B", "text": "Baclofen"}, {"letter": "C", "text": "Methocarbamol"}, {"letter": "D", "text": "Dantrolene"}, {"letter": "E", "text": "Tizanidine"}], "answer": "A", "explanation": "Cyclobenzaprine (and metaxalone) + SSRIs → serotonin syndrome risk.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "41", "group": 41, "stem": "Short-term parenteral NSAID for ED pain, limited course because of fatal GI bleed/perforation → Drug:", "options": [{"letter": "A", "text": "Ketorolac"}, {"letter": "B", "text": "Celecoxib"}, {"letter": "C", "text": "Indomethacin"}, {"letter": "D", "text": "Naproxen"}, {"letter": "E", "text": "Meloxicam"}], "answer": "A", "explanation": "Ketorolac — potent nonselective, short course only.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "42", "group": 42, "stem": "Very-high-risk osteoporosis with MI six months ago → Anabolic to choose:", "options": [{"letter": "A", "text": "Raloxifene"}, {"letter": "B", "text": "Teriparatide"}, {"letter": "C", "text": "Calcitonin"}, {"letter": "D", "text": "Romosozumab"}, {"letter": "E", "text": "Estrogen"}], "answer": "B", "explanation": "Romosozumab black box: MI/stroke — none within 1 year of an event → teriparatide instead.", "objective": "", "section": "Osteoporosis"}, {"id": "43", "group": 43, "stem": "Completing a 2-year teriparatide course → Next step:", "options": [{"letter": "A", "text": "Start estrogen"}, {"letter": "B", "text": "Continue teriparatide indefinitely"}, {"letter": "C", "text": "Start a bisphosphonate or denosumab"}, {"letter": "D", "text": "Start raloxifene"}, {"letter": "E", "text": "Stop all therapy"}], "answer": "C", "explanation": "Every anabolic is followed by an antiresorptive or the gains are lost.", "objective": "", "section": "Osteoporosis"}, {"id": "44", "group": 44, "stem": "History of drug-induced hemolytic anemia → Relaxant to AVOID:", "options": [{"letter": "A", "text": "Cyclobenzaprine"}, {"letter": "B", "text": "Methocarbamol"}, {"letter": "C", "text": "Baclofen"}, {"letter": "D", "text": "Tizanidine"}, {"letter": "E", "text": "Metaxalone"}], "answer": "E", "explanation": "Metaxalone — rare hemolytic anemia and hepatotoxicity.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "45", "group": 45, "stem": "Fails one TNF inhibitor → Next step:", "options": [{"letter": "A", "text": "Combine TNF with a non-TNF biologic"}, {"letter": "B", "text": "High-dose prednisone alone"}, {"letter": "C", "text": "Add a second TNF inhibitor"}, {"letter": "D", "text": "Try another TNF inhibitor"}, {"letter": "E", "text": "Stop all DMARDs"}], "answer": "D", "explanation": "Switch within class first; never combine a TNF with a non-TNF biologic.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "46", "group": 46, "stem": "Schedule IV muscle relaxant with abuse potential, avoid in substance use disorder → Drug:", "options": [{"letter": "A", "text": "Methocarbamol"}, {"letter": "B", "text": "Carisoprodol"}, {"letter": "C", "text": "Baclofen"}, {"letter": "D", "text": "Cyclobenzaprine"}, {"letter": "E", "text": "Metaxalone"}], "answer": "B", "explanation": "Carisoprodol → meprobamate; short-term only (≤2–3 weeks); SJS.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "47", "group": 47, "stem": "Personal/family history of medullary thyroid carcinoma or MEN2 → Class to AVOID:", "options": [{"letter": "A", "text": "Sulfonylureas"}, {"letter": "B", "text": "Thiazolidinediones"}, {"letter": "C", "text": "SGLT2 inhibitors"}, {"letter": "D", "text": "DPP-4 inhibitors"}, {"letter": "E", "text": "GLP-1 receptor agonists / tirzepatide"}], "answer": "E", "explanation": "Boxed warning for GLP-1 RAs and tirzepatide.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "48", "group": 48, "stem": "Mydriasis, diarrhea, rhinorrhea, tachycardia, sweating, craving → Diagnosis:", "options": [{"letter": "A", "text": "Opioid withdrawal"}, {"letter": "B", "text": "Serotonin syndrome"}, {"letter": "C", "text": "Opioid overdose"}, {"letter": "D", "text": "Anticholinergic toxicity"}, {"letter": "E", "text": "Baclofen withdrawal"}], "answer": "A", "explanation": "Withdrawal is the mirror image of every opioid effect.", "objective": "", "section": "Opioids"}, {"id": "49", "group": 49, "stem": "Inhaled insulin (Afrezza) → Contraindication:", "options": [{"letter": "A", "text": "CKD"}, {"letter": "B", "text": "Hepatic impairment"}, {"letter": "C", "text": "Pregnancy"}, {"letter": "D", "text": "Asthma / COPD"}, {"letter": "E", "text": "Obesity"}], "answer": "D", "explanation": "Boxed bronchospasm; spirometry at baseline, 6 months, yearly; still needs basal insulin.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "50", "group": 50, "stem": "Graves' disease, non-pregnant → Thionamide of choice:", "options": [{"letter": "A", "text": "Propylthiouracil"}, {"letter": "B", "text": "Potassium iodide"}, {"letter": "C", "text": "Levothyroxine"}, {"letter": "D", "text": "Methimazole"}, {"letter": "E", "text": "Liothyronine"}], "answer": "D", "explanation": "Methimazole: once daily, better tolerated, less hepatotoxic.", "objective": "", "section": "Thyroid"}, {"id": "51", "group": 51, "stem": "Prednisone in RA → Role:", "options": [{"letter": "A", "text": "Lifelong maintenance"}, {"letter": "B", "text": "Prevents joint erosion alone"}, {"letter": "C", "text": "Bridge until the DMARD works"}, {"letter": "D", "text": "Replaces DMARDs in early disease"}, {"letter": "E", "text": "Disease-modifying monotherapy"}], "answer": "C", "explanation": "Low-dose steroid (or NSAID) relieves symptoms while MTX takes 3–6 weeks; it does NOT alter progression.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "52", "group": 52, "stem": "Colchicine → Most common adverse effect, often before relief:", "options": [{"letter": "A", "text": "Hepatotoxicity"}, {"letter": "B", "text": "QT prolongation"}, {"letter": "C", "text": "Rash"}, {"letter": "D", "text": "GI upset (N/V/D)"}, {"letter": "E", "text": "Agranulocytosis"}], "answer": "D", "explanation": "GI toxicity in about half of patients.", "objective": "", "section": "Gout"}, {"id": "53", "group": 53, "stem": "Early methimazole therapy → Labs to follow (not TSH):", "options": [{"letter": "A", "text": "Free T4 and total T3"}, {"letter": "B", "text": "Thyroglobulin"}, {"letter": "C", "text": "TPO antibodies"}, {"letter": "D", "text": "Calcitonin"}, {"letter": "E", "text": "TSH alone"}], "answer": "A", "explanation": "TSH lags/misleads early; FT4 + T3 every 4–6 weeks → ↓ dose 30–50% when normal.", "objective": "", "section": "Thyroid"}, {"id": "54", "group": 54, "stem": "Nausea and constipation on codeine, patient calls it an 'allergy' → Interpretation:", "options": [{"letter": "A", "text": "True IgE allergy"}, {"letter": "B", "text": "Serotonin syndrome"}, {"letter": "C", "text": "Overdose"}, {"letter": "D", "text": "Opioid withdrawal"}, {"letter": "E", "text": "Expected adverse effect, not allergy"}], "answer": "E", "explanation": "Worse N/V/constipation is codeine's known profile — do not label it an allergy.", "objective": "", "section": "Opioids"}, {"id": "55", "group": 55, "stem": "Hydroxychloroquine in pregnancy → Rule:", "options": [{"letter": "A", "text": "Continue"}, {"letter": "B", "text": "Switch to leflunomide"}, {"letter": "C", "text": "Stop at conception"}, {"letter": "D", "text": "Switch to methotrexate"}, {"letter": "E", "text": "Halve the dose"}], "answer": "A", "explanation": "HCQ is safe and antithrombotic in pregnancy; azathioprine is the usual SLE add-on in pregnancy.", "objective": "", "section": "SLE"}, {"id": "56", "group": 56, "stem": "Type 1 patient sick and not eating → Basal insulin rule:", "options": [{"letter": "A", "text": "Replace with regular"}, {"letter": "B", "text": "Halve and resume later"}, {"letter": "C", "text": "Switch to oral agents"}, {"letter": "D", "text": "Hold until eating"}, {"letter": "E", "text": "Never stopped"}], "answer": "E", "explanation": "Illness raises needs; missed basal, pump failure and SGLT2i are the outpatient DKA causes.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "57", "group": 57, "stem": "TSH still high despite adherence; takes levothyroxine with breakfast, calcium and omeprazole → Cause:", "options": [{"letter": "A", "text": "Thyroid storm"}, {"letter": "B", "text": "Reduced absorption"}, {"letter": "C", "text": "Over-replacement"}, {"letter": "D", "text": "Lab error"}, {"letter": "E", "text": "Wrong manufacturer"}], "answer": "B", "explanation": "Empty stomach 30–60 min before breakfast; separate 4 h from antacids, PPIs, H₂ blockers, iron, calcium.", "objective": "", "section": "Thyroid"}, {"id": "58", "group": 58, "stem": "Severe head injury → Opioid class contraindication reason:", "options": [{"letter": "A", "text": "Masks seizures"}, {"letter": "B", "text": "CO₂ retention raises ICP"}, {"letter": "C", "text": "Causes mydriasis"}, {"letter": "D", "text": "Causes hyperventilation"}, {"letter": "E", "text": "Causes hypertension"}], "answer": "B", "explanation": "Respiratory depression → CO₂ retention → ↑ICP; also avoid with severe pulmonary disease and MAOIs.", "objective": "", "section": "Opioids"}, {"id": "59", "group": 59, "stem": "DMARD monitored with an eye exam instead of a CBC → Drug:", "options": [{"letter": "A", "text": "Azathioprine"}, {"letter": "B", "text": "Sulfasalazine"}, {"letter": "C", "text": "Methotrexate"}, {"letter": "D", "text": "Leflunomide"}, {"letter": "E", "text": "Hydroxychloroquine"}], "answer": "E", "explanation": "HCQ has no marrow/renal/hepatic toxicity; retinal toxicity is the feared AE → baseline then q6–12 mo exams.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "60", "group": 60, "stem": "Han Chinese, Thai, Korean or African American patient starting urate-lowering therapy → Test before allopurinol:", "options": [{"letter": "A", "text": "HLA-DR4"}, {"letter": "B", "text": "TPMT"}, {"letter": "C", "text": "HLA-B27"}, {"letter": "D", "text": "G6PD"}, {"letter": "E", "text": "HLA-B*5801"}], "answer": "E", "explanation": "HLA-B*5801 positive → severe cutaneous adverse reactions → never allopurinol.", "objective": "", "section": "Gout"}, {"id": "61", "group": 61, "stem": "Acute MI chest pain or dyspnea of acute pulmonary edema → Opioid of choice:", "options": [{"letter": "A", "text": "Codeine"}, {"letter": "B", "text": "Morphine"}, {"letter": "C", "text": "Meperidine"}, {"letter": "D", "text": "Fentanyl"}, {"letter": "E", "text": "Tramadol"}], "answer": "B", "explanation": "Morphine is the reference drug and the MI / pulmonary edema opioid.", "objective": "", "section": "Opioids"}, {"id": "62", "group": 62, "stem": "Before starting azathioprine → Test:", "options": [{"letter": "A", "text": "Spirometry"}, {"letter": "B", "text": "HLA-B*5801"}, {"letter": "C", "text": "Retinal exam"}, {"letter": "D", "text": "TPMT genotype"}, {"letter": "E", "text": "G6PD"}], "answer": "D", "explanation": "TPMT deficiency → severe myelosuppression; CBC weekly × 1 month then q3 months.", "objective": "", "section": "SLE"}, {"id": "63", "group": 63, "stem": "Opioid used in obstetrics but never for chronic pain (toxic metabolite → seizures, serotonin syndrome) → Drug:", "options": [{"letter": "A", "text": "Codeine"}, {"letter": "B", "text": "Hydromorphone"}, {"letter": "C", "text": "Oxycodone"}, {"letter": "D", "text": "Meperidine"}, {"letter": "E", "text": "Methadone"}], "answer": "D", "explanation": "Meperidine (Demerol) — normeperidine toxicity; also sphincter of Oddi spasm.", "objective": "", "section": "Opioids"}, {"id": "64", "group": 64, "stem": "Gross hematuria on an SLE immunosuppressant → Likely cause:", "options": [{"letter": "A", "text": "Hydroxychloroquine toxicity"}, {"letter": "B", "text": "Mycophenolate edema"}, {"letter": "C", "text": "Lupus nephritis flare"}, {"letter": "D", "text": "Azathioprine pancreatitis"}, {"letter": "E", "text": "Cyclophosphamide hemorrhagic cystitis"}], "answer": "E", "explanation": "Cyclophosphamide → hemorrhagic cystitis; hydrate, void often, UA monitoring; 3–6 months max.", "objective": "", "section": "SLE"}, {"id": "65", "group": 65, "stem": "Rapid-acting analog (lispro/aspart/glulisine) → Timing relative to meals:", "options": [{"letter": "A", "text": "30 minutes before"}, {"letter": "B", "text": "Just before eating (0–15 min)"}, {"letter": "C", "text": "At bedtime"}, {"letter": "D", "text": "1 hour after"}, {"letter": "E", "text": "Only with corrections"}], "answer": "B", "explanation": "Rapid analogs 0–15 min pre-meal; regular insulin 30 min pre-meal.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "66", "group": 66, "stem": "Hypothyroidism → Drug of choice:", "options": [{"letter": "A", "text": "Levothyroxine"}, {"letter": "B", "text": "Methimazole"}, {"letter": "C", "text": "Liothyronine"}, {"letter": "D", "text": "Desiccated thyroid"}, {"letter": "E", "text": "Liotrix"}], "answer": "A", "explanation": "Synthetic T4: once daily, stable potency, lifelong.", "objective": "", "section": "Thyroid"}, {"id": "67", "group": 67, "stem": "eGFR below 30 → Diabetes drug contraindicated:", "options": [{"letter": "A", "text": "Pioglitazone"}, {"letter": "B", "text": "Linagliptin"}, {"letter": "C", "text": "Semaglutide"}, {"letter": "D", "text": "Metformin"}, {"letter": "E", "text": "Insulin"}], "answer": "D", "explanation": "Metformin CI <30 (don't start 30–45); boxed lactic acidosis.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "68", "group": 68, "stem": "Lupus nephritis → Oral induction/maintenance agent:", "options": [{"letter": "A", "text": "Leflunomide"}, {"letter": "B", "text": "Hydroxychloroquine alone"}, {"letter": "C", "text": "Mycophenolate"}, {"letter": "D", "text": "Etanercept"}, {"letter": "E", "text": "Sulfasalazine"}], "answer": "C", "explanation": "Mycophenolate (or IV cyclophosphamide for induction) with high-dose steroids for nephritis.", "objective": "", "section": "SLE"}, {"id": "69", "group": 69, "stem": "Levothyroxine manufacturer switched → Action:", "options": [{"letter": "A", "text": "Switch to liothyronine"}, {"letter": "B", "text": "Double the dose"}, {"letter": "C", "text": "No action needed"}, {"letter": "D", "text": "Check T3 in 1 week"}, {"letter": "E", "text": "Recheck TSH in 4–6 weeks"}], "answer": "E", "explanation": "Products vary in bioavailability — recheck TSH after a switch.", "objective": "", "section": "Thyroid"}, {"id": "70", "group": 70, "stem": "Estrogen for bone → FDA role:", "options": [{"letter": "A", "text": "Men with hypogonadism"}, {"letter": "B", "text": "Glucocorticoid-induced OP"}, {"letter": "C", "text": "First-line treatment for all"}, {"letter": "D", "text": "Prevention only, in symptomatic women"}, {"letter": "E", "text": "Treatment of established fracture"}], "answer": "D", "explanation": "Lowest dose, shortest time, <60 y or <10 yr postmenopause; add progestogen with a uterus; VTE/stroke/breast risks.", "objective": "", "section": "Osteoporosis"}, {"id": "71", "group": 71, "stem": "T2DM with heart failure (any EF), A1C already at goal → Add:", "options": [{"letter": "A", "text": "Saxagliptin"}, {"letter": "B", "text": "Glimepiride"}, {"letter": "C", "text": "Pioglitazone"}, {"letter": "D", "text": "Sitagliptin"}, {"letter": "E", "text": "Empagliflozin"}], "answer": "E", "explanation": "SGLT2i for HF regardless of A1C and regardless of metformin.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "72", "group": 72, "stem": "History of kidney stones or CrCl under 50 → Urate-lowering drug contraindicated:", "options": [{"letter": "A", "text": "Colchicine"}, {"letter": "B", "text": "Allopurinol"}, {"letter": "C", "text": "Pegloticase"}, {"letter": "D", "text": "Febuxostat"}, {"letter": "E", "text": "Probenecid"}], "answer": "E", "explanation": "Probenecid (uricosuric) is CI with nephrolithiasis and reduced CrCl; under-excreters only.", "objective": "", "section": "Gout"}, {"id": "73", "group": 73, "stem": "The only cloudy insulin; 'clear before cloudy' when self-mixing → Insulin:", "options": [{"letter": "A", "text": "Lispro"}, {"letter": "B", "text": "Glargine"}, {"letter": "C", "text": "Degludec"}, {"letter": "D", "text": "NPH"}, {"letter": "E", "text": "Regular"}], "answer": "D", "explanation": "NPH — mix gently, BID basal; never mix glargine or degludec.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "74", "group": 74, "stem": "SLE with nephritis or CNS involvement → Steroid intensity:", "options": [{"letter": "A", "text": "No steroid"}, {"letter": "B", "text": "High-dose prednisone"}, {"letter": "C", "text": "Intra-articular steroid"}, {"letter": "D", "text": "Topical steroid"}, {"letter": "E", "text": "Low-dose prednisone"}], "answer": "B", "explanation": "Organ-threatening disease → high-dose (1–2 mg/kg/day) with induction immunosuppression; low dose (5–10 mg) is for constitutional/MSK symptoms.", "objective": "", "section": "SLE"}, {"id": "75", "group": 75, "stem": "Hypothyroid patient becomes pregnant → Action:", "options": [{"letter": "A", "text": "Increase levothyroxine now"}, {"letter": "B", "text": "Stop until 2nd trimester"}, {"letter": "C", "text": "Decrease dose"}, {"letter": "D", "text": "Keep dose until delivery"}, {"letter": "E", "text": "Switch to liothyronine"}], "answer": "A", "explanation": "↑ 25–30% immediately; TSH q4 weeks, target ~1.", "objective": "", "section": "Thyroid"}, {"id": "76", "group": 76, "stem": "Denosumab therapy → Lab before each dose:", "options": [{"letter": "A", "text": "LFTs"}, {"letter": "B", "text": "Uric acid"}, {"letter": "C", "text": "CBC"}, {"letter": "D", "text": "Serum calcium"}, {"letter": "E", "text": "TSH"}], "answer": "D", "explanation": "Hypocalcemia risk (worst in CKD).", "objective": "", "section": "Osteoporosis"}, {"id": "77", "group": 77, "stem": "Elderly CKD patient with prolonged severe hypoglycemia → Culprit:", "options": [{"letter": "A", "text": "Sitagliptin"}, {"letter": "B", "text": "Metformin"}, {"letter": "C", "text": "Semaglutide"}, {"letter": "D", "text": "Empagliflozin"}, {"letter": "E", "text": "Glyburide"}], "answer": "E", "explanation": "Sulfonylureas release insulin regardless of glucose; glyburide's active metabolite → never in CKD.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "78", "group": 78, "stem": "Pump user with an unexplained high → Action:", "options": [{"letter": "A", "text": "Eat and recheck in 4 hours"}, {"letter": "B", "text": "Bolus again through the pump"}, {"letter": "C", "text": "Give glucagon"}, {"letter": "D", "text": "Inject by pen, change set, check ketones"}, {"letter": "E", "text": "Hold insulin until lower"}], "answer": "D", "explanation": "Site failure with no long-acting insulin on board → DKA risk.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "79", "group": 79, "stem": "Central (pituitary) hypothyroidism → Lab to follow instead of TSH:", "options": [{"letter": "A", "text": "Free T4"}, {"letter": "B", "text": "Total T3"}, {"letter": "C", "text": "Thyroglobulin"}, {"letter": "D", "text": "Reverse T3"}, {"letter": "E", "text": "TSI"}], "answer": "A", "explanation": "TSH is unreliable in central disease → follow FT4.", "objective": "", "section": "Thyroid"}, {"id": "80", "group": 80, "stem": "Severe hypoglycemia, unable to swallow, outside a clinic → Treatment:", "options": [{"letter": "A", "text": "Glucose tablets"}, {"letter": "B", "text": "Glucagon"}, {"letter": "C", "text": "IV dextrose"}, {"letter": "D", "text": "Juice"}, {"letter": "E", "text": "Oral glucose gel"}], "answer": "B", "explanation": "Glucagon (IM/SC/nasal) — prescribe for everyone at risk and train a household member; IV dextrose in clinic.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "81", "group": 81, "stem": "Jaundice, dark urine, RUQ pain on a thionamide → Action:", "options": [{"letter": "A", "text": "Reduce dose"}, {"letter": "B", "text": "Stop drug, check LFTs"}, {"letter": "C", "text": "Switch to RAI"}, {"letter": "D", "text": "Add ursodiol"}, {"letter": "E", "text": "Check TSH only"}], "answer": "B", "explanation": "Hepatotoxicity, PTU > methimazole — stop and check LFTs.", "objective": "", "section": "Thyroid"}, {"id": "82", "group": 82, "stem": "Mild respiratory depression on a scheduled opioid → Action:", "options": [{"letter": "A", "text": "Naloxone"}, {"letter": "B", "text": "Reduce the dose"}, {"letter": "C", "text": "Add naltrexone"}, {"letter": "D", "text": "Continue unchanged"}, {"letter": "E", "text": "Stop all opioids"}], "answer": "B", "explanation": "Mild → ↓ dose (~25%); moderate–severe → naloxone.", "objective": "", "section": "Opioids"}, {"id": "83", "group": 83, "stem": "Calcium supplement → Drugs to separate it from:", "options": [{"letter": "A", "text": "Metformin, statins"}, {"letter": "B", "text": "β-blockers, ACE inhibitors"}, {"letter": "C", "text": "Levothyroxine, iron, tetracyclines, fluoroquinolones"}, {"letter": "D", "text": "Insulin, GLP-1 agonists"}, {"letter": "E", "text": "SSRIs, NSAIDs"}], "answer": "C", "explanation": "Calcium chelates/blocks absorption of these.", "objective": "", "section": "Osteoporosis"}, {"id": "84", "group": 84, "stem": "ACE inhibitor + diuretic + NSAID in an elderly patient → Organ at risk:", "options": [{"letter": "A", "text": "Liver"}, {"letter": "B", "text": "Heart valves"}, {"letter": "C", "text": "Pancreas"}, {"letter": "D", "text": "Kidney"}, {"letter": "E", "text": "Thyroid"}], "answer": "D", "explanation": "The renal 'triple whammy' → acute kidney injury; NSAIDs also blunt antihypertensives.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "85", "group": 85, "stem": "Stable glucose until 4 a.m., then rises until breakfast, no low → Diagnosis:", "options": [{"letter": "A", "text": "Dawn phenomenon"}, {"letter": "B", "text": "Site failure"}, {"letter": "C", "text": "Waning basal"}, {"letter": "D", "text": "Carb-ratio error"}, {"letter": "E", "text": "Nocturnal hypoglycemia"}], "answer": "A", "explanation": "Hormone surge 4–8 a.m. → ↑/shift basal; pumps handle it best (raise 2–6 a.m. rate).", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "86", "group": 86, "stem": "Georgia PA prescriptive authority → Schedule II products allowed under the 5-day carve-out:", "options": [{"letter": "A", "text": "Methadone"}, {"letter": "B", "text": "Fentanyl"}, {"letter": "C", "text": "Hydromorphone"}, {"letter": "D", "text": "Morphine"}, {"letter": "E", "text": "Hydrocodone/oxycodone products"}], "answer": "E", "explanation": "GA PAs: Schedule III–V plus HB557 — hydrocodone/oxycodone products, ≤5 days, adults ≥18.", "objective": "", "section": "Opioids"}, {"id": "87", "group": 87, "stem": "Child with influenza-like illness and fever → Analgesic to AVOID:", "options": [{"letter": "A", "text": "Aspirin"}, {"letter": "B", "text": "Capsaicin"}, {"letter": "C", "text": "Ibuprofen"}, {"letter": "D", "text": "Acetaminophen"}, {"letter": "E", "text": "Topical diclofenac"}], "answer": "A", "explanation": "Aspirin in children/teens with viral illness or recent varicella → Reye syndrome.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "88", "group": 88, "stem": "High 2–3 hours after one specific meal, fasting fine → Component to fix:", "options": [{"letter": "A", "text": "Carbohydrate ratio for that meal"}, {"letter": "B", "text": "Basal insulin"}, {"letter": "C", "text": "Bedtime snack"}, {"letter": "D", "text": "Correction factor"}, {"letter": "E", "text": "Exercise plan"}], "answer": "A", "explanation": "Fix basal → ICR → CF; a post-meal pattern is the ratio (strengthen = smaller denominator).", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "89", "group": 89, "stem": "Newly diagnosed RA → DMARD of choice:", "options": [{"letter": "A", "text": "Etanercept"}, {"letter": "B", "text": "Leflunomide"}, {"letter": "C", "text": "Prednisone"}, {"letter": "D", "text": "Methotrexate"}, {"letter": "E", "text": "Hydroxychloroquine"}], "answer": "D", "explanation": "Methotrexate weekly is the anchor DMARD, started early.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "90", "group": 90, "stem": "Dental extraction planned in a patient on an antiresorptive → Risk:", "options": [{"letter": "A", "text": "Hypercalcemia"}, {"letter": "B", "text": "Osteosarcoma"}, {"letter": "C", "text": "Osteonecrosis of the jaw"}, {"letter": "D", "text": "Endometrial cancer"}, {"letter": "E", "text": "Esophagitis"}], "answer": "C", "explanation": "ONJ with bisphosphonates, denosumab, romosozumab → dental clearance first.", "objective": "", "section": "Osteoporosis"}, {"id": "91", "group": 91, "stem": "Pancreatitis and hepatotoxicity on an SLE steroid-sparing agent → Drug:", "options": [{"letter": "A", "text": "Cyclophosphamide"}, {"letter": "B", "text": "Hydroxychloroquine"}, {"letter": "C", "text": "Voclosporin"}, {"letter": "D", "text": "Azathioprine"}, {"letter": "E", "text": "Belimumab"}], "answer": "D", "explanation": "Azathioprine: myelosuppression, hepatotoxicity, pancreatitis, skin cancer/lymphoma.", "objective": "", "section": "SLE"}, {"id": "92", "group": 92, "stem": "Febuxostat → Patient group needing caution:", "options": [{"letter": "A", "text": "Asthma"}, {"letter": "B", "text": "G6PD deficiency"}, {"letter": "C", "text": "Significant cardiovascular disease"}, {"letter": "D", "text": "Sulfa allergy"}, {"letter": "E", "text": "Nephrolithiasis"}], "answer": "C", "explanation": "Febuxostat carries a cardiovascular-death warning.", "objective": "", "section": "Gout"}, {"id": "93", "group": 93, "stem": "Opioid-free patient wanting relapse prevention; also treats alcohol use disorder → Drug:", "options": [{"letter": "A", "text": "Disulfiram"}, {"letter": "B", "text": "Naltrexone"}, {"letter": "C", "text": "Naloxone"}, {"letter": "D", "text": "Methadone"}, {"letter": "E", "text": "Buprenorphine"}], "answer": "B", "explanation": "Naltrexone — PO, long-acting antagonist; only once opioid-free (precipitates withdrawal).", "objective": "", "section": "Opioids"}, {"id": "94", "group": 94, "stem": "Fever, sore throat or mouth ulcers on methimazole → Action:", "options": [{"letter": "A", "text": "Stop drug, check CBC"}, {"letter": "B", "text": "Reduce dose"}, {"letter": "C", "text": "Add antibiotic, continue"}, {"letter": "D", "text": "Switch to PTU"}, {"letter": "E", "text": "Check TSH only"}], "answer": "A", "explanation": "Agranulocytosis (<0.2%, first 3 months) — stop and get a CBC.", "objective": "", "section": "Thyroid"}, {"id": "95", "group": 95, "stem": "IV TNF inhibitor that must be paired with methotrexate → Drug:", "options": [{"letter": "A", "text": "Etanercept"}, {"letter": "B", "text": "Adalimumab"}, {"letter": "C", "text": "Golimumab"}, {"letter": "D", "text": "Infliximab"}, {"letter": "E", "text": "Certolizumab"}], "answer": "D", "explanation": "Infliximab (chimeric mAb, IV) — always with MTX; infusion reactions → pre-medicate.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "96", "group": 96, "stem": "Unexplained elevated alkaline phosphatase, Paget's disease, bone metastases, or prior skeletal radiation → Agent to AVOID:", "options": [{"letter": "A", "text": "Alendronate"}, {"letter": "B", "text": "Denosumab"}, {"letter": "C", "text": "Raloxifene"}, {"letter": "D", "text": "Teriparatide"}, {"letter": "E", "text": "Zoledronic acid"}], "answer": "D", "explanation": "PTH analogs → osteosarcoma caution.", "objective": "", "section": "Osteoporosis"}, {"id": "97", "group": 97, "stem": "Glucose high and rising all night, already high at 3 a.m. → Diagnosis:", "options": [{"letter": "A", "text": "Waning basal"}, {"letter": "B", "text": "Dawn phenomenon"}, {"letter": "C", "text": "Lipohypertrophy"}, {"letter": "D", "text": "Nocturnal hypoglycemia"}, {"letter": "E", "text": "Correction-factor error"}], "answer": "A", "explanation": "Basal is running out → increase/lengthen basal (NPH → glargine) or move to bedtime.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "98", "group": 98, "stem": "Only approved non-insulin adjunct for type 1 diabetes → Drug:", "options": [{"letter": "A", "text": "Semaglutide"}, {"letter": "B", "text": "Empagliflozin"}, {"letter": "C", "text": "Pramlintide"}, {"letter": "D", "text": "Sitagliptin"}, {"letter": "E", "text": "Metformin"}], "answer": "C", "explanation": "Pramlintide — boxed severe hypoglycemia → lower mealtime insulin.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "99", "group": 99, "stem": "Fentanyl patch counseling → Key point:", "options": [{"letter": "A", "text": "Cut patch to adjust dose"}, {"letter": "B", "text": "Apply to broken skin"}, {"letter": "C", "text": "Change every 24 hours"}, {"letter": "D", "text": "Apply heat to speed relief"}, {"letter": "E", "text": "Used patches are lethal to children/pets"}], "answer": "E", "explanation": "Patches are changed q72 h; used patches still carry lethal drug.", "objective": "", "section": "Opioids"}, {"id": "100", "group": 100, "stem": "Naproxen taken with low-dose aspirin → Interaction:", "options": [{"letter": "A", "text": "Causes serotonin syndrome"}, {"letter": "B", "text": "Prolongs QT"}, {"letter": "C", "text": "Precipitates gout"}, {"letter": "D", "text": "Blocks aspirin's cardioprotection"}, {"letter": "E", "text": "Doubles aspirin absorption"}], "answer": "D", "explanation": "Nonselective NSAIDs compete at platelet COX-1 and can block low-dose aspirin's antiplatelet effect.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "101", "group": 101, "stem": "A1C above 10%, symptomatic hyperglycemia, or unintentional weight loss → Start:", "options": [{"letter": "A", "text": "Glipizide"}, {"letter": "B", "text": "Metformin alone"}, {"letter": "C", "text": "Sitagliptin"}, {"letter": "D", "text": "Insulin"}, {"letter": "E", "text": "Pioglitazone"}], "answer": "D", "explanation": "Catabolic / A1C >10% / BG ≥300 / uncertain type → insulin now (negative ketones change nothing).", "objective": "", "section": "Type 2 Diabetes"}, {"id": "102", "group": 102, "stem": "T2DM needing a first injectable → Preferred:", "options": [{"letter": "A", "text": "GLP-1 receptor agonist"}, {"letter": "B", "text": "NPH"}, {"letter": "C", "text": "Pramlintide"}, {"letter": "D", "text": "Prandial insulin"}, {"letter": "E", "text": "Basal insulin"}], "answer": "A", "explanation": "GLP-1-based therapy is the preferred first injectable; pair insulin with it when insulin is needed.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "103", "group": 103, "stem": "Graves' disease with moderate–severe eye disease → Therapy to AVOID:", "options": [{"letter": "A", "text": "Thyroidectomy"}, {"letter": "B", "text": "Radioactive iodine"}, {"letter": "C", "text": "Teprotumumab"}, {"letter": "D", "text": "Methimazole"}, {"letter": "E", "text": "Propranolol"}], "answer": "B", "explanation": "RAI can worsen thyroid eye disease; use thionamide or surgery; stop smoking.", "objective": "", "section": "Thyroid"}, {"id": "104", "group": 104, "stem": "Starting allopurinol → Must co-prescribe:", "options": [{"letter": "A", "text": "Probenecid"}, {"letter": "B", "text": "Febuxostat"}, {"letter": "C", "text": "Colchicine prophylaxis"}, {"letter": "D", "text": "High-dose prednisone"}, {"letter": "E", "text": "Pegloticase"}], "answer": "C", "explanation": "Starting any ULT without prophylaxis precipitates a flare (colchicine or NSAID).", "objective": "", "section": "Gout"}, {"id": "105", "group": 105, "stem": "Itching, hives, flushing after a morphine dose → Likely cause:", "options": [{"letter": "A", "text": "Histamine release"}, {"letter": "B", "text": "Opioid withdrawal"}, {"letter": "C", "text": "IgE-mediated allergy"}, {"letter": "D", "text": "Anaphylaxis"}, {"letter": "E", "text": "Serotonin syndrome"}], "answer": "A", "explanation": "Pseudo-allergy from histamine release → hydroxyzine/diphenhydramine; true allergy is rare.", "objective": "", "section": "Opioids"}, {"id": "106", "group": 106, "stem": "Starting basal insulin → Oral agent to reduce or stop:", "options": [{"letter": "A", "text": "Pioglitazone"}, {"letter": "B", "text": "SGLT2 inhibitor"}, {"letter": "C", "text": "Metformin"}, {"letter": "D", "text": "GLP-1 receptor agonist"}, {"letter": "E", "text": "Sulfonylurea"}], "answer": "E", "explanation": "Never SU + insulin (hypoglycemia); keep metformin/GLP-1/SGLT2i.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "107", "group": 107, "stem": "Postmenopausal woman with new edema, weight gain and fractures on a diabetes drug → Drug:", "options": [{"letter": "A", "text": "Sitagliptin"}, {"letter": "B", "text": "Pioglitazone"}, {"letter": "C", "text": "Metformin"}, {"letter": "D", "text": "Semaglutide"}, {"letter": "E", "text": "Empagliflozin"}], "answer": "B", "explanation": "Pioglitazone: edema, weight gain, fractures in women, bladder cancer, macular edema; LFTs first.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "108", "group": 108, "stem": "Iodinated contrast study scheduled → Drug to hold:", "options": [{"letter": "A", "text": "Semaglutide"}, {"letter": "B", "text": "Metformin"}, {"letter": "C", "text": "Glargine"}, {"letter": "D", "text": "Levothyroxine"}, {"letter": "E", "text": "Sitagliptin"}], "answer": "B", "explanation": "Hold metformin (eGFR 30–60, liver disease, alcohol, HF, intra-arterial) → recheck eGFR at 48 h.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "109", "group": 109, "stem": "ER oxycodone tablet crushed or chewed → Consequence:", "options": [{"letter": "A", "text": "Lethal dose dump"}, {"letter": "B", "text": "Loss of all effect"}, {"letter": "C", "text": "QT prolongation"}, {"letter": "D", "text": "Precipitated withdrawal"}, {"letter": "E", "text": "Serotonin syndrome"}], "answer": "A", "explanation": "Never crush/chew ER oxycodone (OxyContin).", "objective": "", "section": "Opioids"}, {"id": "110", "group": 110, "stem": "SLE, any severity → Cornerstone drug for essentially every patient:", "options": [{"letter": "A", "text": "Methotrexate"}, {"letter": "B", "text": "Cyclophosphamide"}, {"letter": "C", "text": "Hydroxychloroquine"}, {"letter": "D", "text": "Belimumab"}, {"letter": "E", "text": "Prednisone"}], "answer": "C", "explanation": "HCQ delays renal/skin damage and improves survival; continue in pregnancy.", "objective": "", "section": "SLE"}, {"id": "111", "group": 111, "stem": "Severe pain in renal failure → Preferred opioid:", "options": [{"letter": "A", "text": "Morphine"}, {"letter": "B", "text": "Tramadol"}, {"letter": "C", "text": "Meperidine"}, {"letter": "D", "text": "Codeine"}, {"letter": "E", "text": "Fentanyl"}], "answer": "E", "explanation": "Fentanyl has no active metabolites; morphine's metabolites accumulate in renal failure.", "objective": "", "section": "Opioids"}, {"id": "112", "group": 112, "stem": "Morning prednisone course in a type 1 patient (afternoon/evening highs, fasting normal) → Adjustment:", "options": [{"letter": "A", "text": "Reduce all insulin"}, {"letter": "B", "text": "Strengthen daytime carb ratios, keep basal"}, {"letter": "C", "text": "Stop bolus insulin"}, {"letter": "D", "text": "Switch to NPH only"}, {"letter": "E", "text": "Increase basal insulin"}], "answer": "B", "explanation": "Steroids raise daytime/post-meal glucose → prandial changes; reverse them as the steroid tapers.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "113", "group": 113, "stem": "Esophageal stricture, Roux-en-Y bypass, or cannot stay upright → Alternative:", "options": [{"letter": "A", "text": "Calcium alone"}, {"letter": "B", "text": "Zoledronic acid IV"}, {"letter": "C", "text": "Alendronate"}, {"letter": "D", "text": "Risedronate"}, {"letter": "E", "text": "Oral ibandronate"}], "answer": "B", "explanation": "Oral bisphosphonate CI → IV zoledronic acid yearly (or denosumab).", "objective": "", "section": "Osteoporosis"}, {"id": "114", "group": 114, "stem": "Patient on a PPI needs calcium → Formulation:", "options": [{"letter": "A", "text": "Calcium lactate"}, {"letter": "B", "text": "Calcium gluconate IV"}, {"letter": "C", "text": "Calcium citrate"}, {"letter": "D", "text": "Calcium chloride"}, {"letter": "E", "text": "Calcium carbonate"}], "answer": "C", "explanation": "Carbonate needs acid + food; citrate absorbs without acid (also bariatric/achlorhydria).", "objective": "", "section": "Osteoporosis"}, {"id": "115", "group": 115, "stem": "Toxic adenoma or toxic multinodular goiter → Definitive therapy of choice:", "options": [{"letter": "A", "text": "Levothyroxine"}, {"letter": "B", "text": "Lifelong methimazole"}, {"letter": "C", "text": "Teprotumumab"}, {"letter": "D", "text": "Radioactive iodine"}, {"letter": "E", "text": "Propranolol alone"}], "answer": "D", "explanation": "Nodular disease won't remit on drugs → I-131.", "objective": "", "section": "Thyroid"}, {"id": "116", "group": 116, "stem": "Starting addiction-maintenance opioid → Baseline test:", "options": [{"letter": "A", "text": "TSH"}, {"letter": "B", "text": "Urine culture"}, {"letter": "C", "text": "ECG"}, {"letter": "D", "text": "LFTs"}, {"letter": "E", "text": "Spirometry"}], "answer": "C", "explanation": "Methadone prolongs QT (torsades) → ECG at start and every dose change; check K⁺/Mg²⁺.", "objective": "", "section": "Opioids"}, {"id": "117", "group": 117, "stem": "Recurrent genital mycotic infections on a diabetes drug → Class:", "options": [{"letter": "A", "text": "Sulfonylureas"}, {"letter": "B", "text": "DPP-4 inhibitors"}, {"letter": "C", "text": "GLP-1 receptor agonists"}, {"letter": "D", "text": "SGLT2 inhibitors"}, {"letter": "E", "text": "Biguanides"}], "answer": "D", "explanation": "Glucosuria → genital mycotic infections, urosepsis, Fournier gangrene.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "118", "group": 118, "stem": "Palpitations, tremor and bone loss on thyroid replacement → Diagnosis:", "options": [{"letter": "A", "text": "Hashimoto flare"}, {"letter": "B", "text": "Thionamide toxicity"}, {"letter": "C", "text": "Thyroid storm"}, {"letter": "D", "text": "Central hypothyroidism"}, {"letter": "E", "text": "Iatrogenic hyperthyroidism"}], "answer": "E", "explanation": "Over-replacement → arrhythmia, osteoporosis, tremor; aggravates CAD; never for weight loss.", "objective": "", "section": "Thyroid"}, {"id": "119", "group": 119, "stem": "Patient on a TNF inhibitor or belimumab → Vaccine to AVOID:", "options": [{"letter": "A", "text": "Hepatitis B"}, {"letter": "B", "text": "Pneumococcal"}, {"letter": "C", "text": "Tdap"}, {"letter": "D", "text": "Live vaccines (e.g., MMR, zoster live)"}, {"letter": "E", "text": "Inactivated influenza"}], "answer": "D", "explanation": "No live vaccines on biologics; none within 30 days before belimumab.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "120", "group": 120, "stem": "Allopurinol in CKD stage 3 → Rule:", "options": [{"letter": "A", "text": "Replace with probenecid"}, {"letter": "B", "text": "Replace with pegloticase"}, {"letter": "C", "text": "Use only with NSAID"}, {"letter": "D", "text": "Contraindicated"}, {"letter": "E", "text": "Still first line, dose-adjusted"}], "answer": "E", "explanation": "Allopurinol stays first line even with CKD or stones — reduce dose and titrate to urate target.", "objective": "", "section": "Gout"}, {"id": "121", "group": 121, "stem": "NSAID + corticosteroid (or SSRI, warfarin, aspirin) → Major combined risk:", "options": [{"letter": "A", "text": "QT prolongation"}, {"letter": "B", "text": "Hepatotoxicity"}, {"letter": "C", "text": "Hyperkalemia"}, {"letter": "D", "text": "Upper GI bleed"}, {"letter": "E", "text": "Serotonin syndrome"}], "answer": "D", "explanation": "Steroids, SSRIs/SNRIs, warfarin and antiplatelets multiply NSAID GI-bleed risk — keep the PPI.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "122", "group": 122, "stem": "Leflunomide toxicity or unplanned pregnancy → Washout agent:", "options": [{"letter": "A", "text": "Cholestyramine"}, {"letter": "B", "text": "Mesna"}, {"letter": "C", "text": "Activated charcoal"}, {"letter": "D", "text": "Folinic acid"}, {"letter": "E", "text": "N-acetylcysteine"}], "answer": "A", "explanation": "Leflunomide has a very long half-life → cholestyramine washout.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "123", "group": 123, "stem": "Opioid-naïve post-op patient → Formulation to AVOID:", "options": [{"letter": "A", "text": "Oxycodone IR"}, {"letter": "B", "text": "Hydromorphone IV"}, {"letter": "C", "text": "Fentanyl patch"}, {"letter": "D", "text": "Morphine IV"}, {"letter": "E", "text": "Hydrocodone/APAP"}], "answer": "C", "explanation": "Transdermal fentanyl is never for acute pain or opioid-naïve patients.", "objective": "", "section": "Opioids"}, {"id": "124", "group": 124, "stem": "DKA or hyperkalemia → IV insulin of choice:", "options": [{"letter": "A", "text": "Glargine"}, {"letter": "B", "text": "NPH"}, {"letter": "C", "text": "Degludec"}, {"letter": "D", "text": "Regular insulin"}, {"letter": "E", "text": "Lispro"}], "answer": "D", "explanation": "Regular (Humulin R/Novolin R) is the IV insulin.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "125", "group": 125, "stem": "Patient on Norco adds OTC Tylenol for breakthrough pain → Organ at risk:", "options": [{"letter": "A", "text": "Heart"}, {"letter": "B", "text": "Stomach"}, {"letter": "C", "text": "Kidney"}, {"letter": "D", "text": "Liver"}, {"letter": "E", "text": "Lungs"}], "answer": "D", "explanation": "Hidden acetaminophen in hydrocodone/oxycodone combos stacks toward the daily ceiling → hepatotoxicity.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "126", "group": 126, "stem": "Long-term metformin → Vitamin to monitor:", "options": [{"letter": "A", "text": "D"}, {"letter": "B", "text": "B1"}, {"letter": "C", "text": "K"}, {"letter": "D", "text": "B12"}, {"letter": "E", "text": "Folate"}], "answer": "D", "explanation": "Metformin → B12 deficiency (check q2–3 years).", "objective": "", "section": "Type 2 Diabetes"}, {"id": "127", "group": 127, "stem": "Levothyroxine therapy → Lab used to titrate:", "options": [{"letter": "A", "text": "TSH"}, {"letter": "B", "text": "Calcitonin"}, {"letter": "C", "text": "Total T3"}, {"letter": "D", "text": "Thyroglobulin"}, {"letter": "E", "text": "TSI"}], "answer": "A", "explanation": "TSH after any start/change (4–6 weeks to equilibrate); high TSH → ↑ dose.", "objective": "", "section": "Thyroid"}, {"id": "128", "group": 128, "stem": "Osteoporosis with eGFR below 30 → Agent:", "options": [{"letter": "A", "text": "Denosumab"}, {"letter": "B", "text": "Alendronate"}, {"letter": "C", "text": "Raloxifene"}, {"letter": "D", "text": "Zoledronic acid"}, {"letter": "E", "text": "Estrogen"}], "answer": "A", "explanation": "Bisphosphonates need renal function → denosumab (correct calcium/vitamin D first).", "objective": "", "section": "Osteoporosis"}, {"id": "129", "group": 129, "stem": "Before denosumab or romosozumab → Must correct:", "options": [{"letter": "A", "text": "Anemia"}, {"letter": "B", "text": "Hypothyroidism"}, {"letter": "C", "text": "Hyperkalemia"}, {"letter": "D", "text": "Hypocalcemia / vitamin D deficiency"}, {"letter": "E", "text": "Hyperuricemia"}], "answer": "D", "explanation": "Hypocalcemia is a CI (worst in CKD); check Ca before each denosumab dose; dental clearance for ONJ.", "objective": "", "section": "Osteoporosis"}, {"id": "130", "group": 130, "stem": "Fasting high with a 2–3 a.m. low on CGM → Change:", "options": [{"letter": "A", "text": "Lower overnight basal"}, {"letter": "B", "text": "Add bedtime bolus"}, {"letter": "C", "text": "Add metformin"}, {"letter": "D", "text": "Raise overnight basal"}, {"letter": "E", "text": "Strengthen correction factor"}], "answer": "A", "explanation": "Nocturnal hypoglycemia with rebound → ↓ basal 10–20% (never raise basal for a fasting high with a visible low).", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "131", "group": 131, "stem": "Sulfa allergy → NSAID to AVOID:", "options": [{"letter": "A", "text": "Diclofenac"}, {"letter": "B", "text": "Naproxen"}, {"letter": "C", "text": "Meloxicam"}, {"letter": "D", "text": "Ibuprofen"}, {"letter": "E", "text": "Celecoxib"}], "answer": "E", "explanation": "Celecoxib is a sulfonamide.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "132", "group": 132, "stem": "Gout flare starting within the first day, normal kidneys and no interacting drugs → Flare drug:", "options": [{"letter": "A", "text": "Allopurinol"}, {"letter": "B", "text": "Pegloticase"}, {"letter": "C", "text": "Probenecid"}, {"letter": "D", "text": "Febuxostat"}, {"letter": "E", "text": "Colchicine"}], "answer": "E", "explanation": "Colchicine works only when started early (24–48 h window).", "objective": "", "section": "Gout"}, {"id": "133", "group": 133, "stem": "Romosozumab → Black box warning:", "options": [{"letter": "A", "text": "Osteosarcoma"}, {"letter": "B", "text": "Hypercalcemia"}, {"letter": "C", "text": "DVT/PE"}, {"letter": "D", "text": "MI and stroke"}, {"letter": "E", "text": "Esophageal cancer"}], "answer": "D", "explanation": "Sclerostin inhibitor, monthly × 12, then an antiresorptive.", "objective": "", "section": "Osteoporosis"}, {"id": "134", "group": 134, "stem": "Low–moderate risk after several years on a bisphosphonate → Option:", "options": [{"letter": "A", "text": "Drug holiday with reassessment"}, {"letter": "B", "text": "Add teriparatide"}, {"letter": "C", "text": "Double the dose"}, {"letter": "D", "text": "Add raloxifene"}, {"letter": "E", "text": "Switch to denosumab"}], "answer": "A", "explanation": "Bisphosphonates persist in bone; reassess at 3–5 years. Continue if prior hip/vertebral fracture, very low BMD, or steroids.", "objective": "", "section": "Osteoporosis"}, {"id": "135", "group": 135, "stem": "Elderly patient, localized knee OA pain, on apixaban → First-line analgesic:", "options": [{"letter": "A", "text": "Topical diclofenac gel"}, {"letter": "B", "text": "Tramadol"}, {"letter": "C", "text": "Oral naproxen"}, {"letter": "D", "text": "Oral celecoxib"}, {"letter": "E", "text": "Cyclobenzaprine"}], "answer": "A", "explanation": "Localized pain + anticoagulant/elderly/GI-CV-renal risk = topical NSAID first (best benefit–harm, ~17× less systemic absorption).", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "136", "group": 136, "stem": "Topical for chronic OA/neuropathic pain, applied scheduled TID–QID, initial burning fades over 1–2 weeks → Drug:", "options": [{"letter": "A", "text": "Menthol"}, {"letter": "B", "text": "Capsaicin"}, {"letter": "C", "text": "Diclofenac gel"}, {"letter": "D", "text": "Lidocaine patch"}, {"letter": "E", "text": "Methyl salicylate"}], "answer": "B", "explanation": "Capsaicin releases then depletes substance P — not for immediate relief.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "137", "group": 137, "stem": "Tinnitus and confusion on a high-dose analgesic → Likely drug:", "options": [{"letter": "A", "text": "Celecoxib"}, {"letter": "B", "text": "Methocarbamol"}, {"letter": "C", "text": "Tramadol"}, {"letter": "D", "text": "Aspirin"}, {"letter": "E", "text": "Acetaminophen"}], "answer": "D", "explanation": "Tinnitus = salicylate toxicity (with N/V, tachypnea, respiratory alkalosis → acidosis).", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "138", "group": 138, "stem": "Flare in one or two joints, patient cannot take oral medication → Treatment:", "options": [{"letter": "A", "text": "Pegloticase"}, {"letter": "B", "text": "Allopurinol"}, {"letter": "C", "text": "Intra-articular corticosteroid"}, {"letter": "D", "text": "Probenecid"}, {"letter": "E", "text": "IV colchicine"}], "answer": "C", "explanation": "Mono/oligoarticular flare, no PO → intra-articular steroid.", "objective": "", "section": "Gout"}, {"id": "139", "group": 139, "stem": "Thigh or groin aching after years on a bisphosphonate → Suspect:", "options": [{"letter": "A", "text": "Paget's disease"}, {"letter": "B", "text": "Osteonecrosis of the jaw"}, {"letter": "C", "text": "Atypical femoral fracture"}, {"letter": "D", "text": "Hypocalcemia"}, {"letter": "E", "text": "Sciatica"}], "answer": "C", "explanation": "Atypical femur fracture — image the femur.", "objective": "", "section": "Osteoporosis"}, {"id": "140", "group": 140, "stem": "Months after radioactive iodine, fatigue and rising TSH → Treatment:", "options": [{"letter": "A", "text": "Propranolol"}, {"letter": "B", "text": "Observation"}, {"letter": "C", "text": "Restart methimazole"}, {"letter": "D", "text": "Lifelong levothyroxine"}, {"letter": "E", "text": "Repeat RAI"}], "answer": "D", "explanation": "Most patients become hypothyroid after RAI → lifelong T4.", "objective": "", "section": "Thyroid"}, {"id": "141", "group": 141, "stem": "Dry cough and dyspnea on a weekly DMARD → Likely cause:", "options": [{"letter": "A", "text": "Sulfasalazine allergy"}, {"letter": "B", "text": "Hydroxychloroquine toxicity"}, {"letter": "C", "text": "Leflunomide hepatitis"}, {"letter": "D", "text": "Methotrexate pneumonitis"}, {"letter": "E", "text": "TNF-related TB"}], "answer": "D", "explanation": "Methotrexate pulmonary toxicity (pneumonitis/fibrosis) — stop the drug.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "142", "group": 142, "stem": "NYHA class III–IV heart failure → Diabetes drug contraindicated:", "options": [{"letter": "A", "text": "Sitagliptin"}, {"letter": "B", "text": "Semaglutide"}, {"letter": "C", "text": "Metformin"}, {"letter": "D", "text": "Pioglitazone"}, {"letter": "E", "text": "Empagliflozin"}], "answer": "D", "explanation": "Pioglitazone boxed warning: causes/worsens HF (fluid retention); saxagliptin/alogliptin also carry an HF signal.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "143", "group": 143, "stem": "Intrathecal pump runs dry → fever, rigidity, seizures, hallucinations → Likely cause:", "options": [{"letter": "A", "text": "Baclofen withdrawal"}, {"letter": "B", "text": "Opioid withdrawal"}, {"letter": "C", "text": "Tizanidine overdose"}, {"letter": "D", "text": "Malignant hyperthermia"}, {"letter": "E", "text": "Serotonin syndrome"}], "answer": "A", "explanation": "Baclofen black box: abrupt withdrawal → seizures, hallucinations, high fever, rhabdo, death — always taper.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "144", "group": 144, "stem": "Agranulocytosis on a conventional DMARD, patient also has a sulfa allergy history → Drug:", "options": [{"letter": "A", "text": "Etanercept"}, {"letter": "B", "text": "Sulfasalazine"}, {"letter": "C", "text": "Leflunomide"}, {"letter": "D", "text": "Hydroxychloroquine"}, {"letter": "E", "text": "Methotrexate"}], "answer": "B", "explanation": "Sulfasalazine: leukopenia/agranulocytosis, ↑LFTs; CI with sulfa allergy.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "145", "group": 145, "stem": "MS spasticity patient started on ciprofloxacin → Antispastic to AVOID:", "options": [{"letter": "A", "text": "Baclofen"}, {"letter": "B", "text": "Tizanidine"}, {"letter": "C", "text": "Dantrolene"}, {"letter": "D", "text": "Methocarbamol"}, {"letter": "E", "text": "Metaxalone"}], "answer": "B", "explanation": "Tizanidine is CYP1A2-cleared — ciprofloxacin/fluvoxamine → profound hypotension, bradycardia.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "146", "group": 146, "stem": "Flare refractory to colchicine, NSAIDs and steroids → Drug:", "options": [{"letter": "A", "text": "Pegloticase"}, {"letter": "B", "text": "Probenecid"}, {"letter": "C", "text": "Febuxostat"}, {"letter": "D", "text": "Anakinra"}, {"letter": "E", "text": "Allopurinol"}], "answer": "D", "explanation": "Anakinra (IL-1 blockade) for refractory flares.", "objective": "", "section": "Gout"}, {"id": "147", "group": 147, "stem": "Pregnancy or lactation → Hyperthyroid therapy contraindicated:", "options": [{"letter": "A", "text": "Propranolol"}, {"letter": "B", "text": "Propylthiouracil"}, {"letter": "C", "text": "Methimazole (2nd–3rd trimester)"}, {"letter": "D", "text": "Radioactive iodine"}, {"letter": "E", "text": "Surgery"}], "answer": "D", "explanation": "RAI is absolutely contraindicated; pregnancy test before RAI.", "objective": "", "section": "Thyroid"}, {"id": "148", "group": 148, "stem": "Denosumab stopped or delayed by months without a plan → Consequence:", "options": [{"letter": "A", "text": "DVT"}, {"letter": "B", "text": "Hypercalcemia"}, {"letter": "C", "text": "Rebound vertebral fractures"}, {"letter": "D", "text": "Hepatotoxicity"}, {"letter": "E", "text": "Osteosarcoma"}], "answer": "C", "explanation": "Rapid bone loss → transition to a bisphosphonate; never stop without a follow-on antiresorptive.", "objective": "", "section": "Osteoporosis"}, {"id": "149", "group": 149, "stem": "Muscle spasm in a patient on hemodialysis → Safest relaxant:", "options": [{"letter": "A", "text": "Methocarbamol"}, {"letter": "B", "text": "Carisoprodol"}, {"letter": "C", "text": "Tizanidine"}, {"letter": "D", "text": "Cyclobenzaprine"}, {"letter": "E", "text": "Baclofen"}], "answer": "A", "explanation": "Methocarbamol is dialyzable; baclofen is renally cleared and accumulates.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "150", "group": 150, "stem": "Elderly patient with coronary disease starting thyroid replacement → Dosing principle:", "options": [{"letter": "A", "text": "Start low, go slow"}, {"letter": "B", "text": "IV loading dose"}, {"letter": "C", "text": "T3 first, then T4"}, {"letter": "D", "text": "Alternate-day dosing"}, {"letter": "E", "text": "Full weight-based dose"}], "answer": "A", "explanation": "Cardiac disease → low dose to avoid angina/dysrhythmia; healthy <50 y gets full weight-based dosing.", "objective": "", "section": "Thyroid"}, {"id": "151", "group": 151, "stem": "Starting methotrexate → Co-prescribe:", "options": [{"letter": "A", "text": "Vitamin B12"}, {"letter": "B", "text": "Calcium citrate"}, {"letter": "C", "text": "Cholestyramine"}, {"letter": "D", "text": "Omeprazole"}, {"letter": "E", "text": "Folic acid daily"}], "answer": "E", "explanation": "Daily folic acid reduces stomatitis/marrow toxicity.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "152", "group": 152, "stem": "Pancreatitis, severe arthralgia, bullous pemphigoid → Class:", "options": [{"letter": "A", "text": "DPP-4 inhibitors"}, {"letter": "B", "text": "Biguanides"}, {"letter": "C", "text": "SGLT2 inhibitors"}, {"letter": "D", "text": "Sulfonylureas"}, {"letter": "E", "text": "Thiazolidinediones"}], "answer": "A", "explanation": "The -gliptin signature; also the lowest-efficacy class.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "153", "group": 153, "stem": "Oral bisphosphonate counseling → Key instruction:", "options": [{"letter": "A", "text": "Take with breakfast and calcium"}, {"letter": "B", "text": "Take with the PPI"}, {"letter": "C", "text": "Morning, plain water, upright 30 min, nothing else"}, {"letter": "D", "text": "Take with milk"}, {"letter": "E", "text": "Take at bedtime lying down"}], "answer": "C", "explanation": "Calcium, antacids, Mg, Fe all ↓ absorption; upright to prevent esophagitis.", "objective": "", "section": "Osteoporosis"}, {"id": "154", "group": 154, "stem": "Patient already on semaglutide → Class never added:", "options": [{"letter": "A", "text": "SGLT2 inhibitor"}, {"letter": "B", "text": "DPP-4 inhibitor"}, {"letter": "C", "text": "Pioglitazone"}, {"letter": "D", "text": "Basal insulin"}, {"letter": "E", "text": "Metformin"}], "answer": "B", "explanation": "Never DPP-4i + GLP-1 agent (same incretin pathway, no added benefit).", "objective": "", "section": "Type 2 Diabetes"}, {"id": "155", "group": 155, "stem": "Hypoglycemia symptoms masked in a diabetic → Culprit drug:", "options": [{"letter": "A", "text": "Estrogen"}, {"letter": "B", "text": "Thiazide"}, {"letter": "C", "text": "Nonselective β-blocker"}, {"letter": "D", "text": "Atypical antipsychotic"}, {"letter": "E", "text": "Prednisone"}], "answer": "C", "explanation": "β-blockers (and clonidine) mask adrenergic warning signs; the others raise glucose.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "156", "group": 156, "stem": "Hyperthyroid palpitations and tremor needing relief today → Drug:", "options": [{"letter": "A", "text": "PTU"}, {"letter": "B", "text": "Levothyroxine"}, {"letter": "C", "text": "Radioactive iodine"}, {"letter": "D", "text": "Propranolol"}, {"letter": "E", "text": "Methimazole"}], "answer": "D", "explanation": "β-blocker bridges symptoms (titrate to resting pulse 80–90); thionamides take weeks.", "objective": "", "section": "Thyroid"}, {"id": "157", "group": 157, "stem": "Diffuse rash two weeks into allopurinol → Action:", "options": [{"letter": "A", "text": "Switch to probenecid"}, {"letter": "B", "text": "Add antihistamine, continue"}, {"letter": "C", "text": "Reduce dose by half"}, {"letter": "D", "text": "Add prednisone, continue"}, {"letter": "E", "text": "Stop allopurinol"}], "answer": "E", "explanation": "Any rash on allopurinol → stop (SCAR risk) → febuxostat.", "objective": "", "section": "Gout"}, {"id": "158", "group": 158, "stem": "Younger postmenopausal woman with high breast-cancer risk and low VTE risk → Niche agent:", "options": [{"letter": "A", "text": "Raloxifene"}, {"letter": "B", "text": "Denosumab"}, {"letter": "C", "text": "Teriparatide"}, {"letter": "D", "text": "Estrogen"}, {"letter": "E", "text": "Romosozumab"}], "answer": "A", "explanation": "Raloxifene: estrogen agonist in bone, antagonist in breast/uterus.", "objective": "", "section": "Osteoporosis"}, {"id": "159", "group": 159, "stem": "Acetaminophen overdose → Antidote:", "options": [{"letter": "A", "text": "Flumazenil"}, {"letter": "B", "text": "Naloxone"}, {"letter": "C", "text": "Activated charcoal"}, {"letter": "D", "text": "N-acetylcysteine"}, {"letter": "E", "text": "Fomepizole"}], "answer": "D", "explanation": "NAPQI-mediated hepatotoxicity → N-acetylcysteine.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "160", "group": 160, "stem": "Third-trimester pregnancy → NSAID risk:", "options": [{"letter": "A", "text": "Fetal goiter"}, {"letter": "B", "text": "Oligohydramnios reversal"}, {"letter": "C", "text": "Premature ductus arteriosus closure"}, {"letter": "D", "text": "Neural tube defect"}, {"letter": "E", "text": "Neonatal hypoglycemia"}], "answer": "C", "explanation": "NSAIDs are avoided in the 3rd trimester (ductus closure).", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "161", "group": 161, "stem": "Post-CABG patient with pain → Analgesic of choice:", "options": [{"letter": "A", "text": "Celecoxib"}, {"letter": "B", "text": "Naproxen"}, {"letter": "C", "text": "Ibuprofen"}, {"letter": "D", "text": "Acetaminophen"}, {"letter": "E", "text": "Ketorolac"}], "answer": "D", "explanation": "NSAID black box: CABG contraindication (MI/stroke). Aspirin is the one exception; acetaminophen is the fragile-patient drug.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "162", "group": 162, "stem": "Pregnant patient with any type of diabetes → Drug:", "options": [{"letter": "A", "text": "Semaglutide"}, {"letter": "B", "text": "Pioglitazone"}, {"letter": "C", "text": "Metformin"}, {"letter": "D", "text": "Glyburide"}, {"letter": "E", "text": "Insulin"}], "answer": "E", "explanation": "Insulin for pregnancy; needs fall 1st trimester, rise 2nd–3rd, drop postpartum.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "163", "group": 163, "stem": "Longest-acting basal with flexible dosing time and lowest nocturnal hypoglycemia → Insulin:", "options": [{"letter": "A", "text": "Detemir"}, {"letter": "B", "text": "Glargine U-100"}, {"letter": "C", "text": "NPH"}, {"letter": "D", "text": "Regular"}, {"letter": "E", "text": "Degludec"}], "answer": "E", "explanation": "Degludec — doses ≥8 h apart; changes take 3–4 days to show.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "164", "group": 164, "stem": "Rash on allopurinol or HLA-B*5801 positive → Next urate-lowering drug:", "options": [{"letter": "A", "text": "Febuxostat"}, {"letter": "B", "text": "Colchicine"}, {"letter": "C", "text": "Pegloticase"}, {"letter": "D", "text": "Probenecid"}, {"letter": "E", "text": "Anakinra"}], "answer": "A", "explanation": "Febuxostat is the alternate xanthine-oxidase inhibitor.", "objective": "", "section": "Gout"}, {"id": "165", "group": 165, "stem": "Pegloticase → Must screen before first infusion:", "options": [{"letter": "A", "text": "Latent TB"}, {"letter": "B", "text": "G6PD deficiency"}, {"letter": "C", "text": "Hepatitis B"}, {"letter": "D", "text": "HLA-B*5801"}, {"letter": "E", "text": "TPMT"}], "answer": "B", "explanation": "G6PD deficiency is a contraindication (hemolysis/methemoglobinemia); also pre-medicate for anaphylaxis.", "objective": "", "section": "Gout"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

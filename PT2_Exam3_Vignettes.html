@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Pharm II Exam 3 — Clinical Vignettes (Pain · Rheum · Endocrine)", "questions": [{"id": "1", "group": 1, "stem": "A 42-year-old woman with multiple sclerosis receives baclofen through an intrathecal pump. She arrives with a temperature of 39.6 °C, severe rigidity, confusion, and a generalized seizure. Her husband says the pump alarm sounded 2 days ago. What is the most likely cause?", "options": [{"letter": "A", "text": "Serotonin syndrome"}, {"letter": "B", "text": "Opioid withdrawal"}, {"letter": "C", "text": "Baclofen withdrawal"}, {"letter": "D", "text": "Malignant hyperthermia"}, {"letter": "E", "text": "Baclofen overdose"}], "answer": "C", "explanation": "Black box: abrupt baclofen withdrawal (especially intrathecal) → high fever, rigidity, seizures, hallucinations, rhabdomyolysis, death.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "1a", "group": 1, "stem": "What is the most important immediate intervention?", "options": [{"letter": "A", "text": "Give haloperidol"}, {"letter": "B", "text": "Give cyproheptadine"}, {"letter": "C", "text": "Restore baclofen delivery immediately"}, {"letter": "D", "text": "Give naloxone"}, {"letter": "E", "text": "Give dantrolene alone"}], "answer": "C", "explanation": "Restart baclofen (refill/repair the pump, oral/IV bridging) with supportive care; benzodiazepines help seizures.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "2", "group": 2, "stem": "A 30-year-old woman with type 1 diabetes and persistent asthma asks to switch her mealtime insulin to inhaled insulin. What is the correct response?", "options": [{"letter": "A", "text": "It is acceptable if she uses a spacer"}, {"letter": "B", "text": "It is acceptable with baseline spirometry"}, {"letter": "C", "text": "Inhaled insulin is contraindicated because of her asthma"}, {"letter": "D", "text": "It can replace her basal insulin as well"}, {"letter": "E", "text": "It is acceptable at half the usual dose"}], "answer": "C", "explanation": "Afrezza carries a boxed warning for bronchospasm → contraindicated in asthma/COPD; even eligible users need spirometry monitoring and still need basal insulin.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "3", "group": 3, "stem": "A 70-year-old woman on alendronate for 7 years reports 6 weeks of dull aching in her left thigh and groin without trauma. What should be suspected?", "options": [{"letter": "A", "text": "Hypocalcemia"}, {"letter": "B", "text": "Lumbar radiculopathy"}, {"letter": "C", "text": "Paget's disease"}, {"letter": "D", "text": "Atypical femoral fracture"}, {"letter": "E", "text": "Osteonecrosis of the jaw"}], "answer": "D", "explanation": "Prodromal thigh/groin pain on long-term bisphosphonate → atypical femoral fracture; image the femur.", "objective": "", "section": "Osteoporosis"}, {"id": "4", "group": 4, "stem": "A 70-year-old man with tophaceous gout has failed maximal allopurinol and febuxostat with persistent flares. Pegloticase is planned. Which screening is required first?", "options": [{"letter": "A", "text": "Latent TB"}, {"letter": "B", "text": "Hepatitis B"}, {"letter": "C", "text": "HLA-B*5801"}, {"letter": "D", "text": "G6PD deficiency"}, {"letter": "E", "text": "TPMT"}], "answer": "D", "explanation": "Pegloticase is contraindicated in G6PD deficiency (hemolysis, methemoglobinemia).", "objective": "", "section": "Gout"}, {"id": "4a", "group": 4, "stem": "During his second infusion he develops flushing, wheezing and hypotension. Which measure reduces this risk at future infusions?", "options": [{"letter": "A", "text": "Shorten the interval to weekly infusions"}, {"letter": "B", "text": "Give probenecid before each infusion"}, {"letter": "C", "text": "Give colchicine before each infusion"}, {"letter": "D", "text": "Pre-medicate with an antihistamine and corticosteroid"}, {"letter": "E", "text": "Switch to subcutaneous administration"}], "answer": "D", "explanation": "Anaphylaxis/infusion reactions → premedicate (antihistamine + acetaminophen + steroid); weekly methotrexate co-therapy also lowers reactions and raises response.", "objective": "", "section": "Gout"}, {"id": "5", "group": 5, "stem": "A 58-year-old woman on methimazole for Graves' disease is seen 4 weeks after starting. Which labs should guide dose adjustment at this visit?", "options": [{"letter": "A", "text": "TSH alone"}, {"letter": "B", "text": "Calcitonin"}, {"letter": "C", "text": "TPO antibodies"}, {"letter": "D", "text": "Thyroglobulin"}, {"letter": "E", "text": "Free T4 and total T3"}], "answer": "E", "explanation": "TSH stays suppressed for weeks to months and misleads early; follow FT4 + T3 every 4–6 weeks, reduce the dose 30–50% once normal.", "objective": "", "section": "Thyroid"}, {"id": "6", "group": 6, "stem": "A 72-year-old woman with fatigue, cold intolerance and constipation has a TSH of 45 mIU/L with a low free T4. She has coronary artery disease with stable angina. What is the most appropriate initial therapy?", "options": [{"letter": "A", "text": "Liothyronine"}, {"letter": "B", "text": "Full weight-based levothyroxine"}, {"letter": "C", "text": "IV levothyroxine"}, {"letter": "D", "text": "Low-dose levothyroxine"}, {"letter": "E", "text": "Desiccated thyroid extract"}], "answer": "D", "explanation": "Cardiac disease → start levothyroxine at 12.5–25 mcg and titrate slowly to avoid angina/arrhythmia.", "objective": "", "section": "Thyroid"}, {"id": "6a", "group": 6, "stem": "When should the dose be reassessed?", "options": [{"letter": "A", "text": "TSH in 1 week"}, {"letter": "B", "text": "Total T3 in 2 weeks"}, {"letter": "C", "text": "Free T4 in 3 days"}, {"letter": "D", "text": "TSH in 4–6 weeks"}, {"letter": "E", "text": "TSH in 6 months"}], "answer": "D", "explanation": "TSH takes 4–6 weeks to re-equilibrate after any start or change; then every 4–6 months, then annually.", "objective": "", "section": "Thyroid"}, {"id": "6b", "group": 6, "stem": "At recheck her TSH is still 30. She reports taking the tablet each morning with breakfast, her calcium carbonate and omeprazole. What is the best next step?", "options": [{"letter": "A", "text": "Take it on an empty stomach, separated from calcium and the PPI"}, {"letter": "B", "text": "Switch to IV levothyroxine"}, {"letter": "C", "text": "Add selenium"}, {"letter": "D", "text": "Switch to liothyronine"}, {"letter": "E", "text": "Double the dose immediately"}], "answer": "A", "explanation": "Levothyroxine: empty stomach 30–60 min before breakfast; separate 4 h from calcium, iron, antacids, PPIs/H₂ blockers.", "objective": "", "section": "Thyroid"}, {"id": "7", "group": 7, "stem": "A 29-year-old woman with SLE has 2 weeks of diffuse polyarthralgia with morning stiffness in both hands, wrists and knees; there is no muscle spasm. Medications: hydroxychloroquine, prednisone 5 mg daily, sertraline, omeprazole. Which addition is most appropriate?", "options": [{"letter": "A", "text": "Tramadol as needed"}, {"letter": "B", "text": "Cyclobenzaprine at bedtime"}, {"letter": "C", "text": "Ibuprofen after stopping omeprazole"}, {"letter": "D", "text": "Naproxen with food, continuing omeprazole"}, {"letter": "E", "text": "Topical diclofenac to each joint"}], "answer": "D", "explanation": "Diffuse inflammatory arthralgia → systemic NSAID short course with food; NSAID + steroid markedly raises GI-bleed risk, so keep the PPI. No spasm → no relaxant.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "7a", "group": 7, "stem": "Why is cyclobenzaprine a poor choice for her?", "options": [{"letter": "A", "text": "It blocks NSAID absorption"}, {"letter": "B", "text": "It interacts with hydroxychloroquine"}, {"letter": "C", "text": "Serotonin syndrome risk with sertraline"}, {"letter": "D", "text": "It worsens lupus nephritis"}, {"letter": "E", "text": "It raises glucose with prednisone"}], "answer": "C", "explanation": "Cyclobenzaprine (TCA-like) plus an SSRI → serotonin syndrome; it also sedates and treats spasm, which she does not have.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "8", "group": 8, "stem": "A 44-year-old woman with mild SLE has taken hydroxychloroquine for 4 years. Which monitoring is required?", "options": [{"letter": "A", "text": "Liver enzymes monthly"}, {"letter": "B", "text": "Chest x-ray yearly"}, {"letter": "C", "text": "CBC every 3 months"}, {"letter": "D", "text": "Urinalysis weekly"}, {"letter": "E", "text": "Retinal examination every 6–12 months"}], "answer": "E", "explanation": "HCQ has no marrow, renal or hepatic toxicity; retinal toxicity is the feared AE → eye exam at baseline then every 6–12 months.", "objective": "", "section": "SLE"}, {"id": "8a", "group": 8, "stem": "She becomes pregnant. What should happen to the hydroxychloroquine?", "options": [{"letter": "A", "text": "Switch to methotrexate"}, {"letter": "B", "text": "Stop it at conception"}, {"letter": "C", "text": "Continue it"}, {"letter": "D", "text": "Switch to leflunomide"}, {"letter": "E", "text": "Switch to mycophenolate"}], "answer": "C", "explanation": "HCQ is safe and antithrombotic in pregnancy; azathioprine is the usual add-on if more is needed.", "objective": "", "section": "SLE"}, {"id": "9", "group": 9, "stem": "A 25-year-old man with type 1 diabetes has gastroenteritis with vomiting; he has not eaten in 12 hours, glucose is 290 and blood ketones are moderate. He plans to skip his basal insulin because he is not eating. What is the correct advice?", "options": [{"letter": "A", "text": "Replace insulin with oral agents until well"}, {"letter": "B", "text": "Hold basal but continue meal boluses"}, {"letter": "C", "text": "Hold all insulin until he can eat"}, {"letter": "D", "text": "Continue basal insulin and add supplemental rapid-acting doses"}, {"letter": "E", "text": "Take half the basal and no bolus"}], "answer": "D", "explanation": "Basal insulin is never stopped in T1 — illness raises needs; supplemental rapid-acting 10–20% of TDD every 3–4 h, fluids, ketone checks; urgent care if vomiting persists or ketones are large.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "10", "group": 10, "stem": "A 63-year-old man has 12 hours of severe pain and swelling of the right first MTP joint. PMH: CKD stage 3b (eGFR 38), well-controlled diabetes. He is on day 4 of clarithromycin for pneumonia. The joint is red and warm; he is afebrile and the skin is intact. Which flare treatment is most appropriate?", "options": [{"letter": "A", "text": "Colchicine"}, {"letter": "B", "text": "Oral prednisone with a taper"}, {"letter": "C", "text": "Probenecid"}, {"letter": "D", "text": "Indomethacin"}, {"letter": "E", "text": "Allopurinol"}], "answer": "B", "explanation": "CKD + CYP450 inhibitor (clarithromycin) rules out colchicine; CKD rules out NSAIDs; no infection or uncontrolled DM → steroid. ULT is not started during a flare.", "objective": "", "section": "Gout"}, {"id": "10a", "group": 10, "stem": "Two weeks after the flare resolves he returns; this was his third flare in a year. What is the most appropriate next step?", "options": [{"letter": "A", "text": "Start febuxostat alone"}, {"letter": "B", "text": "Start pegloticase infusions"}, {"letter": "C", "text": "No urate-lowering therapy yet"}, {"letter": "D", "text": "Start probenecid alone"}, {"letter": "E", "text": "Start allopurinol with colchicine prophylaxis"}], "answer": "E", "explanation": "Frequent flares = ULT indication; allopurinol is first line even with CKD (dose-adjusted), started ≥2 weeks after a flare, always with prophylaxis.", "objective": "", "section": "Gout"}, {"id": "10b", "group": 10, "stem": "Three weeks after starting allopurinol he develops a diffuse maculopapular rash. What should be done?", "options": [{"letter": "A", "text": "Switch to probenecid"}, {"letter": "B", "text": "Continue and add an antihistamine"}, {"letter": "C", "text": "Add prednisone and continue allopurinol"}, {"letter": "D", "text": "Stop allopurinol and switch to febuxostat"}, {"letter": "E", "text": "Reduce the allopurinol dose by half"}], "answer": "D", "explanation": "Any rash on allopurinol → stop (risk of severe cutaneous reactions) → febuxostat; probenecid is contraindicated with CrCl <50.", "objective": "", "section": "Gout"}, {"id": "11", "group": 11, "stem": "A 66-year-old man with RA and NYHA class III heart failure has failed methotrexate plus sulfasalazine and hydroxychloroquine. Which biologic is most appropriate?", "options": [{"letter": "A", "text": "Infliximab"}, {"letter": "B", "text": "Golimumab"}, {"letter": "C", "text": "Adalimumab"}, {"letter": "D", "text": "Etanercept"}, {"letter": "E", "text": "Tocilizumab"}], "answer": "E", "explanation": "TNF inhibitors are contraindicated in heart failure → IL-6 receptor antagonist (tocilizumab) or IL-1 (anakinra).", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "11a", "group": 11, "stem": "Which adverse-effect pattern should be monitored on this agent?", "options": [{"letter": "A", "text": "Retinal toxicity"}, {"letter": "B", "text": "Pulmonary fibrosis"}, {"letter": "C", "text": "Hemorrhagic cystitis"}, {"letter": "D", "text": "Elevated LFTs, hypertension and hyperlipidemia"}, {"letter": "E", "text": "Nephrolithiasis"}], "answer": "D", "explanation": "Tocilizumab's signature AEs are ↑LFTs, hypertension and hyperlipidemia.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "12", "group": 12, "stem": "A 35-year-old woman with moderate SLE (arthritis, pleuritis) is on hydroxychloroquine and prednisone 15 mg daily. The rheumatologist wants a steroid-sparing agent and chooses belimumab. Which instruction is correct?", "options": [{"letter": "A", "text": "No live vaccines for 30 days before or during therapy"}, {"letter": "B", "text": "Check TPMT before the first dose"}, {"letter": "C", "text": "Obtain a retinal exam before each infusion"}, {"letter": "D", "text": "Stop hydroxychloroquine when belimumab starts"}, {"letter": "E", "text": "Give it only for lupus nephritis"}], "answer": "A", "explanation": "Belimumab (anti-BLyS) is an add-on for moderate disease; infusion reactions; no live vaccines 30 days before/during.", "objective": "", "section": "SLE"}, {"id": "13", "group": 13, "stem": "A 52-year-old woman with chronic low-back pain asks for 'something stronger than ibuprofen.' She has epilepsy controlled on levetiracetam and takes sertraline for depression. Which analgesic should be avoided?", "options": [{"letter": "A", "text": "Short-course naproxen"}, {"letter": "B", "text": "Topical lidocaine"}, {"letter": "C", "text": "Tramadol"}, {"letter": "D", "text": "Acetaminophen"}, {"letter": "E", "text": "Hydrocodone/acetaminophen"}], "answer": "C", "explanation": "Tramadol lowers the seizure threshold and is serotonergic (SSRI → serotonin syndrome); it is only partly reversed by naloxone.", "objective": "", "section": "Opioids"}, {"id": "13a", "group": 13, "stem": "She is given hydrocodone/acetaminophen for 5 days and calls reporting nausea and constipation, asking that an 'opioid allergy' be recorded. What is the best response?", "options": [{"letter": "A", "text": "Stop all opioids permanently"}, {"letter": "B", "text": "Document an opioid allergy in the chart"}, {"letter": "C", "text": "Switch to a fentanyl patch"}, {"letter": "D", "text": "Double the dose to overcome tolerance"}, {"letter": "E", "text": "Start a scheduled bowel regimen and an antiemetic"}], "answer": "E", "explanation": "N/V and constipation are expected class effects, not allergy; tolerance never develops to constipation, so a bowel regimen is started from day 1.", "objective": "", "section": "Opioids"}, {"id": "14", "group": 14, "stem": "A 31-year-old woman at 8 weeks of pregnancy has Graves' disease with palpitations (HR 120), tremor and heat intolerance. What should be given first for symptom control?", "options": [{"letter": "A", "text": "Thyroidectomy now"}, {"letter": "B", "text": "Radioactive iodine"}, {"letter": "C", "text": "Propranolol"}, {"letter": "D", "text": "Levothyroxine"}, {"letter": "E", "text": "Methimazole"}], "answer": "C", "explanation": "β-blocker bridges adrenergic symptoms immediately; thionamides take weeks; RAI is contraindicated in pregnancy.", "objective": "", "section": "Thyroid"}, {"id": "14a", "group": 14, "stem": "Which thionamide plan is correct for her pregnancy?", "options": [{"letter": "A", "text": "Propylthiouracil now, methimazole after the first trimester"}, {"letter": "B", "text": "Propylthiouracil only if storm develops"}, {"letter": "C", "text": "No thionamide until delivery"}, {"letter": "D", "text": "Radioactive iodine after the first trimester"}, {"letter": "E", "text": "Methimazole throughout pregnancy"}], "answer": "A", "explanation": "PTU in the 1st trimester (methimazole teratogenicity), then switch to methimazole (PTU hepatotoxicity).", "objective": "", "section": "Thyroid"}, {"id": "14b", "group": 14, "stem": "Six weeks later she calls with fever and a severe sore throat. What should she be told?", "options": [{"letter": "A", "text": "Halve the dose"}, {"letter": "B", "text": "Switch to methimazole today"}, {"letter": "C", "text": "Check TSH only"}, {"letter": "D", "text": "Stop the thionamide and get a CBC today"}, {"letter": "E", "text": "Continue it and start amoxicillin"}], "answer": "D", "explanation": "Fever/sore throat/mouth ulcers on a thionamide = possible agranulocytosis → stop the drug and check a CBC.", "objective": "", "section": "Thyroid"}, {"id": "15", "group": 15, "stem": "A 60-year-old woman with chronic pain has been on oxycodone ER for a year. She calls saying she ran out 2 days ago and now has sweating, runny nose, dilated pupils, diarrhea and a heart rate of 110. What best explains her symptoms?", "options": [{"letter": "A", "text": "Opioid overdose"}, {"letter": "B", "text": "Anticholinergic toxicity"}, {"letter": "C", "text": "Serotonin syndrome"}, {"letter": "D", "text": "Opioid withdrawal"}, {"letter": "E", "text": "Sepsis"}], "answer": "D", "explanation": "Withdrawal is the mirror image of opioid effects: mydriasis, rhinorrhea, diaphoresis, diarrhea, tachycardia.", "objective": "", "section": "Opioids"}, {"id": "15a", "group": 15, "stem": "Which prescription practice applies to her ER oxycodone?", "options": [{"letter": "A", "text": "Use it for acute breakthrough pain"}, {"letter": "B", "text": "Refills may be phoned in"}, {"letter": "C", "text": "Start it in opioid-naïve patients"}, {"letter": "D", "text": "Combine it with naltrexone daily"}, {"letter": "E", "text": "Tablets must never be crushed or chewed"}], "answer": "E", "explanation": "Crushing/chewing ER oxycodone → lethal dose dump; ER products are for chronic pain; Schedule II = written, no refills.", "objective": "", "section": "Opioids"}, {"id": "16", "group": 16, "stem": "A 56-year-old woman with osteopenia and a FRAX hip risk of 4% has a strong family history of breast cancer and a prior DVT. Which agent is contraindicated for her?", "options": [{"letter": "A", "text": "Raloxifene"}, {"letter": "B", "text": "Denosumab"}, {"letter": "C", "text": "Zoledronic acid"}, {"letter": "D", "text": "Teriparatide"}, {"letter": "E", "text": "Alendronate"}], "answer": "A", "explanation": "Raloxifene (and estrogen) are contraindicated with a VTE history — black box DVT/PE — despite its breast-cancer niche.", "objective": "", "section": "Osteoporosis"}, {"id": "17", "group": 17, "stem": "A 49-year-old man has a gout flare in his left knee that began yesterday. He has normal renal function, takes no other medications, has no infection, and vomits with oral intake. What is the best treatment?", "options": [{"letter": "A", "text": "Intra-articular corticosteroid injection"}, {"letter": "B", "text": "Oral allopurinol"}, {"letter": "C", "text": "Oral colchicine"}, {"letter": "D", "text": "IV pegloticase"}, {"letter": "E", "text": "Oral naproxen"}], "answer": "A", "explanation": "One or two joints and unable to take PO → intra-articular steroid.", "objective": "", "section": "Gout"}, {"id": "18", "group": 18, "stem": "A 66-year-old man has hyperthyroidism from a toxic multinodular goiter; he has no eye disease. Which definitive therapy is preferred?", "options": [{"letter": "A", "text": "Radioactive iodine"}, {"letter": "B", "text": "Propranolol alone"}, {"letter": "C", "text": "Levothyroxine"}, {"letter": "D", "text": "Lifelong methimazole"}, {"letter": "E", "text": "Teprotumumab"}], "answer": "A", "explanation": "Toxic adenoma/MNG does not remit on thionamides → I-131 (pretreat with a β-blocker; stop methimazole 2–3 days before).", "objective": "", "section": "Thyroid"}, {"id": "18a", "group": 18, "stem": "Four months after treatment he is fatigued with a TSH of 22. What is the appropriate management?", "options": [{"letter": "A", "text": "Observation only"}, {"letter": "B", "text": "Start lifelong levothyroxine"}, {"letter": "C", "text": "Repeat radioactive iodine"}, {"letter": "D", "text": "Restart methimazole"}, {"letter": "E", "text": "Start liothyronine"}], "answer": "B", "explanation": "Most patients become hypothyroid after RAI → lifelong levothyroxine.", "objective": "", "section": "Thyroid"}, {"id": "19", "group": 19, "stem": "A 31-year-old woman with well-controlled RA on methotrexate and hydroxychloroquine wants to conceive in about 6 months. What change is most appropriate now?", "options": [{"letter": "A", "text": "Replace methotrexate with cyclophosphamide"}, {"letter": "B", "text": "Stop methotrexate now; continue hydroxychloroquine"}, {"letter": "C", "text": "Continue methotrexate until a positive test"}, {"letter": "D", "text": "Stop both drugs immediately"}, {"letter": "E", "text": "Replace methotrexate with leflunomide"}], "answer": "B", "explanation": "Methotrexate (Category X) is stopped ≥3 months before conception; hydroxychloroquine and sulfasalazine are the pregnancy-compatible DMARDs.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "20", "group": 20, "stem": "A 71-year-old woman with osteoarthritis reports 3 weeks of aching pain localized to her right knee, worse with stairs. PMH: atrial fibrillation on apixaban, peptic ulcer 5 years ago, CKD stage 3a (eGFR 48), hypertension. She takes omeprazole and amlodipine. The knee is mildly swollen without warmth. Which analgesic is most appropriate to start?", "options": [{"letter": "A", "text": "Topical diclofenac gel to the knee"}, {"letter": "B", "text": "Tramadol as needed for pain"}, {"letter": "C", "text": "Oral naproxen twice daily with food"}, {"letter": "D", "text": "Oral celecoxib once daily with food"}, {"letter": "E", "text": "Cyclobenzaprine at bedtime"}], "answer": "A", "explanation": "Localized OA pain in an elderly patient on an anticoagulant with GI and renal risk → topical NSAID first (best benefit–harm, minimal systemic absorption). Systemic NSAIDs are unsafe here; no spasm, so no relaxant; opioids are last.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "20a", "group": 20, "stem": "She asks about a non-NSAID topical she can use long term. What counseling applies to capsaicin?", "options": [{"letter": "A", "text": "Stop if any warmth is felt at the site"}, {"letter": "B", "text": "Expect relief within minutes of applying"}, {"letter": "C", "text": "Apply only when pain is severe"}, {"letter": "D", "text": "The burning fades with continued scheduled use"}, {"letter": "E", "text": "Avoid it because of her sulfa allergy"}], "answer": "D", "explanation": "Capsaicin depletes substance P: scheduled TID–QID, burning subsides over 1–2 weeks, not for immediate relief.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "21", "group": 21, "stem": "A 34-year-old man has acute low-back muscle spasm after lifting furniture. He had an MI 3 months ago complicated by an arrhythmia and is on metoprolol and aspirin. Which muscle relaxant is most appropriate?", "options": [{"letter": "A", "text": "Tizanidine"}, {"letter": "B", "text": "Cyclobenzaprine"}, {"letter": "C", "text": "Carisoprodol"}, {"letter": "D", "text": "Methocarbamol"}, {"letter": "E", "text": "Baclofen"}], "answer": "D", "explanation": "Cyclobenzaprine is TCA-like and contraindicated after recent MI/arrhythmia; carisoprodol is abuse-prone; baclofen/tizanidine are for spasticity. Methocarbamol (or metaxalone) fits.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "21a", "group": 21, "stem": "How should the relaxant course be planned?", "options": [{"letter": "A", "text": "Continue for at least 3 months"}, {"letter": "B", "text": "Add cyclobenzaprine at night for sleep"}, {"letter": "C", "text": "Double the dose if no relief in 24 hours"}, {"letter": "D", "text": "Short course with reassessment in 2–3 weeks"}, {"letter": "E", "text": "Add scheduled tramadol for synergy"}], "answer": "D", "explanation": "All muscle relaxants are CNS depressants intended for short acute courses; re-evaluate at 2–3 weeks.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "22", "group": 22, "stem": "A 61-year-old man with type 2 diabetes (A1C 6.9% on metformin) has heart failure with reduced ejection fraction (EF 35%) on guideline therapy; eGFR is 55. What should be added?", "options": [{"letter": "A", "text": "Pioglitazone"}, {"letter": "B", "text": "Saxagliptin"}, {"letter": "C", "text": "Insulin glargine"}, {"letter": "D", "text": "Empagliflozin"}, {"letter": "E", "text": "Glipizide"}], "answer": "D", "explanation": "Heart failure → SGLT2i regardless of A1C; pioglitazone and saxagliptin worsen HF.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "22a", "group": 22, "stem": "He is scheduled for a colonoscopy with bowel prep and overnight NPO status. Which instruction is correct?", "options": [{"letter": "A", "text": "Double the metformin dose that day"}, {"letter": "B", "text": "Start insulin for the day"}, {"letter": "C", "text": "Hold metformin only, continue empagliflozin"}, {"letter": "D", "text": "Continue all medications unchanged"}, {"letter": "E", "text": "Hold empagliflozin before the procedure"}], "answer": "E", "explanation": "SGLT2i are held when sick, NPO or peri-procedure to prevent euglycemic DKA.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "22b", "group": 22, "stem": "Months later he presents with nausea, abdominal pain, Kussmaul breathing, an anion-gap acidosis with ketones, and a glucose of 190. What is the diagnosis?", "options": [{"letter": "A", "text": "Euglycemic DKA from the SGLT2 inhibitor"}, {"letter": "B", "text": "Metformin lactic acidosis"}, {"letter": "C", "text": "Sulfonylurea hypoglycemia"}, {"letter": "D", "text": "Starvation ketosis only"}, {"letter": "E", "text": "Hyperosmolar hyperglycemic state"}], "answer": "A", "explanation": "Ketoacidosis with near-normal glucose on an SGLT2i = euglycemic DKA; lactic acidosis has no ketones.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "23", "group": 23, "stem": "A 48-year-old man presents with polyuria, polydipsia and a 7-kg unintentional weight loss over 2 months. A1C is 11.8% and random glucose is 340; urine ketones are negative. What is the most appropriate initial therapy?", "options": [{"letter": "A", "text": "Start semaglutide alone"}, {"letter": "B", "text": "Start metformin plus sitagliptin"}, {"letter": "C", "text": "Start pioglitazone"}, {"letter": "D", "text": "Start metformin alone"}, {"letter": "E", "text": "Start insulin"}], "answer": "E", "explanation": "Catabolic features, A1C >10% or glucose ≥300 → insulin now; negative ketones change nothing. Send autoantibodies/C-peptide if type is uncertain.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "24", "group": 24, "stem": "A 74-year-old woman with CKD stage 4 (eGFR 25) has a vertebral compression fracture and a T-score of −3.0. Which agent is most appropriate?", "options": [{"letter": "A", "text": "Denosumab"}, {"letter": "B", "text": "Estrogen"}, {"letter": "C", "text": "Raloxifene"}, {"letter": "D", "text": "Alendronate"}, {"letter": "E", "text": "Zoledronic acid"}], "answer": "A", "explanation": "Bisphosphonates need renal function → denosumab; correct calcium/vitamin D first and check calcium before each dose (hypocalcemia is worst in CKD).", "objective": "", "section": "Osteoporosis"}, {"id": "24a", "group": 24, "stem": "She misses her follow-up and her next dose is 8 months late. What should she understand?", "options": [{"letter": "A", "text": "Calcium alone will maintain her gains"}, {"letter": "B", "text": "Delaying doses risks rapid bone loss and vertebral fractures"}, {"letter": "C", "text": "A late dose is harmless"}, {"letter": "D", "text": "Therapy can simply be stopped"}, {"letter": "E", "text": "She can switch to oral alendronate instead"}], "answer": "B", "explanation": "Denosumab is never stopped or delayed without a plan — rebound vertebral fractures; transition to a bisphosphonate if stopping.", "objective": "", "section": "Osteoporosis"}, {"id": "25", "group": 25, "stem": "A 40-year-old woman who smokes has Graves' disease with moderate-to-severe proptosis and diplopia. Which treatment plan is most appropriate?", "options": [{"letter": "A", "text": "Levothyroxine"}, {"letter": "B", "text": "Radioactive iodine now"}, {"letter": "C", "text": "Methimazole, and avoid radioactive iodine"}, {"letter": "D", "text": "Observation"}, {"letter": "E", "text": "Propranolol alone"}], "answer": "C", "explanation": "RAI can worsen thyroid eye disease → thionamide or surgery; smoking cessation; teprotumumab for the eye disease.", "objective": "", "section": "Thyroid"}, {"id": "26", "group": 26, "stem": "A 17-year-old girl with type 1 diabetes on glargine 24 units at bedtime and lispro with meals has fasting readings of 200–220 for a week. Her CGM shows glucose falling to 55 between 2 and 3 a.m. and then rising steeply. What change is most appropriate?", "options": [{"letter": "A", "text": "Raise the glargine dose"}, {"letter": "B", "text": "Move glargine to the morning and raise it"}, {"letter": "C", "text": "Lower the glargine dose"}, {"letter": "D", "text": "Add NPH at bedtime"}, {"letter": "E", "text": "Strengthen the correction factor"}], "answer": "C", "explanation": "Nocturnal hypoglycemia with rebound → reduce overnight basal 10–20%; never raise basal for a fasting high with a visible 2–3 a.m. low.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "26a", "group": 26, "stem": "If instead her CGM had shown a stable 120 until 4 a.m. followed by a steady rise to breakfast, what would be appropriate?", "options": [{"letter": "A", "text": "Switch to regular insulin"}, {"letter": "B", "text": "Add a bedtime snack"}, {"letter": "C", "text": "Decrease basal"}, {"letter": "D", "text": "Increase basal or the early-morning pump rate"}, {"letter": "E", "text": "Skip the breakfast bolus"}], "answer": "D", "explanation": "Dawn phenomenon → more basal / shift timing; pumps handle it best by raising the 2–6 a.m. rate.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "27", "group": 27, "stem": "A 67-year-old man treated with hydralazine for 2 years develops arthralgia, pleuritic chest pain and fever. ANA and antihistone antibodies are positive; anti-dsDNA is negative and urinalysis is normal. What is the most appropriate initial management?", "options": [{"letter": "A", "text": "Start high-dose prednisone"}, {"letter": "B", "text": "Start mycophenolate"}, {"letter": "C", "text": "Add hydroxychloroquine and continue hydralazine"}, {"letter": "D", "text": "Discontinue hydralazine"}, {"letter": "E", "text": "Start cyclophosphamide"}], "answer": "D", "explanation": "Drug-induced lupus (hydralazine, procainamide high risk): antihistone+, dsDNA−, kidneys spared → stop the drug; it resolves.", "objective": "", "section": "SLE"}, {"id": "28", "group": 28, "stem": "A 78-year-old woman with type 2 diabetes (eGFR 40) who lives alone takes glyburide and lisinopril. A neighbor found her confused and unable to swallow safely; EMS recorded a glucose of 38. Which rescue therapy should she have had at home?", "options": [{"letter": "A", "text": "Regular insulin"}, {"letter": "B", "text": "Oral glucose gel"}, {"letter": "C", "text": "Glucagon (nasal or injectable) with a trained contact"}, {"letter": "D", "text": "Glucose tablets"}, {"letter": "E", "text": "Fruit juice"}], "answer": "C", "explanation": "Level 3 hypoglycemia (needs help, can't swallow) → glucagon; prescribe for everyone at risk and train a household member.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "28a", "group": 28, "stem": "What long-term change is most appropriate?", "options": [{"letter": "A", "text": "Discontinue glyburide"}, {"letter": "B", "text": "Add basal insulin"}, {"letter": "C", "text": "Add glipizide at bedtime"}, {"letter": "D", "text": "Reduce glyburide by half"}, {"letter": "E", "text": "Change glyburide to glipizide"}], "answer": "A", "explanation": "Elderly, CKD, lives alone = high hypoglycemia risk → non-hypoglycemic agents only; glyburide's active metabolite makes it the worst choice in CKD.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "29", "group": 29, "stem": "A 70-year-old man with type 2 diabetes on metformin (eGFR 45) is scheduled for a CT angiogram with iodinated contrast. What is the correct plan?", "options": [{"letter": "A", "text": "Hold metformin for 2 weeks afterward regardless"}, {"letter": "B", "text": "Stop metformin permanently"}, {"letter": "C", "text": "Hold metformin and recheck renal function afterward"}, {"letter": "D", "text": "Switch to glyburide for that day"}, {"letter": "E", "text": "Continue metformin with extra fluids only"}], "answer": "C", "explanation": "eGFR 30–60 + iodinated contrast → hold metformin, recheck eGFR at 48 hours before restarting (lactic acidosis risk).", "objective": "", "section": "Type 2 Diabetes"}, {"id": "30", "group": 30, "stem": "A 55-year-old woman with type 2 diabetes (A1C 8.4% on metformin, BMI 36) had an ischemic stroke last year. She has no heart failure and eGFR is 80. Which agent should be added?", "options": [{"letter": "A", "text": "NPH insulin"}, {"letter": "B", "text": "Pioglitazone"}, {"letter": "C", "text": "Sitagliptin"}, {"letter": "D", "text": "Glimepiride"}, {"letter": "E", "text": "Semaglutide"}], "answer": "E", "explanation": "ASCVD → GLP-1 RA with proven CV benefit (semaglutide/dulaglutide/liraglutide) or SGLT2i; semaglutide also gives major weight loss.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "30a", "group": 30, "stem": "Before prescribing, she mentions that her mother had medullary thyroid carcinoma. Which agent is the best alternative?", "options": [{"letter": "A", "text": "Exenatide"}, {"letter": "B", "text": "Empagliflozin"}, {"letter": "C", "text": "Tirzepatide"}, {"letter": "D", "text": "Liraglutide"}, {"letter": "E", "text": "Dulaglutide"}], "answer": "B", "explanation": "GLP-1 RAs and tirzepatide carry a boxed warning for MTC/MEN2 → use the other cardioprotective class, an SGLT2i.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "31", "group": 31, "stem": "A 68-year-old man with end-stage renal disease on hemodialysis has severe pain from a pathologic femur fracture. He is opioid-tolerant on oral oxycodone, with persistent nausea and poor pain control. Which opioid is preferred for ongoing management?", "options": [{"letter": "A", "text": "Tramadol"}, {"letter": "B", "text": "Fentanyl"}, {"letter": "C", "text": "Codeine"}, {"letter": "D", "text": "Meperidine"}, {"letter": "E", "text": "Morphine"}], "answer": "B", "explanation": "Fentanyl has no active metabolites and is preferred in renal failure; morphine's metabolites accumulate; meperidine's toxic metabolite → seizures.", "objective": "", "section": "Opioids"}, {"id": "31a", "group": 31, "stem": "He is switched to a transdermal patch. Which counseling point is most important for the household?", "options": [{"letter": "A", "text": "Apply a heating pad to speed relief"}, {"letter": "B", "text": "Used patches remain dangerous to children and pets"}, {"letter": "C", "text": "Cut the patch in half to lower the dose"}, {"letter": "D", "text": "Replace the patch every 24 hours"}, {"letter": "E", "text": "Expect pain relief within 15 minutes"}], "answer": "B", "explanation": "Patches are changed every 72 hours; used patches still carry lethal drug — fold and dispose safely.", "objective": "", "section": "Opioids"}, {"id": "31b", "group": 31, "stem": "Three days later he is found with a respiratory rate of 5 and pinpoint pupils. What is the best management?", "options": [{"letter": "A", "text": "Oxygen and observation only"}, {"letter": "B", "text": "Activated charcoal"}, {"letter": "C", "text": "Flumazenil"}, {"letter": "D", "text": "Oral naltrexone"}, {"letter": "E", "text": "Naloxone, repeated as needed"}], "answer": "E", "explanation": "Opioid overdose → naloxone; it is short-acting, so a long-acting opioid (patch) needs repeat doses or an infusion.", "objective": "", "section": "Opioids"}, {"id": "32", "group": 32, "stem": "A 6-year-old boy has fever and body aches 3 days into chickenpox. Which antipyretic should be used?", "options": [{"letter": "A", "text": "Ketorolac"}, {"letter": "B", "text": "Aspirin"}, {"letter": "C", "text": "Acetaminophen"}, {"letter": "D", "text": "Celecoxib"}, {"letter": "E", "text": "Indomethacin"}], "answer": "C", "explanation": "Aspirin in children with viral illness or recent varicella → Reye syndrome; acetaminophen (or ibuprofen) instead.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "32a", "group": 32, "stem": "What condition does avoiding aspirin here prevent?", "options": [{"letter": "A", "text": "Reye syndrome"}, {"letter": "B", "text": "Stevens-Johnson syndrome"}, {"letter": "C", "text": "Kawasaki disease"}, {"letter": "D", "text": "Serotonin syndrome"}, {"letter": "E", "text": "Nephrotic syndrome"}], "answer": "A", "explanation": "Reye syndrome — hepatic failure and encephalopathy after aspirin during viral illness.", "objective": "", "section": "MSK Pain & Muscle Relaxants"}, {"id": "33", "group": 33, "stem": "A 55-year-old woman on weekly methotrexate for RA develops 3 weeks of dry cough, progressive dyspnea and low-grade fever; chest x-ray shows new bilateral interstitial infiltrates. What is the most likely cause?", "options": [{"letter": "A", "text": "Rheumatoid pleural effusion"}, {"letter": "B", "text": "Pulmonary embolism"}, {"letter": "C", "text": "Methotrexate pneumonitis"}, {"letter": "D", "text": "Hydroxychloroquine toxicity"}, {"letter": "E", "text": "Community-acquired pneumonia"}], "answer": "C", "explanation": "Methotrexate pulmonary toxicity → stop the drug; baseline CXR is obtained before MTX for this reason.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "33a", "group": 33, "stem": "A pharmacy review finds she was dispensed methotrexate as a daily dose. Why does this matter?", "options": [{"letter": "A", "text": "Daily dosing needs no folic acid"}, {"letter": "B", "text": "Daily dosing is a potentially lethal error"}, {"letter": "C", "text": "Daily dosing works faster with no added risk"}, {"letter": "D", "text": "Daily dosing is standard for RA"}, {"letter": "E", "text": "Daily dosing reduces liver toxicity"}], "answer": "B", "explanation": "Methotrexate for RA is WEEKLY; daily dosing causes fatal marrow and GI toxicity.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "34", "group": 34, "stem": "A 68-year-old woman has a DXA T-score of −2.7 at the femoral neck. She has GERD on omeprazole, a 25-OH vitamin D of 24 ng/mL, eGFR 70, and no fractures. What should be addressed before starting an antiresorptive?", "options": [{"letter": "A", "text": "Start teriparatide now"}, {"letter": "B", "text": "Replete vitamin D and give calcium citrate"}, {"letter": "C", "text": "Give calcium carbonate with vitamin D"}, {"letter": "D", "text": "Start raloxifene now"}, {"letter": "E", "text": "Start romosozumab now"}], "answer": "B", "explanation": "Calcium and vitamin D must be adequate before any antiresorptive; on a PPI, calcium citrate (no acid needed) replaces carbonate.", "objective": "", "section": "Osteoporosis"}, {"id": "34a", "group": 34, "stem": "Endoscopy shows an esophageal stricture. Which osteoporosis drug is most appropriate?", "options": [{"letter": "A", "text": "Alendronate weekly"}, {"letter": "B", "text": "Risedronate weekly"}, {"letter": "C", "text": "Zoledronic acid IV yearly"}, {"letter": "D", "text": "Raloxifene daily"}, {"letter": "E", "text": "Oral ibandronate monthly"}], "answer": "C", "explanation": "Esophageal abnormality contraindicates oral bisphosphonates → IV zoledronic acid (or denosumab).", "objective": "", "section": "Osteoporosis"}, {"id": "34b", "group": 34, "stem": "After 5 years she has had no fractures and remains at low-to-moderate risk. What is the appropriate plan?", "options": [{"letter": "A", "text": "Continue indefinitely"}, {"letter": "B", "text": "Add teriparatide"}, {"letter": "C", "text": "Drug holiday with periodic reassessment"}, {"letter": "D", "text": "Switch to denosumab"}, {"letter": "E", "text": "Switch to romosozumab"}], "answer": "C", "explanation": "Bisphosphonates persist in bone → holiday after 3–5 years for low/moderate risk; continue for prior hip/vertebral fracture, very low BMD, or steroids.", "objective": "", "section": "Osteoporosis"}, {"id": "35", "group": 35, "stem": "A 38-year-old woman has 6 months of symmetric polyarthritis of the hands and wrists with 2 hours of morning stiffness; RF and anti-CCP are positive with erosions on x-ray. Hepatitis B/C and TB screening are negative; she uses reliable contraception and does not drink alcohol. Which initial regimen is most appropriate?", "options": [{"letter": "A", "text": "Prednisone 40 mg daily alone"}, {"letter": "B", "text": "Hydroxychloroquine plus infliximab"}, {"letter": "C", "text": "Weekly methotrexate with daily folic acid plus a low-dose prednisone bridge"}, {"letter": "D", "text": "Etanercept alone"}, {"letter": "E", "text": "Naproxen alone"}], "answer": "C", "explanation": "Early aggressive DMARD therapy prevents irreversible damage; MTX is the anchor, steroids/NSAIDs only bridge until it works (3–6 weeks). Infliximab must be paired with MTX.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "35a", "group": 35, "stem": "Which monitoring is required at 4 weeks and then every 2–3 months?", "options": [{"letter": "A", "text": "Retinal examination"}, {"letter": "B", "text": "TSH and free T4"}, {"letter": "C", "text": "Urinalysis"}, {"letter": "D", "text": "CBC and CMP"}, {"letter": "E", "text": "Fasting lipid panel"}], "answer": "D", "explanation": "Methotrexate → pancytopenia and hepatotoxicity (persistent ↑LFTs → biopsy); baseline CXR for lung toxicity.", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "35b", "group": 35, "stem": "At 6 months she has an inadequate response and adalimumab is planned. What must be confirmed before starting it?", "options": [{"letter": "A", "text": "Negative latent TB screen"}, {"letter": "B", "text": "Negative HLA-B*5801"}, {"letter": "C", "text": "Normal eye exam"}, {"letter": "D", "text": "Normal TPMT activity"}, {"letter": "E", "text": "Normal G6PD level"}], "answer": "A", "explanation": "TB screening is non-negotiable before TNF inhibitors; also hepatitis B/C and vaccine update (no live vaccines on therapy).", "objective": "", "section": "Rheumatoid Arthritis"}, {"id": "36", "group": 36, "stem": "A 28-year-old woman with type 1 diabetes on an insulin pump has an unexplained glucose of 380 that does not fall after a pump bolus. She feels nauseated. What should she do first?", "options": [{"letter": "A", "text": "Drink juice and recheck in 4 hours"}, {"letter": "B", "text": "Use glucagon"}, {"letter": "C", "text": "Inject rapid-acting insulin by pen, change the infusion set, and check ketones"}, {"letter": "D", "text": "Give a larger bolus through the pump"}, {"letter": "E", "text": "Suspend insulin until glucose falls"}], "answer": "C", "explanation": "Unexplained high on a pump = site failure; with no long-acting insulin on board DKA develops quickly → inject, replace the set, check ketones.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "37", "group": 37, "stem": "A 45-year-old man is entering an opioid-treatment program and will start methadone. Which baseline test is required?", "options": [{"letter": "A", "text": "ECG"}, {"letter": "B", "text": "Liver function tests"}, {"letter": "C", "text": "TSH"}, {"letter": "D", "text": "Complete blood count"}, {"letter": "E", "text": "Spirometry"}], "answer": "A", "explanation": "Methadone prolongs the QT interval → ECG at initiation and with dose changes; check K⁺ and Mg²⁺.", "objective": "", "section": "Opioids"}, {"id": "37a", "group": 37, "stem": "Two months after a dose increase he has an episode of syncope. What is the most likely cause?", "options": [{"letter": "A", "text": "Hypoglycemia"}, {"letter": "B", "text": "Opioid withdrawal"}, {"letter": "C", "text": "Seizure from lowered threshold"}, {"letter": "D", "text": "Torsades de pointes"}, {"letter": "E", "text": "Serotonin syndrome"}], "answer": "D", "explanation": "Methadone QT prolongation → torsades; correct electrolytes and reassess dosing.", "objective": "", "section": "Opioids"}, {"id": "38", "group": 38, "stem": "A 58-year-old woman of Han Chinese ancestry with tophaceous gout is about to start urate-lowering therapy. Which test should be obtained before allopurinol?", "options": [{"letter": "A", "text": "TPMT"}, {"letter": "B", "text": "G6PD"}, {"letter": "C", "text": "HLA-DR4"}, {"letter": "D", "text": "HLA-B27"}, {"letter": "E", "text": "HLA-B*5801"}], "answer": "E", "explanation": "HLA-B*5801 carriers (Chinese, Thai, Korean, African American) have high risk of severe cutaneous reactions → never allopurinol; use febuxostat.", "objective": "", "section": "Gout"}, {"id": "39", "group": 39, "stem": "A 20-year-old man (70 kg) is newly diagnosed with type 1 diabetes after mild DKA and is being discharged. Which initial regimen is most appropriate?", "options": [{"letter": "A", "text": "Regular insulin 35 units at breakfast only"}, {"letter": "B", "text": "Glargine ~18 units nightly plus lispro with meals"}, {"letter": "C", "text": "NPH 35 units every morning alone"}, {"letter": "D", "text": "Sliding-scale lispro only, no basal"}, {"letter": "E", "text": "Glargine 35 units plus lispro 35 units daily"}], "answer": "B", "explanation": "TDD 0.4–0.5 u/kg ≈ 35 u → split 50/50: ~17–18 u basal (glargine/degludec) + ~17 u rapid analog across meals.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "39a", "group": 39, "stem": "What insulin-to-carbohydrate ratio should he start with?", "options": [{"letter": "A", "text": "1 unit per 10 g"}, {"letter": "B", "text": "1 unit per 30 g"}, {"letter": "C", "text": "1 unit per 5 g"}, {"letter": "D", "text": "1 unit per 50 g"}, {"letter": "E", "text": "1 unit per 15 g"}], "answer": "E", "explanation": "500 rule: 500 ÷ 35 ≈ 15 → 1:15.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "39b", "group": 39, "stem": "What correction factor should he start with?", "options": [{"letter": "A", "text": "1 unit lowers glucose about 15 mg/dL"}, {"letter": "B", "text": "1 unit lowers glucose about 50 mg/dL"}, {"letter": "C", "text": "1 unit lowers glucose about 180 mg/dL"}, {"letter": "D", "text": "1 unit lowers glucose about 25 mg/dL"}, {"letter": "E", "text": "1 unit lowers glucose about 100 mg/dL"}], "answer": "B", "explanation": "1800 rule: 1800 ÷ 35 ≈ 50.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "40", "group": 40, "stem": "A 26-year-old woman with SLE on hydroxychloroquine develops leg edema, new proteinuria with red-cell casts, a rising creatinine, high anti-dsDNA and low C3/C4. Which induction regimen is most appropriate?", "options": [{"letter": "A", "text": "Sulfasalazine"}, {"letter": "B", "text": "Etanercept"}, {"letter": "C", "text": "High-dose prednisone plus mycophenolate"}, {"letter": "D", "text": "Low-dose prednisone plus hydroxychloroquine only"}, {"letter": "E", "text": "Naproxen plus prednisone 5 mg"}], "answer": "C", "explanation": "Lupus nephritis is organ-threatening → high-dose steroids (1–2 mg/kg/day) plus mycophenolate or IV cyclophosphamide; HCQ continues.", "objective": "", "section": "SLE"}, {"id": "40a", "group": 40, "stem": "She is treated instead with IV cyclophosphamide. Two months later she has gross hematuria with no casts and a stable creatinine. What is the most likely cause?", "options": [{"letter": "A", "text": "Lupus nephritis flare"}, {"letter": "B", "text": "Hemorrhagic cystitis"}, {"letter": "C", "text": "Renal vein thrombosis"}, {"letter": "D", "text": "Steroid-induced UTI"}, {"letter": "E", "text": "Mycophenolate toxicity"}], "answer": "B", "explanation": "Cyclophosphamide → hemorrhagic cystitis; hydrate, void frequently, monitor UA; limit course to 3–6 months.", "objective": "", "section": "SLE"}, {"id": "40b", "group": 40, "stem": "Maintenance with azathioprine is planned. What must be checked first?", "options": [{"letter": "A", "text": "G6PD"}, {"letter": "B", "text": "Spirometry"}, {"letter": "C", "text": "HLA-B*5801"}, {"letter": "D", "text": "Retinal exam"}, {"letter": "E", "text": "TPMT genotype or activity"}], "answer": "E", "explanation": "TPMT deficiency → severe myelosuppression; CBC weekly for a month, then every 3 months.", "objective": "", "section": "SLE"}, {"id": "41", "group": 41, "stem": "A 48-year-old man has taken prednisone 10 mg daily for 8 months for an autoimmune condition. DXA shows a T-score of −2.6. What is the most appropriate management?", "options": [{"letter": "A", "text": "Observe until age 70"}, {"letter": "B", "text": "Start alendronate"}, {"letter": "C", "text": "Start raloxifene"}, {"letter": "D", "text": "Start testosterone"}, {"letter": "E", "text": "Start calcitonin"}], "answer": "B", "explanation": "Glucocorticoids >5 mg for >3 months are the most common drug cause of osteoporosis; screen even young or male patients; bisphosphonate first line (teriparatide for high-risk GIOP).", "objective": "", "section": "Osteoporosis"}, {"id": "42", "group": 42, "stem": "A 50-year-old man with type 2 diabetes (100 kg) takes metformin and insulin glargine 60 units nightly. Fasting glucose is 105–120, but A1C is 8.9% and his bedtime readings of 240–280 fall sharply by morning. What is the best next step?", "options": [{"letter": "A", "text": "Add sitagliptin"}, {"letter": "B", "text": "Add glipizide"}, {"letter": "C", "text": "Add pioglitazone"}, {"letter": "D", "text": "Increase glargine"}, {"letter": "E", "text": "Add a GLP-1 receptor agonist"}], "answer": "E", "explanation": "Basal 0.6 u/kg with fasting at goal, high A1C and large overnight drops = over-basalization → add GLP-1 RA (or prandial insulin), not more basal.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "42a", "group": 42, "stem": "Which counseling applies to the new agent?", "options": [{"letter": "A", "text": "It causes hypoglycemia on its own"}, {"letter": "B", "text": "Take it with a calcium supplement"}, {"letter": "C", "text": "Avoid it if eGFR is below 60"}, {"letter": "D", "text": "Hold it before procedures requiring sedation"}, {"letter": "E", "text": "Expect weight gain"}], "answer": "D", "explanation": "GLP-1 RAs delay gastric emptying → aspiration risk under sedation → hold pre-op; GI AEs, pancreatitis, gallbladder disease; weight loss, no intrinsic hypoglycemia.", "objective": "", "section": "Type 2 Diabetes"}, {"id": "43", "group": 43, "stem": "A 69-year-old woman has two vertebral fractures and a T-score of −3.5. She had a myocardial infarction 7 months ago. Which anabolic agent is most appropriate?", "options": [{"letter": "A", "text": "Teriparatide"}, {"letter": "B", "text": "Romosozumab"}, {"letter": "C", "text": "Raloxifene"}, {"letter": "D", "text": "Calcitonin"}, {"letter": "E", "text": "Estrogen"}], "answer": "A", "explanation": "Very-high-risk → anabolic; romosozumab is boxed for MI/stroke and not used within 1 year of an event → teriparatide.", "objective": "", "section": "Osteoporosis"}, {"id": "43a", "group": 43, "stem": "Which laboratory finding would be a reason to avoid this agent?", "options": [{"letter": "A", "text": "Low TPMT activity"}, {"letter": "B", "text": "Unexplained elevated alkaline phosphatase"}, {"letter": "C", "text": "G6PD deficiency"}, {"letter": "D", "text": "Positive HLA-B*5801"}, {"letter": "E", "text": "Elevated TSH"}], "answer": "B", "explanation": "PTH analogs are avoided with Paget's disease/unexplained ↑ALP, bone malignancy, or prior skeletal radiation (osteosarcoma signal).", "objective": "", "section": "Osteoporosis"}, {"id": "43b", "group": 43, "stem": "What should follow the 2-year course?", "options": [{"letter": "A", "text": "Restart only after a new fracture"}, {"letter": "B", "text": "Continue teriparatide indefinitely"}, {"letter": "C", "text": "Transition to a bisphosphonate or denosumab"}, {"letter": "D", "text": "Start raloxifene"}, {"letter": "E", "text": "Stop all osteoporosis therapy"}], "answer": "C", "explanation": "Every anabolic is followed by an antiresorptive, or the BMD gains are lost.", "objective": "", "section": "Osteoporosis"}, {"id": "44", "group": 44, "stem": "A 35-year-old man with type 1 diabetes on glargine and lispro (ratio 1:12) starts a 5-day course of morning prednisone for an asthma flare. Afternoon and evening readings are 250–300 while fasting readings stay 100–120. What adjustment is most appropriate?", "options": [{"letter": "A", "text": "Add metformin"}, {"letter": "B", "text": "Decrease lispro to avoid lows"}, {"letter": "C", "text": "Stop prednisone"}, {"letter": "D", "text": "Strengthen the daytime carb ratio; keep basal unchanged"}, {"letter": "E", "text": "Increase glargine by 20%"}], "answer": "D", "explanation": "Morning steroids raise daytime/post-meal glucose → stronger ICR (1:12 → 1:10), extra fixed units at lunch/dinner, more corrections; fasting is fine so basal stays.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "44a", "group": 44, "stem": "What must happen when the prednisone course ends?", "options": [{"letter": "A", "text": "Keep the stronger ratios permanently"}, {"letter": "B", "text": "Add a sulfonylurea"}, {"letter": "C", "text": "Check A1C in 2 weeks only"}, {"letter": "D", "text": "Hold basal insulin for a day"}, {"letter": "E", "text": "Return the ratios to prior settings as the steroid tapers"}], "answer": "E", "explanation": "If steroid-era doses continue after the steroid stops, hypoglycemia is guaranteed.", "objective": "", "section": "Type 1 Diabetes & Insulin"}, {"id": "45", "group": 45, "stem": "A 28-year-old woman with hypothyroidism well controlled on levothyroxine has a positive pregnancy test. What should be done?", "options": [{"letter": "A", "text": "Decrease the dose"}, {"letter": "B", "text": "Increase the levothyroxine dose now"}, {"letter": "C", "text": "Keep the dose and recheck at delivery"}, {"letter": "D", "text": "Switch to liothyronine"}, {"letter": "E", "text": "Hold it until the second trimester"}], "answer": "B", "explanation": "Pregnancy raises requirements → increase 25–30% immediately, TSH every 4 weeks, target ~1.", "objective": "", "section": "Thyroid"}, {"id": "46", "group": 46, "stem": "A 38-year-old woman treated with IV morphine after surgery develops itching, flushing and a few hives on her chest within minutes, with normal vitals and no wheeze. What is the most appropriate management?", "options": [{"letter": "A", "text": "Record a morphine allergy and stop all opioids"}, {"letter": "B", "text": "Switch to meperidine for chronic use"}, {"letter": "C", "text": "Give naloxone"}, {"letter": "D", "text": "Give hydroxyzine or diphenhydramine and continue the opioid"}, {"letter": "E", "text": "Give epinephrine for anaphylaxis"}], "answer": "D", "explanation": "Histamine release is a pseudo-allergy, not IgE allergy; treat with an antihistamine. True opioid allergy is rare.", "objective": "", "section": "Opioids"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
