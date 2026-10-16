@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- Adaptive tutor ---------- */
+  :root { --tutor: #5b3fa6; --tutor-bg: #f5f2fc; --tutor-line: #ddd3f3; }
+  .feedback.tutoring { background: var(--amber-bg); border-left: 4px solid var(--amber); margin-bottom: 22px; }
+  .feedback.tutoring .verdict { color: var(--amber); }
+  /* Guided review: a quiet rail instead of a filled box, so nested cards don't stack up visually */
+  .tutor { border-left: 3px solid var(--tutor-line); padding: 2px 0 2px 16px; margin: 0 0 6px 4px; }
+  .tutor-head { font-weight: 700; color: var(--tutor); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+  .tnode { background: var(--card); border: 1px solid var(--tutor-line); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+  .tnode.active { border-color: var(--tutor); box-shadow: 0 2px 10px rgba(91,63,166,0.10); }
+  .tnode.done { background: #fcfcfe; }
+  .tlabel { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--tutor); margin-bottom: 8px; }
+  .tlabel.cp { color: #fff; background: var(--tutor); border-radius: 6px; padding: 1px 8px; }
+  .tlabel.clar { color: var(--amber); }
+  .teach { border-left: 3px solid var(--tutor); padding: 2px 0 2px 12px; margin-bottom: 12px; font-size: 0.95em; white-space: pre-wrap; color: var(--ink); }
+  .tnode .stem { margin-bottom: 12px; font-weight: 500; }
+  .tnode .opt { padding: 8px 12px; margin-bottom: 8px; }
+  .tnode .feedback { margin-top: 10px; }
+  .tnode .nudge { margin-top: 8px; color: var(--amber); font-weight: 600; font-size: 0.9em; }
+  .opt.elim { opacity: 0.45; text-decoration: line-through; border-style: dashed; }
+  .tnote { border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 0.95em; }
+  .tnote.reveal { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .tnote.mastered { background: var(--green-bg); border-left: 4px solid var(--green); font-weight: 600; }
+  .tnote.review { background: var(--red-bg); border-left: 4px solid var(--red); font-weight: 600; }
+  .tnote.info { color: var(--ink-soft); padding: 0 2px; margin-bottom: 10px; font-style: italic; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 6px; padding: 1px 8px; margin-left: 8px; vertical-align: middle; }
+  .badge.mastered { background: var(--green-bg); color: var(--green); }
+  .badge.review { background: var(--red-bg); color: var(--red); }
+  .badge.active { background: var(--tutor-bg); color: var(--tutor); }
+  details.trail { margin-top: 12px; }
+  details.trail summary { cursor: pointer; color: var(--tutor); font-weight: 600; font-size: 0.9rem; }
+  details.trail .tutor { margin-top: 12px; }
+
+  .qcard > .feedback + .tutor { margin-top: 22px; }
+
+  /* ---------- Results: study plan ---------- */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 16px; }
+  .card h2 { font-size: 1.02rem; margin-bottom: 4px; }
+  .card .sub { font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 14px; }
+  .focus-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 640px) { .focus-grid { grid-template-columns: 1fr 1fr; } }
+  .focus-box { border-radius: 10px; padding: 12px 14px; background: var(--red-bg); border-left: 4px solid var(--red); }
+  .focus-box.ok { background: var(--green-bg); border-left-color: var(--green); }
+  .focus-box .k { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+  .focus-box .v { font-weight: 700; font-size: 1.02rem; margin-top: 2px; }
+  .focus-box .n { font-size: 0.85rem; color: var(--ink-soft); }
+  .todo { list-style: none; }
+  .todo li { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border); font-size: 0.93rem; }
+  .todo li:first-child { border-top: none; }
+  .todo .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; transform: translateY(-1px); }
+  .todo .dot.review { background: var(--red); } .todo .dot.missed { background: var(--amber); } .todo .dot.mastered { background: var(--green); }
+  .todo .what { flex: 1; }
+  .todo .what b { font-weight: 600; }
+  .todo .tag { flex: none; font-size: 0.75rem; font-weight: 700; color: var(--ink-soft); }
+  .todo .tag.review { color: var(--red); } .todo .tag.missed { color: var(--amber); } .todo .tag.mastered { color: var(--green); }
+  .bar-row { margin-bottom: 14px; }
+  .bar-row:last-child { margin-bottom: 2px; }
+  .bar-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.92rem; margin-bottom: 5px; }
+  .bar-head .nm { font-weight: 600; }
+  .bar-head .pc { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+  .bar-head .pc b { color: var(--ink); }
+  .bar-meta { font-size: 0.78rem; color: var(--ink-soft); margin-top: 3px; }
+  .tutor-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 640px) { .tutor-stats { grid-template-columns: repeat(4, 1fr); } }
+  .tstat { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; color: var(--ink-soft); }
+  .tstat b { display: block; font-size: 1.4rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tstat.m b { color: var(--green); } .tstat.r b { color: var(--red); } .tstat.t b { color: var(--tutor); }
+
+  /* Background infographic (added by Claude) */
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(244, 246, 250, 0.55), rgba(244, 246, 250, 0.55)),
+      url("data:image/png;base64,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");
+    background-repeat: no-repeat, no-repeat;
+    background-position: center center, center center;
+    background-size: cover, cover;
+    background-attachment: fixed, fixed;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, topic?, skill?, image?,
+//    remediation?: {                      // OPTIONAL — adaptive tutor pathway for a wrong first answer
+//      steps: [{ teach?, stem, options, answer, explanation?,
+//                clarify?: [{ teach?, stem, options, answer, explanation? }] }],   // simpler questions used when a step is missed
+//      checkpoints?: [{ teach?, stem, options, answer, explanation? }]             // mastery check(s): a new vignette on the same concept
+//    } }] }
+// Questions without `remediation` behave exactly like the classic exam (answer revealed immediately).
+// **double asterisks** in any text render as bold.
+const EXAM_DATA = {"title": "Parathyroid Disease — Fundamentals (DI 2 Exam 3)", "questions": [{"id": "1", "group": 1, "section": "PTH homeostasis", "topic": "Calcium & PTH physiology", "skill": "Disease process", "stem": "What is the net effect of PTH on serum calcium and phosphate?", "options": [{"letter": "A", "text": "↑ calcium, ↑ phosphate"}, {"letter": "B", "text": "↓ calcium, ↓ phosphate"}, {"letter": "C", "text": "↑ calcium, ↓ phosphate"}, {"letter": "D", "text": "↓ calcium, ↑ phosphate"}], "answer": "C", "explanation": "PTH **raises calcium** (bone resorption, distal-tubule Ca reabsorption, ↑ calcitriol) and **lowers phosphate** (↓ proximal-tubule phosphate reabsorption).", "objective": "", "remediation": {"steps": [{"teach": "PTH is released when calcium is **low**, so its job is to bring calcium back **up**. In the kidney it also blocks **phosphate reabsorption** in the proximal tubule.", "stem": "In the kidney, PTH does what to phosphate reabsorption?", "options": [{"letter": "A", "text": "Increases it"}, {"letter": "B", "text": "Decreases it"}, {"letter": "C", "text": "No effect"}], "answer": "B", "explanation": "PTH **decreases proximal-tubule phosphate reabsorption**, so phosphate is lost in the urine.", "clarify": [{"stem": "PTH is secreted in response to:", "options": [{"letter": "A", "text": "↑ serum calcium"}, {"letter": "B", "text": "↓ serum calcium"}], "answer": "B", "explanation": "**Low ionized calcium** triggers PTH release."}]}, {"teach": "Put it together: calcium goes up, phosphate is dumped in the urine.", "stem": "PTH → net serum effect:", "options": [{"letter": "A", "text": "↑ calcium, ↑ phosphate"}, {"letter": "B", "text": "↑ calcium, ↓ phosphate"}, {"letter": "C", "text": "↓ calcium, ↓ phosphate"}], "answer": "B", "explanation": "Net effect: **↑ calcium, ↓ phosphate**.", "clarify": [{"stem": "Bone resorption alone releases:", "options": [{"letter": "A", "text": "Calcium only"}, {"letter": "B", "text": "Calcium and phosphate"}], "answer": "B", "explanation": "Bone releases **both**, but the renal phosphate loss wins, so serum phosphate falls."}]}], "checkpoints": [{"stem": "Which hormone is triggered by ↑ calcium and inhibits osteoclasts?", "options": [{"letter": "A", "text": "PTH"}, {"letter": "B", "text": "Calcitriol"}, {"letter": "C", "text": "Calcitonin"}], "answer": "C", "explanation": "**Calcitonin** lowers calcium but has a limited physiologic role."}, {"stem": "Primary hyperparathyroidism → expected phosphate:", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "High"}, {"letter": "C", "text": "Normal always"}], "answer": "A", "explanation": "PTH excess gives **↑ Ca, ↓ phosphate**."}]}}, {"id": "2", "group": 2, "section": "PTH homeostasis", "topic": "Calcium & PTH physiology", "skill": "Disease process", "stem": "Which receptor senses a decrease in ionized calcium and triggers PTH release?", "options": [{"letter": "A", "text": "Vitamin D receptor on enterocytes"}, {"letter": "B", "text": "Calcium-sensing receptor on chief cells"}, {"letter": "C", "text": "TSH receptor on follicular cells"}, {"letter": "D", "text": "PTH receptor on osteoblasts"}], "answer": "B", "explanation": "The **calcium-sensing receptor (CaSR)** on parathyroid **chief cells** detects low ionized Ca and increases PTH secretion.", "objective": "", "remediation": {"steps": [{"teach": "The parathyroid gland senses calcium **itself** — there is no pituitary or hypothalamic hormone controlling it.", "stem": "Which cells of the parathyroid secrete PTH?", "options": [{"letter": "A", "text": "Chief cells"}, {"letter": "B", "text": "Parafollicular C cells"}, {"letter": "C", "text": "Follicular cells"}], "answer": "A", "explanation": "Parathyroid **chief cells** secrete PTH.", "clarify": [{"stem": "Is there a pituitary hormone that regulates PTH?", "options": [{"letter": "A", "text": "Yes — like TSH for thyroid"}, {"letter": "B", "text": "No — no central regulator"}], "answer": "B", "explanation": "There is **no central regulator**, so no 'central' hyper/hypoparathyroidism."}]}, {"teach": "The chief cell's sensor is named for what it senses.", "stem": "↓ ionized Ca is detected by:", "options": [{"letter": "A", "text": "Calcium-sensing receptor"}, {"letter": "B", "text": "Vitamin D receptor"}, {"letter": "C", "text": "PTH receptor"}], "answer": "A", "explanation": "The **CaSR** on chief cells.", "clarify": [{"stem": "Which calcium fraction regulates PTH secretion?", "options": [{"letter": "A", "text": "Albumin-bound calcium"}, {"letter": "B", "text": "Ionized calcium"}], "answer": "B", "explanation": "**Ionized** calcium is the main regulator of PTH."}]}], "checkpoints": [{"stem": "Cinacalcet lowers PTH by acting on:", "options": [{"letter": "A", "text": "PTH receptor in kidney"}, {"letter": "B", "text": "Calcium-sensing receptor"}, {"letter": "C", "text": "1α-hydroxylase"}], "answer": "B", "explanation": "Cinacalcet **increases CaSR sensitivity**, suppressing PTH."}, {"stem": "Inherited altered calcium sensing with mild ↑ Ca →", "options": [{"letter": "A", "text": "Familial hypocalciuric hypercalcemia"}, {"letter": "B", "text": "Primary hyperparathyroidism"}, {"letter": "C", "text": "Milk-alkali syndrome"}], "answer": "A", "explanation": "**FHH** is the inherited altered calcium-sensing disorder."}]}}, {"id": "3", "group": 3, "section": "Vitamin D: the PTH connection", "topic": "Vitamin D level", "skill": "Disease process", "stem": "What is the active hormonal form of vitamin D?", "options": [{"letter": "A", "text": "Cholecalciferol (D₃)"}, {"letter": "B", "text": "Ergocalciferol (D₂)"}, {"letter": "C", "text": "25-hydroxyvitamin D"}, {"letter": "D", "text": "1,25-dihydroxyvitamin D"}], "answer": "D", "explanation": "**1,25-dihydroxyvitamin D (calcitriol)**, made in the kidney, is the active form; 25(OH)D is the circulating/measured form.", "objective": "", "remediation": {"steps": [{"teach": "Vitamin D is activated in **two steps**: liver first, then kidney. The **final** (kidney) product is the active one.", "stem": "Liver converts vitamin D into:", "options": [{"letter": "A", "text": "25-hydroxyvitamin D"}, {"letter": "B", "text": "1,25-dihydroxyvitamin D"}, {"letter": "C", "text": "Cholecalciferol"}], "answer": "A", "explanation": "The liver makes **25(OH)D (calcidiol)** — the main circulating form.", "clarify": [{"stem": "Which organ performs the final activation step?", "options": [{"letter": "A", "text": "Liver"}, {"letter": "B", "text": "Kidney"}], "answer": "B", "explanation": "The **kidney** adds the 1α-hydroxyl group."}]}, {"teach": "The kidney adds a second hydroxyl group.", "stem": "Active form made by the kidney:", "options": [{"letter": "A", "text": "25-hydroxyvitamin D"}, {"letter": "B", "text": "1,25-dihydroxyvitamin D"}, {"letter": "C", "text": "Ergocalciferol"}], "answer": "B", "explanation": "**Calcitriol = 1,25(OH)₂D**.", "clarify": [{"stem": "Calcitriol's main effect:", "options": [{"letter": "A", "text": "↑ intestinal Ca and phosphate absorption"}, {"letter": "B", "text": "↑ renal phosphate excretion"}], "answer": "A", "explanation": "Calcitriol **increases intestinal calcium and phosphate absorption**."}]}], "checkpoints": [{"stem": "Main circulating and measured form of vitamin D →", "options": [{"letter": "A", "text": "Calcitriol"}, {"letter": "B", "text": "25-hydroxyvitamin D"}, {"letter": "C", "text": "Cholecalciferol"}], "answer": "B", "explanation": "**25(OH)D (calcidiol)** is the storage form that is measured."}, {"stem": "Calcitriol =", "options": [{"letter": "A", "text": "1,25-dihydroxyvitamin D"}, {"letter": "B", "text": "25-hydroxyvitamin D"}, {"letter": "C", "text": "Vitamin D₂"}], "answer": "A", "explanation": "Calcitriol is **1,25(OH)₂D**."}]}}, {"id": "4", "group": 4, "section": "Vitamin D: the PTH connection", "topic": "Vitamin D level", "skill": "Disease process", "stem": "Which renal enzyme does PTH stimulate to increase calcitriol production?", "options": [{"letter": "A", "text": "1α-hydroxylase"}, {"letter": "B", "text": "25-hydroxylase"}, {"letter": "C", "text": "24-hydroxylase"}, {"letter": "D", "text": "Carbonic anhydrase"}], "answer": "A", "explanation": "PTH stimulates renal **1α-hydroxylase**, converting 25(OH)D into calcitriol.", "objective": "", "remediation": {"steps": [{"teach": "The kidney step adds a hydroxyl at the **1-alpha** position — that's where the name of the active form (1,25) comes from.", "stem": "Where does 25-hydroxylation occur?", "options": [{"letter": "A", "text": "Liver"}, {"letter": "B", "text": "Kidney"}, {"letter": "C", "text": "Skin"}], "answer": "A", "explanation": "**25-hydroxylation is hepatic**; the kidney does 1α-hydroxylation.", "clarify": [{"stem": "Liver disease impairs:", "options": [{"letter": "A", "text": "25-hydroxylation"}, {"letter": "B", "text": "1α-hydroxylation"}], "answer": "A", "explanation": "**Liver disease → impaired 25-hydroxylation**."}]}, {"teach": "PTH acts on the kidney step.", "stem": "Renal enzyme stimulated by PTH:", "options": [{"letter": "A", "text": "25-hydroxylase"}, {"letter": "B", "text": "1α-hydroxylase"}, {"letter": "C", "text": "24-hydroxylase"}], "answer": "B", "explanation": "**1α-hydroxylase**.", "clarify": [{"stem": "CKD impairs:", "options": [{"letter": "A", "text": "1α-hydroxylation"}, {"letter": "B", "text": "25-hydroxylation"}], "answer": "A", "explanation": "**CKD → impaired 1α-hydroxylation** → ↓ calcitriol."}]}], "checkpoints": [{"stem": "PTH's effect on intestinal calcium absorption is:", "options": [{"letter": "A", "text": "Direct"}, {"letter": "B", "text": "Indirect, via calcitriol"}, {"letter": "C", "text": "Inhibitory"}], "answer": "B", "explanation": "PTH acts directly on bone and kidney; its gut effect is **indirect via calcitriol**."}, {"stem": "Sarcoidosis causes hypercalcemia via:", "options": [{"letter": "A", "text": "Extrarenal 1α-hydroxylase"}, {"letter": "B", "text": "PTHrP secretion"}, {"letter": "C", "text": "Bone metastases"}], "answer": "A", "explanation": "Granulomas have **extrarenal 1α-hydroxylase** → ↑ calcitriol."}]}}, {"id": "5", "group": 5, "section": "Serum calcium: total vs ionized", "topic": "Serum calcium", "skill": "Diagnostics & imaging", "stem": "What is the normal reference range for total serum calcium?", "options": [{"letter": "A", "text": "8.6–10.0 mg/dL"}, {"letter": "B", "text": "4.4–5.6 mg/dL"}, {"letter": "C", "text": "10.5–12.0 mg/dL"}, {"letter": "D", "text": "7.0–8.5 mg/dL"}], "answer": "A", "explanation": "Total serum calcium normal = **8.6–10.0 mg/dL** (bound + free); ionized Ca is 4.4–5.6.", "objective": "", "remediation": {"steps": [{"teach": "**Total** calcium includes albumin-bound, anion-bound, and ionized fractions, so its range is about **double** the ionized range.", "stem": "4.4–5.6 mg/dL is the normal range for:", "options": [{"letter": "A", "text": "Total calcium"}, {"letter": "B", "text": "Ionized calcium"}, {"letter": "C", "text": "Phosphate"}], "answer": "B", "explanation": "**4.4–5.6** is ionized calcium.", "clarify": [{"stem": "Total calcium includes:", "options": [{"letter": "A", "text": "Only free calcium"}, {"letter": "B", "text": "Bound + free calcium"}], "answer": "B", "explanation": "Total = **bound + free**."}]}, {"teach": "Total calcium sits roughly in the 9s.", "stem": "Normal total serum calcium:", "options": [{"letter": "A", "text": "8.6–10.0 mg/dL"}, {"letter": "B", "text": "4.4–5.6 mg/dL"}, {"letter": "C", "text": "10.5–12.0 mg/dL"}], "answer": "A", "explanation": "**8.6–10.0 mg/dL**.", "clarify": [{"stem": "Ca 11.2 mg/dL is:", "options": [{"letter": "A", "text": "Normal"}, {"letter": "B", "text": "Hypercalcemia"}], "answer": "B", "explanation": "Above **10.0** = hypercalcemia."}]}], "checkpoints": [{"stem": "Normal serum ionized calcium →", "options": [{"letter": "A", "text": "8.6–10.0 mg/dL"}, {"letter": "B", "text": "4.4–5.6 mg/dL"}, {"letter": "C", "text": "2.0–3.0 mg/dL"}], "answer": "B", "explanation": "Ionized Ca normal **4.4–5.6 mg/dL**."}, {"stem": "Total calcium 10.8 mg/dL →", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "Normal"}, {"letter": "C", "text": "High"}], "answer": "C", "explanation": "Above the **10.0** upper limit."}]}}, {"id": "6", "group": 6, "section": "Serum calcium: total vs ionized", "topic": "Serum calcium", "skill": "Disease process", "stem": "Which biologically active calcium fraction regulates PTH secretion?", "options": [{"letter": "A", "text": "Albumin-bound calcium"}, {"letter": "B", "text": "Phosphate-bound calcium"}, {"letter": "C", "text": "Ionized (free) calcium"}, {"letter": "D", "text": "Citrate-bound calcium"}], "answer": "C", "explanation": "**Ionized calcium** (~45% of total) is the active fraction and main regulator of PTH secretion.", "objective": "", "remediation": {"steps": [{"teach": "Bound calcium is 'parked'; only the **free** fraction can act on receptors.", "stem": "Largest bound fraction of total calcium (~40%) is bound to:", "options": [{"letter": "A", "text": "Albumin"}, {"letter": "B", "text": "Phosphate"}, {"letter": "C", "text": "Citrate"}], "answer": "A", "explanation": "~**40% albumin-bound**.", "clarify": [{"stem": "Approximate ionized share of total calcium:", "options": [{"letter": "A", "text": "~15%"}, {"letter": "B", "text": "~45%"}], "answer": "B", "explanation": "~**45%** is ionized; ~15% anion-bound."}]}, {"teach": "The free fraction is the one the CaSR senses.", "stem": "Active fraction:", "options": [{"letter": "A", "text": "Albumin-bound"}, {"letter": "B", "text": "Ionized"}, {"letter": "C", "text": "Anion-bound"}], "answer": "B", "explanation": "**Ionized** calcium.", "clarify": [{"stem": "Low albumin changes ionized calcium?", "options": [{"letter": "A", "text": "Yes, lowers it"}, {"letter": "B", "text": "No, ionized stays normal"}], "answer": "B", "explanation": "Low albumin lowers **total** but not **ionized** Ca."}]}], "checkpoints": [{"stem": "Low albumin with normal ionized Ca → total calcium is:", "options": [{"letter": "A", "text": "Falsely low"}, {"letter": "B", "text": "Falsely high"}, {"letter": "C", "text": "Unaffected"}], "answer": "A", "explanation": "Total is **falsely low** (pseudohypocalcemia)."}, {"stem": "Which lab is NOT affected by hypoalbuminemia?", "options": [{"letter": "A", "text": "Total calcium"}, {"letter": "B", "text": "Ionized calcium"}, {"letter": "C", "text": "Albumin-bound calcium"}], "answer": "B", "explanation": "**Ionized calcium** is unaffected by albumin."}]}}, {"id": "7", "group": 7, "section": "Serum calcium: acid–base effect", "topic": "Serum calcium", "skill": "Disease process", "stem": "How does alkalosis affect ionized calcium and PTH?", "options": [{"letter": "A", "text": "↓ ionized Ca, ↑ PTH"}, {"letter": "B", "text": "↑ ionized Ca, ↓ PTH"}, {"letter": "C", "text": "↑ ionized Ca, ↑ PTH"}, {"letter": "D", "text": "No change in either"}], "answer": "A", "explanation": "Alkalosis increases **albumin binding** → **↓ ionized Ca → ↑ PTH**; acidosis does the reverse.", "objective": "", "remediation": {"steps": [{"teach": "In **alkalosis**, albumin grabs more calcium, so less is left **free**.", "stem": "Alkalosis → albumin binding of calcium:", "options": [{"letter": "A", "text": "Increases"}, {"letter": "B", "text": "Decreases"}, {"letter": "C", "text": "Unchanged"}], "answer": "A", "explanation": "**More binding** in alkalosis.", "clarify": [{"stem": "More albumin binding means ionized Ca:", "options": [{"letter": "A", "text": "Rises"}, {"letter": "B", "text": "Falls"}], "answer": "B", "explanation": "Less free calcium → **ionized falls**."}]}, {"teach": "Low ionized calcium is exactly what the CaSR responds to.", "stem": "↓ ionized Ca → PTH:", "options": [{"letter": "A", "text": "Rises"}, {"letter": "B", "text": "Falls"}, {"letter": "C", "text": "No change"}], "answer": "A", "explanation": "**PTH rises**.", "clarify": [{"stem": "Acidosis → albumin binding of calcium:", "options": [{"letter": "A", "text": "Decreases"}, {"letter": "B", "text": "Increases"}], "answer": "A", "explanation": "Acidosis → **less albumin binding** → ↑ ionized Ca."}]}], "checkpoints": [{"stem": "Acidosis → ionized calcium and PTH:", "options": [{"letter": "A", "text": "↓ ionized, ↑ PTH"}, {"letter": "B", "text": "↑ ionized, ↓ PTH"}, {"letter": "C", "text": "No change"}], "answer": "B", "explanation": "Acidosis → **less binding → ↑ ionized Ca → ↓ PTH**."}, {"stem": "Hypocalcemia workup — why review pH?", "options": [{"letter": "A", "text": "Alkalosis lowers ionized Ca"}, {"letter": "B", "text": "Acidosis lowers total Ca"}, {"letter": "C", "text": "pH alters PTH assay"}], "answer": "A", "explanation": "**Alkalosis lowers ionized calcium**."}]}}, {"id": "8", "group": 8, "section": "Interpreting a low total calcium", "topic": "Serum calcium", "skill": "Diagnostics & imaging", "stem": "What is the first step in evaluating a low total calcium level on a comprehensive metabolic panel?", "options": [{"letter": "A", "text": "Order intact PTH"}, {"letter": "B", "text": "Start oral calcium"}, {"letter": "C", "text": "Order 1,25-dihydroxyvitamin D"}, {"letter": "D", "text": "Check albumin or ionized calcium"}], "answer": "D", "explanation": "First **confirm true hypocalcemia** — correct for **albumin** or measure **ionized Ca** — before ordering PTH.", "objective": "", "remediation": {"steps": [{"teach": "Low albumin can make total calcium look low while the active fraction is normal. You don't want to work up **pseudohypocalcemia**.", "stem": "Low albumin lowers which value?", "options": [{"letter": "A", "text": "Total calcium"}, {"letter": "B", "text": "Ionized calcium"}, {"letter": "C", "text": "Both equally"}], "answer": "A", "explanation": "Only **total** calcium.", "clarify": [{"stem": "PTH is ordered:", "options": [{"letter": "A", "text": "Before confirming the calcium"}, {"letter": "B", "text": "After confirming true hypocalcemia"}], "answer": "B", "explanation": "Confirm first, **then PTH**."}]}, {"teach": "Confirm, then sort with PTH.", "stem": "Low total Ca → first step:", "options": [{"letter": "A", "text": "Order intact PTH"}, {"letter": "B", "text": "Check albumin or ionized calcium"}, {"letter": "C", "text": "Start oral calcium"}], "answer": "B", "explanation": "**Albumin-correct or measure ionized Ca** first.", "clarify": [{"stem": "Is correcting for albumin as accurate as ionized Ca?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "A", "explanation": "The lecture says **correcting is accurate** as well."}]}], "checkpoints": [{"stem": "After true hypocalcemia is confirmed → test that sorts the differential:", "options": [{"letter": "A", "text": "Intact PTH"}, {"letter": "B", "text": "Calcitriol"}, {"letter": "C", "text": "PTHrP"}], "answer": "A", "explanation": "**Intact PTH** sorts the differential."}, {"stem": "Low total Ca + low albumin + normal ionized Ca →", "options": [{"letter": "A", "text": "True hypocalcemia"}, {"letter": "B", "text": "Pseudohypocalcemia"}, {"letter": "C", "text": "Hypoparathyroidism"}], "answer": "B", "explanation": "**Pseudohypocalcemia** — no workup."}]}}, {"id": "8a", "group": 8, "section": "Interpreting a low total calcium", "topic": "Serum calcium", "skill": "Diagnostics & imaging", "stem": "Ca 7.8 mg/dL, albumin 2.0 g/dL → corrected calcium:", "options": [{"letter": "A", "text": "7.8 mg/dL"}, {"letter": "B", "text": "9.4 mg/dL"}, {"letter": "C", "text": "8.6 mg/dL"}, {"letter": "D", "text": "10.2 mg/dL"}], "answer": "B", "explanation": "Corrected Ca = 7.8 + **0.8 × (4 − 2)** = 7.8 + 1.6 = **9.4 mg/dL** → normal.", "objective": "", "remediation": {"steps": [{"teach": "Formula: **measured Ca + 0.8 × (4 − albumin)**. 4 is the default normal albumin.", "stem": "4 − albumin 2.0 =", "options": [{"letter": "A", "text": "2"}, {"letter": "B", "text": "1"}, {"letter": "C", "text": "4"}], "answer": "A", "explanation": "**4 − 2 = 2**.", "clarify": [{"stem": "Multiplier in the correction formula:", "options": [{"letter": "A", "text": "0.8"}, {"letter": "B", "text": "1.5"}], "answer": "A", "explanation": "Multiply by **0.8**."}]}, {"teach": "0.8 × 2 = 1.6; add to 7.8.", "stem": "Corrected Ca:", "options": [{"letter": "A", "text": "8.6 mg/dL"}, {"letter": "B", "text": "9.4 mg/dL"}, {"letter": "C", "text": "7.8 mg/dL"}], "answer": "B", "explanation": "**9.4 mg/dL**.", "clarify": [{"stem": "Corrected Ca 9.4 →", "options": [{"letter": "A", "text": "Normal"}, {"letter": "B", "text": "Hypocalcemia"}], "answer": "A", "explanation": "Within **8.6–10.0** → normal."}]}], "checkpoints": [{"stem": "Ca 8.0, albumin 3.0 → corrected calcium:", "options": [{"letter": "A", "text": "8.8 mg/dL"}, {"letter": "B", "text": "8.0 mg/dL"}, {"letter": "C", "text": "9.6 mg/dL"}], "answer": "A", "explanation": "8.0 + 0.8 × 1 = **8.8**."}, {"stem": "Default 'normal albumin' value used in the formula:", "options": [{"letter": "A", "text": "3.5"}, {"letter": "B", "text": "4"}, {"letter": "C", "text": "5.2"}], "answer": "B", "explanation": "Use **4** g/dL."}]}}, {"id": "9", "group": 9, "section": "Interpreting a low total calcium", "topic": "Serum calcium", "skill": "Identification", "stem": "What term describes low total calcium with normal ionized calcium in a patient with low albumin?", "options": [{"letter": "A", "text": "Hypoparathyroidism"}, {"letter": "B", "text": "Pseudohypoparathyroidism"}, {"letter": "C", "text": "Pseudohypocalcemia"}, {"letter": "D", "text": "Functional hypoparathyroidism"}], "answer": "C", "explanation": "Falsely low total Ca with normal ionized Ca = **pseudohypocalcemia** (factitious hypocalcemia) — do not work it up.", "objective": "", "remediation": {"steps": [{"teach": "The active fraction is **normal**, so the patient doesn't truly have low calcium — it's a lab artifact.", "stem": "Is this true hypocalcemia?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No — lab artifact"}], "answer": "B", "explanation": "Normal ionized Ca = **not true hypocalcemia**.", "clarify": [{"stem": "Pseudohypoparathyroidism is:", "options": [{"letter": "A", "text": "PTH resistance"}, {"letter": "B", "text": "Low albumin artifact"}], "answer": "A", "explanation": "Pseudohypo**parathyroidism** = **PTH resistance**, a real disease."}]}, {"teach": "Name the artifact.", "stem": "Term:", "options": [{"letter": "A", "text": "Pseudohypocalcemia"}, {"letter": "B", "text": "Pseudohypoparathyroidism"}, {"letter": "C", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "**Pseudohypocalcemia**.", "clarify": [{"stem": "Next step for pseudohypocalcemia:", "options": [{"letter": "A", "text": "Intact PTH"}, {"letter": "B", "text": "No workup"}], "answer": "B", "explanation": "**No workup** needed."}]}], "checkpoints": [{"stem": "↓ Ca, ↑ phosphate, ↑ PTH, normal kidneys →", "options": [{"letter": "A", "text": "Pseudohypocalcemia"}, {"letter": "B", "text": "Pseudohypoparathyroidism"}, {"letter": "C", "text": "Primary hyperparathyroidism"}], "answer": "B", "explanation": "**Pseudohypoparathyroidism** (PTH resistance)."}, {"stem": "Test unaffected by low albumin:", "options": [{"letter": "A", "text": "Ionized calcium"}, {"letter": "B", "text": "Total calcium"}, {"letter": "C", "text": "Serum albumin"}], "answer": "A", "explanation": "**Ionized calcium**."}]}}, {"id": "10", "group": 10, "section": "Parathyroid lab tests", "topic": "Intact PTH", "skill": "Diagnostics & imaging", "stem": "What is the normal reference range for intact PTH?", "options": [{"letter": "A", "text": "~10–65 pg/mL"}, {"letter": "B", "text": "~100–300 pg/mL"}, {"letter": "C", "text": "<2 pmol/L"}, {"letter": "D", "text": "30–100 ng/mL"}], "answer": "A", "explanation": "Intact PTH (full-length, biologically active) is roughly **10–65 pg/mL** (lab-dependent).", "objective": "", "remediation": {"steps": [{"teach": "Each lab test has its own units: PTH in **pg/mL**, PTHrP in **pmol/L**, vitamin D in **ng/mL**.", "stem": "30–100 ng/mL is the normal range for:", "options": [{"letter": "A", "text": "25-hydroxyvitamin D"}, {"letter": "B", "text": "Intact PTH"}, {"letter": "C", "text": "PTHrP"}], "answer": "A", "explanation": "**25(OH)D** 30–100 ng/mL.", "clarify": [{"stem": "<2 pmol/L (undetectable) describes normal:", "options": [{"letter": "A", "text": "PTHrP"}, {"letter": "B", "text": "Intact PTH"}], "answer": "A", "explanation": "**PTHrP** is normally undetectable."}]}, {"teach": "PTH is measured in pg/mL.", "stem": "Intact PTH normal:", "options": [{"letter": "A", "text": "~10–65 pg/mL"}, {"letter": "B", "text": "30–100 ng/mL"}, {"letter": "C", "text": "<2 pmol/L"}], "answer": "A", "explanation": "**~10–65 pg/mL**.", "clarify": [{"stem": "Intact PTH measures:", "options": [{"letter": "A", "text": "Full-length active PTH"}, {"letter": "B", "text": "PTH fragments only"}], "answer": "A", "explanation": "**Full-length, biologically active** PTH."}]}], "checkpoints": [{"stem": "Intact PTH 140 pg/mL →", "options": [{"letter": "A", "text": "Elevated"}, {"letter": "B", "text": "Normal"}, {"letter": "C", "text": "Suppressed"}], "answer": "A", "explanation": "Above **65** = elevated."}, {"stem": "Intact PTH is used to differentiate:", "options": [{"letter": "A", "text": "Primary vs secondary HPT"}, {"letter": "B", "text": "Type 1 vs type 2 diabetes"}, {"letter": "C", "text": "Graves vs Hashimoto"}], "answer": "A", "explanation": "It **differentiates primary vs secondary HPT**."}]}}, {"id": "11", "group": 11, "section": "Parathyroid lab tests", "topic": "Hypercalcemia of malignancy", "skill": "Diagnostics & imaging", "stem": "What PTH-related peptide result is expected in a healthy person?", "options": [{"letter": "A", "text": "Undetectable or very low"}, {"letter": "B", "text": "10–65 pg/mL"}, {"letter": "C", "text": "30–100 ng/mL"}, {"letter": "D", "text": "Equal to intact PTH"}], "answer": "A", "explanation": "PTHrP is normally **undetectable / very low (<2 pmol/L)**; it is secreted by some tumors.", "objective": "", "remediation": {"steps": [{"teach": "PTHrP is a **tumor product** that mimics PTH, so a healthy person has essentially **none** circulating.", "stem": "PTHrP is secreted mainly by:", "options": [{"letter": "A", "text": "Parathyroid chief cells"}, {"letter": "B", "text": "Some tumors"}], "answer": "B", "explanation": "**Some tumors** (humoral hypercalcemia).", "clarify": [{"stem": "PTHrP regulated by calcium?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "PTHrP is **not regulated by calcium**."}]}, {"teach": "Normal = not there.", "stem": "Normal PTHrP:", "options": [{"letter": "A", "text": "Undetectable or very low"}, {"letter": "B", "text": "10–65 pg/mL"}, {"letter": "C", "text": "30–100 ng/mL"}], "answer": "A", "explanation": "**Undetectable** (<2 pmol/L).", "clarify": [{"stem": "PTHrP acts at:", "options": [{"letter": "A", "text": "PTH receptors in bone and kidney"}, {"letter": "B", "text": "CaSR on chief cells"}], "answer": "A", "explanation": "PTHrP acts at **PTH receptors**."}]}], "checkpoints": [{"stem": "PTHrP is ordered to investigate:", "options": [{"letter": "A", "text": "Hypercalcemia of malignancy"}, {"letter": "B", "text": "Vitamin D deficiency"}, {"letter": "C", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "**Hypercalcemia of malignancy**."}, {"stem": "Normal PTHrP cutoff:", "options": [{"letter": "A", "text": "<2 pmol/L"}, {"letter": "B", "text": "<20 ng/mL"}, {"letter": "C", "text": "<65 pg/mL"}], "answer": "A", "explanation": "**<2 pmol/L**."}]}}, {"id": "12", "group": 12, "section": "Parathyroid lab tests", "topic": "Vitamin D level", "skill": "Diagnostics & imaging", "stem": "What 25-hydroxyvitamin D level meets the threshold for vitamin D deficiency?", "options": [{"letter": "A", "text": "<30 ng/mL"}, {"letter": "B", "text": "<10 ng/mL"}, {"letter": "C", "text": "<50 ng/mL"}, {"letter": "D", "text": "<20 ng/mL"}], "answer": "D", "explanation": "25(OH)D **<20 ng/mL = deficiency**; 20–29 insufficiency; 30–100 normal.", "objective": "", "remediation": {"steps": [{"teach": "Three bands: **normal 30–100**, **insufficient 20–29**, **deficient** below that.", "stem": "Normal 25(OH)D range:", "options": [{"letter": "A", "text": "30–100 ng/mL"}, {"letter": "B", "text": "10–65 ng/mL"}, {"letter": "C", "text": "8.6–10 ng/mL"}], "answer": "A", "explanation": "**30–100 ng/mL**.", "clarify": [{"stem": "20–29 ng/mL is:", "options": [{"letter": "A", "text": "Insufficient"}, {"letter": "B", "text": "Deficient"}], "answer": "A", "explanation": "**20–29 = insufficient**."}]}, {"teach": "Below the insufficient band.", "stem": "Deficiency cutoff:", "options": [{"letter": "A", "text": "<20 ng/mL"}, {"letter": "B", "text": "<30 ng/mL"}, {"letter": "C", "text": "<10 ng/mL"}], "answer": "A", "explanation": "**<20 ng/mL**.", "clarify": [{"stem": "25(OH)D 15 ng/mL →", "options": [{"letter": "A", "text": "Deficient"}, {"letter": "B", "text": "Normal"}], "answer": "A", "explanation": "15 < 20 → **deficient**."}]}], "checkpoints": [{"stem": "25(OH)D 45 ng/mL →", "options": [{"letter": "A", "text": "Deficient"}, {"letter": "B", "text": "Insufficient"}, {"letter": "C", "text": "Normal"}], "answer": "C", "explanation": "Within **30–100** → normal."}, {"stem": "Vitamin D deficiency → PTH:", "options": [{"letter": "A", "text": "↑"}, {"letter": "B", "text": "↓"}], "answer": "A", "explanation": "Deficiency → **secondary HPT (↑ PTH)**."}]}}, {"id": "12a", "group": 12, "section": "Parathyroid lab tests", "topic": "Vitamin D level", "skill": "Diagnostics & imaging", "stem": "25(OH)D of 25 ng/mL → classification:", "options": [{"letter": "A", "text": "Normal"}, {"letter": "B", "text": "Insufficient"}, {"letter": "C", "text": "Deficient"}, {"letter": "D", "text": "Toxic"}], "answer": "B", "explanation": "**20–29 ng/mL = insufficient** (guideline-dependent).", "objective": "", "remediation": {"steps": [{"teach": "25 falls between the deficiency cutoff (20) and the normal floor (30).", "stem": "25 ng/mL is:", "options": [{"letter": "A", "text": "Insufficient"}, {"letter": "B", "text": "Deficient"}, {"letter": "C", "text": "Normal"}], "answer": "A", "explanation": "**Insufficient**.", "clarify": [{"stem": "Lower limit of normal 25(OH)D:", "options": [{"letter": "A", "text": "30 ng/mL"}, {"letter": "B", "text": "20 ng/mL"}], "answer": "A", "explanation": "Normal starts at **30**."}]}], "checkpoints": [{"stem": "25(OH)D 12 ng/mL →", "options": [{"letter": "A", "text": "Insufficient"}, {"letter": "B", "text": "Deficient"}, {"letter": "C", "text": "Normal"}], "answer": "B", "explanation": "<20 = **deficient**."}]}}, {"id": "13", "group": 13, "section": "Primary hyperparathyroidism", "topic": "Primary hyperparathyroidism", "skill": "Disease process", "stem": "What is the most common cause of hypercalcemia in the outpatient setting?", "options": [{"letter": "A", "text": "Malignancy"}, {"letter": "B", "text": "Primary hyperparathyroidism"}, {"letter": "C", "text": "Sarcoidosis"}, {"letter": "D", "text": "Thiazide use"}], "answer": "B", "explanation": "**Primary hyperparathyroidism** is the MCC outpatient; malignancy is the common inpatient cause.", "objective": "", "remediation": {"steps": [{"teach": "The outpatient case is usually **asymptomatic** and found **incidentally** on routine labs.", "stem": "PHPT is usually:", "options": [{"letter": "A", "text": "Asymptomatic, found on routine labs"}, {"letter": "B", "text": "Acute and severe"}], "answer": "A", "explanation": "**Often asymptomatic**, incidental.", "clarify": [{"stem": "Acute, severe, symptomatic hypercalcemia in a hospitalized patient suggests:", "options": [{"letter": "A", "text": "Malignancy"}, {"letter": "B", "text": "PHPT"}], "answer": "A", "explanation": "**Malignancy**."}]}, {"teach": "Outpatient + incidental = parathyroid.", "stem": "MCC outpatient hypercalcemia:", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Malignancy"}, {"letter": "C", "text": "Sarcoidosis"}], "answer": "A", "explanation": "**PHPT**.", "clarify": [{"stem": "PHPT demographic:", "options": [{"letter": "A", "text": "Women >50, 3:1"}, {"letter": "B", "text": "Men <30"}], "answer": "A", "explanation": "Usually **>50, female 3:1**."}]}], "checkpoints": [{"stem": "Most common cause of hypercalcemia in the INPATIENT setting →", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Malignancy"}, {"letter": "C", "text": "FHH"}], "answer": "B", "explanation": "**Malignancy** inpatient."}, {"stem": "Incidental Ca 11.2 in a 58-year-old woman →", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Humoral hypercalcemia of malignancy"}, {"letter": "C", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "Classic **PHPT**."}]}}, {"id": "14", "group": 14, "section": "Primary hyperparathyroidism: etiology", "topic": "Primary hyperparathyroidism", "skill": "Disease process", "stem": "What is the most common cause of primary hyperparathyroidism?", "options": [{"letter": "A", "text": "Parathyroid carcinoma"}, {"letter": "B", "text": "Four-gland hyperplasia"}, {"letter": "C", "text": "Single parathyroid adenoma"}, {"letter": "D", "text": "MEN 2 syndrome"}], "answer": "C", "explanation": "**Single adenoma ~85%**; hyperplasia/multiple adenomas ~15%; carcinoma rare.", "objective": "", "remediation": {"steps": [{"teach": "PHPT is autonomous PTH overproduction — usually from **one** benign gland.", "stem": "Parathyroid carcinoma is:", "options": [{"letter": "A", "text": "Common"}, {"letter": "B", "text": "Rare"}], "answer": "B", "explanation": "Carcinoma is **rare**.", "clarify": [{"stem": "Hyperplasia/multiple adenomas account for about:", "options": [{"letter": "A", "text": "~15%"}, {"letter": "B", "text": "~85%"}], "answer": "A", "explanation": "~**15%**."}]}, {"teach": "One gland, benign.", "stem": "MC etiology:", "options": [{"letter": "A", "text": "Single adenoma"}, {"letter": "B", "text": "Hyperplasia"}, {"letter": "C", "text": "Carcinoma"}], "answer": "A", "explanation": "**Single adenoma (~85%)**.", "clarify": [{"stem": "PHPT at age <30 or multigland disease → order:", "options": [{"letter": "A", "text": "MEN genetic testing"}, {"letter": "B", "text": "PTHrP"}], "answer": "A", "explanation": "**MEN genetic testing**."}]}], "checkpoints": [{"stem": "Most frequent and earliest expression of MEN 1 →", "options": [{"letter": "A", "text": "Pheochromocytoma"}, {"letter": "B", "text": "Primary hyperparathyroidism"}, {"letter": "C", "text": "Medullary thyroid cancer"}], "answer": "B", "explanation": "**PHPT** is the earliest MEN 1 finding."}, {"stem": "PHPT mechanism:", "options": [{"letter": "A", "text": "Autonomous PTH overproduction"}, {"letter": "B", "text": "Reactive PTH to low calcium"}, {"letter": "C", "text": "PTH resistance"}], "answer": "A", "explanation": "**Autonomous** overproduction."}]}}, {"id": "15", "group": 15, "section": "PHPT: clinical correlations", "topic": "Primary hyperparathyroidism", "skill": "Disease process", "stem": "At what serum calcium level do symptoms usually occur?", "options": [{"letter": "A", "text": ">10.5 mg/dL"}, {"letter": "B", "text": ">12–13 mg/dL"}, {"letter": "C", "text": ">16 mg/dL"}, {"letter": "D", "text": ">11 mg/dL"}], "answer": "B", "explanation": "Calcium **>12–13 mg/dL** usually causes symptoms; severity also depends on **rapidity** of rise.", "objective": "", "remediation": {"steps": [{"teach": "Mild PHPT (just above 10) is usually silent; symptoms appear at clearly higher levels.", "stem": "Ca 10.8 in PHPT is usually:", "options": [{"letter": "A", "text": "Asymptomatic"}, {"letter": "B", "text": "Severe"}], "answer": "A", "explanation": "Mild elevations are **usually asymptomatic**.", "clarify": [{"stem": "Severity depends on level and:", "options": [{"letter": "A", "text": "Rapidity of rise"}, {"letter": "B", "text": "Phosphate level"}], "answer": "A", "explanation": "**Rapidity of increase** matters too."}]}, {"teach": "Pick the symptomatic band.", "stem": "Symptoms usually at:", "options": [{"letter": "A", "text": ">12–13 mg/dL"}, {"letter": "B", "text": ">10.5 mg/dL"}, {"letter": "C", "text": ">16 mg/dL"}], "answer": "A", "explanation": "**>12–13 mg/dL**.", "clarify": [{"stem": "Severe hypercalcemia (emergency) threshold:", "options": [{"letter": "A", "text": ">14 mg/dL"}, {"letter": "B", "text": ">11 mg/dL"}], "answer": "A", "explanation": "**>14** is severe."}]}], "checkpoints": [{"stem": "Classic PHPT symptom mnemonic:", "options": [{"letter": "A", "text": "Stones, bones, groans, thrones, psychiatric overtones"}, {"letter": "B", "text": "Fever, rash, arthralgia"}, {"letter": "C", "text": "Polyphagia, weight gain, striae"}], "answer": "A", "explanation": "**Stones, bones, groans, thrones, psychiatric overtones**."}, {"stem": "Hypercalcemia GI symptom:", "options": [{"letter": "A", "text": "Constipation"}, {"letter": "B", "text": "Diarrhea"}], "answer": "A", "explanation": "**Constipation** (abdominal groans)."}]}}, {"id": "16", "group": 16, "section": "\"Thrones\"", "topic": "Primary hyperparathyroidism", "skill": "Complications", "stem": "How does hypercalcemia cause polyuria?", "options": [{"letter": "A", "text": "Central diabetes insipidus"}, {"letter": "B", "text": "Osmotic diuresis from glucose"}, {"letter": "C", "text": "SIADH"}, {"letter": "D", "text": "Nephrogenic diabetes insipidus"}], "answer": "D", "explanation": "Hypercalcemia impairs urine concentration, **refractory to vasopressin** → **nephrogenic DI**.", "objective": "", "remediation": {"steps": [{"teach": "ADH is still being made — the **kidney** just can't respond to it.", "stem": "Central DI is:", "options": [{"letter": "A", "text": "Lack of ADH production"}, {"letter": "B", "text": "Kidney unresponsive to ADH"}], "answer": "A", "explanation": "Central = **no ADH made**.", "clarify": [{"stem": "Hypercalcemic polyuria responds to vasopressin?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "**Refractory** to vasopressin."}]}, {"teach": "Kidney resistance to ADH = nephrogenic.", "stem": "Mechanism:", "options": [{"letter": "A", "text": "Nephrogenic DI"}, {"letter": "B", "text": "Central DI"}, {"letter": "C", "text": "SIADH"}], "answer": "A", "explanation": "**Nephrogenic DI**.", "clarify": [{"stem": "Thrones represents:", "options": [{"letter": "A", "text": "Polyuria/polydipsia"}, {"letter": "B", "text": "Constipation"}], "answer": "A", "explanation": "**Polyuria**."}]}], "checkpoints": [{"stem": "Which site is defective in hypercalcemic DI?", "options": [{"letter": "A", "text": "Hypothalamus"}, {"letter": "B", "text": "Kidney"}, {"letter": "C", "text": "Posterior pituitary"}], "answer": "B", "explanation": "The **kidney** (nephrogenic)."}, {"stem": "\"Stones\" in PHPT =", "options": [{"letter": "A", "text": "Calcium nephrolithiasis"}, {"letter": "B", "text": "Gallstones"}], "answer": "A", "explanation": "**Calcium kidney stones**."}]}}, {"id": "17", "group": 17, "section": "PHPT: clinical correlations", "topic": "Primary hyperparathyroidism", "skill": "Complications", "stem": "What is the classic ECG finding in hypercalcemia?", "options": [{"letter": "A", "text": "Prolonged QT"}, {"letter": "B", "text": "Peaked T waves"}, {"letter": "C", "text": "Short QT interval"}, {"letter": "D", "text": "Delta wave"}], "answer": "C", "explanation": "Hypercalcemia → **short QT**, bradycardia, AV block; QT can track calcium changes.", "objective": "", "remediation": {"steps": [{"teach": "Calcium and QT move **opposite**: high calcium shortens, low calcium lengthens.", "stem": "Hypocalcemia ECG:", "options": [{"letter": "A", "text": "Prolonged QT"}, {"letter": "B", "text": "Short QT"}], "answer": "A", "explanation": "Low Ca → **prolonged QT**.", "clarify": [{"stem": "Peaked T waves suggest:", "options": [{"letter": "A", "text": "Hyperkalemia"}, {"letter": "B", "text": "Hypercalcemia"}], "answer": "A", "explanation": "Peaked T = **hyperkalemia**."}]}, {"teach": "High Ca = short QT.", "stem": "Hypercalcemia ECG:", "options": [{"letter": "A", "text": "Short QT"}, {"letter": "B", "text": "Prolonged QT"}, {"letter": "C", "text": "Peaked T waves"}], "answer": "A", "explanation": "**Short QT**.", "clarify": [{"stem": "Hypercalcemia heart rate effect:", "options": [{"letter": "A", "text": "Bradycardia"}, {"letter": "B", "text": "Sinus tachycardia"}], "answer": "A", "explanation": "**Bradycardia** and dysrhythmias."}]}], "checkpoints": [{"stem": "Hypocalcemia → classic ECG finding:", "options": [{"letter": "A", "text": "Short QT"}, {"letter": "B", "text": "Prolonged QT"}, {"letter": "C", "text": "Delta wave"}], "answer": "B", "explanation": "**Prolonged QT**, risk of torsades."}, {"stem": "Serum calcium changes can be followed by:", "options": [{"letter": "A", "text": "QT interval"}, {"letter": "B", "text": "PR interval"}], "answer": "A", "explanation": "**QT interval**."}]}}, {"id": "18", "group": 18, "section": "PHPT: diagnosis and evaluation", "topic": "Primary hyperparathyroidism", "skill": "Diagnostics & imaging", "stem": "How should an intact PTH level of 50 pg/mL be interpreted when calcium is 11.0 mg/dL?", "options": [{"letter": "A", "text": "Inappropriately normal PTH → PHPT"}, {"letter": "B", "text": "Normal PTH excludes PHPT"}, {"letter": "C", "text": "Suppressed PTH → malignancy"}, {"letter": "D", "text": "Lab error — repeat in 1 year"}], "answer": "A", "explanation": "PTH should be **suppressed** when calcium is high; a \"normal\" PTH is **inappropriately normal → PHPT**.", "objective": "", "remediation": {"steps": [{"teach": "Normal feedback: **↑ calcium → ↓ PTH**. A PTH that isn't low despite high Ca means the gland is not listening.", "stem": "With hypercalcemia, a normal parathyroid should make PTH:", "options": [{"letter": "A", "text": "Low (suppressed)"}, {"letter": "B", "text": "High"}], "answer": "A", "explanation": "**Suppressed**.", "clarify": [{"stem": "Does a normal PTH exclude PHPT?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "A normal PTH does **not** exclude PHPT."}]}, {"teach": "Not suppressed = inappropriate.", "stem": "Ca 11.0 + PTH 50 →", "options": [{"letter": "A", "text": "Inappropriately normal → PHPT"}, {"letter": "B", "text": "Normal → no disease"}, {"letter": "C", "text": "Suppressed → malignancy"}], "answer": "A", "explanation": "**PHPT**.", "clarify": [{"stem": "PHPT diagnostic signature:", "options": [{"letter": "A", "text": "↑ Ca + ↑ or inappropriately normal PTH"}, {"letter": "B", "text": "↑ Ca + suppressed PTH"}], "answer": "A", "explanation": "**↑ Ca + ↑/inappropriately normal PTH**."}]}], "checkpoints": [{"stem": "↑ Ca + suppressed intact PTH →", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Non-parathyroid cause"}, {"letter": "C", "text": "Tertiary HPT"}], "answer": "B", "explanation": "Suppressed PTH = **non-parathyroid** (malignancy, vit D, etc.)."}, {"stem": "Persistent hypercalcemia + elevated intact PTH →", "options": [{"letter": "A", "text": "Diagnostic of PHPT"}, {"letter": "B", "text": "Secondary HPT"}], "answer": "A", "explanation": "**Diagnostic of PHPT**."}]}}, {"id": "19", "group": 19, "section": "PHPT: diagnosis and evaluation", "topic": "Primary hyperparathyroidism", "skill": "Diagnostics & imaging", "stem": "Which imaging study is used to localize the abnormal gland in confirmed primary hyperparathyroidism?", "options": [{"letter": "A", "text": "Neck CT with contrast"}, {"letter": "B", "text": "Nuclear medicine parathyroid scan"}, {"letter": "C", "text": "DXA with VFA"}, {"letter": "D", "text": "Renal ultrasound"}], "answer": "B", "explanation": "**Nuclear medicine parathyroid (sestamibi) scan** localizes the abnormal gland(s) — it does not diagnose PHPT.", "objective": "", "remediation": {"steps": [{"teach": "Imaging comes **after** the biochemical diagnosis. Glands can be in unusual places (even the **mediastinum**), so a functional scan finds them.", "stem": "PHPT is diagnosed by:", "options": [{"letter": "A", "text": "Imaging"}, {"letter": "B", "text": "Labs (Ca + PTH)"}], "answer": "B", "explanation": "**Biochemically**.", "clarify": [{"stem": "Parathyroid glands may be located in the:", "options": [{"letter": "A", "text": "Mediastinum"}, {"letter": "B", "text": "Retroperitoneum"}], "answer": "A", "explanation": "Location varies, including the **mediastinum**."}]}, {"teach": "Each PHPT image has one job: localize, bones, or kidneys.", "stem": "Localization:", "options": [{"letter": "A", "text": "Nuclear medicine parathyroid scan"}, {"letter": "B", "text": "DXA with VFA"}, {"letter": "C", "text": "Renal ultrasound"}], "answer": "A", "explanation": "**Nuclear medicine scan**.", "clarify": [{"stem": "Renal ultrasound in PHPT looks for:", "options": [{"letter": "A", "text": "Nephrolithiasis/nephrocalcinosis"}, {"letter": "B", "text": "Adenoma location"}], "answer": "A", "explanation": "**Stones / nephrocalcinosis**."}]}], "checkpoints": [{"stem": "Does a parathyroid scan diagnose PHPT?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No — it only localizes"}], "answer": "B", "explanation": "It **localizes**, never diagnoses."}, {"stem": "Non-contrast abdominal CT in PHPT evaluates for:", "options": [{"letter": "A", "text": "Nephrolithiasis"}, {"letter": "B", "text": "Gland location"}, {"letter": "C", "text": "Osteoporosis"}], "answer": "A", "explanation": "**Kidney stones/nephrocalcinosis**."}]}}, {"id": "20", "group": 20, "section": "PHPT: diagnosis and evaluation", "topic": "Primary hyperparathyroidism", "skill": "Diagnostics & imaging", "stem": "What is the preferred modality for skeletal evaluation in primary hyperparathyroidism?", "options": [{"letter": "A", "text": "Plain skull x-ray"}, {"letter": "B", "text": "Bone scan"}, {"letter": "C", "text": "MRI of spine"}, {"letter": "D", "text": "DXA with vertebral fracture assessment"}], "answer": "D", "explanation": "**DXA including VFA** assesses osteopenia, osteoporosis, and fragility fractures.", "objective": "", "remediation": {"steps": [{"teach": "We're measuring **bone density** and looking for vertebral fractures.", "stem": "Bone mineral density is measured with:", "options": [{"letter": "A", "text": "DXA"}, {"letter": "B", "text": "Bone scan"}], "answer": "A", "explanation": "**DXA**.", "clarify": [{"stem": "Plain films in PHPT are:", "options": [{"letter": "A", "text": "Routinely indicated"}, {"letter": "B", "text": "Not routinely indicated"}], "answer": "B", "explanation": "X-ray is **not routinely indicated**."}]}, {"teach": "DXA + add-on for spine fractures.", "stem": "Preferred skeletal study:", "options": [{"letter": "A", "text": "DXA with VFA"}, {"letter": "B", "text": "Skull x-ray"}, {"letter": "C", "text": "MRI spine"}], "answer": "A", "explanation": "**DXA + VFA**.", "clarify": [{"stem": "Osteoporosis T-score:", "options": [{"letter": "A", "text": "≤ −2.5"}, {"letter": "B", "text": "≥ −1.0"}], "answer": "A", "explanation": "**T ≤ −2.5**."}]}], "checkpoints": [{"stem": "PHPT renal imaging options include:", "options": [{"letter": "A", "text": "Non-contrast CT, renal US, abdominal x-ray"}, {"letter": "B", "text": "MRI with gadolinium"}, {"letter": "C", "text": "Sestamibi scan"}], "answer": "A", "explanation": "**Non-contrast CT, US, or KUB**."}, {"stem": "Osteoporosis on DXA in asymptomatic PHPT →", "options": [{"letter": "A", "text": "Surgical indication"}, {"letter": "B", "text": "Ignore"}], "answer": "A", "explanation": "Osteoporosis/vertebral fracture is a **parathyroidectomy indication**."}]}}, {"id": "21", "group": 21, "section": "PHPT: additional studies", "topic": "Primary hyperparathyroidism", "skill": "Diagnostics & imaging", "stem": "What does a calcium-to-creatinine clearance ratio above 0.02 on a 24-hour urine collection suggest?", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Familial hypocalciuric hypercalcemia"}, {"letter": "C", "text": "Vitamin D deficiency"}, {"letter": "D", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "**Ratio >0.02 suggests PHPT** and is a risk factor for nephrolithiasis/nephrocalcinosis.", "objective": "", "remediation": {"steps": [{"teach": "PTH excess plus high filtered calcium spills **lots** of calcium into the urine. FHH, by name, has **low** urine calcium.", "stem": "FHH urine calcium is:", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "High"}], "answer": "A", "explanation": "**Hypocalciuric** = low.", "clarify": [{"stem": "High urinary calcium increases risk of:", "options": [{"letter": "A", "text": "Kidney stones"}, {"letter": "B", "text": "Cataracts"}], "answer": "A", "explanation": "**Nephrolithiasis/nephrocalcinosis**."}]}, {"teach": "High ratio = high urine calcium.", "stem": ">0.02 →", "options": [{"letter": "A", "text": "PHPT"}, {"letter": "B", "text": "FHH"}, {"letter": "C", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "**PHPT**.", "clarify": [{"stem": "Which ratio suggests FHH?", "options": [{"letter": "A", "text": "<0.01"}, {"letter": "B", "text": ">0.02"}], "answer": "A", "explanation": "**<0.01** = FHH."}]}], "checkpoints": [{"stem": "Which disorder mimics PHPT but has low urinary calcium?", "options": [{"letter": "A", "text": "FHH"}, {"letter": "B", "text": "Tertiary HPT"}, {"letter": "C", "text": "Milk-alkali syndrome"}], "answer": "A", "explanation": "**FHH** mimics PHPT."}, {"stem": "Additional lab in confirmed PHPT:", "options": [{"letter": "A", "text": "25-hydroxyvitamin D"}, {"letter": "B", "text": "TSH receptor antibody"}], "answer": "A", "explanation": "Check **25(OH)D**, creatinine/eGFR, phosphate, ALP, 24-h urine Ca."}]}}, {"id": "21a", "group": 21, "section": "PHPT: additional studies", "topic": "Other causes of hypercalcemia", "skill": "Identification", "stem": "↑ Ca, PTH normal/mildly ↑, urine Ca/Cr < 0.01 →", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Tertiary hyperparathyroidism"}, {"letter": "C", "text": "Familial hypocalciuric hypercalcemia"}, {"letter": "D", "text": "Humoral hypercalcemia of malignancy"}], "answer": "C", "explanation": "**FHH** (inherited altered calcium sensing): mild ↑ Ca, normal/mildly ↑ PTH, **Ca/Cr <0.01** — the PHPT mimic.", "objective": "", "remediation": {"steps": [{"teach": "**Low urine calcium** is the clue that separates the mimic from true PHPT.", "stem": "Ca/Cr <0.01 means urine calcium is:", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "High"}], "answer": "A", "explanation": "**Low** (hypocalciuric).", "clarify": [{"stem": "FHH PTH:", "options": [{"letter": "A", "text": "Normal or mildly ↑"}, {"letter": "B", "text": "Suppressed"}], "answer": "A", "explanation": "**Normal or mildly elevated**."}]}], "checkpoints": [{"stem": "FHH is caused by:", "options": [{"letter": "A", "text": "Inherited altered calcium sensing"}, {"letter": "B", "text": "Parathyroid adenoma"}, {"letter": "C", "text": "PTHrP"}], "answer": "A", "explanation": "**Inherited altered CaSR**."}]}}, {"id": "22", "group": 22, "section": "Advanced PHPT: salt and pepper skull", "topic": "Imaging signs of hyperparathyroidism", "skill": "Diagnostics & imaging", "stem": "Which condition is associated with diffuse granular lytic foci producing a salt-and-pepper appearance on a skull radiograph?", "options": [{"letter": "A", "text": "Multiple myeloma"}, {"letter": "B", "text": "Osteitis fibrosa cystica"}, {"letter": "C", "text": "Paget disease"}, {"letter": "D", "text": "Renal osteodystrophy only"}], "answer": "B", "explanation": "Salt-and-pepper skull = trabecular bone resorption of **osteitis fibrosa cystica** (advanced HPT); diagnosis is still biochemical.", "objective": "", "remediation": {"steps": [{"teach": "Severe, longstanding **PTH excess** chews up trabecular bone, leaving many tiny lucencies.", "stem": "Salt-and-pepper skull results from:", "options": [{"letter": "A", "text": "↑ bone resorption from PTH excess"}, {"letter": "B", "text": "↑ bone formation"}], "answer": "A", "explanation": "**PTH-driven resorption**.", "clarify": [{"stem": "Is salt-and-pepper skull common in modern PHPT?", "options": [{"letter": "A", "text": "Common"}, {"letter": "B", "text": "Classic but uncommon"}], "answer": "B", "explanation": "**Classic but uncommon**."}]}, {"teach": "Name the skeletal disease of advanced HPT.", "stem": "Diagnosis:", "options": [{"letter": "A", "text": "Osteitis fibrosa cystica"}, {"letter": "B", "text": "Paget disease"}, {"letter": "C", "text": "Multiple myeloma"}], "answer": "A", "explanation": "**Osteitis fibrosa cystica**.", "clarify": [{"stem": "Is this finding required to diagnose PHPT?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "**No** — PHPT is diagnosed biochemically."}]}], "checkpoints": [{"stem": "Hand film finding of hyperparathyroidism:", "options": [{"letter": "A", "text": "Subperiosteal resorption of the phalanges"}, {"letter": "B", "text": "Pencil-in-cup deformity"}, {"letter": "C", "text": "Heberden nodes"}], "answer": "A", "explanation": "**Subperiosteal resorption / acro-osteolysis** of phalanges."}, {"stem": "Salt-and-pepper skull may also occur in:", "options": [{"letter": "A", "text": "CKD-related secondary HPT"}, {"letter": "B", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "Also seen in **secondary HPT from CKD**."}]}}, {"id": "23", "group": 23, "section": "Hypercalcemia: differential diagnosis", "topic": "Hypercalcemia of malignancy", "skill": "Disease process", "stem": "What is the most likely cause of acute, severe, symptomatic hypercalcemia in a hospitalized patient?", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Thiazide diuretic"}, {"letter": "C", "text": "Familial hypocalciuric hypercalcemia"}, {"letter": "D", "text": "Malignancy"}], "answer": "D", "explanation": "Inpatient hypercalcemia is commonly **malignancy**, often acute, severe, and symptomatic.", "objective": "", "remediation": {"steps": [{"teach": "Outpatient + incidental = PHPT. **Inpatient + acute/severe** points elsewhere.", "stem": "PHPT is usually:", "options": [{"letter": "A", "text": "Mild, incidental"}, {"letter": "B", "text": "Acute, severe"}], "answer": "A", "explanation": "PHPT is **mild/incidental**.", "clarify": [{"stem": "Hypercalcemia in cancer typically occurs:", "options": [{"letter": "A", "text": "Late in the course"}, {"letter": "B", "text": "As the first sign"}], "answer": "A", "explanation": "Occurs **late**; ~50% survive 30 days."}]}, {"teach": "Severe inpatient = cancer.", "stem": "MCC inpatient:", "options": [{"letter": "A", "text": "Malignancy"}, {"letter": "B", "text": "PHPT"}, {"letter": "C", "text": "FHH"}], "answer": "A", "explanation": "**Malignancy**.", "clarify": [{"stem": "Malignancy hypercalcemia PTH:", "options": [{"letter": "A", "text": "Suppressed"}, {"letter": "B", "text": "Elevated"}], "answer": "A", "explanation": "**Suppressed** PTH."}]}], "checkpoints": [{"stem": "PTHrP-mediated hypercalcemia is commonly associated with:", "options": [{"letter": "A", "text": "Squamous cell carcinoma"}, {"letter": "B", "text": "Adenocarcinoma of the colon"}, {"letter": "C", "text": "Melanoma"}], "answer": "A", "explanation": "**Squamous cell carcinoma**."}, {"stem": "Outpatient MCC of hypercalcemia:", "options": [{"letter": "A", "text": "PHPT"}, {"letter": "B", "text": "Malignancy"}], "answer": "A", "explanation": "**PHPT**."}]}}, {"id": "24", "group": 24, "section": "Humoral hypercalcemia of malignancy", "topic": "Hypercalcemia of malignancy", "skill": "Identification", "stem": "What diagnosis is suggested by elevated calcium, suppressed intact PTH, and elevated PTH-related peptide?", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Humoral hypercalcemia of malignancy"}, {"letter": "C", "text": "Tertiary hyperparathyroidism"}, {"letter": "D", "text": "Vitamin D intoxication"}], "answer": "B", "explanation": "**Humoral hypercalcemia of malignancy**: tumor PTHrP → ↑ Ca, suppressed PTH, often ↓ phosphate; skeletal metastases not required.", "objective": "", "remediation": {"steps": [{"teach": "A **suppressed PTH** with high Ca means the parathyroid is behaving normally — something else is raising calcium.", "stem": "↑ Ca + suppressed PTH →", "options": [{"letter": "A", "text": "Parathyroid cause"}, {"letter": "B", "text": "Non-parathyroid cause"}], "answer": "B", "explanation": "**Non-parathyroid**.", "clarify": [{"stem": "PTHrP comes from:", "options": [{"letter": "A", "text": "Tumor"}, {"letter": "B", "text": "Parathyroid gland"}], "answer": "A", "explanation": "**Tumor** secretion."}]}, {"teach": "↑ PTHrP names the mechanism.", "stem": "Diagnosis:", "options": [{"letter": "A", "text": "Humoral hypercalcemia of malignancy"}, {"letter": "B", "text": "PHPT"}, {"letter": "C", "text": "Vitamin D intoxication"}], "answer": "A", "explanation": "**HHM**.", "clarify": [{"stem": "HHM phosphate is often:", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "High"}], "answer": "A", "explanation": "PTHrP ↓ phosphate reabsorption → **low**."}]}], "checkpoints": [{"stem": "Does HHM require bone metastases?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "**No** — humoral mechanism; mets not required."}, {"stem": "PTHrP mimics PTH at:", "options": [{"letter": "A", "text": "Bone and kidney"}, {"letter": "B", "text": "Thyroid"}], "answer": "A", "explanation": "**Bone and kidney** PTH receptors."}]}}, {"id": "25", "group": 25, "section": "Humoral hypercalcemia of malignancy", "topic": "Hypercalcemia of malignancy", "skill": "Disease process", "stem": "Which tumor type classically secretes PTH-related peptide?", "options": [{"letter": "A", "text": "Squamous cell carcinoma"}, {"letter": "B", "text": "Small cell lung carcinoma"}, {"letter": "C", "text": "Hodgkin lymphoma"}, {"letter": "D", "text": "Multiple myeloma"}], "answer": "A", "explanation": "**Squamous cell carcinoma** of lung, head, or neck is classic; also renal, bladder, breast, ovarian.", "objective": "", "remediation": {"steps": [{"teach": "Separate the three cancer mechanisms: **humoral (PTHrP)**, **osteolytic**, and **calcitriol-mediated**.", "stem": "Multiple myeloma causes hypercalcemia by:", "options": [{"letter": "A", "text": "Osteolytic bone destruction"}, {"letter": "B", "text": "PTHrP"}], "answer": "A", "explanation": "**Osteolytic**.", "clarify": [{"stem": "Lymphoma causes hypercalcemia by:", "options": [{"letter": "A", "text": "Calcitriol production"}, {"letter": "B", "text": "PTHrP"}], "answer": "A", "explanation": "**Calcitriol-mediated**."}]}, {"teach": "Humoral = squamous.", "stem": "PTHrP tumor:", "options": [{"letter": "A", "text": "Squamous cell carcinoma"}, {"letter": "B", "text": "Multiple myeloma"}, {"letter": "C", "text": "Lymphoma"}], "answer": "A", "explanation": "**Squamous cell**.", "clarify": [{"stem": "Sites of PTHrP squamous cell ca:", "options": [{"letter": "A", "text": "Lung, head, neck"}, {"letter": "B", "text": "Skin only"}], "answer": "A", "explanation": "**Lung, head, or neck**."}]}], "checkpoints": [{"stem": "Hypercalcemia via local osteolytic destruction →", "options": [{"letter": "A", "text": "Multiple myeloma"}, {"letter": "B", "text": "Squamous cell lung ca"}, {"letter": "C", "text": "Sarcoidosis"}], "answer": "A", "explanation": "**Multiple myeloma** (and breast)."}, {"stem": "Calcitriol-mediated malignant hypercalcemia →", "options": [{"letter": "A", "text": "Lymphoma"}, {"letter": "B", "text": "Renal carcinoma"}], "answer": "A", "explanation": "**Lymphoma**."}]}}, {"id": "26", "group": 26, "section": "Emergency treatment of severe hypercalcemia", "topic": "Hypercalcemia of malignancy", "skill": "Management", "stem": "What serum calcium level defines severe hypercalcemia requiring aggressive treatment?", "options": [{"letter": "A", "text": ">11 mg/dL"}, {"letter": "B", "text": ">12 mg/dL"}, {"letter": "C", "text": ">14 mg/dL"}, {"letter": "D", "text": ">10 mg/dL"}], "answer": "C", "explanation": "**Ca >14 mg/dL** = severe → isotonic saline + calcitonin + zoledronic acid.", "objective": "", "remediation": {"steps": [{"teach": "Symptoms usually start around **12–13**; the emergency tier is above that.", "stem": "Symptoms usually start at:", "options": [{"letter": "A", "text": ">12–13 mg/dL"}, {"letter": "B", "text": ">10 mg/dL"}], "answer": "A", "explanation": "**>12–13**.", "clarify": [{"stem": "First line of severe hypercalcemia therapy:", "options": [{"letter": "A", "text": "Isotonic saline"}, {"letter": "B", "text": "Routine loop diuretic"}], "answer": "A", "explanation": "**Volume expansion with saline**."}]}, {"teach": "Severe = above 14.", "stem": "Severe threshold:", "options": [{"letter": "A", "text": ">14 mg/dL"}, {"letter": "B", "text": ">11 mg/dL"}, {"letter": "C", "text": ">12 mg/dL"}], "answer": "A", "explanation": "**>14**.", "clarify": [{"stem": "Loop diuretics in hypercalcemia:", "options": [{"letter": "A", "text": "Only for volume overload"}, {"letter": "B", "text": "Routine"}], "answer": "A", "explanation": "**Only for volume overload**."}]}], "checkpoints": [{"stem": "Preferred bisphosphonate for malignant hypercalcemia:", "options": [{"letter": "A", "text": "Zoledronic acid"}, {"letter": "B", "text": "Alendronate"}, {"letter": "C", "text": "Risedronate"}], "answer": "A", "explanation": "**Zoledronic acid** IV (over pamidronate)."}, {"stem": "Refractory life-threatening hypercalcemia →", "options": [{"letter": "A", "text": "Hemodialysis"}, {"letter": "B", "text": "Oral calcium"}], "answer": "A", "explanation": "Consider **hemodialysis**."}]}}, {"id": "27", "group": 27, "section": "Other causes of hypercalcemia", "topic": "Other causes of hypercalcemia", "skill": "Disease process", "stem": "How does sarcoidosis cause hypercalcemia?", "options": [{"letter": "A", "text": "PTHrP secretion"}, {"letter": "B", "text": "↑ renal calcium retention"}, {"letter": "C", "text": "Autonomous PTH secretion"}, {"letter": "D", "text": "↑ extrarenal calcitriol"}], "answer": "D", "explanation": "Granulomas make calcitriol via **extrarenal 1α-hydroxylase** → ↑ intestinal Ca absorption; **PTH suppressed**.", "objective": "", "remediation": {"steps": [{"teach": "Granulomas contain an enzyme normally found in the **kidney** that activates vitamin D.", "stem": "Enzyme that makes calcitriol:", "options": [{"letter": "A", "text": "1α-hydroxylase"}, {"letter": "B", "text": "25-hydroxylase"}], "answer": "A", "explanation": "**1α-hydroxylase**.", "clarify": [{"stem": "Granulomatous hypercalcemia PTH:", "options": [{"letter": "A", "text": "Suppressed"}, {"letter": "B", "text": "Elevated"}], "answer": "A", "explanation": "**Suppressed**."}]}, {"teach": "Calcitriol made outside the kidney.", "stem": "Sarcoid mechanism:", "options": [{"letter": "A", "text": "↑ extrarenal calcitriol"}, {"letter": "B", "text": "PTHrP"}, {"letter": "C", "text": "Autonomous PTH"}], "answer": "A", "explanation": "**Extrarenal calcitriol**.", "clarify": [{"stem": "Other granulomatous cause listed:", "options": [{"letter": "A", "text": "Tuberculosis"}, {"letter": "B", "text": "Graves disease"}], "answer": "A", "explanation": "**TB** and other infections."}]}], "checkpoints": [{"stem": "Thiazides cause hypercalcemia by:", "options": [{"letter": "A", "text": "↑ renal calcium retention"}, {"letter": "B", "text": "↑ calcitriol"}, {"letter": "C", "text": "PTHrP"}], "answer": "A", "explanation": "**↓ urinary Ca excretion** (renal retention)."}, {"stem": "Lab to order for suspected granulomatous hypercalcemia:", "options": [{"letter": "A", "text": "Calcitriol (1,25(OH)₂D)"}, {"letter": "B", "text": "Calcitonin"}], "answer": "A", "explanation": "**Calcitriol** is high."}]}}, {"id": "28", "group": 28, "section": "Other causes of hypercalcemia", "topic": "Other causes of hypercalcemia", "skill": "Diagnostics & imaging", "stem": "What is the next step for a patient taking hydrochlorothiazide who has mildly elevated calcium?", "options": [{"letter": "A", "text": "Stop the thiazide and remeasure"}, {"letter": "B", "text": "Order PTHrP"}, {"letter": "C", "text": "Immediate parathyroidectomy"}, {"letter": "D", "text": "Start IV saline"}], "answer": "A", "explanation": "Thiazides **reduce urinary Ca excretion** and may unmask PHPT — **stop the drug and remeasure**.", "objective": "", "remediation": {"steps": [{"teach": "Thiazides make the kidney **hold on** to calcium; remove the drug to see if hypercalcemia persists.", "stem": "Thiazide effect on urinary calcium:", "options": [{"letter": "A", "text": "↓ excretion"}, {"letter": "B", "text": "↑ excretion"}], "answer": "A", "explanation": "**↓ urinary calcium**.", "clarify": [{"stem": "Thiazides can unmask:", "options": [{"letter": "A", "text": "PHPT"}, {"letter": "B", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "May **unmask PHPT**."}]}, {"teach": "Remove the interfering drug first.", "stem": "Next step:", "options": [{"letter": "A", "text": "Stop thiazide and remeasure"}, {"letter": "B", "text": "PTHrP"}, {"letter": "C", "text": "Parathyroidectomy"}], "answer": "A", "explanation": "**Stop and remeasure**.", "clarify": [{"stem": "Another drug causing ↑ renal Ca retention:", "options": [{"letter": "A", "text": "Lithium"}, {"letter": "B", "text": "Furosemide"}], "answer": "A", "explanation": "**Lithium**."}]}], "checkpoints": [{"stem": "Thiazide-associated hypercalcemia → PTH:", "options": [{"letter": "A", "text": "Low or inappropriately normal"}, {"letter": "B", "text": "Very high"}, {"letter": "C", "text": "Undetectable PTHrP-driven"}], "answer": "A", "explanation": "PTH **low or inappropriately normal**."}, {"stem": "Diuretic that LOWERS calcium:", "options": [{"letter": "A", "text": "Loop diuretic"}, {"letter": "B", "text": "Thiazide"}], "answer": "A", "explanation": "**Loop diuretics** cause hypocalcemia."}]}}, {"id": "29", "group": 29, "section": "Other causes of hypercalcemia", "topic": "Other causes of hypercalcemia", "skill": "Diagnostics & imaging", "stem": "Which laboratory tests should be ordered next when calcium is elevated, PTH is suppressed, and PTH-related peptide is normal?", "options": [{"letter": "A", "text": "Repeat intact PTH only"}, {"letter": "B", "text": "Calcidiol and calcitriol"}, {"letter": "C", "text": "24-h urine cortisol"}, {"letter": "D", "text": "Parathyroid scan"}], "answer": "B", "explanation": "Check **calcidiol (25(OH)D)** for vitamin D intoxication and **calcitriol** for granulomatous disease/lymphoma.", "objective": "", "remediation": {"steps": [{"teach": "Suppressed PTH = non-parathyroid. With PTHrP normal, the next suspect is **vitamin D**.", "stem": "Suppressed PTH shifts the workup:", "options": [{"letter": "A", "text": "Away from the parathyroid"}, {"letter": "B", "text": "Toward parathyroid surgery"}], "answer": "A", "explanation": "**Away** from the parathyroid.", "clarify": [{"stem": "High 25(OH)D + ↑ Ca →", "options": [{"letter": "A", "text": "Vitamin D intoxication"}, {"letter": "B", "text": "Sarcoidosis"}], "answer": "A", "explanation": "**Vitamin D intoxication**."}]}, {"teach": "Check both vitamin D forms.", "stem": "Next labs:", "options": [{"letter": "A", "text": "Calcidiol and calcitriol"}, {"letter": "B", "text": "Repeat PTH"}, {"letter": "C", "text": "Parathyroid scan"}], "answer": "A", "explanation": "**Calcidiol + calcitriol**.", "clarify": [{"stem": "High calcitriol + suppressed PTH →", "options": [{"letter": "A", "text": "Granulomatous disease or lymphoma"}, {"letter": "B", "text": "PHPT"}], "answer": "A", "explanation": "**Granulomatous/lymphoma**."}]}], "checkpoints": [{"stem": "Milk-alkali syndrome → PTH:", "options": [{"letter": "A", "text": "Suppressed"}, {"letter": "B", "text": "Elevated"}], "answer": "A", "explanation": "**Suppressed**."}, {"stem": "Hyperthyroidism hypercalcemia mechanism:", "options": [{"letter": "A", "text": "↑ bone resorption"}, {"letter": "B", "text": "PTHrP"}], "answer": "A", "explanation": "**Thyrotoxicosis → ↑ bone resorption**."}]}}, {"id": "30", "group": 30, "section": "Secondary & tertiary hyperparathyroidism", "topic": "Secondary & tertiary hyperparathyroidism", "skill": "Identification", "stem": "Which diagnosis is suggested by elevated PTH with low or normal calcium?", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Tertiary hyperparathyroidism"}, {"letter": "C", "text": "Secondary hyperparathyroidism"}, {"letter": "D", "text": "Humoral hypercalcemia of malignancy"}], "answer": "C", "explanation": "**High PTH + low/normal Ca = secondary HPT** — an appropriate response to an external stimulus (CKD, vitamin D deficiency).", "objective": "", "remediation": {"steps": [{"teach": "Lecturer's rule: **high PTH + high Ca = primary or tertiary**; **high PTH + low/normal Ca = secondary**.", "stem": "High PTH + high Ca →", "options": [{"letter": "A", "text": "Primary or tertiary"}, {"letter": "B", "text": "Secondary"}], "answer": "A", "explanation": "**Primary or tertiary**.", "clarify": [{"stem": "Secondary HPT PTH is:", "options": [{"letter": "A", "text": "Appropriate (reactive)"}, {"letter": "B", "text": "Autonomous"}], "answer": "A", "explanation": "**Reactive/appropriate**."}]}, {"teach": "Low/normal Ca with high PTH = the gland responding.", "stem": "Diagnosis:", "options": [{"letter": "A", "text": "Secondary HPT"}, {"letter": "B", "text": "Primary HPT"}, {"letter": "C", "text": "Tertiary HPT"}], "answer": "A", "explanation": "**Secondary HPT**.", "clarify": [{"stem": "Most common cause of secondary HPT:", "options": [{"letter": "A", "text": "CKD"}, {"letter": "B", "text": "Parathyroid adenoma"}], "answer": "A", "explanation": "**CKD**, then vitamin D deficiency."}]}], "checkpoints": [{"stem": "Secondary HPT from CKD → phosphate:", "options": [{"letter": "A", "text": "↑"}, {"letter": "B", "text": "↓"}], "answer": "A", "explanation": "**↑ phosphate** in CKD."}, {"stem": "Secondary HPT from vitamin D deficiency → phosphate:", "options": [{"letter": "A", "text": "↓ or normal"}, {"letter": "B", "text": "Markedly ↑"}], "answer": "A", "explanation": "**↓ or normal**."}]}}, {"id": "31", "group": 31, "section": "Tertiary hyperparathyroidism", "topic": "Secondary & tertiary hyperparathyroidism", "skill": "Identification", "stem": "Which diagnosis is most likely in a patient receiving dialysis who has elevated calcium, elevated phosphate, and very high PTH?", "options": [{"letter": "A", "text": "Secondary hyperparathyroidism"}, {"letter": "B", "text": "Primary hyperparathyroidism"}, {"letter": "C", "text": "Pseudohypoparathyroidism"}, {"letter": "D", "text": "Tertiary hyperparathyroidism"}], "answer": "D", "explanation": "**Tertiary HPT**: autonomous PTH after longstanding secondary HPT (advanced CKD) → ↑ Ca, ↑ phosphate, **very high PTH**.", "objective": "", "remediation": {"steps": [{"teach": "Longstanding secondary HPT makes the glands **enlarged and autonomous** — PTH keeps pouring out even after calcium rises.", "stem": "Tertiary HPT arises from:", "options": [{"letter": "A", "text": "Longstanding secondary HPT"}, {"letter": "B", "text": "A new adenoma"}], "answer": "A", "explanation": "**Longstanding secondary HPT**.", "clarify": [{"stem": "Calcium in secondary HPT:", "options": [{"letter": "A", "text": "↓ or normal"}, {"letter": "B", "text": "↑"}], "answer": "A", "explanation": "Secondary = **↓/normal Ca**; tertiary = ↑."}]}, {"teach": "High Ca + high phosphate + CKD.", "stem": "Diagnosis:", "options": [{"letter": "A", "text": "Tertiary HPT"}, {"letter": "B", "text": "Secondary HPT"}, {"letter": "C", "text": "Primary HPT"}], "answer": "A", "explanation": "**Tertiary**.", "clarify": [{"stem": "Primary HPT phosphate:", "options": [{"letter": "A", "text": "↓"}, {"letter": "B", "text": "↑"}], "answer": "A", "explanation": "Primary = **↓ phosphate**."}]}], "checkpoints": [{"stem": "Which feature separates tertiary from primary HPT?", "options": [{"letter": "A", "text": "↑ phosphate with CKD"}, {"letter": "B", "text": "↑ calcium"}, {"letter": "C", "text": "↑ PTH"}], "answer": "A", "explanation": "Tertiary has **↑ phosphate** (CKD); primary ↓."}, {"stem": "Mainstay for symptomatic/refractory tertiary HPT:", "options": [{"letter": "A", "text": "Parathyroidectomy"}, {"letter": "B", "text": "Vitamin D only"}], "answer": "A", "explanation": "**Parathyroidectomy**."}]}}, {"id": "32", "group": 32, "section": "Osteitis fibrosa cystica: brown tumors", "topic": "Imaging signs of hyperparathyroidism", "skill": "Diagnostics & imaging", "stem": "What is a well-defined, expansile lytic lesion associated with severe hyperparathyroidism called?", "options": [{"letter": "A", "text": "Brown tumor"}, {"letter": "B", "text": "Osteosarcoma"}, {"letter": "C", "text": "Giant cell metastasis"}, {"letter": "D", "text": "Bone island"}], "answer": "A", "explanation": "**Brown tumors** — focal expansile lytic lesions from severe remodeling; brown from **hemosiderin**; **not true tumors**.", "objective": "", "remediation": {"steps": [{"teach": "Severe PTH excess → ↑ RANKL-driven osteoclast activity → focal lytic lesions colored by **hemosiderin**.", "stem": "Brown color comes from:", "options": [{"letter": "A", "text": "Hemosiderin"}, {"letter": "B", "text": "Melanin"}], "answer": "A", "explanation": "**Hemosiderin**.", "clarify": [{"stem": "Brown tumors are:", "options": [{"letter": "A", "text": "True neoplasms"}, {"letter": "B", "text": "Not true tumors"}], "answer": "B", "explanation": "**Not true tumors**."}]}, {"teach": "Name the lesion.", "stem": "Lesion:", "options": [{"letter": "A", "text": "Brown tumor"}, {"letter": "B", "text": "Osteosarcoma"}, {"letter": "C", "text": "Bone island"}], "answer": "A", "explanation": "**Brown tumor**.", "clarify": [{"stem": "Brown tumors belong to:", "options": [{"letter": "A", "text": "Osteitis fibrosa cystica"}, {"letter": "B", "text": "Osteoarthritis"}], "answer": "A", "explanation": "Feature of **osteitis fibrosa cystica**."}]}], "checkpoints": [{"stem": "Brown tumors occur in which HPT types?", "options": [{"letter": "A", "text": "Primary, secondary, or tertiary"}, {"letter": "B", "text": "Primary only"}, {"letter": "C", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "**Any advanced HPT**."}, {"stem": "PTH increases osteoclast activity via:", "options": [{"letter": "A", "text": "RANKL"}, {"letter": "B", "text": "Calcitonin"}], "answer": "A", "explanation": "**RANKL**."}]}}, {"id": "33", "group": 33, "section": "Rugger-jersey spine sign", "topic": "Imaging signs of hyperparathyroidism", "skill": "Diagnostics & imaging", "stem": "What radiographic finding is characterized by alternating dense and lucent vertebral endplate bands?", "options": [{"letter": "A", "text": "Paget disease"}, {"letter": "B", "text": "Ankylosing spondylitis"}, {"letter": "C", "text": "Renal osteodystrophy"}, {"letter": "D", "text": "Osteoporosis"}], "answer": "C", "explanation": "**Rugger-jersey spine** = endplate sclerosis of **renal osteodystrophy** (advanced CKD, severe secondary/tertiary HPT).", "objective": "", "remediation": {"steps": [{"teach": "Stripes like a rugby jersey reflect **vertebral endplate sclerosis**, classically in **CKD**.", "stem": "Rugger-jersey spine is classically seen in:", "options": [{"letter": "A", "text": "Advanced CKD"}, {"letter": "B", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "**Advanced CKD**.", "clarify": [{"stem": "Bamboo spine suggests:", "options": [{"letter": "A", "text": "Ankylosing spondylitis"}, {"letter": "B", "text": "Renal osteodystrophy"}], "answer": "A", "explanation": "Bamboo = **AS**."}]}, {"teach": "CKD bone disease.", "stem": "Diagnosis:", "options": [{"letter": "A", "text": "Renal osteodystrophy"}, {"letter": "B", "text": "Paget disease"}, {"letter": "C", "text": "Osteoporosis"}], "answer": "A", "explanation": "**Renal osteodystrophy**.", "clarify": [{"stem": "Associated HPT types:", "options": [{"letter": "A", "text": "Secondary or tertiary"}, {"letter": "B", "text": "Primary only"}], "answer": "A", "explanation": "**Severe secondary or tertiary**."}]}], "checkpoints": [{"stem": "Salt-and-pepper skull indicates:", "options": [{"letter": "A", "text": "Osteitis fibrosa cystica"}, {"letter": "B", "text": "Renal osteodystrophy endplate sclerosis"}, {"letter": "C", "text": "Multiple myeloma"}], "answer": "A", "explanation": "Salt-and-pepper = **osteitis fibrosa cystica**."}, {"stem": "Rugger-jersey appearance reflects:", "options": [{"letter": "A", "text": "Endplate sclerosis"}, {"letter": "B", "text": "Disc calcification"}], "answer": "A", "explanation": "**Endplate sclerosis**."}]}}, {"id": "34", "group": 34, "section": "Hypocalcemia: diagnostic approach", "topic": "Hypocalcemia differential", "skill": "Identification", "stem": "What diagnosis is indicated by true hypocalcemia, low PTH, and elevated phosphate?", "options": [{"letter": "A", "text": "Vitamin D deficiency"}, {"letter": "B", "text": "Hypoparathyroidism"}, {"letter": "C", "text": "Chronic kidney disease"}, {"letter": "D", "text": "Pseudohypoparathyroidism"}], "answer": "B", "explanation": "**Low/inappropriately normal PTH** + ↑ phosphate in true hypocalcemia = **hypoparathyroidism** (or severe hypomagnesemia).", "objective": "", "remediation": {"steps": [{"teach": "If calcium is low and the gland **isn't** responding with high PTH, the problem is the gland (or magnesium).", "stem": "Normal response to low calcium:", "options": [{"letter": "A", "text": "↑ PTH"}, {"letter": "B", "text": "↓ PTH"}], "answer": "A", "explanation": "**↑ PTH**.", "clarify": [{"stem": "Low PTH also lets phosphate:", "options": [{"letter": "A", "text": "Rise"}, {"letter": "B", "text": "Fall"}], "answer": "A", "explanation": "Without PTH, phosphate is retained → **↑**."}]}, {"teach": "Low PTH = parathyroid failure.", "stem": "Diagnosis:", "options": [{"letter": "A", "text": "Hypoparathyroidism"}, {"letter": "B", "text": "Vitamin D deficiency"}, {"letter": "C", "text": "CKD"}], "answer": "A", "explanation": "**Hypoparathyroidism**.", "clarify": [{"stem": "↑ PTH in hypocalcemia means:", "options": [{"letter": "A", "text": "Appropriate response — look for vit D, CKD"}, {"letter": "B", "text": "Gland failure"}], "answer": "A", "explanation": "**Appropriate** — find external cause."}]}], "checkpoints": [{"stem": "Hypocalcemia + ↑ PTH + ↑ creatinine →", "options": [{"letter": "A", "text": "CKD"}, {"letter": "B", "text": "Hypoparathyroidism"}, {"letter": "C", "text": "Vitamin D intoxication"}], "answer": "A", "explanation": "**CKD** (secondary HPT)."}, {"stem": "Hypoparathyroidism phosphate:", "options": [{"letter": "A", "text": "↑"}, {"letter": "B", "text": "↓"}], "answer": "A", "explanation": "**↑ phosphate**."}]}}, {"id": "35", "group": 35, "section": "Hypocalcemia: diagnostic approach", "topic": "Hypocalcemia differential", "skill": "Identification", "stem": "What diagnosis is indicated by low calcium, elevated PTH, low 25-hydroxyvitamin D, and low or normal phosphate?", "options": [{"letter": "A", "text": "Chronic kidney disease"}, {"letter": "B", "text": "Hypoparathyroidism"}, {"letter": "C", "text": "Pseudohypoparathyroidism"}, {"letter": "D", "text": "Vitamin D deficiency"}], "answer": "D", "explanation": "**Vitamin D deficiency** → ↓ Ca absorption → appropriate **↑ PTH** (secondary HPT); phosphate low or normal.", "objective": "", "remediation": {"steps": [{"teach": "High PTH = appropriate. The low **25(OH)D** names the external cause.", "stem": "↑ PTH with low Ca means:", "options": [{"letter": "A", "text": "Appropriate response"}, {"letter": "B", "text": "Gland failure"}], "answer": "A", "explanation": "**Appropriate**.", "clarify": [{"stem": "CKD phosphate is usually:", "options": [{"letter": "A", "text": "Normal or ↑"}, {"letter": "B", "text": "Low"}], "answer": "A", "explanation": "CKD = **normal/↑ phosphate**."}]}, {"teach": "Low 25(OH)D + low/normal phosphate.", "stem": "Diagnosis:", "options": [{"letter": "A", "text": "Vitamin D deficiency"}, {"letter": "B", "text": "CKD"}, {"letter": "C", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "**Vitamin D deficiency**.", "clarify": [{"stem": "Malabsorption cause of vit D deficiency:", "options": [{"letter": "A", "text": "Celiac disease"}, {"letter": "B", "text": "Hypertension"}], "answer": "A", "explanation": "**Celiac**, IBD, CF, bariatric surgery, pancreatitis."}]}], "checkpoints": [{"stem": "Low Ca + ↑ PTH + normal 25(OH)D + ↑ creatinine →", "options": [{"letter": "A", "text": "CKD"}, {"letter": "B", "text": "Vitamin D deficiency"}, {"letter": "C", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "**CKD** lowers calcitriol even with normal 25(OH)D."}, {"stem": "Vitamin D deficiency produces which HPT type?", "options": [{"letter": "A", "text": "Secondary"}, {"letter": "B", "text": "Primary"}], "answer": "A", "explanation": "**Secondary**."}]}}, {"id": "36", "group": 36, "section": "Hypocalcemia: diagnostic approach", "topic": "Hypocalcemia differential", "skill": "Identification", "stem": "What diagnosis is indicated by low calcium, elevated phosphate, elevated PTH, and normal creatinine?", "options": [{"letter": "A", "text": "Pseudohypoparathyroidism"}, {"letter": "B", "text": "Vitamin D deficiency"}, {"letter": "C", "text": "Primary hyperparathyroidism"}, {"letter": "D", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "**Pseudohypoparathyroidism** = PTH resistance: **phosphate stays ↑ despite ↑ PTH**.", "objective": "", "remediation": {"steps": [{"teach": "PTH normally drops phosphate. If phosphate stays **high** while PTH is **high** and kidneys are normal, tissues aren't responding.", "stem": "PTH effect on phosphate:", "options": [{"letter": "A", "text": "Lowers it"}, {"letter": "B", "text": "Raises it"}], "answer": "A", "explanation": "**Lowers** phosphate.", "clarify": [{"stem": "Normal creatinine rules out:", "options": [{"letter": "A", "text": "CKD"}, {"letter": "B", "text": "Pseudohypoparathyroidism"}], "answer": "A", "explanation": "Rules out **CKD**."}]}, {"teach": "Hormone present, no action = resistance.", "stem": "Diagnosis:", "options": [{"letter": "A", "text": "Pseudohypoparathyroidism"}, {"letter": "B", "text": "Hypoparathyroidism"}, {"letter": "C", "text": "Vitamin D deficiency"}], "answer": "A", "explanation": "**Pseudohypoparathyroidism**.", "clarify": [{"stem": "Hypoparathyroidism PTH is:", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "High"}], "answer": "A", "explanation": "Hypopara = **low PTH**."}]}], "checkpoints": [{"stem": "Mechanism of pseudohypoparathyroidism:", "options": [{"letter": "A", "text": "PTH resistance"}, {"letter": "B", "text": "PTH deficiency"}, {"letter": "C", "text": "PTHrP excess"}], "answer": "A", "explanation": "**PTH resistance**."}, {"stem": "Low Ca + ↑ phosphate + LOW PTH →", "options": [{"letter": "A", "text": "Hypoparathyroidism"}, {"letter": "B", "text": "Pseudohypoparathyroidism"}], "answer": "A", "explanation": "**Hypoparathyroidism**."}]}}, {"id": "37", "group": 37, "section": "Hypocalcemia: diagnostic approach", "topic": "Hypocalcemia differential", "skill": "Disease process", "stem": "How does severe hypomagnesemia affect PTH?", "options": [{"letter": "A", "text": "Markedly elevated PTH"}, {"letter": "B", "text": "Low or inappropriately normal PTH"}, {"letter": "C", "text": "Elevated PTHrP"}, {"letter": "D", "text": "No effect on PTH"}], "answer": "B", "explanation": "**Severe hypomagnesemia** blunts PTH → **functional hypoparathyroidism** (low/inappropriately normal PTH); replete Mg first.", "objective": "", "remediation": {"steps": [{"teach": "Magnesium is needed for normal PTH secretion; **severe** depletion shuts it down.", "stem": "Severe ↓ Mg mimics:", "options": [{"letter": "A", "text": "Hypoparathyroidism"}, {"letter": "B", "text": "PHPT"}], "answer": "A", "explanation": "**Functional hypoparathyroidism**.", "clarify": [{"stem": "Mild hypomagnesemia (alcohol, GI losses) PTH:", "options": [{"letter": "A", "text": "Can be ↑"}, {"letter": "B", "text": "Always undetectable"}], "answer": "A", "explanation": "Mild ↓ Mg may show **↑ PTH**."}]}, {"teach": "Severe = blunted.", "stem": "Severe ↓ Mg → PTH:", "options": [{"letter": "A", "text": "Low or inappropriately normal"}, {"letter": "B", "text": "Markedly ↑"}, {"letter": "C", "text": "No effect"}], "answer": "A", "explanation": "**Low/inappropriately normal**.", "clarify": [{"stem": "First treatment step:", "options": [{"letter": "A", "text": "Replete magnesium"}, {"letter": "B", "text": "Parathyroidectomy"}], "answer": "A", "explanation": "**Replete Mg**."}]}], "checkpoints": [{"stem": "Hypocalcemia in alcohol use disorder → check:", "options": [{"letter": "A", "text": "Magnesium"}, {"letter": "B", "text": "PTHrP"}, {"letter": "C", "text": "Calcitriol"}], "answer": "A", "explanation": "Check **magnesium**."}, {"stem": "Low/normal PTH in true hypocalcemia = problem with:", "options": [{"letter": "A", "text": "Parathyroid or magnesium"}, {"letter": "B", "text": "Vitamin D or kidney"}], "answer": "A", "explanation": "**Parathyroid or magnesium**."}]}}, {"id": "38", "group": 38, "section": "Hypocalcemia: diagnostic approach", "topic": "Hypocalcemia differential", "skill": "Disease process", "stem": "Which medication class can cause hypocalcemia?", "options": [{"letter": "A", "text": "Thiazide diuretics"}, {"letter": "B", "text": "Lithium"}, {"letter": "C", "text": "Loop diuretics"}, {"letter": "D", "text": "Calcium supplements"}], "answer": "C", "explanation": "**Loop diuretics** (also bisphosphonates, denosumab, calcitonin, foscarnet, phosphate) cause hypocalcemia; thiazides/lithium raise Ca.", "objective": "", "remediation": {"steps": [{"teach": "Thiazides and loops push urinary calcium in **opposite** directions.", "stem": "Thiazides urinary calcium:", "options": [{"letter": "A", "text": "↓"}, {"letter": "B", "text": "↑"}], "answer": "A", "explanation": "Thiazides **↓** urinary Ca (raise serum Ca).", "clarify": [{"stem": "Lithium causes:", "options": [{"letter": "A", "text": "Hypercalcemia"}, {"letter": "B", "text": "Hypocalcemia"}], "answer": "A", "explanation": "Lithium → **hypercalcemia**."}]}, {"teach": "Loops waste calcium.", "stem": "Hypocalcemia drug:", "options": [{"letter": "A", "text": "Loop diuretics"}, {"letter": "B", "text": "Thiazides"}, {"letter": "C", "text": "Lithium"}], "answer": "A", "explanation": "**Loop diuretics**.", "clarify": [{"stem": "Antiresorptive causing hypocalcemia:", "options": [{"letter": "A", "text": "Denosumab"}, {"letter": "B", "text": "Vitamin D"}], "answer": "A", "explanation": "**Denosumab** (and bisphosphonates)."}]}], "checkpoints": [{"stem": "Antiviral causing hypocalcemia:", "options": [{"letter": "A", "text": "Foscarnet"}, {"letter": "B", "text": "Acyclovir"}, {"letter": "C", "text": "Oseltamivir"}], "answer": "A", "explanation": "**Foscarnet**."}, {"stem": "Drug that may unmask PHPT:", "options": [{"letter": "A", "text": "Thiazide"}, {"letter": "B", "text": "Loop diuretic"}], "answer": "A", "explanation": "**Thiazide**."}]}}, {"id": "39", "group": 39, "section": "Clinical features of hypocalcemia", "topic": "Hypocalcemia differential", "skill": "Diagnostics & imaging", "stem": "Which bedside sign is more sensitive and specific for hypocalcemia?", "options": [{"letter": "A", "text": "Chvostek sign"}, {"letter": "B", "text": "Kernig sign"}, {"letter": "C", "text": "Babinski sign"}, {"letter": "D", "text": "Trousseau sign"}], "answer": "D", "explanation": "**Trousseau** (carpopedal spasm with BP cuff above systolic) is ~94% sensitive/99% specific; Chvostek is neither.", "objective": "", "remediation": {"steps": [{"teach": "One sign uses a **BP cuff**, the other a **tap on the facial nerve**.", "stem": "Chvostek sign =", "options": [{"letter": "A", "text": "Facial twitch on tapping facial nerve"}, {"letter": "B", "text": "Carpopedal spasm with cuff"}], "answer": "A", "explanation": "**Facial twitch**.", "clarify": [{"stem": "Chvostek present in ~10% of:", "options": [{"letter": "A", "text": "Normocalcemic people"}, {"letter": "B", "text": "Hypercalcemic people"}], "answer": "A", "explanation": "Present in ~10% of **normals**."}]}, {"teach": "Cuff sign wins.", "stem": "Sensitive/specific sign:", "options": [{"letter": "A", "text": "Trousseau"}, {"letter": "B", "text": "Chvostek"}, {"letter": "C", "text": "Kernig"}], "answer": "A", "explanation": "**Trousseau**.", "clarify": [{"stem": "Trousseau cuff pressure:", "options": [{"letter": "A", "text": "Above systolic"}, {"letter": "B", "text": "Below diastolic"}], "answer": "A", "explanation": "**Above systolic**."}]}], "checkpoints": [{"stem": "Facial twitching after tapping the facial nerve →", "options": [{"letter": "A", "text": "Chvostek sign"}, {"letter": "B", "text": "Trousseau sign"}, {"letter": "C", "text": "Tinel sign"}], "answer": "A", "explanation": "**Chvostek**."}, {"stem": "Chronic hypocalcemia eye finding:", "options": [{"letter": "A", "text": "Cataracts"}, {"letter": "B", "text": "Exophthalmos"}], "answer": "A", "explanation": "**Cataracts**."}]}}, {"id": "40", "group": 40, "section": "Post-operative hypoparathyroidism", "topic": "Hypoparathyroidism", "skill": "Disease process", "stem": "What is the most common cause of hypoparathyroidism?", "options": [{"letter": "A", "text": "Autoimmune (APS-1)"}, {"letter": "B", "text": "DiGeorge syndrome"}, {"letter": "C", "text": "Postsurgical (neck surgery)"}, {"letter": "D", "text": "Infiltrative disease"}], "answer": "C", "explanation": "**Postsurgical** (thyroidectomy, parathyroidectomy, neck dissection) is the MCC; may be transient or permanent.", "objective": "", "remediation": {"steps": [{"teach": "Glands sit on the **posterior thyroid** and are easily injured or removed during **neck surgery**.", "stem": "Parathyroid location:", "options": [{"letter": "A", "text": "Posterior thyroid"}, {"letter": "B", "text": "Anterior trachea"}], "answer": "A", "explanation": "**Posterior surface of the thyroid**.", "clarify": [{"stem": "Post-thyroidectomy hypocalcemia symptoms:", "options": [{"letter": "A", "text": "Perioral tingling, cramps"}, {"letter": "B", "text": "Polyuria, constipation"}], "answer": "A", "explanation": "**Paresthesias and cramps**."}]}, {"teach": "Neck surgery is the MCC.", "stem": "MCC:", "options": [{"letter": "A", "text": "Postsurgical"}, {"letter": "B", "text": "APS-1"}, {"letter": "C", "text": "DiGeorge"}], "answer": "A", "explanation": "**Postsurgical**.", "clarify": [{"stem": "Postsurgical hypopara can be:", "options": [{"letter": "A", "text": "Transient or permanent"}, {"letter": "B", "text": "Always permanent"}], "answer": "A", "explanation": "**Transient or permanent**."}]}], "checkpoints": [{"stem": "POD 2 after total thyroidectomy: Ca 5.8, PTH 7 →", "options": [{"letter": "A", "text": "Postsurgical hypoparathyroidism"}, {"letter": "B", "text": "Vitamin D deficiency"}, {"letter": "C", "text": "Pseudohypocalcemia"}], "answer": "A", "explanation": "**Postsurgical hypoparathyroidism**."}, {"stem": "Congenital parathyroid aplasia →", "options": [{"letter": "A", "text": "DiGeorge syndrome"}, {"letter": "B", "text": "MEN 1"}], "answer": "A", "explanation": "**DiGeorge**."}]}}, {"id": "41", "group": 41, "section": "Primary hypoparathyroidism", "topic": "Hypoparathyroidism", "skill": "Identification", "stem": "Which syndrome includes mucocutaneous candidiasis, hypoparathyroidism, and adrenal insufficiency?", "options": [{"letter": "A", "text": "MEN 1"}, {"letter": "B", "text": "APS-1"}, {"letter": "C", "text": "DiGeorge syndrome"}, {"letter": "D", "text": "MEN 2"}], "answer": "B", "explanation": "**Autoimmune polyglandular syndrome type 1 (APS-1)** — recessive, with these three major components.", "objective": "", "remediation": {"steps": [{"teach": "This is an **autoimmune** syndrome hitting multiple glands, not a tumor syndrome.", "stem": "MEN syndromes involve:", "options": [{"letter": "A", "text": "Tumors/hyperfunction"}, {"letter": "B", "text": "Autoimmune gland failure"}], "answer": "A", "explanation": "MEN = **tumors**.", "clarify": [{"stem": "APS-1 inheritance:", "options": [{"letter": "A", "text": "Recessive"}, {"letter": "B", "text": "Dominant"}], "answer": "A", "explanation": "**Recessively** inherited."}]}, {"teach": "Autoimmune + polyglandular + type 1.", "stem": "Diagnosis:", "options": [{"letter": "A", "text": "APS-1"}, {"letter": "B", "text": "MEN 1"}, {"letter": "C", "text": "DiGeorge"}], "answer": "A", "explanation": "**APS-1**.", "clarify": [{"stem": "APS-1 infection feature:", "options": [{"letter": "A", "text": "Mucocutaneous candidiasis"}, {"letter": "B", "text": "Recurrent pneumococcal pneumonia"}], "answer": "A", "explanation": "**Chronic mucocutaneous candidiasis**."}]}], "checkpoints": [{"stem": "PHPT + pituitary + pancreatic islet tumors →", "options": [{"letter": "A", "text": "MEN 1"}, {"letter": "B", "text": "APS-1"}, {"letter": "C", "text": "MEN 2"}], "answer": "A", "explanation": "**MEN 1**."}, {"stem": "APS-1 adrenal component:", "options": [{"letter": "A", "text": "Adrenal insufficiency"}, {"letter": "B", "text": "Pheochromocytoma"}], "answer": "A", "explanation": "**Adrenocortical insufficiency**."}]}}, {"id": "42", "group": 42, "section": "Primary hypoparathyroidism", "topic": "Hypoparathyroidism", "skill": "Diagnostics & imaging", "stem": "How should a laboratory pattern suggesting hypoparathyroidism be confirmed?", "options": [{"letter": "A", "text": "Single low calcium is enough"}, {"letter": "B", "text": "Two measurements ≥ 2 weeks apart"}, {"letter": "C", "text": "Three measurements over 6 months"}, {"letter": "D", "text": "One measurement after IV calcium"}], "answer": "B", "explanation": "Low (ionized/corrected) Ca + low/inappropriately normal PTH + ↑ phosphate, **confirmed on two measurements ≥ 2 weeks apart**.", "objective": "", "remediation": {"steps": [{"teach": "Hypoparathyroidism (esp. postsurgical) can be **transient**, so persistence must be shown.", "stem": "Postsurgical hypopara can be:", "options": [{"letter": "A", "text": "Transient"}, {"letter": "B", "text": "Never transient"}], "answer": "A", "explanation": "Can be **transient**.", "clarify": [{"stem": "Calcium used for confirmation:", "options": [{"letter": "A", "text": "Ionized or albumin-corrected"}, {"letter": "B", "text": "Uncorrected total"}], "answer": "A", "explanation": "**Ionized or corrected**."}]}, {"teach": "Repeat to prove persistence.", "stem": "Confirmation:", "options": [{"letter": "A", "text": "Two measurements ≥ 2 weeks apart"}, {"letter": "B", "text": "Single value"}, {"letter": "C", "text": "After IV calcium"}], "answer": "A", "explanation": "**Two measurements ≥ 2 wk apart**.", "clarify": [{"stem": "Hypopara PTH:", "options": [{"letter": "A", "text": "Low or inappropriately normal"}, {"letter": "B", "text": "Elevated"}], "answer": "A", "explanation": "**Low/inappropriately normal**."}]}], "checkpoints": [{"stem": "Hypoparathyroidism lab pattern:", "options": [{"letter": "A", "text": "↓ Ca, ↑ phosphate, low PTH"}, {"letter": "B", "text": "↓ Ca, ↓ phosphate, ↑ PTH"}, {"letter": "C", "text": "↑ Ca, ↓ phosphate, ↑ PTH"}], "answer": "A", "explanation": "**↓ Ca, ↑ phos, ↓ PTH**."}, {"stem": "Chronic hypopara calcium target:", "options": [{"letter": "A", "text": "At or slightly below lower limit of normal"}, {"letter": "B", "text": "Upper limit of normal"}], "answer": "A", "explanation": "Target **at/slightly below LLN**."}]}}, {"id": "43", "group": 43, "section": "Calcium repletion in hypocalcemia", "topic": "Hypocalcemia differential", "skill": "Management", "stem": "What treatment is indicated for tetany, a prolonged QT interval, or calcium of 7.5 mg/dL or lower?", "options": [{"letter": "A", "text": "Oral calcium carbonate"}, {"letter": "B", "text": "No repletion needed"}, {"letter": "C", "text": "IV calcium gluconate"}, {"letter": "D", "text": "Thiazide diuretic"}], "answer": "C", "explanation": "Severe/symptomatic hypocalcemia (**Ca ≤ 7.5**, tetany, seizures, prolonged QT) → **IV calcium gluconate/chloride** with telemetry.", "objective": "", "remediation": {"steps": [{"teach": "Repletion is tiered by **level and symptoms**: ≤7.5 or symptomatic, 7.6–8.4 mild, ≥8.5 none.", "stem": "Ca 7.6–8.4 with mild paresthesias →", "options": [{"letter": "A", "text": "Oral calcium"}, {"letter": "B", "text": "IV calcium"}], "answer": "A", "explanation": "Mild → **oral calcium**.", "clarify": [{"stem": "Ca ≥ 8.5 mg/dL →", "options": [{"letter": "A", "text": "Usually no repletion"}, {"letter": "B", "text": "IV calcium"}], "answer": "A", "explanation": "**Usually none**."}]}, {"teach": "Severe tier = IV.", "stem": "Ca ≤ 7.5 or tetany →", "options": [{"letter": "A", "text": "IV calcium gluconate"}, {"letter": "B", "text": "Oral calcium"}, {"letter": "C", "text": "No repletion"}], "answer": "A", "explanation": "**IV calcium**.", "clarify": [{"stem": "IV calcium caution with:", "options": [{"letter": "A", "text": "Digoxin"}, {"letter": "B", "text": "Acetaminophen"}], "answer": "A", "explanation": "**Digoxin** → arrhythmias."}]}], "checkpoints": [{"stem": "Ca 8.0 mg/dL, asymptomatic →", "options": [{"letter": "A", "text": "Oral calcium"}, {"letter": "B", "text": "IV calcium chloride"}, {"letter": "C", "text": "Hemodialysis"}], "answer": "A", "explanation": "7.6–8.4 → **oral calcium**."}, {"stem": "Before calcium repletion, replete:", "options": [{"letter": "A", "text": "Magnesium if low"}, {"letter": "B", "text": "Potassium chloride always"}], "answer": "A", "explanation": "**Replete Mg** if low."}]}}, {"id": "44", "group": 44, "section": "Vitamin D deficiency: causes and PTH connection", "topic": "Vitamin D level", "skill": "Disease process", "stem": "Why can chronic kidney disease cause secondary hyperparathyroidism even when 25-hydroxyvitamin D is normal?", "options": [{"letter": "A", "text": "↑ calcitriol production"}, {"letter": "B", "text": "↓ calcitriol production"}, {"letter": "C", "text": "↑ PTHrP secretion"}, {"letter": "D", "text": "↓ 25-hydroxylation"}], "answer": "B", "explanation": "CKD impairs **1α-hydroxylation** → **↓ calcitriol** even when 25(OH)D is normal → ↓ Ca absorption → ↑ PTH.", "objective": "", "remediation": {"steps": [{"teach": "The kidney performs the **final activation** step. A failing kidney can't make the active hormone.", "stem": "Kidney converts 25(OH)D to:", "options": [{"letter": "A", "text": "Calcitriol"}, {"letter": "B", "text": "Cholecalciferol"}], "answer": "A", "explanation": "**Calcitriol**.", "clarify": [{"stem": "Liver disease impairs:", "options": [{"letter": "A", "text": "25-hydroxylation"}, {"letter": "B", "text": "1α-hydroxylation"}], "answer": "A", "explanation": "Liver = **25-hydroxylation**."}]}, {"teach": "Storage form fine, active form low.", "stem": "CKD →", "options": [{"letter": "A", "text": "↓ calcitriol"}, {"letter": "B", "text": "↑ calcitriol"}, {"letter": "C", "text": "↓ 25-hydroxylation"}], "answer": "A", "explanation": "**↓ calcitriol**.", "clarify": [{"stem": "Advanced CKD vitamin D replacement may require:", "options": [{"letter": "A", "text": "Calcitriol"}, {"letter": "B", "text": "Native vitamin D only"}], "answer": "A", "explanation": "May need **calcitriol**."}]}], "checkpoints": [{"stem": "Which organ's disease impairs 25-hydroxylation?", "options": [{"letter": "A", "text": "Liver"}, {"letter": "B", "text": "Kidney"}, {"letter": "C", "text": "Skin"}], "answer": "A", "explanation": "**Liver**."}, {"stem": "CKD calcium and phosphate:", "options": [{"letter": "A", "text": "↓/normal Ca, ↑ phosphate"}, {"letter": "B", "text": "↑ Ca, ↓ phosphate"}], "answer": "A", "explanation": "**↓/normal Ca, ↑ phos**."}]}}, {"id": "45", "group": 45, "section": "Assessing vitamin D status", "topic": "Vitamin D level", "skill": "Diagnostics & imaging", "stem": "Which test should be ordered for suspected vitamin D deficiency?", "options": [{"letter": "A", "text": "1,25-dihydroxyvitamin D (calcitriol)"}, {"letter": "B", "text": "Intact PTH alone"}, {"letter": "C", "text": "Serum calcium alone"}, {"letter": "D", "text": "25-hydroxyvitamin D (calcidiol)"}], "answer": "D", "explanation": "**25(OH)D (calcidiol)** is the preferred marker of stores; calcitriol is NOT the test for routine deficiency.", "objective": "", "remediation": {"steps": [{"teach": "Measure the **storage** form. The active hormone can be misleading because **secondary HPT** drives its production.", "stem": "Calcitriol in vitamin D deficiency may be:", "options": [{"letter": "A", "text": "Normal or elevated"}, {"letter": "B", "text": "Always undetectable"}], "answer": "A", "explanation": "**Normal or elevated** (↑ PTH → ↑ 1α-hydroxylase).", "clarify": [{"stem": "Storage/circulating form:", "options": [{"letter": "A", "text": "25-hydroxyvitamin D"}, {"letter": "B", "text": "Calcitriol"}], "answer": "A", "explanation": "**25(OH)D**."}]}, {"teach": "Order the storage form.", "stem": "Test:", "options": [{"letter": "A", "text": "25-hydroxyvitamin D"}, {"letter": "B", "text": "Calcitriol"}, {"letter": "C", "text": "PTH alone"}], "answer": "A", "explanation": "**25(OH)D**.", "clarify": [{"stem": "After repletion, recheck:", "options": [{"letter": "A", "text": "25(OH)D"}, {"letter": "B", "text": "Calcitriol"}], "answer": "A", "explanation": "**Recheck 25(OH)D**."}]}], "checkpoints": [{"stem": "Why is calcitriol a poor test for deficiency?", "options": [{"letter": "A", "text": "Secondary HPT keeps it normal or high"}, {"letter": "B", "text": "It is not measurable"}, {"letter": "C", "text": "It reflects liver function"}], "answer": "A", "explanation": "**↑ PTH stimulates 1α-hydroxylase**, so calcitriol may be normal/high."}, {"stem": "Deficiency cutoff for the test of choice:", "options": [{"letter": "A", "text": "<20 ng/mL"}, {"letter": "B", "text": "<65 pg/mL"}], "answer": "A", "explanation": "**<20 ng/mL**."}]}}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  const LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  function shuffleOptions(item) {
+    if (!item || !item.options || item.options.length < 2) return;
+    const key = (item.options.find(o => o.letter === item.answer) || {}).text;
+    const texts = item.options.map(o => o.text);
+    for (let i = texts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [texts[i], texts[j]] = [texts[j], texts[i]]; }
+    item.options = texts.map((t, i) => ({ letter: LET[i], text: t }));
+    item.answer = (item.options.find(o => o.text === key) || {}).letter;
+  }
+  // Tutor questions get fresh option order on every open, like the main exam
+  if (EXAM_DATA.shuffleTutorOptions !== false) {
+    questions.forEach(q => {
+      const r = q.remediation; if (!r) return;
+      (r.steps || []).forEach(s => { shuffleOptions(s); (s.clarify || []).forEach(shuffleOptions); });
+      (r.checkpoints || []).forEach(shuffleOptions);
+    });
+  }
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter (FIRST attempt — this is what is scored)
+  const tutor = {};          // question id -> tutor session (see startTutor)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);
+  let page = 0;
+  let lastGrade = null;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const optText = (item, letter) => { const o = item.options.find(x => x.letter === letter); return o ? o.text : ''; };
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  // ================= Adaptive tutor engine =================
+  // A session is a growing "trail" of nodes rendered under the missed question.
+  // Node kinds: step | clarify | checkpoint (answerable), note (text only).
+  function hasTutor(q) { return !!(q.remediation && q.remediation.steps && q.remediation.steps.length); }
+
+  function startTutor(q) {
+    const t = { status: 'active', phase: 'steps', trail: [], step: 0, clar: 0, wrong: [], cp: 0 };
+    tutor[q.id] = t;
+    pushStep(q, t, false);
+  }
+
+  function pushStep(q, t, retry) {
+    const steps = q.remediation.steps;
+    if (t.step >= steps.length) return finishSteps(q, t);
+    t.trail.push({ kind: 'step', item: steps[t.step], sIdx: t.step, retry: retry,
+                   elim: retry ? t.wrong.slice() : [], chosen: null, revealed: false });
+  }
+
+  function nextStep(q, t) { t.step++; t.clar = 0; t.wrong = []; pushStep(q, t, false); }
+
+  function pushClarify(q, t) {
+    const cl = q.remediation.steps[t.step].clarify || [];
+    if (t.clar < cl.length) {
+      t.trail.push({ kind: 'clarify', item: cl[t.clar], sIdx: t.step, chosen: null, revealed: false });
+      t.clar++;
+      return true;
+    }
+    return false;
+  }
+
+  function finishSteps(q, t) {
+    t.phase = 'checkpoint';
+    t.trail.push({ kind: 'note', cls: 'reveal',
+      html: '<b>Back to Question ' + esc(q.id) + ':</b> the answer is <b>' + esc(q.answer) + '. ' + fmt(optText(q, q.answer)) + '</b>' +
+            (q.explanation ? '<div style="margin-top:4px">' + fmt(q.explanation) + '</div>' : '') });
+    pushCheckpoint(q, t);
+  }
+
+  function pushCheckpoint(q, t) {
+    const cps = q.remediation.checkpoints || [];
+    if (t.cp < cps.length) {
+      t.trail.push({ kind: 'checkpoint', item: cps[t.cp], chosen: null, revealed: false, n: t.cp + 1 });
+    } else if (!cps.length) {
+      t.status = 'mastered'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Pathway complete — continue the case.' });
+    } else {
+      t.status = 'review'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'review',
+        html: '⚑ Flagged for review — this concept is saved to your missed list. Continue the case when ready.' });
+    }
+  }
+
+  function tutorAnswer(q, idx, letter) {
+    const t = tutor[q.id];
+    const node = t.trail[idx];
+    if (!node || node.chosen !== null || idx !== t.trail.length - 1) return;
+    node.chosen = letter;
+    const ok = letter === node.item.answer;
+
+    if (node.kind === 'step') {
+      if (ok) return nextStep(q, t);
+      t.wrong.push(letter);
+      if (pushClarify(q, t)) return;
+      // Out of simpler questions: teach the step's answer, then move on
+      node.revealed = true;
+      return nextStep(q, t);
+    }
+    if (node.kind === 'clarify') {
+      if (ok) return pushStep(q, t, true);              // foundation fixed -> retry the step
+      if (pushClarify(q, t)) return;                    // still shaky -> go simpler again
+      node.revealed = true;                             // teach the basic fact, then retry the step
+      return pushStep(q, t, true);
+    }
+    if (node.kind === 'checkpoint') {
+      if (ok) {
+        t.status = 'mastered'; t.phase = 'done';
+        t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Mastered — you applied it to a new case. Continue below.' });
+        return;
+      }
+      node.revealed = true;
+      t.cp++;
+      const more = t.cp < (q.remediation.checkpoints || []).length;
+      if (more) t.trail.push({ kind: 'note', cls: 'info', html: 'Same concept, one more case:' });
+      return pushCheckpoint(q, t);
+    }
+  }
+
+  // A question is "resolved" (lets its follow-up appear) once answered right,
+  // answered wrong without a pathway, or its pathway has finished.
+  function resolved(q) {
+    if (answers[q.id] === undefined) return false;
+    if (answers[q.id] === q.answer || !hasTutor(q)) return true;
+    return tutor[q.id] && tutor[q.id].status !== 'active';
+  }
+
+  function tutorStatus(q) {
+    const t = tutor[q.id];
+    return t ? t.status : null;
+  }
+
+  function nodeHtml(q, node, idx, interactive) {
+    if (node.kind === 'note') return '<div class="tnote ' + node.cls + '">' + node.html + '</div>';
+    const it = node.item;
+    const answered = node.chosen !== null;
+    const live = interactive && !answered;
+    let label;
+    if (node.kind === 'step') label = '<span class="tlabel">Step ' + (node.sIdx + 1) + ' of ' + q.remediation.steps.length + (node.retry ? ' · try again' : '') + '</span>';
+    else if (node.kind === 'clarify') label = '<span class="tlabel clar">Let\'s go simpler</span>';
+    else label = '<span class="tlabel cp">Mastery check' + ((q.remediation.checkpoints || []).length > 1 ? ' ' + node.n : '') + '</span>';
+
+    let html = '<div class="tnode' + (answered ? ' done' : ' active') + '" data-tq="' + esc(q.id) + '" data-tidx="' + idx + '">' + label;
+    if (it.teach && !(node.kind === 'step' && node.retry)) html += '<div class="teach">' + fmt(it.teach) + '</div>';
+    html += '<div class="stem">' + fmt(it.stem) + '</div>';
+    it.options.forEach(o => {
+      let cls = 'opt';
+      const elim = node.elim && node.elim.indexOf(o.letter) !== -1;
+      if (answered) {
+        if (o.letter === node.chosen) cls += node.chosen === it.answer ? ' correct' : ' incorrect';
+        else if (node.revealed && o.letter === it.answer) cls += ' correct';
+      }
+      if (elim) cls += ' elim';
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (live && !elim ? '' : ' disabled') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      const ok = node.chosen === it.answer;
+      if (ok || node.revealed) {
+        html += '<div class="feedback ' + (ok ? 'good' : 'bad') + '"><div class="verdict">' +
+          (ok ? '✓ Correct' : '✗ Answer: ' + esc(it.answer) + '. ' + fmt(optText(it, it.answer))) + '</div>' +
+          (it.explanation ? '<div>' + fmt(it.explanation) + '</div>' : '') + '</div>';
+      } else {
+        html += '<div class="nudge">✗ Not yet — let\'s break it down.</div>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function trailHtml(q, interactive) {
+    const t = tutor[q.id];
+    if (!t) return '';
+    let html = '<div class="tutor"><div class="tutor-head">Guided review</div>';
+    t.trail.forEach((n, i) => { html += nodeHtml(q, n, i, interactive); });
+    html += '</div>';
+    return html;
+  }
+
+  // ================= Rendering =================
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + fmt(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + fmt(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    const wrong = answered && chosen !== q.answer;
+    const tutoring = wrong && hasTutor(q);
+    const t = tutor[q.id];
+    // While the pathway is still in its teaching steps (exam mode), the correct answer stays hidden
+    const hideKey = mode === 'exam' && tutoring && t && t.phase === 'steps';
+    const status = tutoring ? tutorStatus(q) : null;
+
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    if (status === 'mastered') html += '<span class="badge mastered">Mastered after review</span>';
+    else if (status === 'review') html += '<span class="badge review">Flagged for review</span>';
+    else if (status === 'active') html += '<span class="badge active">Guided review in progress</span>';
+    html += '<div class="stem">' + fmt(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === chosen) cls += chosen === q.answer ? ' correct' : ' incorrect';
+        else if (o.letter === q.answer && !hideKey) cls += ' correct';
+        else if (!hideKey) cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      if (hideKey) {
+        html += '<div class="feedback tutoring"><div class="verdict">✗ Not quite — the answer stays hidden while we build up to it.</div>' +
+          '<div>Work through the guided questions below.</div></div>';
+      } else {
+        html += feedbackHtml(q, chosen);
+      }
+    }
+    if (tutoring && t) {
+      if (mode === 'exam') html += trailHtml(q, true);
+      else html += '<details class="trail"><summary>Guided review path (' +
+        t.trail.filter(n => n.kind !== 'note').length + ' questions)</summary>' + trailHtml(q, false) + '</details>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: a follow-up appears only once the question before it is
+    // resolved — answered correctly, or its guided review has finished.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && resolved(group[shown - 1])) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      const blocked = group[shown - 1];
+      const inTutor = answers[blocked.id] !== undefined && !resolved(blocked);
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') + ' in this case — ' +
+        (inTutor ? 'finish the guided review to continue' : 'answer above to continue') + '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Main-question clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll(':scope > .opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          const q = byId[qid];
+          answers[qid] = btn.getAttribute('data-letter');
+          if (answers[qid] !== q.answer && hasTutor(q)) startTutor(q);
+          renderPage(true);
+        });
+      });
+    });
+    // Tutor clicks
+    $('main').querySelectorAll('.tnode.active').forEach(nodeEl => {
+      const q = byId[nodeEl.getAttribute('data-tq')];
+      const idx = +nodeEl.getAttribute('data-tidx');
+      nodeEl.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || btn.disabled) return;
+          tutorAnswer(q, idx, btn.getAttribute('data-letter'));
+          renderPage(true);
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) {
+      window.scrollTo(0, savedY);
+      // Bring the newest tutor question / unlocked follow-up into view if it landed below the fold
+      const target = $('main').querySelector('.tnode.active') || $('main').querySelector('.tnote.mastered, .tnote.review');
+      if (target) {
+        const r = target.getBoundingClientRect();
+        const navH = $('navbar').offsetHeight || 0;
+        if (r.bottom > window.innerHeight - navH) {
+          window.scrollBy({ top: Math.min(r.top - 80, r.bottom - (window.innerHeight - navH) + 16), behavior: 'smooth' });
+        }
+      }
+    } else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  // ================= Grading =================
+  // Two lenses for the results page:
+  //   topic — WHAT you were tested on (e.g. "Paget's disease of bone"). Falls back to `section`.
+  //   skill — WHAT KIND of thinking (Identification, Disease process, Diagnostics & imaging,
+  //           Management, Complications…). Optional; the skill card is hidden when no question has one.
+  const topicOf = q => q.topic || q.section || 'All questions';
+  const skillOf = q => q.skill || null;
+
+  function tally(list, keyFn) {
+    const m = {};
+    list.forEach(q => {
+      const k = keyFn(q); if (!k) return;
+      if (!m[k]) m[k] = { name: k, correct: 0, total: 0, mastered: 0, review: 0, missed: 0 };
+      const e = m[k];
+      e.total++;
+      if (answers[q.id] === q.answer) { e.correct++; return; }
+      if (answers[q.id] === undefined) return;
+      const st = tutor[q.id] ? tutor[q.id].status : null;
+      if (st === 'mastered') e.mastered++; else if (st === 'review') e.review++; else e.missed++;
+    });
+    return Object.keys(m).map(k => { const e = m[k]; e.pct = e.total ? e.correct / e.total : 0; return e; })
+      .sort((a, b) => a.pct - b.pct || b.total - a.total);        // weakest first
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    graded.forEach(q => { if (answers[q.id] === q.answer) correct++; });
+    const ts = { started: 0, mastered: 0, review: 0, active: 0, tq: 0, tqRight: 0 };
+    Object.keys(tutor).forEach(id => {
+      const t = tutor[id];
+      ts.started++; ts[t.status]++;
+      t.trail.forEach(n => { if (n.kind !== 'note' && n.chosen !== null) { ts.tq++; if (n.chosen === n.item.answer) ts.tqRight++; } });
+    });
+    return { correct, graded: graded.length, total: questions.length, partial,
+             topics: tally(graded, topicOf), skills: tally(graded, skillOf), ts };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  // Lowest-scoring entries (ties included) — only meaningful when there's something to compare
+  function weakest(entries) {
+    if (entries.length < 2) return [];
+    const lo = entries[0].pct, hi = entries[entries.length - 1].pct;
+    if (lo === hi) return [];                                       // all equal: nothing stands out
+    return entries.filter(e => e.pct === lo);
+  }
+
+  function barsHtml(entries) {
+    const weakSet = weakest(entries).map(e => e.name);
+    return entries.map(e => {
+      const p = Math.round(e.pct * 100);
+      const cls = p >= 80 ? 'hi' : (weakSet.indexOf(e.name) !== -1 ? 'lo' : '');
+      const meta = [];
+      if (e.review) meta.push(e.review + ' flagged');
+      if (e.missed) meta.push(e.missed + ' missed');
+      if (e.mastered) meta.push(e.mastered + ' relearned in guided review');
+      return '<div class="bar-row"><div class="bar-head"><span class="nm">' + esc(e.name) +
+        (weakSet.indexOf(e.name) !== -1 ? '<span class="sec-tag weak">WEAKEST</span>' : '') +
+        '</span><span class="pc"><b>' + p + '%</b> · ' + e.correct + '/' + e.total + '</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + cls + '" style="width:' + Math.max(p, 2) + '%"></div></div>' +
+        (meta.length ? '<div class="bar-meta">' + meta.join(' · ') + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+    const hasSkills = r.skills.length > 0;
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + ' · first attempts</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.ts.started) html += '<div class="score-note">' + r.ts.mastered + ' of ' + r.ts.started +
+      ' missed concept' + (r.ts.started === 1 ? '' : 's') + ' relearned in guided review</div>';
+    else if (r.partial) html += '<div class="score-note">Unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    // ---- What to work on ----
+    const wTopic = weakest(r.topics), wSkill = weakest(r.skills);
+    const missed = missedQuestions();
+    html += '<div class="card"><h2>What to work on</h2><div class="sub">Ranked from the questions you missed on the first try</div>';
+    if (!missed.length) {
+      html += '<div class="focus-box ok"><div class="v">Nothing missed — every question right on the first try.</div></div>';
+    } else {
+      html += '<div class="focus-grid">';
+      if (wTopic.length) html += '<div class="focus-box"><div class="k">Weakest topic</div><div class="v">' +
+        wTopic.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wTopic.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      if (wSkill.length) html += '<div class="focus-box"><div class="k">Weakest skill</div><div class="v">' +
+        wSkill.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wSkill.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      html += '</div>';
+      // One line per missed concept: flagged first, then plain misses, then ones already relearned
+      const rank = { review: 0, active: 0, missed: 1, mastered: 2 };
+      const items = missed.map(q => {
+        const st = tutor[q.id] ? tutor[q.id].status : 'missed';
+        return { q, st: st === 'active' ? 'review' : st };
+      }).sort((a, b) => rank[a.st] - rank[b.st]);
+      const label = { review: 'Still shaky', missed: 'Missed', mastered: 'Relearned' };
+      html += '<ul class="todo">' + items.map(it => {
+        const sk = skillOf(it.q);
+        return '<li><span class="dot ' + it.st + '"></span><span class="what"><b>' + esc(topicOf(it.q)) + '</b>' +
+          (sk ? ' — ' + esc(sk) : '') + ' <span style="color:var(--ink-soft)">(Q' + esc(it.q.id) + ')</span></span>' +
+          '<span class="tag ' + it.st + '">' + label[it.st] + '</span></li>';
+      }).join('') + '</ul>';
+    }
+    html += '</div>';
+
+    // ---- By topic / by skill ----
+    html += '<div class="card"><h2>By topic</h2><div class="sub">First-attempt score for each disease or concept</div>' + barsHtml(r.topics) + '</div>';
+    if (hasSkills) html += '<div class="card"><h2>By skill</h2><div class="sub">Which kind of question trips you up, across all topics</div>' + barsHtml(r.skills) + '</div>';
+
+    if (r.ts.started) {
+      html += '<div class="card"><h2>Guided review</h2><div class="sub" style="margin-bottom:12px">How the tutor pathways went</div><div class="tutor-stats">' +
+        '<div class="tstat t"><b>' + r.ts.started + '</b>concepts reviewed</div>' +
+        '<div class="tstat m"><b>' + r.ts.mastered + '</b>passed mastery check</div>' +
+        '<div class="tstat r"><b>' + (r.ts.review + r.ts.active) + '</b>still shaky</div>' +
+        '<div class="tstat"><b>' + r.ts.tqRight + '/' + r.ts.tq + '</b>tutor questions right</div>' +
+        '</div></div>';
+    }
+
+    html += '<div class="results-actions">';
+    if (missed.length) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed.length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + fmt(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  const plain = s => String(s == null ? '' : s).replace(/\*\*(.+?)\*\*/g, '$1');
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id + ' — ' + topicOf(q) + (skillOf(q) ? ' / ' + skillOf(q) : '')];
+      if (group[0].id !== q.id) lines.push('Case: ' + plain(group[0].stem));
+      lines.push(plain(q.stem));
+      q.options.forEach(o => lines.push(o.letter + '. ' + plain(o.text)));
+      lines.push('My answer: ' + answers[q.id]);
+      lines.push('Correct answer: ' + q.answer + '. ' + plain(optText(q, q.answer)));
+      if (q.explanation) lines.push('Rationale: ' + plain(q.explanation));
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      const t = tutor[q.id];
+      if (t) {
+        const st = { mastered: 'MASTERED on re-check', review: 'STILL NEEDS REVIEW (missed mastery check)', active: 'guided review not finished' }[t.status];
+        lines.push('Guided review: ' + st);
+        t.trail.forEach(n => {
+          if (n.kind === 'note' || n.chosen === null) return;
+          const ok = n.chosen === n.item.answer;
+          lines.push('  ' + (ok ? '✓ ' : '✗ ') + plain(n.item.stem) + ' → ' + plain(optText(n.item, n.item.answer)));
+        });
+      }
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => !resolved(q))) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(tutor).forEach(k => delete tutor[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

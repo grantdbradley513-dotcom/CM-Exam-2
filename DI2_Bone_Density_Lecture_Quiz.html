@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- Adaptive tutor ---------- */
+  :root { --tutor: #5b3fa6; --tutor-bg: #f5f2fc; --tutor-line: #ddd3f3; }
+  .feedback.tutoring { background: var(--amber-bg); border-left: 4px solid var(--amber); margin-bottom: 22px; }
+  .feedback.tutoring .verdict { color: var(--amber); }
+  /* Guided review: a quiet rail instead of a filled box, so nested cards don't stack up visually */
+  .tutor { border-left: 3px solid var(--tutor-line); padding: 2px 0 2px 16px; margin: 0 0 6px 4px; }
+  .tutor-head { font-weight: 700; color: var(--tutor); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+  .tnode { background: var(--card); border: 1px solid var(--tutor-line); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+  .tnode.active { border-color: var(--tutor); box-shadow: 0 2px 10px rgba(91,63,166,0.10); }
+  .tnode.done { background: #fcfcfe; }
+  .tlabel { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--tutor); margin-bottom: 8px; }
+  .tlabel.cp { color: #fff; background: var(--tutor); border-radius: 6px; padding: 1px 8px; }
+  .tlabel.clar { color: var(--amber); }
+  .teach { border-left: 3px solid var(--tutor); padding: 2px 0 2px 12px; margin-bottom: 12px; font-size: 0.95em; white-space: pre-wrap; color: var(--ink); }
+  .tnode .stem { margin-bottom: 12px; font-weight: 500; }
+  .tnode .opt { padding: 8px 12px; margin-bottom: 8px; }
+  .tnode .feedback { margin-top: 10px; }
+  .tnode .nudge { margin-top: 8px; color: var(--amber); font-weight: 600; font-size: 0.9em; }
+  .opt.elim { opacity: 0.45; text-decoration: line-through; border-style: dashed; }
+  .tnote { border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 0.95em; }
+  .tnote.reveal { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .tnote.mastered { background: var(--green-bg); border-left: 4px solid var(--green); font-weight: 600; }
+  .tnote.review { background: var(--red-bg); border-left: 4px solid var(--red); font-weight: 600; }
+  .tnote.info { color: var(--ink-soft); padding: 0 2px; margin-bottom: 10px; font-style: italic; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 6px; padding: 1px 8px; margin-left: 8px; vertical-align: middle; }
+  .badge.mastered { background: var(--green-bg); color: var(--green); }
+  .badge.review { background: var(--red-bg); color: var(--red); }
+  .badge.active { background: var(--tutor-bg); color: var(--tutor); }
+  details.trail { margin-top: 12px; }
+  details.trail summary { cursor: pointer; color: var(--tutor); font-weight: 600; font-size: 0.9rem; }
+  details.trail .tutor { margin-top: 12px; }
+
+  .qcard > .feedback + .tutor { margin-top: 22px; }
+
+  /* ---------- Results: study plan ---------- */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 16px; }
+  .card h2 { font-size: 1.02rem; margin-bottom: 4px; }
+  .card .sub { font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 14px; }
+  .focus-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 640px) { .focus-grid { grid-template-columns: 1fr 1fr; } }
+  .focus-box { border-radius: 10px; padding: 12px 14px; background: var(--red-bg); border-left: 4px solid var(--red); }
+  .focus-box.ok { background: var(--green-bg); border-left-color: var(--green); }
+  .focus-box .k { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+  .focus-box .v { font-weight: 700; font-size: 1.02rem; margin-top: 2px; }
+  .focus-box .n { font-size: 0.85rem; color: var(--ink-soft); }
+  .todo { list-style: none; }
+  .todo li { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border); font-size: 0.93rem; }
+  .todo li:first-child { border-top: none; }
+  .todo .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; transform: translateY(-1px); }
+  .todo .dot.review { background: var(--red); } .todo .dot.missed { background: var(--amber); } .todo .dot.mastered { background: var(--green); }
+  .todo .what { flex: 1; }
+  .todo .what b { font-weight: 600; }
+  .todo .tag { flex: none; font-size: 0.75rem; font-weight: 700; color: var(--ink-soft); }
+  .todo .tag.review { color: var(--red); } .todo .tag.missed { color: var(--amber); } .todo .tag.mastered { color: var(--green); }
+  .bar-row { margin-bottom: 14px; }
+  .bar-row:last-child { margin-bottom: 2px; }
+  .bar-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.92rem; margin-bottom: 5px; }
+  .bar-head .nm { font-weight: 600; }
+  .bar-head .pc { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+  .bar-head .pc b { color: var(--ink); }
+  .bar-meta { font-size: 0.78rem; color: var(--ink-soft); margin-top: 3px; }
+  .tutor-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 640px) { .tutor-stats { grid-template-columns: repeat(4, 1fr); } }
+  .tstat { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; color: var(--ink-soft); }
+  .tstat b { display: block; font-size: 1.4rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tstat.m b { color: var(--green); } .tstat.r b { color: var(--red); } .tstat.t b { color: var(--tutor); }
+
+  /* Background infographic (added by Claude) */
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(244, 246, 250, 0.55), rgba(244, 246, 250, 0.55)),
+      url("data:image/png;base64,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");
+    background-repeat: no-repeat, no-repeat;
+    background-position: center center, center center;
+    background-size: cover, cover;
+    background-attachment: fixed, fixed;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, topic?, skill?, image?,
+//    remediation?: {                      // OPTIONAL — adaptive tutor pathway for a wrong first answer
+//      steps: [{ teach?, stem, options, answer, explanation?,
+//                clarify?: [{ teach?, stem, options, answer, explanation? }] }],   // simpler questions used when a step is missed
+//      checkpoints?: [{ teach?, stem, options, answer, explanation? }]             // mastery check(s): a new vignette on the same concept
+//    } }] }
+// Questions without `remediation` behave exactly like the classic exam (answer revealed immediately).
+// **double asterisks** in any text render as bold.
+const EXAM_DATA = {"title": "Bone Density Testing — Fundamentals (DI 2 Exam 3)", "questions": [{"id": "1", "group": 1, "section": "DEXA — definition", "topic": "DXA technique", "skill": "Identification", "stem": "What does the abbreviation DEXA or DXA stand for?", "options": [{"letter": "A", "text": "Digital-enhanced x-ray angiography"}, {"letter": "B", "text": "Dual-energy x-ray absorptiometry"}, {"letter": "C", "text": "Dual-emission x-ray arthrography"}, {"letter": "D", "text": "Direct-exposure x-ray attenuation"}], "answer": "B", "explanation": "DXA = **dual-energy x-ray absorptiometry** — it measures bone mineral density (BMD).", "objective": "Identify different techniques used to assess bone mineral density; DXA is the gold standard", "remediation": {"steps": [{"teach": "The name describes the method: **two** x-ray energy levels whose absorption by tissue is measured.", "stem": "The 'dual' in DXA refers to:", "options": [{"letter": "A", "text": "Two body sites scanned"}, {"letter": "B", "text": "Two detectors used"}, {"letter": "C", "text": "Two x-ray energy levels"}], "answer": "C", "explanation": "Two beams of **different energy** are used — hence 'dual-energy'.", "clarify": [{"stem": "DXA measures:", "options": [{"letter": "A", "text": "Bone mineral density"}, {"letter": "B", "text": "Bone marrow cellularity"}], "answer": "A", "explanation": "DXA quantifies **bone mineral density**."}]}, {"teach": "Put it together: dual-energy + x-ray + absorptiometry (measuring absorption).", "stem": "DEXA / DXA acronym → stands for:", "options": [{"letter": "A", "text": "Digital-enhanced x-ray angiography"}, {"letter": "B", "text": "Dual-energy x-ray absorptiometry"}, {"letter": "C", "text": "Dual-emission x-ray arthrography"}], "answer": "B", "explanation": "**Dual-energy x-ray absorptiometry**.", "clarify": [{"stem": "Absorptiometry measures:", "options": [{"letter": "A", "text": "How much radiation tissue absorbs"}, {"letter": "B", "text": "How fast contrast clears tissue"}], "answer": "A", "explanation": "Absorptiometry = measuring **absorption/attenuation** of the beam."}]}], "checkpoints": [{"stem": "Primary measurement reported by DXA →", "options": [{"letter": "A", "text": "Bone marrow density"}, {"letter": "B", "text": "Cortical thickness in mm"}, {"letter": "C", "text": "Bone mineral density"}, {"letter": "D", "text": "Serum bone turnover"}], "answer": "C", "explanation": "DXA reports **BMD**, converted to T- and Z-scores."}, {"stem": "Dual-energy x-ray absorptiometry → common abbreviation:", "options": [{"letter": "A", "text": "SXA"}, {"letter": "B", "text": "DXA (DEXA)"}, {"letter": "C", "text": "pQCT"}, {"letter": "D", "text": "SPEP"}], "answer": "B", "explanation": "**DXA/DEXA**; SXA is single-energy."}]}}, {"id": "2", "group": 2, "section": "DEXA — gold standard", "topic": "DXA technique", "skill": "Diagnostics & imaging", "stem": "What is the gold-standard test for diagnosing osteoporosis?", "options": [{"letter": "A", "text": "Central DXA scan"}, {"letter": "B", "text": "Plain film radiograph"}, {"letter": "C", "text": "Heel SXA scan"}, {"letter": "D", "text": "Serum calcium level"}], "answer": "A", "explanation": "**DXA** is the gold standard for diagnosing osteoporosis.", "objective": "Know that the gold standard for testing is dual-energy x-ray absorptiometry (DXA)", "remediation": {"steps": [{"teach": "Osteoporosis is defined by **bone mineral density**, so the gold standard must *quantify* BMD at central sites.", "stem": "Which test quantifies BMD at the hip and spine?", "options": [{"letter": "A", "text": "Central DXA scan"}, {"letter": "B", "text": "Plain film radiograph"}, {"letter": "C", "text": "Serum calcium level"}], "answer": "A", "explanation": "**DXA** quantifies BMD; plain films and labs do not.", "clarify": [{"stem": "Serum calcium in primary osteoporosis is usually:", "options": [{"letter": "A", "text": "Normal"}, {"letter": "B", "text": "Diagnostic of osteoporosis"}], "answer": "A", "explanation": "Labs look for **secondary causes**; they don't diagnose osteoporosis."}, {"stem": "Peripheral tests (heel/forearm) compared to DXA are:", "options": [{"letter": "A", "text": "Equally accurate"}, {"letter": "B", "text": "Not as good"}], "answer": "B", "explanation": "Peripheral tests are **NOT AS GOOD** per the slides."}]}], "checkpoints": [{"stem": "Diagnosis of osteoporosis is based on →", "options": [{"letter": "A", "text": "Serum alkaline phosphatase"}, {"letter": "B", "text": "Bone mineral density (T-score)"}, {"letter": "C", "text": "Urine calcium excretion"}, {"letter": "D", "text": "Plain film cortical thinning"}], "answer": "B", "explanation": "Osteoporosis is a **BMD/T-score** diagnosis by DXA."}, {"stem": "Gold standard for osteoporosis →", "options": [{"letter": "A", "text": "DXA"}, {"letter": "B", "text": "pDXA of forearm"}, {"letter": "C", "text": "Radiographic absorptiometry"}, {"letter": "D", "text": "SXA of heel"}], "answer": "A", "explanation": "**Central DXA** is the gold standard."}]}}, {"id": "3", "group": 3, "section": "DEXA — sites", "topic": "DXA technique", "skill": "Diagnostics & imaging", "stem": "At which two sites is DXA most often performed?", "options": [{"letter": "A", "text": "Forearm + calcaneus (heel)"}, {"letter": "B", "text": "Phalanges + distal radius"}, {"letter": "C", "text": "Lumbar spine + femoral neck"}, {"letter": "D", "text": "Thoracic spine + pelvis"}], "answer": "C", "explanation": "DXA is most often performed on the **lumbar spine and femoral neck** (hip).", "objective": "", "remediation": {"steps": [{"teach": "Central DXA = **central** skeleton sites: the **hip** and the **spine**. Heel, forearm and phalanges are peripheral tests.", "stem": "Central DXA sites are the:", "options": [{"letter": "A", "text": "Heel and forearm"}, {"letter": "B", "text": "Fingers and wrist"}, {"letter": "C", "text": "Hip and spine"}], "answer": "C", "explanation": "**Hip and spine** — peripheral sites belong to pDXA/SXA/radiographic absorptiometry.", "clarify": [{"stem": "Phalanges are measured by:", "options": [{"letter": "A", "text": "Central DXA"}, {"letter": "B", "text": "Radiographic absorptiometry"}], "answer": "B", "explanation": "**Radiographic absorptiometry** uses the phalanges."}, {"stem": "Part of the spine scanned on DXA:", "options": [{"letter": "A", "text": "Lumbar spine"}, {"letter": "B", "text": "Cervical spine"}], "answer": "A", "explanation": "**Lumbar spine** (plus femoral neck)."}]}], "checkpoints": [{"stem": "Hip site where osteoporosis is diagnosed by T-score →", "options": [{"letter": "A", "text": "Femoral neck"}, {"letter": "B", "text": "Greater trochanter"}, {"letter": "C", "text": "Acetabulum"}, {"letter": "D", "text": "Iliac crest"}], "answer": "A", "explanation": "T-score ≤ −2.5 at the **femoral neck** or spine."}, {"stem": "Heel and forearm are measured by →", "options": [{"letter": "A", "text": "Central DXA"}, {"letter": "B", "text": "Radiographic absorptiometry"}, {"letter": "C", "text": "CT angiography"}, {"letter": "D", "text": "SXA"}], "answer": "D", "explanation": "**Single-energy absorptiometry (SXA)** — heel and forearm."}]}}, {"id": "4", "group": 4, "section": "DEXA — how it works", "topic": "DXA technique", "skill": "Diagnostics & imaging", "stem": "How does DXA distinguish bone from soft tissue?", "options": [{"letter": "A", "text": "Radiotracer uptake by osteoblasts"}, {"letter": "B", "text": "Magnetic signal from bone marrow"}, {"letter": "C", "text": "Sound-wave speed through bone"}, {"letter": "D", "text": "Different attenuation of two beams"}], "answer": "D", "explanation": "Two beams of different energy are attenuated differently by bone vs soft tissue; the **difference in attenuation** separates them and quantifies BMD.", "objective": "", "remediation": {"steps": [{"teach": "**Attenuation** = reduction in beam intensity as it passes through tissue. Bone and soft tissue attenuate the two energies differently.", "stem": "Attenuation means:", "options": [{"letter": "A", "text": "Increase in beam energy"}, {"letter": "B", "text": "Reduction in beam intensity"}, {"letter": "C", "text": "Uptake of radiotracer"}], "answer": "B", "explanation": "**Attenuation** = reduction in intensity of the beam.", "clarify": [{"stem": "DXA uses which energy source?", "options": [{"letter": "A", "text": "X-rays"}, {"letter": "B", "text": "Ultrasound"}], "answer": "A", "explanation": "DXA is **x-ray** based (filtered source with two energies)."}, {"stem": "Denser, thicker tissue lets photons through:", "options": [{"letter": "A", "text": "More"}, {"letter": "B", "text": "Less"}], "answer": "B", "explanation": "Denser tissue has more electrons and lets **fewer** photons reach the detector."}]}, {"teach": "Comparing **two** energies lets the software subtract out the error from overlying soft tissue.", "stem": "DXA distinguishes bone from soft tissue by →", "options": [{"letter": "A", "text": "Different attenuation of two beams"}, {"letter": "B", "text": "Radiotracer uptake by osteoblasts"}, {"letter": "C", "text": "Sound-wave speed through bone"}], "answer": "A", "explanation": "The **difference in attenuation** of the two beams.", "clarify": [{"stem": "Using two energies corrects for:", "options": [{"letter": "A", "text": "Patient motion"}, {"letter": "B", "text": "Variable overlying soft tissue"}], "answer": "B", "explanation": "It subtracts error from **varying overlying soft tissue**."}]}], "checkpoints": [{"stem": "Why use two energies instead of one →", "options": [{"letter": "A", "text": "Double the radiation dose"}, {"letter": "B", "text": "Subtract out soft-tissue error"}, {"letter": "C", "text": "Image the bone marrow"}, {"letter": "D", "text": "Shorten the scan to seconds"}], "answer": "B", "explanation": "Two energies let DXA **subtract soft tissue** to isolate bone."}, {"stem": "Denser tissue → photons reaching detector:", "options": [{"letter": "A", "text": "Fewer"}, {"letter": "B", "text": "More"}, {"letter": "C", "text": "Unchanged"}, {"letter": "D", "text": "Doubled"}], "answer": "A", "explanation": "Denser tissue absorbs more → **fewer** photons reach the detector."}]}}, {"id": "5", "group": 5, "section": "DEXA — patient experience", "topic": "DXA technique", "skill": "Diagnostics & imaging", "stem": "How does the radiation dose of a DXA scan compare with that of a chest x-ray?", "options": [{"letter": "A", "text": "About equal to a CXR"}, {"letter": "B", "text": "Much less than a CXR"}, {"letter": "C", "text": "About 10× a CXR"}, {"letter": "D", "text": "Similar to a CT chest"}], "answer": "B", "explanation": "DXA has a **very low radiation dose — much less than a CXR** — and takes about 10–20 minutes.", "objective": "Describe the patient's experience of getting a DXA scan", "remediation": {"steps": [{"teach": "DXA is described as a **very low radiation** test.", "stem": "DXA radiation dose is:", "options": [{"letter": "A", "text": "Moderate"}, {"letter": "B", "text": "Very low"}, {"letter": "C", "text": "High"}], "answer": "B", "explanation": "**Very low** — much less than a chest x-ray.", "clarify": [{"stem": "Typical DXA scan duration:", "options": [{"letter": "A", "text": "2–3 hours"}, {"letter": "B", "text": "10–20 minutes"}], "answer": "B", "explanation": "About **10–20 minutes**."}]}], "checkpoints": [{"stem": "Approximate time for a DXA scan →", "options": [{"letter": "A", "text": "1–2 minutes"}, {"letter": "B", "text": "10–20 minutes"}, {"letter": "C", "text": "45–60 minutes"}, {"letter": "D", "text": "2–3 hours"}], "answer": "B", "explanation": "DXA takes about **10–20 minutes**."}, {"stem": "A patient fears 'lots of radiation' from DXA → best reply:", "options": [{"letter": "A", "text": "Much less than a chest x-ray"}, {"letter": "B", "text": "Similar to a CT scan"}, {"letter": "C", "text": "Same as a mammogram series"}, {"letter": "D", "text": "Avoid it if over 65"}], "answer": "A", "explanation": "DXA dose is **much less than a CXR**."}]}}, {"id": "6", "group": 6, "section": "DEXA — positioning", "topic": "DXA technique", "skill": "Diagnostics & imaging", "stem": "How does the foot brace position the patient's leg during a hip DXA scan?", "options": [{"letter": "A", "text": "Rotates the hip inward"}, {"letter": "B", "text": "Rotates the hip outward"}, {"letter": "C", "text": "Flexes the hip to 90°"}, {"letter": "D", "text": "Abducts the leg 45°"}], "answer": "A", "explanation": "For the hip, the foot goes in a brace that **rotates the hip inward**; for the spine, legs rest on a padded box to flatten the pelvis/lumbar spine.", "objective": "Describe the patient's experience of getting a DXA scan", "remediation": {"steps": [{"teach": "Spine and hip each have their own positioning aid. Spine: **padded box under the legs**. Hip: **foot brace**.", "stem": "For a spine DXA, the legs rest on a padded box to:", "options": [{"letter": "A", "text": "Flatten the pelvis and lumbar spine"}, {"letter": "B", "text": "Rotate the hip outward"}, {"letter": "C", "text": "Elevate the head"}], "answer": "A", "explanation": "The box **flattens the pelvis and lumbar spine**.", "clarify": [{"stem": "The x-ray tube in DXA is located:", "options": [{"letter": "A", "text": "Above the patient"}, {"letter": "B", "text": "Below the patient"}], "answer": "B", "explanation": "Tube **below**, detector **above** (on a C-arm)."}, {"stem": "During DXA the patient:", "options": [{"letter": "A", "text": "Lies on a padded table"}, {"letter": "B", "text": "Stands against a plate"}], "answer": "A", "explanation": "The patient **lies on a padded table**."}]}, {"teach": "The hip brace turns the hip **inward** (internal rotation).", "stem": "Hip DXA positioning → patient's foot is placed in a brace that:", "options": [{"letter": "A", "text": "Rotates the hip outward"}, {"letter": "B", "text": "Rotates the hip inward"}, {"letter": "C", "text": "Flexes the hip to 90°"}], "answer": "B", "explanation": "**Rotates the hip inward**.", "clarify": []}], "checkpoints": [{"stem": "Spine DXA → legs supported on a padded box to:", "options": [{"letter": "A", "text": "Rotate the hip inward"}, {"letter": "B", "text": "Raise the knees to the chest"}, {"letter": "C", "text": "Prevent arm motion"}, {"letter": "D", "text": "Flatten pelvis and lumbar spine"}], "answer": "D", "explanation": "The box **flattens the pelvis and lumbar spine**."}, {"stem": "DXA detector position →", "options": [{"letter": "A", "text": "Below the table"}, {"letter": "B", "text": "Inside a rotating gantry"}, {"letter": "C", "text": "Above the patient"}, {"letter": "D", "text": "Strapped to the hip"}], "answer": "C", "explanation": "Detector **above**, tube below on a movable C-arm."}]}}, {"id": "7", "group": 7, "section": "Other BMD tests", "topic": "DXA technique", "skill": "Diagnostics & imaging", "stem": "What is the next step when heel single-energy x-ray absorptiometry or peripheral forearm DXA suggests low bone mineral density?", "options": [{"letter": "A", "text": "Start bisphosphonate now"}, {"letter": "B", "text": "Repeat the heel test"}, {"letter": "C", "text": "Routine central DXA scan"}, {"letter": "D", "text": "No further testing needed"}], "answer": "C", "explanation": "Peripheral tests are **NOT AS GOOD**; a suggestion of low BMD should be followed up with a **routine DXA** of hip and spine.", "objective": "Identify different techniques used to assess bone mineral density", "remediation": {"steps": [{"teach": "Peripheral tests (pDXA, SXA, radiographic absorptiometry) are screening-grade and **inferior** to central DXA.", "stem": "Compared with central DXA, peripheral BMD tests are:", "options": [{"letter": "A", "text": "Less accurate"}, {"letter": "B", "text": "More accurate"}, {"letter": "C", "text": "The gold standard"}], "answer": "A", "explanation": "They are **NOT AS GOOD** — central DXA is gold standard.", "clarify": [{"stem": "Forearm-only DXA is called:", "options": [{"letter": "A", "text": "SXA"}, {"letter": "B", "text": "pDXA"}], "answer": "B", "explanation": "**Peripheral DXA (pDXA)** = forearm."}, {"stem": "Treatment decisions use T-score from:", "options": [{"letter": "A", "text": "Femoral neck or spine"}, {"letter": "B", "text": "Heel or phalanx"}], "answer": "A", "explanation": "Osteoporosis is diagnosed at the **femoral neck or spine**."}]}, {"teach": "An abnormal inferior test is **confirmed** with the gold standard.", "stem": "Heel SXA or forearm pDXA suggests low BMD → next step:", "options": [{"letter": "A", "text": "Start bisphosphonate now"}, {"letter": "B", "text": "Routine central DXA scan"}, {"letter": "C", "text": "Repeat the heel test"}], "answer": "B", "explanation": "Follow up with **central DXA** of hip and spine.", "clarify": []}], "checkpoints": [{"stem": "Radiographic absorptiometry measures BMD at →", "options": [{"letter": "A", "text": "Femoral neck"}, {"letter": "B", "text": "Phalanges"}, {"letter": "C", "text": "Lumbar spine"}, {"letter": "D", "text": "Heel"}], "answer": "B", "explanation": "Radiographic absorptiometry = **phalanges**."}, {"stem": "SXA measures BMD at →", "options": [{"letter": "A", "text": "Heel and forearm"}, {"letter": "B", "text": "Hip and spine"}, {"letter": "C", "text": "Phalanges only"}, {"letter": "D", "text": "Skull and ribs"}], "answer": "A", "explanation": "**SXA** = heel and forearm."}]}}, {"id": "8", "group": 8, "section": "Screening — goal", "topic": "Osteoporosis screening", "skill": "Identification", "stem": "What term describes a fracture caused by low trauma, such as a fall from standing height?", "options": [{"letter": "A", "text": "Stress fracture"}, {"letter": "B", "text": "Pathologic avulsion"}, {"letter": "C", "text": "Greenstick fracture"}, {"letter": "D", "text": "Fragility fracture"}], "answer": "D", "explanation": "A low-trauma fracture is a **fragility fracture**; the goal of screening is to identify people at risk of one who would benefit from intervention.", "objective": "", "remediation": {"steps": [{"teach": "Osteoporotic bone breaks with **minimal trauma** — the slides call this a 'fragility' fracture.", "stem": "Goal of osteoporosis screening is to identify persons at risk of:", "options": [{"letter": "A", "text": "High-energy trauma"}, {"letter": "B", "text": "Bone metastases"}, {"letter": "C", "text": "Low-trauma fracture"}], "answer": "C", "explanation": "Screening targets risk of a **low-trauma ('fragility') fracture**.", "clarify": [{"stem": "A fragility fracture results from:", "options": [{"letter": "A", "text": "Major trauma"}, {"letter": "B", "text": "Minimal trauma"}], "answer": "B", "explanation": "**Low/minimal trauma**, like a fall from standing."}]}], "checkpoints": [{"stem": "Goal of osteoporosis screening →", "options": [{"letter": "A", "text": "Diagnose bone metastases early"}, {"letter": "B", "text": "Find those at risk of fragility fracture"}, {"letter": "C", "text": "Measure serum calcium yearly"}, {"letter": "D", "text": "Detect stress fractures in athletes"}], "answer": "B", "explanation": "Identify people at increased risk of a **low-trauma fracture** who benefit from intervention."}, {"stem": "Postmenopausal woman, wrist fracture from ground-level fall →", "options": [{"letter": "A", "text": "Fragility fracture"}, {"letter": "B", "text": "High-energy fracture"}, {"letter": "C", "text": "Stress fracture"}, {"letter": "D", "text": "Pathologic fracture"}], "answer": "A", "explanation": "Ground-level fall = **fragility fracture**."}]}}, {"id": "9", "group": 9, "section": "Screening — USPSTF", "topic": "Osteoporosis screening", "skill": "Diagnostics & imaging", "stem": "According to the 2018 USPSTF recommendation, at what age should all women begin DXA screening?", "options": [{"letter": "A", "text": "≥50 years"}, {"letter": "B", "text": "≥65 years"}, {"letter": "C", "text": "≥60 years"}, {"letter": "D", "text": "≥70 years"}], "answer": "B", "explanation": "USPSTF recommends DXA for **women ≥65 (Grade B)** and younger postmenopausal women with ≥1 risk factor.", "objective": "Describe the expert recommendations (NOF and USPSTF) for screening women for osteoporosis", "remediation": {"steps": [{"teach": "Both USPSTF and NOF agree on the **women** cutoff; they differ on men.", "stem": "NOF screening age for all women:", "options": [{"letter": "A", "text": "≥50 years"}, {"letter": "B", "text": "≥65 years"}, {"letter": "C", "text": "≥70 years"}], "answer": "B", "explanation": "NOF also screens **all women ≥65**.", "clarify": [{"stem": "NOF screens all men starting at age:", "options": [{"letter": "A", "text": "≥65"}, {"letter": "B", "text": "≥70"}], "answer": "B", "explanation": "NOF men = **≥70**; women = ≥65."}, {"stem": "USPSTF grade for screening women ≥65:", "options": [{"letter": "A", "text": "Grade B"}, {"letter": "B", "text": "Grade I"}], "answer": "A", "explanation": "**Grade B** — the service is recommended."}]}], "checkpoints": [{"stem": "USPSTF grade for screening women ≥65 →", "options": [{"letter": "A", "text": "Grade B"}, {"letter": "B", "text": "Grade A"}, {"letter": "C", "text": "Grade C"}, {"letter": "D", "text": "Grade I"}], "answer": "A", "explanation": "**Grade B** (moderate net benefit)."}, {"stem": "Healthy 66 yo woman, never screened → order:", "options": [{"letter": "A", "text": "Heel SXA only"}, {"letter": "B", "text": "Serum PTH"}, {"letter": "C", "text": "No screening yet"}, {"letter": "D", "text": "DXA of hip and spine"}], "answer": "D", "explanation": "Women ≥65 → **DXA** (USPSTF B, NOF)."}]}}, {"id": "10", "group": 10, "section": "Screening — USPSTF", "topic": "Osteoporosis screening", "skill": "Diagnostics & imaging", "stem": "What does the USPSTF recommend for a 58-year-old postmenopausal woman who smokes and whose mother sustained a hip fracture?", "options": [{"letter": "A", "text": "Screen with DXA now"}, {"letter": "B", "text": "Wait until age 65"}, {"letter": "C", "text": "Screen only if she fractures"}, {"letter": "D", "text": "Insufficient evidence (Grade I)"}], "answer": "A", "explanation": "USPSTF recommends screening **younger postmenopausal women with at least one risk factor**.", "objective": "", "remediation": {"steps": [{"teach": "USPSTF screens women ≥65 **and** younger postmenopausal women who have **≥1 risk factor**.", "stem": "Family history of osteoporotic fracture and tobacco use are:", "options": [{"letter": "A", "text": "Irrelevant to screening"}, {"letter": "B", "text": "Reasons to avoid DXA"}, {"letter": "C", "text": "Risk factors for osteoporosis"}], "answer": "C", "explanation": "Both are **risk factors** (NOF list).", "clarify": [{"stem": "USPSTF Grade I applies to screening:", "options": [{"letter": "A", "text": "Men"}, {"letter": "B", "text": "Postmenopausal women"}], "answer": "A", "explanation": "**Men** = insufficient evidence (Grade I)."}]}], "checkpoints": [{"stem": "USPSTF → younger women eligible for screening must be:", "options": [{"letter": "A", "text": "Postmenopausal with ≥1 risk factor"}, {"letter": "B", "text": "Premenopausal with any risk factor"}, {"letter": "C", "text": "Over 50 regardless of risk"}, {"letter": "D", "text": "Taking calcium supplements"}], "answer": "A", "explanation": "**Postmenopausal + ≥1 risk factor**."}, {"stem": "NOF → risk factor in a younger postmenopausal woman:", "options": [{"letter": "A", "text": "Obesity"}, {"letter": "B", "text": "Tall stature"}, {"letter": "C", "text": "Hypertension"}, {"letter": "D", "text": "Low body weight"}], "answer": "D", "explanation": "**Low body weight** is a NOF risk factor."}]}}, {"id": "11", "group": 11, "section": "Screening — USPSTF", "topic": "Osteoporosis screening", "skill": "Diagnostics & imaging", "stem": "What is the 2018 USPSTF recommendation regarding osteoporosis screening in men?", "options": [{"letter": "A", "text": "Grade B — screen at ≥65"}, {"letter": "B", "text": "Grade A — screen at ≥70"}, {"letter": "C", "text": "Grade D — recommend against"}, {"letter": "D", "text": "Grade I — insufficient evidence"}], "answer": "D", "explanation": "USPSTF: **insufficient evidence (Grade I)** to assess screening in men.", "objective": "", "remediation": {"steps": [{"teach": "The guidelines **differ on men**: USPSTF can't say; NOF screens men ≥70.", "stem": "Which body screens all men ≥70?", "options": [{"letter": "A", "text": "NOF"}, {"letter": "B", "text": "USPSTF"}, {"letter": "C", "text": "Neither"}], "answer": "A", "explanation": "**NOF** (2015) screens men ≥70; USPSTF does not commit.", "clarify": [{"stem": "Grade I means:", "options": [{"letter": "A", "text": "Insufficient evidence"}, {"letter": "B", "text": "Recommend against"}], "answer": "A", "explanation": "**I = insufficient** evidence to assess benefit vs harm."}]}], "checkpoints": [{"stem": "NOF (2015) → screen all men at age:", "options": [{"letter": "A", "text": "≥70"}, {"letter": "B", "text": "≥50"}, {"letter": "C", "text": "≥65"}, {"letter": "D", "text": "≥80"}], "answer": "A", "explanation": "NOF: men **≥70** (and 50–69 with risk factors)."}, {"stem": "72 yo man, no risks, asks about DXA → USPSTF stance:", "options": [{"letter": "A", "text": "Grade B, screen"}, {"letter": "B", "text": "Recommend against"}, {"letter": "C", "text": "Screen every year"}, {"letter": "D", "text": "Insufficient evidence"}], "answer": "D", "explanation": "USPSTF = **Grade I** for men."}]}}, {"id": "12", "group": 12, "section": "Screening — NOF", "topic": "Osteoporosis screening", "skill": "Diagnostics & imaging", "stem": "What prednisone dose and duration meet the National Osteoporosis Foundation threshold for medication-related osteoporosis risk?", "options": [{"letter": "A", "text": "≥20 mg for ≥1 month"}, {"letter": "B", "text": "≥5 mg for ≥2 weeks"}, {"letter": "C", "text": "≥5 mg for ≥3 months"}, {"letter": "D", "text": "Any dose for ≥1 year"}], "answer": "C", "explanation": "NOF lists **prednisone ≥5 mg for ≥3 months** as a risk factor warranting earlier screening.", "objective": "", "remediation": {"steps": [{"teach": "The NOF threshold is a **low dose** but a **prolonged duration**.", "stem": "Prednisone risk threshold dose:", "options": [{"letter": "A", "text": "≥20 mg/day"}, {"letter": "B", "text": "≥5 mg/day"}, {"letter": "C", "text": "≥60 mg/day"}], "answer": "B", "explanation": "**≥5 mg**.", "clarify": [{"stem": "Prednisone risk threshold duration:", "options": [{"letter": "A", "text": "≥3 months"}, {"letter": "B", "text": "≥2 weeks"}], "answer": "A", "explanation": "**≥3 months**."}]}], "checkpoints": [{"stem": "55 yo man on prednisone 10 mg × 6 months → NOF:", "options": [{"letter": "A", "text": "Screen with DXA"}, {"letter": "B", "text": "No screening until 70"}, {"letter": "C", "text": "Grade I, no action"}, {"letter": "D", "text": "Check SPEP only"}], "answer": "A", "explanation": "Men 50–69 with a risk factor (prednisone ≥5 mg ≥3 mo) → **DXA**."}, {"stem": "Prednisone 5 mg daily × 4 months → meets NOF risk?", "options": [{"letter": "A", "text": "No — dose too low"}, {"letter": "B", "text": "No — too short"}, {"letter": "C", "text": "Only if male"}, {"letter": "D", "text": "Yes"}], "answer": "D", "explanation": "**≥5 mg for ≥3 months** is met."}]}}, {"id": "13", "group": 13, "section": "Screening — NOF", "topic": "Secondary osteoporosis", "skill": "Disease process", "stem": "What is the most common cause of secondary osteoporosis?", "options": [{"letter": "A", "text": "Exogenous glucocorticoids"}, {"letter": "B", "text": "Primary hyperparathyroidism"}, {"letter": "C", "text": "Hyperthyroidism"}, {"letter": "D", "text": "Celiac disease"}], "answer": "A", "explanation": "**Exogenous steroid (glucocorticoid) use** is the most common cause of secondary osteoporosis.", "objective": "List common conditions and medications that contribute to low bone density", "remediation": {"steps": [{"teach": "'Secondary' osteoporosis = bone loss caused by a **drug or disease**. The lecture names one cause as the MCC.", "stem": "Secondary osteoporosis is caused by:", "options": [{"letter": "A", "text": "A drug or another disease"}, {"letter": "B", "text": "Aging alone"}, {"letter": "C", "text": "Menopause alone"}], "answer": "A", "explanation": "Secondary = due to **another condition or medication**.", "clarify": [{"stem": "Prednisone is a:", "options": [{"letter": "A", "text": "Glucocorticoid"}, {"letter": "B", "text": "Bisphosphonate"}], "answer": "A", "explanation": "Prednisone is a **glucocorticoid**."}, {"stem": "Hyperthyroidism, PHPT, celiac → causes of bone loss that are:", "options": [{"letter": "A", "text": "Primary"}, {"letter": "B", "text": "Secondary"}], "answer": "B", "explanation": "All are **secondary** causes, but not the most common."}]}], "checkpoints": [{"stem": "Medication most important to ask about in a patient with low BMD →", "options": [{"letter": "A", "text": "Statins"}, {"letter": "B", "text": "ACE inhibitors"}, {"letter": "C", "text": "Metformin"}, {"letter": "D", "text": "Glucocorticoids"}], "answer": "D", "explanation": "**Glucocorticoids** — the MCC of secondary osteoporosis."}, {"stem": "Secondary cause the objectives list along with RA and immobilization →", "options": [{"letter": "A", "text": "Osteoarthritis"}, {"letter": "B", "text": "Gout"}, {"letter": "C", "text": "Premature ovarian failure"}, {"letter": "D", "text": "Hypertension"}], "answer": "C", "explanation": "Listed: glucocorticoids, **premature ovarian failure**, hyperparathyroidism, hyperthyroidism, immobilization, RA."}]}}, {"id": "14", "group": 14, "section": "Screening — NOF", "topic": "Secondary osteoporosis", "skill": "Disease process", "stem": "Which medical condition is listed by the National Osteoporosis Foundation as increasing osteoporosis risk?", "options": [{"letter": "A", "text": "Osteoarthritis"}, {"letter": "B", "text": "Celiac disease"}, {"letter": "C", "text": "Gout"}, {"letter": "D", "text": "Hypertension"}], "answer": "B", "explanation": "NOF lists **RA, primary hyperparathyroidism and celiac disease** as conditions associated with secondary osteoporosis.", "objective": "List common conditions and medications that contribute to low bone density", "remediation": {"steps": [{"teach": "Think about **why**: celiac → malabsorption; PHPT → PTH pulls calcium from bone; RA → inflammation and steroids.", "stem": "Celiac disease lowers BMD mainly by:", "options": [{"letter": "A", "text": "Excess bone formation"}, {"letter": "B", "text": "Malabsorption"}, {"letter": "C", "text": "High estrogen"}], "answer": "B", "explanation": "Celiac causes **malabsorption** (calcium/vitamin D).", "clarify": [{"stem": "Which arthritis is on the NOF list?", "options": [{"letter": "A", "text": "Osteoarthritis"}, {"letter": "B", "text": "Rheumatoid arthritis"}], "answer": "B", "explanation": "**RA** is a NOF secondary-osteoporosis condition."}]}], "checkpoints": [{"stem": "Endocrine condition on the NOF risk list →", "options": [{"letter": "A", "text": "Hypothyroidism"}, {"letter": "B", "text": "Type 2 diabetes"}, {"letter": "C", "text": "Hyperprolactinoma"}, {"letter": "D", "text": "Primary hyperparathyroidism"}], "answer": "D", "explanation": "NOF lists **primary hyperparathyroidism**."}, {"stem": "Inflammatory arthritis on the NOF list →", "options": [{"letter": "A", "text": "Osteoarthritis"}, {"letter": "B", "text": "Gout"}, {"letter": "C", "text": "Rheumatoid arthritis"}, {"letter": "D", "text": "Pseudogout"}], "answer": "C", "explanation": "**RA**."}]}}, {"id": "15", "group": 15, "section": "T score vs Z score", "topic": "T-score vs Z-score", "skill": "Identification", "stem": "With which reference population does a T-score compare the patient's bone mineral density?", "options": [{"letter": "A", "text": "Age-matched adults (peers)"}, {"letter": "B", "text": "The patient's own prior scan"}, {"letter": "C", "text": "Young healthy adults at peak bone mass"}, {"letter": "D", "text": "Same-sex adults over age 65"}], "answer": "C", "explanation": "T-score = SD vs **young, healthy adults at peak bone mass**; Z-score = SD vs age-matched peers.", "objective": "Differentiate between a T score and a Z score", "remediation": {"steps": [{"teach": "Mnemonic: **T** = 'Then' (young/peak bone mass); **Z** = 'Zame age' peers.", "stem": "Z-score compares BMD with:", "options": [{"letter": "A", "text": "Young adults at peak"}, {"letter": "B", "text": "Prior scan"}, {"letter": "C", "text": "Age-matched peers"}], "answer": "C", "explanation": "**Z = age-matched** peers; so T must be the other one.", "clarify": [{"stem": "T- and Z-scores are expressed as:", "options": [{"letter": "A", "text": "Grams per cm²"}, {"letter": "B", "text": "Standard deviations"}], "answer": "B", "explanation": "Both are **SD** above/below the comparison group."}]}], "checkpoints": [{"stem": "Z-score compares BMD with →", "options": [{"letter": "A", "text": "Young adults at peak bone mass"}, {"letter": "B", "text": "Opposite-sex adults"}, {"letter": "C", "text": "The patient's prior DXA"}, {"letter": "D", "text": "Age-matched peers"}], "answer": "D", "explanation": "**Z = age-matched** adults."}, {"stem": "Score used to diagnose osteoporosis in postmenopausal women →", "options": [{"letter": "A", "text": "Z-score"}, {"letter": "B", "text": "FRAX score"}, {"letter": "C", "text": "T-score"}, {"letter": "D", "text": "Raw g/cm²"}], "answer": "C", "explanation": "**T-score** (WHO criteria)."}]}}, {"id": "16", "group": 16, "section": "T score vs Z score", "topic": "T-score vs Z-score", "skill": "Diagnostics & imaging", "stem": "In what units are T-scores and Z-scores expressed?", "options": [{"letter": "A", "text": "Grams per cm²"}, {"letter": "B", "text": "Percentiles"}, {"letter": "C", "text": "Hounsfield units"}, {"letter": "D", "text": "Standard deviations"}], "answer": "D", "explanation": "Both represent the **standard deviation (SD)** above or below the comparison group.", "objective": "Differentiate between a T score and a Z score", "remediation": {"steps": [{"teach": "Both scores are **statistical** — how far the patient is from the reference mean.", "stem": "A T-score of −2.0 means BMD is:", "options": [{"letter": "A", "text": "2 SD below the young-adult mean"}, {"letter": "B", "text": "2 g/cm² below normal"}, {"letter": "C", "text": "2% below normal"}], "answer": "A", "explanation": "**2 standard deviations** below the reference.", "clarify": [{"stem": "Raw BMD from DXA is reported in:", "options": [{"letter": "A", "text": "SD"}, {"letter": "B", "text": "g/cm²"}], "answer": "B", "explanation": "Raw BMD = **g/cm²**; scores are SD."}]}], "checkpoints": [{"stem": "Value NOT directly comparable between DXA manufacturers →", "options": [{"letter": "A", "text": "T-score"}, {"letter": "B", "text": "Z-score"}, {"letter": "C", "text": "SD from the mean"}, {"letter": "D", "text": "Raw BMD in g/cm²"}], "answer": "D", "explanation": "Raw **g/cm²** differs by manufacturer; T/Z can be compared."}, {"stem": "T-score −1.5 means BMD is →", "options": [{"letter": "A", "text": "1.5 SD above peak mean"}, {"letter": "B", "text": "1.5 g/cm² low"}, {"letter": "C", "text": "1.5 SD below peak mean"}, {"letter": "D", "text": "15% low"}], "answer": "C", "explanation": "**1.5 SD below** the young-adult mean."}]}}, {"id": "17", "group": 17, "section": "T-score criteria", "topic": "DXA interpretation", "skill": "Diagnostics & imaging", "stem": "How is a DXA T-score of −0.8 interpreted?", "options": [{"letter": "A", "text": "Normal"}, {"letter": "B", "text": "Osteopenia"}, {"letter": "C", "text": "Osteoporosis"}, {"letter": "D", "text": "Severe osteoporosis"}], "answer": "A", "explanation": "**Normal = T-score ≥ −1.0** (within 1 SD of the young-adult mean).", "objective": "Distinguish between normal, osteopenia, and osteoporosis based on T-score", "remediation": {"steps": [{"teach": "Cutoffs: **≥ −1.0 normal**, −1.0 to −2.5 osteopenia, **≤ −2.5** osteoporosis.", "stem": "Is −0.8 above or below −1.0?", "options": [{"letter": "A", "text": "Below (more negative)"}, {"letter": "B", "text": "Above (less negative)"}, {"letter": "C", "text": "Equal"}], "answer": "B", "explanation": "−0.8 is **above** −1.0 → normal range.", "clarify": [{"stem": "Normal T-score cutoff:", "options": [{"letter": "A", "text": "≥ −2.5"}, {"letter": "B", "text": "≥ −1.0"}], "answer": "B", "explanation": "Normal = **≥ −1.0**."}]}], "checkpoints": [{"stem": "T-score −1.3 → classification:", "options": [{"letter": "A", "text": "Normal"}, {"letter": "B", "text": "Osteoporosis"}, {"letter": "C", "text": "Severe osteoporosis"}, {"letter": "D", "text": "Osteopenia"}], "answer": "D", "explanation": "−1.3 is below −1.0 but above −2.5 → **osteopenia**; normal is ≥ −1.0."}, {"stem": "Normal BMD → T-score:", "options": [{"letter": "A", "text": "≥ −2.5"}, {"letter": "B", "text": "≥ 0"}, {"letter": "C", "text": "≥ −1.0"}, {"letter": "D", "text": "≥ +1.0"}], "answer": "C", "explanation": "**≥ −1.0**."}]}}, {"id": "18", "group": 18, "section": "T-score criteria", "topic": "DXA interpretation", "skill": "Diagnostics & imaging", "stem": "What is the diagnosis in a patient with a DXA T-score of −1.8 and no fractures?", "options": [{"letter": "A", "text": "Normal bone density"}, {"letter": "B", "text": "Osteopenia (low bone mass)"}, {"letter": "C", "text": "Osteoporosis"}, {"letter": "D", "text": "Severe osteoporosis"}], "answer": "B", "explanation": "**Osteopenia (low bone mass) = T between −1.0 and −2.5**.", "objective": "Distinguish between normal, osteopenia, and osteoporosis based on T-score", "remediation": {"steps": [{"teach": "−1.8 is **below −1.0** but **above −2.5**.", "stem": "T-score range for osteopenia:", "options": [{"letter": "A", "text": "≥ −1.0"}, {"letter": "B", "text": "≤ −2.5"}, {"letter": "C", "text": "Between −1.0 and −2.5"}], "answer": "C", "explanation": "Osteopenia = **−1.0 to −2.5**.", "clarify": [{"stem": "Osteopenia is also called:", "options": [{"letter": "A", "text": "Osteomalacia"}, {"letter": "B", "text": "Low bone mass"}], "answer": "B", "explanation": "Osteopenia = **low bone mass**."}]}], "checkpoints": [{"stem": "Osteopenia T-score → next decision tool:", "options": [{"letter": "A", "text": "Z-score"}, {"letter": "B", "text": "SPEP"}, {"letter": "C", "text": "Repeat DXA in 1 month"}, {"letter": "D", "text": "FRAX"}], "answer": "D", "explanation": "Osteopenia → **FRAX** to decide on treatment."}, {"stem": "T-score −2.2 → classification:", "options": [{"letter": "A", "text": "Normal"}, {"letter": "B", "text": "Osteoporosis"}, {"letter": "C", "text": "Osteopenia"}, {"letter": "D", "text": "Severe osteoporosis"}], "answer": "C", "explanation": "−2.2 is between −1.0 and −2.5 → **osteopenia**."}]}}, {"id": "19", "group": 19, "section": "T-score criteria", "topic": "DXA interpretation", "skill": "Diagnostics & imaging", "stem": "What T-score meets the diagnostic threshold for osteoporosis?", "options": [{"letter": "A", "text": "≤ −1.0"}, {"letter": "B", "text": "≤ −2.0"}, {"letter": "C", "text": "≤ −2.5"}, {"letter": "D", "text": "≤ −3.5"}], "answer": "C", "explanation": "Osteoporosis = **T-score ≤ −2.5** at the femoral neck or spine.", "objective": "Distinguish between normal, osteopenia, and osteoporosis based on T-score", "remediation": {"steps": [{"teach": "Osteoporosis = BMD **2.5 or more SD below** the young-adult mean.", "stem": "T-score −2.6 at the femoral neck is:", "options": [{"letter": "A", "text": "Osteopenia"}, {"letter": "B", "text": "Osteoporosis"}, {"letter": "C", "text": "Normal"}], "answer": "B", "explanation": "−2.6 is ≤ −2.5 → **osteoporosis**.", "clarify": [{"stem": "Osteoporosis is diagnosed at:", "options": [{"letter": "A", "text": "Heel or phalanx"}, {"letter": "B", "text": "Femoral neck or spine"}], "answer": "B", "explanation": "**Femoral neck or spine**."}, {"stem": "−1.0 is the cutoff between:", "options": [{"letter": "A", "text": "Normal and osteopenia"}, {"letter": "B", "text": "Osteopenia and osteoporosis"}], "answer": "A", "explanation": "−1.0 separates **normal / osteopenia**; −2.5 separates osteopenia / osteoporosis."}]}], "checkpoints": [{"stem": "T-score −2.5 → classification:", "options": [{"letter": "A", "text": "Osteopenia"}, {"letter": "B", "text": "Normal"}, {"letter": "C", "text": "Osteoporosis"}, {"letter": "D", "text": "Indeterminate"}], "answer": "C", "explanation": "≤ −2.5 includes −2.5 → **osteoporosis**."}, {"stem": "Hip T −2.8, spine T −2.3 → diagnosis:", "options": [{"letter": "A", "text": "Osteopenia"}, {"letter": "B", "text": "Osteoporosis"}, {"letter": "C", "text": "Normal"}, {"letter": "D", "text": "Need a third site"}], "answer": "B", "explanation": "One site ≤ −2.5 is enough → **osteoporosis**."}]}}, {"id": "20", "group": 20, "section": "T-score criteria", "topic": "DXA interpretation", "skill": "Diagnostics & imaging", "stem": "How is a T-score of −2.5 or lower with one or more fragility fractures classified?", "options": [{"letter": "A", "text": "Osteopenia"}, {"letter": "B", "text": "Osteoporosis, uncomplicated"}, {"letter": "C", "text": "Osteomalacia"}, {"letter": "D", "text": "Severe (established) osteoporosis"}], "answer": "D", "explanation": "**Severe / established osteoporosis** = T ≤ −2.5 plus ≥1 fragility fracture.", "objective": "Distinguish between normal, osteopenia, and osteoporosis based on T-score", "remediation": {"steps": [{"teach": "Add a fracture on top of osteoporosis-range BMD and the severity goes **up a level**.", "stem": "T ≤ −2.5 without any fracture is:", "options": [{"letter": "A", "text": "Severe osteoporosis"}, {"letter": "B", "text": "Osteopenia"}, {"letter": "C", "text": "Osteoporosis"}], "answer": "C", "explanation": "T ≤ −2.5 alone = **osteoporosis**.", "clarify": [{"stem": "A fragility fracture results from:", "options": [{"letter": "A", "text": "Low trauma"}, {"letter": "B", "text": "High-energy trauma"}], "answer": "A", "explanation": "Fragility = **low trauma**."}]}], "checkpoints": [{"stem": "Severe osteoporosis requires T ≤ −2.5 and →", "options": [{"letter": "A", "text": "A Z-score ≤ −2.0"}, {"letter": "B", "text": "High serum calcium"}, {"letter": "C", "text": "A fragility fracture"}, {"letter": "D", "text": "Age ≥ 80"}], "answer": "C", "explanation": "Severe = osteoporosis + **fragility fracture**."}, {"stem": "T −3.0, prior vertebral compression fx from minimal trauma →", "options": [{"letter": "A", "text": "Osteopenia"}, {"letter": "B", "text": "Severe osteoporosis"}, {"letter": "C", "text": "Osteoporosis only"}, {"letter": "D", "text": "Normal"}], "answer": "B", "explanation": "T ≤ −2.5 + fragility fx = **severe/established**."}]}}, {"id": "21", "group": 21, "section": "T-score criteria", "topic": "DXA interpretation", "skill": "Disease process", "stem": "Approximately how much does fracture risk increase with each one-standard-deviation decrease in bone mineral density?", "options": [{"letter": "A", "text": "2-fold"}, {"letter": "B", "text": "10%"}, {"letter": "C", "text": "5-fold"}, {"letter": "D", "text": "10-fold"}], "answer": "A", "explanation": "Fracture risk increases **approximately 2-fold for every SD decrease** in BMD.", "objective": "", "remediation": {"steps": [{"teach": "The relationship is multiplicative: each SD lower **doubles** risk.", "stem": "Going from T −1 to T −2 multiplies fracture risk by about:", "options": [{"letter": "A", "text": "2"}, {"letter": "B", "text": "10"}, {"letter": "C", "text": "1.1"}], "answer": "A", "explanation": "Roughly **doubles** (×2).", "clarify": [{"stem": "Lower BMD means fracture risk is:", "options": [{"letter": "A", "text": "Higher"}, {"letter": "B", "text": "Lower"}], "answer": "A", "explanation": "Lower BMD → **higher** fracture risk."}]}], "checkpoints": [{"stem": "T −3 vs T −1 → fracture risk roughly:", "options": [{"letter": "A", "text": "2×"}, {"letter": "B", "text": "8×"}, {"letter": "C", "text": "4×"}, {"letter": "D", "text": "No change"}], "answer": "C", "explanation": "Two SD drops → 2 × 2 = **4-fold**."}, {"stem": "T-score criteria apply to postmenopausal women and men aged →", "options": [{"letter": "A", "text": "≥40"}, {"letter": "B", "text": "≥50"}, {"letter": "C", "text": "≥65"}, {"letter": "D", "text": "≥70"}], "answer": "B", "explanation": "Use T-score criteria in peri/postmenopausal women and **men ≥50**."}]}}, {"id": "22", "group": 22, "section": "Eval for 2° causes", "topic": "Secondary-cause lab evaluation", "skill": "Diagnostics & imaging", "stem": "Which basic laboratory panel is used to evaluate secondary causes of low bone mineral density?", "options": [{"letter": "A", "text": "Ca, PTH, SPEP, testosterone"}, {"letter": "B", "text": "Ca, 25-OH vit D, creatinine, TSH"}, {"letter": "C", "text": "CBC, ESR, ALP, cortisol"}, {"letter": "D", "text": "Ca, 1,25-OH vit D, LFTs, PTH"}], "answer": "B", "explanation": "Basic panel: **calcium, 25-hydroxyvitamin D, creatinine, and TSH** (plus review PMHx, social hx, meds).", "objective": "List the baseline lab evaluation for secondary causes of bone loss", "remediation": {"steps": [{"teach": "The basic panel is **four** labs everyone with BMD loss gets; PTH, SPEP and testosterone are **add-ons** as indicated.", "stem": "Intact PTH is added when:", "options": [{"letter": "A", "text": "Every patient"}, {"letter": "B", "text": "TSH is low"}, {"letter": "C", "text": "Calcium is high"}], "answer": "C", "explanation": "PTH is reflexed to **high calcium**, not routine.", "clarify": [{"stem": "Vitamin D test on the basic panel:", "options": [{"letter": "A", "text": "25-hydroxyvitamin D"}, {"letter": "B", "text": "1,25-dihydroxyvitamin D"}], "answer": "A", "explanation": "**25-OH D** is the one ordered."}, {"stem": "TSH screens for:", "options": [{"letter": "A", "text": "Myeloma"}, {"letter": "B", "text": "Hyperthyroidism"}], "answer": "B", "explanation": "TSH → **hyperthyroidism**."}]}], "checkpoints": [{"stem": "Which lab is an ADD-ON, not part of the basic panel?", "options": [{"letter": "A", "text": "Serum calcium"}, {"letter": "B", "text": "Serum protein electrophoresis"}, {"letter": "C", "text": "Creatinine"}, {"letter": "D", "text": "TSH"}], "answer": "B", "explanation": "**SPEP** is added only with suggestive findings."}, {"stem": "Besides labs, every pt with BMD loss needs review of →", "options": [{"letter": "A", "text": "PMHx, social hx, med list"}, {"letter": "B", "text": "Family vaccine history"}, {"letter": "C", "text": "Dental records"}, {"letter": "D", "text": "Prior MRI images"}], "answer": "A", "explanation": "Review **PMHx, social history and medications**."}]}}, {"id": "23", "group": 23, "section": "Eval for 2° causes", "topic": "Secondary-cause lab evaluation", "skill": "Disease process", "stem": "Through what mechanism does markedly elevated creatinine with reduced eGFR contribute to low bone mineral density?", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Secondary hypothyroidism"}, {"letter": "C", "text": "Secondary hyperparathyroidism"}, {"letter": "D", "text": "Excess vitamin D activation"}], "answer": "C", "explanation": "Renal failure causes **secondary hyperparathyroidism**, which decreases BMD — why creatinine is on the panel.", "objective": "", "remediation": {"steps": [{"teach": "**Primary** = gland itself is the problem; **secondary** = gland responding to another disease (here, the kidney).", "stem": "In renal failure, PTH rises as a response to:", "options": [{"letter": "A", "text": "Kidney disease"}, {"letter": "B", "text": "A parathyroid adenoma"}, {"letter": "C", "text": "Thyroid disease"}], "answer": "A", "explanation": "The parathyroids respond to **renal failure** → secondary.", "clarify": [{"stem": "Hyperparathyroidism effect on BMD:", "options": [{"letter": "A", "text": "Increases it"}, {"letter": "B", "text": "Decreases it"}], "answer": "B", "explanation": "PTH excess → **decreased BMD**."}]}], "checkpoints": [{"stem": "Why is creatinine on the baseline panel?", "options": [{"letter": "A", "text": "Screen for myeloma alone"}, {"letter": "B", "text": "Detect renal cause of ↑PTH"}, {"letter": "C", "text": "Dose calcium supplements"}, {"letter": "D", "text": "Measure muscle mass"}], "answer": "B", "explanation": "High Cr → renal failure → **secondary hyperparathyroidism**."}, {"stem": "Primary hyperparathyroidism → source of excess PTH:", "options": [{"letter": "A", "text": "Parathyroid gland itself"}, {"letter": "B", "text": "Kidney failure"}, {"letter": "C", "text": "Vitamin D deficiency"}, {"letter": "D", "text": "Pituitary"}], "answer": "A", "explanation": "**Primary** = the parathyroid gland is the source."}]}}, {"id": "24", "group": 24, "section": "Vitamin D testing", "topic": "Secondary-cause lab evaluation", "skill": "Diagnostics & imaging", "stem": "What is the most specific screening test for vitamin D deficiency?", "options": [{"letter": "A", "text": "Serum 1,25-dihydroxyvitamin D"}, {"letter": "B", "text": "Serum calcium"}, {"letter": "C", "text": "Intact PTH level"}, {"letter": "D", "text": "Serum 25-hydroxyvitamin D"}], "answer": "D", "explanation": "**25(OH)D (calcidiol)** is the most specific screening test — it is the major circulating and storage form.", "objective": "List the baseline lab evaluation: serum calcium and 25-hydroxyvitamin D level", "remediation": {"steps": [{"teach": "Order the **storage/circulating** form — it reflects total vitamin D status.", "stem": "Major circulating and storage form of vitamin D:", "options": [{"letter": "A", "text": "1,25-dihydroxyvitamin D"}, {"letter": "B", "text": "Vitamin D2"}, {"letter": "C", "text": "25-hydroxyvitamin D"}], "answer": "C", "explanation": "**25(OH)D** = calcidiol.", "clarify": [{"stem": "25-hydroxyvitamin D is also called:", "options": [{"letter": "A", "text": "Calcitonin"}, {"letter": "B", "text": "Calcidiol"}], "answer": "B", "explanation": "**Calcidiol**."}, {"stem": "The 25-hydroxylation step is:", "options": [{"letter": "A", "text": "Not tightly regulated"}, {"letter": "B", "text": "Tightly regulated"}], "answer": "A", "explanation": "**Not tightly regulated**, so 25(OH)D reflects supply."}]}], "checkpoints": [{"stem": "25-hydroxylation of vitamin D3 occurs in the →", "options": [{"letter": "A", "text": "Liver"}, {"letter": "B", "text": "Kidney"}, {"letter": "C", "text": "Skin"}, {"letter": "D", "text": "Parathyroid"}], "answer": "A", "explanation": "D3 is 25-hydroxylated in the **liver**."}, {"stem": "Calcidiol is →", "options": [{"letter": "A", "text": "1,25-dihydroxyvitamin D"}, {"letter": "B", "text": "Parathyroid hormone"}, {"letter": "C", "text": "Calcitonin"}, {"letter": "D", "text": "25-hydroxyvitamin D"}], "answer": "D", "explanation": "**Calcidiol = 25(OH)D**."}]}}, {"id": "25", "group": 25, "section": "Eval for 2° causes — add-ons", "topic": "Secondary-cause lab evaluation", "skill": "Diagnostics & imaging", "stem": "Which additional laboratory test should be included when evaluating low bone mineral density in a man?", "options": [{"letter": "A", "text": "Serum testosterone"}, {"letter": "B", "text": "Serum estradiol"}, {"letter": "C", "text": "Serum prolactin"}, {"letter": "D", "text": "Serum cortisol"}], "answer": "A", "explanation": "In men, add **serum testosterone** — any primary or secondary hypogonadism accelerates bone loss.", "objective": "", "remediation": {"steps": [{"teach": "Bone loss **accelerates in hypogonadal states** — menopause in women; low testosterone in men.", "stem": "Female hypogonadal state that is the classic example of bone loss:", "options": [{"letter": "A", "text": "Menopause"}, {"letter": "B", "text": "Pregnancy"}, {"letter": "C", "text": "Puberty"}], "answer": "A", "explanation": "**Menopause** is the classic example.", "clarify": [{"stem": "Primary or secondary hypogonadism in men → testosterone:", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "High"}], "answer": "A", "explanation": "Both have **low testosterone**."}]}], "checkpoints": [{"stem": "Why measure testosterone in men with osteoporosis?", "options": [{"letter": "A", "text": "Detect hypogonadism"}, {"letter": "B", "text": "Detect myeloma"}, {"letter": "C", "text": "Detect hyperthyroidism"}, {"letter": "D", "text": "Detect vitamin D deficiency"}], "answer": "A", "explanation": "Low testosterone = **hypogonadism**, a secondary cause."}, {"stem": "Premature ovarian failure lowers BMD because of →", "options": [{"letter": "A", "text": "Hypercalcemia"}, {"letter": "B", "text": "Renal failure"}, {"letter": "C", "text": "Malabsorption"}, {"letter": "D", "text": "Hypogonadism"}], "answer": "D", "explanation": "Loss of sex hormones = **hypogonadal** bone loss."}]}}, {"id": "26", "group": 26, "section": "Eval for 2° causes — add-ons", "topic": "Secondary-cause lab evaluation", "skill": "Diagnostics & imaging", "stem": "What additional test should be ordered in a patient with low bone mineral density, anemia, elevated creatinine, and elevated total protein?", "options": [{"letter": "A", "text": "Intact PTH level"}, {"letter": "B", "text": "Serum protein electrophoresis"}, {"letter": "C", "text": "Serum testosterone"}, {"letter": "D", "text": "Repeat TSH"}], "answer": "B", "explanation": "Add **SPEP** to rule out **multiple myeloma** when there is anemia, ↑Cr, ↑ total protein.", "objective": "List the baseline lab evaluation ... SPEP, or others as indicated", "remediation": {"steps": [{"teach": "Anemia + kidney injury + high protein = think of a **plasma cell malignancy**.", "stem": "Anemia, ↑Cr, ↑ total protein suggest:", "options": [{"letter": "A", "text": "Hyperthyroidism"}, {"letter": "B", "text": "Multiple myeloma"}, {"letter": "C", "text": "Celiac disease"}], "answer": "B", "explanation": "Suggestive of **myeloma**.", "clarify": [{"stem": "SPEP detects:", "options": [{"letter": "A", "text": "Abnormal protein spike"}, {"letter": "B", "text": "Thyroid hormone level"}], "answer": "A", "explanation": "SPEP looks for an abnormal (monoclonal) **protein** — myeloma."}]}], "checkpoints": [{"stem": "SPEP in low-BMD workup rules out →", "options": [{"letter": "A", "text": "Multiple myeloma"}, {"letter": "B", "text": "Primary hyperparathyroidism"}, {"letter": "C", "text": "Hypogonadism"}, {"letter": "D", "text": "Celiac disease"}], "answer": "A", "explanation": "SPEP → **myeloma**."}, {"stem": "Clue triad prompting SPEP →", "options": [{"letter": "A", "text": "↑Ca, ↑PTH, kidney stones"}, {"letter": "B", "text": "Low TSH, tremor, weight loss"}, {"letter": "C", "text": "Low testosterone, ↓ libido"}, {"letter": "D", "text": "Anemia, ↑Cr, ↑ total protein"}], "answer": "D", "explanation": "**Anemia, ↑Cr, ↑TP**."}]}}, {"id": "27", "group": 27, "section": "Eval for 2° causes — add-ons", "topic": "Secondary-cause lab evaluation", "skill": "Diagnostics & imaging", "stem": "Which additional laboratory test should be ordered in a patient with low bone mineral density and elevated serum calcium?", "options": [{"letter": "A", "text": "Serum testosterone"}, {"letter": "B", "text": "SPEP"}, {"letter": "C", "text": "Intact PTH level"}, {"letter": "D", "text": "1,25-OH vitamin D"}], "answer": "C", "explanation": "Add **intact PTH** in those with ↑Ca to look for **primary hyperparathyroidism**.", "objective": "List the baseline lab evaluation ... intact-PTH", "remediation": {"steps": [{"teach": "High calcium + bone loss → is the **parathyroid** driving it?", "stem": "Hormone that raises serum calcium by pulling it from bone:", "options": [{"letter": "A", "text": "Calcitonin"}, {"letter": "B", "text": "Insulin"}, {"letter": "C", "text": "PTH"}], "answer": "C", "explanation": "**PTH** raises calcium, partly by bone resorption.", "clarify": [{"stem": "Is PTH part of the routine baseline panel?", "options": [{"letter": "A", "text": "No — only if Ca is high"}, {"letter": "B", "text": "Yes — everyone"}], "answer": "A", "explanation": "PTH is **reflexed to high calcium**."}]}], "checkpoints": [{"stem": "↑Ca and ↑ intact PTH → diagnosis:", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Secondary hyperparathyroidism"}, {"letter": "C", "text": "Vitamin D deficiency"}, {"letter": "D", "text": "Multiple myeloma"}], "answer": "A", "explanation": "↑Ca + ↑PTH = **primary hyperparathyroidism**."}, {"stem": "Elevated Ca triggers which add-on test?", "options": [{"letter": "A", "text": "Testosterone"}, {"letter": "B", "text": "TSH repeat"}, {"letter": "C", "text": "FRAX"}, {"letter": "D", "text": "Intact PTH"}], "answer": "D", "explanation": "**Intact PTH**."}]}}, {"id": "28", "group": 28, "section": "Who needs pharm tx", "topic": "FRAX & treatment thresholds", "skill": "Management", "stem": "What does the National Osteoporosis Foundation recommend for a postmenopausal woman with a femoral neck T-score of −2.6 and no fractures?", "options": [{"letter": "A", "text": "Run FRAX before deciding"}, {"letter": "B", "text": "Repeat DXA in 2 years first"}, {"letter": "C", "text": "No treatment unless she fractures"}, {"letter": "D", "text": "Bisphosphonate definitively recommended"}], "answer": "D", "explanation": "NOF: bisphosphonates are **definitively recommended** with a fragility fracture **or** T ≤ −2.5 at femoral neck/spine — no FRAX needed.", "objective": "", "remediation": {"steps": [{"teach": "FRAX is for the **osteopenia gray zone**. Osteoporosis by T-score or a fragility fracture already earns treatment.", "stem": "FRAX is used to decide treatment in:", "options": [{"letter": "A", "text": "Osteoporosis"}, {"letter": "B", "text": "Osteopenia"}, {"letter": "C", "text": "Normal BMD"}], "answer": "B", "explanation": "FRAX = **osteopenia** gray zone.", "clarify": [{"stem": "T −2.6 is:", "options": [{"letter": "A", "text": "Osteoporosis"}, {"letter": "B", "text": "Osteopenia"}], "answer": "A", "explanation": "≤ −2.5 = **osteoporosis**."}, {"stem": "Fragility fracture alone (any T-score) → NOF treatment:", "options": [{"letter": "A", "text": "Not recommended"}, {"letter": "B", "text": "Recommended"}], "answer": "B", "explanation": "Fragility fracture → **treat** regardless of T-score."}]}], "checkpoints": [{"stem": "Postmenopausal woman, hip fx from fall from standing, T −2.0 → NOF:", "options": [{"letter": "A", "text": "FRAX first"}, {"letter": "B", "text": "No treatment, osteopenia"}, {"letter": "C", "text": "Repeat DXA"}, {"letter": "D", "text": "Treat (fragility fracture)"}], "answer": "D", "explanation": "A **fragility fracture** qualifies regardless of T-score."}, {"stem": "NOF definite-treatment criteria apply to postmenopausal women and men aged →", "options": [{"letter": "A", "text": "≥40"}, {"letter": "B", "text": "≥65"}, {"letter": "C", "text": "≥50"}, {"letter": "D", "text": "≥70"}], "answer": "C", "explanation": "Postmenopausal women and **men ≥50**."}]}}, {"id": "29", "group": 29, "section": "FRAX thresholds", "topic": "FRAX & treatment thresholds", "skill": "Diagnostics & imaging", "stem": "What 10-year hip fracture probability on FRAX supports treatment in a patient with osteopenia?", "options": [{"letter": "A", "text": "≥3%"}, {"letter": "B", "text": "≥1%"}, {"letter": "C", "text": "≥10%"}, {"letter": "D", "text": "≥20%"}], "answer": "A", "explanation": "Treat osteopenia when FRAX 10-yr **hip fracture ≥3%** or major osteoporotic fracture ≥20%.", "objective": "", "remediation": {"steps": [{"teach": "Two thresholds: a **small** number for hip, a **larger** number for major osteoporotic fracture.", "stem": "Which FRAX threshold is the smaller number?", "options": [{"letter": "A", "text": "Major osteoporotic fracture"}, {"letter": "B", "text": "They are equal"}, {"letter": "C", "text": "Hip fracture"}], "answer": "C", "explanation": "**Hip = 3%**; major = 20%.", "clarify": [{"stem": "FRAX predicts fracture probability over:", "options": [{"letter": "A", "text": "1 year"}, {"letter": "B", "text": "10 years"}], "answer": "B", "explanation": "**10-year** probability."}]}], "checkpoints": [{"stem": "Osteopenia → FRAX 10-yr MAJOR osteoporotic fracture threshold:", "options": [{"letter": "A", "text": "≥3%"}, {"letter": "B", "text": "≥10%"}, {"letter": "C", "text": "≥30%"}, {"letter": "D", "text": "≥20%"}], "answer": "D", "explanation": "Major osteoporotic **≥20%**."}, {"stem": "Osteopenia, FRAX hip 3.4%, major 12% → treatment?", "options": [{"letter": "A", "text": "Not indicated"}, {"letter": "B", "text": "Repeat FRAX in 1 month"}, {"letter": "C", "text": "Consider treatment"}, {"letter": "D", "text": "Order SPEP"}], "answer": "C", "explanation": "Hip ≥3% alone → **consider treatment**."}]}}, {"id": "30", "group": 30, "section": "FRAX thresholds", "topic": "FRAX & treatment thresholds", "skill": "Diagnostics & imaging", "stem": "What 10-year major osteoporotic fracture probability on FRAX supports treatment in a patient with osteopenia?", "options": [{"letter": "A", "text": "≥3%"}, {"letter": "B", "text": "≥10%"}, {"letter": "C", "text": "≥20%"}, {"letter": "D", "text": "≥50%"}], "answer": "C", "explanation": "Major osteoporotic fracture **≥20%** (or hip ≥3%) supports treating osteopenia.", "objective": "", "remediation": {"steps": [{"teach": "Remember the pair **3 and 20**: hip ≥3%, major ≥20%.", "stem": "FRAX hip threshold is:", "options": [{"letter": "A", "text": "≥3%"}, {"letter": "B", "text": "≥20%"}, {"letter": "C", "text": "≥10%"}], "answer": "A", "explanation": "Hip **≥3%** — so major is the other number.", "clarify": [{"stem": "Only ONE threshold needs to be met?", "options": [{"letter": "A", "text": "No — both required"}, {"letter": "B", "text": "Yes — either one"}], "answer": "B", "explanation": "**Either** hip ≥3% **or** major ≥20%."}]}], "checkpoints": [{"stem": "Osteopenia T-score range where FRAX is used →", "options": [{"letter": "A", "text": "≥ −1.0"}, {"letter": "B", "text": "≤ −2.5"}, {"letter": "C", "text": "≤ −3.5"}, {"letter": "D", "text": "−1.0 to −2.5"}], "answer": "D", "explanation": "FRAX is for **−1.0 to −2.5** (low bone mass)."}, {"stem": "FRAX hip 2.0%, major 22% → treatment?", "options": [{"letter": "A", "text": "Not indicated"}, {"letter": "B", "text": "Only if T ≤ −2.5"}, {"letter": "C", "text": "Consider treatment"}, {"letter": "D", "text": "Repeat DXA first"}], "answer": "C", "explanation": "Major ≥20% → **consider treatment**."}]}}, {"id": "31", "group": 31, "section": "FRAX tool", "topic": "FRAX & treatment thresholds", "skill": "Diagnostics & imaging", "stem": "What outcomes does the FRAX tool predict?", "options": [{"letter": "A", "text": "Lifetime risk of osteoporosis"}, {"letter": "B", "text": "10-year probability of fracture"}, {"letter": "C", "text": "1-year risk of falling"}, {"letter": "D", "text": "Current T-score estimate"}], "answer": "B", "explanation": "FRAX predicts the **10-year probability of fracture** (major osteoporotic and hip), with or without femoral neck BMD.", "objective": "Be familiar with the FRAX — the fracture risk assessment tool developed by WHO", "remediation": {"steps": [{"teach": "FRAX = Fracture Risk Assessment tool (WHO-based, University of Sheffield). Its two outputs are **10-year** probabilities.", "stem": "FRAX's two outputs:", "options": [{"letter": "A", "text": "T-score and Z-score"}, {"letter": "B", "text": "Major osteoporotic and hip fracture"}, {"letter": "C", "text": "Calcium and vitamin D"}], "answer": "B", "explanation": "**Major osteoporotic** and **hip** fracture probabilities.", "clarify": [{"stem": "FRAX was developed from data of the:", "options": [{"letter": "A", "text": "USPSTF"}, {"letter": "B", "text": "WHO"}], "answer": "B", "explanation": "**WHO** Collaborating Centre (Sheffield)."}]}], "checkpoints": [{"stem": "BMD value that can optionally be entered in FRAX →", "options": [{"letter": "A", "text": "Lumbar spine Z-score"}, {"letter": "B", "text": "Heel SXA value"}, {"letter": "C", "text": "Forearm pDXA value"}, {"letter": "D", "text": "Femoral neck BMD"}], "answer": "D", "explanation": "FRAX runs with or without **femoral neck BMD**."}, {"stem": "FRAX was developed based on data from →", "options": [{"letter": "A", "text": "USPSTF"}, {"letter": "B", "text": "NOF"}, {"letter": "C", "text": "WHO"}, {"letter": "D", "text": "ACR"}], "answer": "C", "explanation": "**WHO** (University of Sheffield)."}]}}, {"id": "32", "group": 32, "section": "FRAX tool", "topic": "FRAX & treatment thresholds", "skill": "Diagnostics & imaging", "stem": "Which variable is included in the FRAX calculation?", "options": [{"letter": "A", "text": "Serum calcium"}, {"letter": "B", "text": "Z-score at forearm"}, {"letter": "C", "text": "TSH level"}, {"letter": "D", "text": "Glucocorticoid use"}], "answer": "D", "explanation": "FRAX inputs include age, sex, weight, height, prior fracture, parental hip fracture, smoking, **glucocorticoids**, RA, secondary osteoporosis, alcohol ≥3 units/day, ± femoral neck BMD.", "objective": "Know what variables are included in the FRAX risk assessment", "remediation": {"steps": [{"teach": "FRAX uses **clinical risk factors** (history), not lab values.", "stem": "FRAX inputs are mostly:", "options": [{"letter": "A", "text": "Lab values"}, {"letter": "B", "text": "Imaging of the heel"}, {"letter": "C", "text": "Clinical risk factors"}], "answer": "C", "explanation": "**Clinical risk factors** plus optional femoral neck BMD.", "clarify": [{"stem": "Case 2's FRAX rose after she started:", "options": [{"letter": "A", "text": "Calcium"}, {"letter": "B", "text": "Prednisone"}], "answer": "B", "explanation": "Starting **prednisone** raised her FRAX."}]}], "checkpoints": [{"stem": "Not a FRAX input →", "options": [{"letter": "A", "text": "Parent with hip fracture"}, {"letter": "B", "text": "Current smoking"}, {"letter": "C", "text": "Rheumatoid arthritis"}, {"letter": "D", "text": "Serum vitamin D level"}], "answer": "D", "explanation": "FRAX doesn't use **labs** like vitamin D."}, {"stem": "FRAX alcohol input threshold →", "options": [{"letter": "A", "text": "Any alcohol"}, {"letter": "B", "text": "≥1 unit/week"}, {"letter": "C", "text": "≥3 units/day"}, {"letter": "D", "text": "≥10 units/day"}], "answer": "C", "explanation": "Alcohol **≥3 units/day**."}]}}, {"id": "33", "group": 33, "section": "Case One", "topic": "FRAX & treatment thresholds", "skill": "Management", "stem": "What do FRAX thresholds suggest for a 72-year-old woman requesting Fosamax who has T-scores of −1.7 and −2.0 and 10-year fracture risks of 13% for major osteoporotic fracture and 2.7% for hip fracture?", "options": [{"letter": "A", "text": "Treatment not indicated"}, {"letter": "B", "text": "Treat — osteoporosis"}, {"letter": "C", "text": "Treat — hip ≥3%"}, {"letter": "D", "text": "Treat — major ≥20%"}], "answer": "A", "explanation": "13% < 20% and 2.7% < 3% → **below both thresholds**, so treatment is not indicated by FRAX.", "objective": "", "remediation": {"steps": [{"teach": "First classify the T-scores, then compare FRAX to **20% / 3%**.", "stem": "T-scores of −1.7 and −2.0 are:", "options": [{"letter": "A", "text": "Osteoporosis"}, {"letter": "B", "text": "Osteopenia"}, {"letter": "C", "text": "Normal"}], "answer": "B", "explanation": "Both between −1.0 and −2.5 → **osteopenia**, so use FRAX.", "clarify": [{"stem": "Is 2.7% hip ≥3%?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "2.7% is **below** 3%."}, {"stem": "Is 13% major ≥20%?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes"}], "answer": "A", "explanation": "13% is **below** 20%."}]}], "checkpoints": [{"stem": "Same patient's FRAX would need to reach (hip) →", "options": [{"letter": "A", "text": "≥2%"}, {"letter": "B", "text": "≥5%"}, {"letter": "C", "text": "≥3%"}, {"letter": "D", "text": "≥20%"}], "answer": "C", "explanation": "Hip **≥3%** (or major ≥20%)."}, {"stem": "Osteopenia, FRAX 15% major / 1.9% hip →", "options": [{"letter": "A", "text": "Bisphosphonate"}, {"letter": "B", "text": "Treatment not indicated"}, {"letter": "C", "text": "Parathyroidectomy"}, {"letter": "D", "text": "SPEP"}], "answer": "B", "explanation": "Below both → **not indicated**."}]}}, {"id": "34", "group": 34, "section": "Case Two", "topic": "FRAX & treatment thresholds", "skill": "Management", "stem": "How does the treatment recommendation change when the same woman starts prednisone 15 mg for polymyalgia rheumatica and her FRAX risks rise to 20% for major osteoporotic fracture and 4.9% for hip fracture?", "options": [{"letter": "A", "text": "Still below threshold"}, {"letter": "B", "text": "Needs repeat DXA first"}, {"letter": "C", "text": "Now qualifies for treatment"}, {"letter": "D", "text": "Treat only if T ≤ −2.5"}], "answer": "C", "explanation": "Prednisone pushed her to **20% major / 4.9% hip** — both meet thresholds, so she **now qualifies**.", "objective": "", "remediation": {"steps": [{"teach": "Glucocorticoids are a FRAX input; adding one can **push a patient across** the threshold.", "stem": "Starting prednisone makes FRAX risk:", "options": [{"letter": "A", "text": "Lower"}, {"letter": "B", "text": "Unchanged"}, {"letter": "C", "text": "Higher"}], "answer": "C", "explanation": "Glucocorticoids **raise** FRAX.", "clarify": [{"stem": "4.9% hip vs threshold 3%:", "options": [{"letter": "A", "text": "Meets it"}, {"letter": "B", "text": "Below it"}], "answer": "A", "explanation": "4.9% ≥ 3% → **meets** it."}]}], "checkpoints": [{"stem": "Drug that alone pushed Case 2 over the FRAX threshold →", "options": [{"letter": "A", "text": "Alendronate"}, {"letter": "B", "text": "Levothyroxine"}, {"letter": "C", "text": "Prednisone"}, {"letter": "D", "text": "Calcium carbonate"}], "answer": "C", "explanation": "**Prednisone** (glucocorticoid)."}, {"stem": "ACR bottom line: most older patients on prednisone →", "options": [{"letter": "A", "text": "Need no bone evaluation"}, {"letter": "B", "text": "Qualify for bisphosphonates"}, {"letter": "C", "text": "Need parathyroidectomy"}, {"letter": "D", "text": "Should stop DXA"}], "answer": "B", "explanation": "Most older folks on prednisone **qualify for bisphosphonates**."}]}}, {"id": "35", "group": 35, "section": "Case Three", "topic": "DXA interpretation", "skill": "Diagnostics & imaging", "stem": "What is the diagnosis in a 50-year-old woman who fractures her hip in a fall while jogging and has T-scores of −2.8 at the left hip and −2.3 at the spine?", "options": [{"letter": "A", "text": "Osteopenia"}, {"letter": "B", "text": "Osteoporosis"}, {"letter": "C", "text": "Normal BMD"}, {"letter": "D", "text": "Osteomalacia"}], "answer": "B", "explanation": "One site at ≤ −2.5 (hip −2.8) is enough → **osteoporosis**; she also qualifies for treatment and needs a secondary-cause workup.", "objective": "", "remediation": {"steps": [{"teach": "Osteoporosis is diagnosed if **either** the femoral neck/hip **or** spine is ≤ −2.5.", "stem": "Hip T −2.8 alone is:", "options": [{"letter": "A", "text": "Osteoporosis"}, {"letter": "B", "text": "Osteopenia"}, {"letter": "C", "text": "Normal"}], "answer": "A", "explanation": "−2.8 ≤ −2.5 → **osteoporosis**.", "clarify": [{"stem": "Spine T −2.3 alone would be:", "options": [{"letter": "A", "text": "Osteopenia"}, {"letter": "B", "text": "Osteoporosis"}], "answer": "A", "explanation": "−2.3 → **osteopenia**, but the hip decides."}]}], "checkpoints": [{"stem": "After Case 3's diagnosis, what else does she need?", "options": [{"letter": "A", "text": "Repeat DXA in 1 week"}, {"letter": "B", "text": "No further evaluation"}, {"letter": "C", "text": "Workup for secondary causes"}, {"letter": "D", "text": "Heel SXA to confirm"}], "answer": "C", "explanation": "New low BMD → **secondary-cause labs**."}, {"stem": "Does Case 3 qualify for pharmacologic tx (NOF)?", "options": [{"letter": "A", "text": "No — spine is osteopenic"}, {"letter": "B", "text": "Yes"}, {"letter": "C", "text": "Only if FRAX ≥20%"}, {"letter": "D", "text": "Only after age 65"}], "answer": "B", "explanation": "T ≤ −2.5 (and a fracture) → **yes**."}]}}, {"id": "36", "group": 36, "section": "Case Three — labs", "topic": "Primary hyperparathyroidism", "skill": "Diagnostics & imaging", "stem": "What diagnosis is indicated in Case 3 by elevated calcium and intact PTH with normal 25-hydroxyvitamin D, creatinine, and TSH?", "options": [{"letter": "A", "text": "Secondary hyperparathyroidism"}, {"letter": "B", "text": "Vitamin D deficiency"}, {"letter": "C", "text": "Hyperthyroidism"}, {"letter": "D", "text": "Primary hyperparathyroidism"}], "answer": "D", "explanation": "↑Ca with ↑ intact PTH (normal Cr and vitamin D) = **primary hyperparathyroidism**.", "objective": "", "remediation": {"steps": [{"teach": "Secondary hyperparathyroidism comes from **renal failure** or **vitamin D deficiency** — both are normal here.", "stem": "In this lecture, secondary hyperparathyroidism is caused by:", "options": [{"letter": "A", "text": "Parathyroid adenoma"}, {"letter": "B", "text": "Hyperthyroidism"}, {"letter": "C", "text": "Renal failure (↑Cr)"}], "answer": "C", "explanation": "Markedly ↑Cr → **secondary** HPT; with normal Cr and vitamin D, **high Ca + high PTH** = primary.", "clarify": [{"stem": "Normal creatinine rules out which cause of ↑PTH?", "options": [{"letter": "A", "text": "Renal failure"}, {"letter": "B", "text": "Parathyroid adenoma"}], "answer": "A", "explanation": "Normal Cr argues against **renal** secondary HPT."}, {"stem": "Normal TSH rules out:", "options": [{"letter": "A", "text": "Hyperparathyroidism"}, {"letter": "B", "text": "Hyperthyroidism"}], "answer": "B", "explanation": "Normal TSH → not **hyperthyroid**."}]}], "checkpoints": [{"stem": "Primary hyperparathyroidism → expected Ca and PTH:", "options": [{"letter": "A", "text": "↓Ca, ↑PTH"}, {"letter": "B", "text": "↑Ca, ↑PTH"}, {"letter": "C", "text": "↑Ca, ↓PTH"}, {"letter": "D", "text": "↓Ca, ↓PTH"}], "answer": "B", "explanation": "**Both high**."}, {"stem": "Low BMD from primary hyperparathyroidism is →", "options": [{"letter": "A", "text": "Reversible with surgery"}, {"letter": "B", "text": "Permanent"}, {"letter": "C", "text": "Worsened by surgery"}, {"letter": "D", "text": "Unrelated to PTH"}], "answer": "A", "explanation": "Bone disease is **reversible with parathyroid surgery**."}]}}, {"id": "37", "group": 37, "section": "Case Three — management", "topic": "Primary hyperparathyroidism", "skill": "Management", "stem": "What is the definitive management for primary hyperparathyroidism with osteoporosis and a T-score below −2.5?", "options": [{"letter": "A", "text": "Parathyroidectomy"}, {"letter": "B", "text": "Thyroidectomy"}, {"letter": "C", "text": "Observation only"}, {"letter": "D", "text": "High-dose vitamin D"}], "answer": "A", "explanation": "Surgical correction (**parathyroidectomy**) reduces bone turnover and significantly improves BMD; T < −2.5 or fragility fracture meets surgical criteria.", "objective": "", "remediation": {"steps": [{"teach": "Treat the **source**: the overactive parathyroid.", "stem": "Bone disease in PHPT after surgery is:", "options": [{"letter": "A", "text": "Reversible"}, {"letter": "B", "text": "Permanent"}, {"letter": "C", "text": "Worse"}], "answer": "A", "explanation": "**Reversible** with surgery.", "clarify": [{"stem": "The gland causing PHPT is the:", "options": [{"letter": "A", "text": "Thyroid"}, {"letter": "B", "text": "Parathyroid"}], "answer": "B", "explanation": "**Parathyroid** gland."}]}], "checkpoints": [{"stem": "Skeletal surgical criterion for asymptomatic PHPT →", "options": [{"letter": "A", "text": "T-score < −1.0"}, {"letter": "B", "text": "T-score < −2.5 or fragility fx"}, {"letter": "C", "text": "Any Z-score < 0"}, {"letter": "D", "text": "Age > 65"}], "answer": "B", "explanation": "**T < −2.5 or vertebral/fragility fracture**."}, {"stem": "Age criterion for surgery in asymptomatic PHPT →", "options": [{"letter": "A", "text": "Age < 50"}, {"letter": "B", "text": "Age > 50"}, {"letter": "C", "text": "Age > 70"}, {"letter": "D", "text": "Any age > 65"}], "answer": "A", "explanation": "**Age < 50** is a surgical indication."}]}}, {"id": "38", "group": 38, "section": "Follow-up DXA", "topic": "Follow-up DXA", "skill": "Diagnostics & imaging", "stem": "What is one approach to follow-up DXA testing after osteoporosis medication is started?", "options": [{"letter": "A", "text": "Repeat every 3 months"}, {"letter": "B", "text": "Repeat after 6 months"}, {"letter": "C", "text": "Repeat after 2 years of therapy"}, {"letter": "D", "text": "Repeat yearly for life"}], "answer": "C", "explanation": "No consensus; one approach (ISCD/UpToDate) = **repeat DXA after 2 years**, then less often if BMD stable/improved. ACP recommends no monitoring.", "objective": "", "remediation": {"steps": [{"teach": "Monitoring therapy with DXA is **controversial** — no definitive consensus.", "stem": "ACP's position on DXA monitoring during therapy:", "options": [{"letter": "A", "text": "Every 6 months"}, {"letter": "B", "text": "Recommends against it"}, {"letter": "C", "text": "Every year"}], "answer": "B", "explanation": "**ACP recommends against** monitoring — fracture risk falls even if BMD doesn't rise.", "clarify": [{"stem": "If BMD is stable or improved on repeat, then monitor:", "options": [{"letter": "A", "text": "More frequently"}, {"letter": "B", "text": "Less frequently"}], "answer": "B", "explanation": "**Less frequent** monitoring thereafter."}]}], "checkpoints": [{"stem": "ACP stance on DXA monitoring during therapy →", "options": [{"letter": "A", "text": "Every 2 years"}, {"letter": "B", "text": "No monitoring needed"}, {"letter": "C", "text": "Every 6 months"}, {"letter": "D", "text": "Annually"}], "answer": "B", "explanation": "ACP: **no monitoring** during therapy."}, {"stem": "Using DXA to monitor therapy is →", "options": [{"letter": "A", "text": "Controversial"}, {"letter": "B", "text": "Standard of care"}, {"letter": "C", "text": "Contraindicated"}, {"letter": "D", "text": "Required yearly"}], "answer": "A", "explanation": "Monitoring therapy is **controversial**."}]}}, {"id": "39", "group": 39, "section": "Follow-up DXA", "topic": "Follow-up DXA", "skill": "Diagnostics & imaging", "stem": "How should repeat DXA scans be performed to allow reliable comparison?", "options": [{"letter": "A", "text": "At any convenient facility"}, {"letter": "B", "text": "On the same machine/manufacturer"}, {"letter": "C", "text": "With a peripheral heel scan"}, {"letter": "D", "text": "Only with contrast"}], "answer": "B", "explanation": "Repeat DXA on the **same machine/manufacturer** — raw BMD from different equipment can't be directly compared.", "objective": "", "remediation": {"steps": [{"teach": "Different manufacturers' machines give different **raw g/cm²** values.", "stem": "Raw BMD in g/cm² between manufacturers is:", "options": [{"letter": "A", "text": "Directly comparable"}, {"letter": "B", "text": "Always identical"}, {"letter": "C", "text": "Not directly comparable"}], "answer": "C", "explanation": "**Not comparable** across manufacturers.", "clarify": [{"stem": "T- and Z-scores between machines:", "options": [{"letter": "A", "text": "Cannot be compared"}, {"letter": "B", "text": "Can be compared"}], "answer": "B", "explanation": "T and Z **can** be compared."}]}], "checkpoints": [{"stem": "Between different DXA manufacturers, which CAN be compared?", "options": [{"letter": "A", "text": "Raw g/cm² values"}, {"letter": "B", "text": "T- and Z-scores"}, {"letter": "C", "text": "Neither"}, {"letter": "D", "text": "Only g/cm² at the hip"}], "answer": "B", "explanation": "**T and Z scores** can; raw g/cm² cannot."}, {"stem": "Age-65 screen didn't lead to treatment → rescreening:", "options": [{"letter": "A", "text": "No consensus; judgment call"}, {"letter": "B", "text": "Mandatory yearly"}, {"letter": "C", "text": "Every 6 months"}, {"letter": "D", "text": "Never allowed"}], "answer": "A", "explanation": "**No consensus** — based on original T-score and new risk factors."}]}}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  const LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  function shuffleOptions(item) {
+    if (!item || !item.options || item.options.length < 2) return;
+    const key = (item.options.find(o => o.letter === item.answer) || {}).text;
+    const texts = item.options.map(o => o.text);
+    for (let i = texts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [texts[i], texts[j]] = [texts[j], texts[i]]; }
+    item.options = texts.map((t, i) => ({ letter: LET[i], text: t }));
+    item.answer = (item.options.find(o => o.text === key) || {}).letter;
+  }
+  // Tutor questions get fresh option order on every open, like the main exam
+  if (EXAM_DATA.shuffleTutorOptions !== false) {
+    questions.forEach(q => {
+      const r = q.remediation; if (!r) return;
+      (r.steps || []).forEach(s => { shuffleOptions(s); (s.clarify || []).forEach(shuffleOptions); });
+      (r.checkpoints || []).forEach(shuffleOptions);
+    });
+  }
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter (FIRST attempt — this is what is scored)
+  const tutor = {};          // question id -> tutor session (see startTutor)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);
+  let page = 0;
+  let lastGrade = null;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const optText = (item, letter) => { const o = item.options.find(x => x.letter === letter); return o ? o.text : ''; };
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  // ================= Adaptive tutor engine =================
+  // A session is a growing "trail" of nodes rendered under the missed question.
+  // Node kinds: step | clarify | checkpoint (answerable), note (text only).
+  function hasTutor(q) { return !!(q.remediation && q.remediation.steps && q.remediation.steps.length); }
+
+  function startTutor(q) {
+    const t = { status: 'active', phase: 'steps', trail: [], step: 0, clar: 0, wrong: [], cp: 0 };
+    tutor[q.id] = t;
+    pushStep(q, t, false);
+  }
+
+  function pushStep(q, t, retry) {
+    const steps = q.remediation.steps;
+    if (t.step >= steps.length) return finishSteps(q, t);
+    t.trail.push({ kind: 'step', item: steps[t.step], sIdx: t.step, retry: retry,
+                   elim: retry ? t.wrong.slice() : [], chosen: null, revealed: false });
+  }
+
+  function nextStep(q, t) { t.step++; t.clar = 0; t.wrong = []; pushStep(q, t, false); }
+
+  function pushClarify(q, t) {
+    const cl = q.remediation.steps[t.step].clarify || [];
+    if (t.clar < cl.length) {
+      t.trail.push({ kind: 'clarify', item: cl[t.clar], sIdx: t.step, chosen: null, revealed: false });
+      t.clar++;
+      return true;
+    }
+    return false;
+  }
+
+  function finishSteps(q, t) {
+    t.phase = 'checkpoint';
+    t.trail.push({ kind: 'note', cls: 'reveal',
+      html: '<b>Back to Question ' + esc(q.id) + ':</b> the answer is <b>' + esc(q.answer) + '. ' + fmt(optText(q, q.answer)) + '</b>' +
+            (q.explanation ? '<div style="margin-top:4px">' + fmt(q.explanation) + '</div>' : '') });
+    pushCheckpoint(q, t);
+  }
+
+  function pushCheckpoint(q, t) {
+    const cps = q.remediation.checkpoints || [];
+    if (t.cp < cps.length) {
+      t.trail.push({ kind: 'checkpoint', item: cps[t.cp], chosen: null, revealed: false, n: t.cp + 1 });
+    } else if (!cps.length) {
+      t.status = 'mastered'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Pathway complete — continue the case.' });
+    } else {
+      t.status = 'review'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'review',
+        html: '⚑ Flagged for review — this concept is saved to your missed list. Continue the case when ready.' });
+    }
+  }
+
+  function tutorAnswer(q, idx, letter) {
+    const t = tutor[q.id];
+    const node = t.trail[idx];
+    if (!node || node.chosen !== null || idx !== t.trail.length - 1) return;
+    node.chosen = letter;
+    const ok = letter === node.item.answer;
+
+    if (node.kind === 'step') {
+      if (ok) return nextStep(q, t);
+      t.wrong.push(letter);
+      if (pushClarify(q, t)) return;
+      // Out of simpler questions: teach the step's answer, then move on
+      node.revealed = true;
+      return nextStep(q, t);
+    }
+    if (node.kind === 'clarify') {
+      if (ok) return pushStep(q, t, true);              // foundation fixed -> retry the step
+      if (pushClarify(q, t)) return;                    // still shaky -> go simpler again
+      node.revealed = true;                             // teach the basic fact, then retry the step
+      return pushStep(q, t, true);
+    }
+    if (node.kind === 'checkpoint') {
+      if (ok) {
+        t.status = 'mastered'; t.phase = 'done';
+        t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Mastered — you applied it to a new case. Continue below.' });
+        return;
+      }
+      node.revealed = true;
+      t.cp++;
+      const more = t.cp < (q.remediation.checkpoints || []).length;
+      if (more) t.trail.push({ kind: 'note', cls: 'info', html: 'Same concept, one more case:' });
+      return pushCheckpoint(q, t);
+    }
+  }
+
+  // A question is "resolved" (lets its follow-up appear) once answered right,
+  // answered wrong without a pathway, or its pathway has finished.
+  function resolved(q) {
+    if (answers[q.id] === undefined) return false;
+    if (answers[q.id] === q.answer || !hasTutor(q)) return true;
+    return tutor[q.id] && tutor[q.id].status !== 'active';
+  }
+
+  function tutorStatus(q) {
+    const t = tutor[q.id];
+    return t ? t.status : null;
+  }
+
+  function nodeHtml(q, node, idx, interactive) {
+    if (node.kind === 'note') return '<div class="tnote ' + node.cls + '">' + node.html + '</div>';
+    const it = node.item;
+    const answered = node.chosen !== null;
+    const live = interactive && !answered;
+    let label;
+    if (node.kind === 'step') label = '<span class="tlabel">Step ' + (node.sIdx + 1) + ' of ' + q.remediation.steps.length + (node.retry ? ' · try again' : '') + '</span>';
+    else if (node.kind === 'clarify') label = '<span class="tlabel clar">Let\'s go simpler</span>';
+    else label = '<span class="tlabel cp">Mastery check' + ((q.remediation.checkpoints || []).length > 1 ? ' ' + node.n : '') + '</span>';
+
+    let html = '<div class="tnode' + (answered ? ' done' : ' active') + '" data-tq="' + esc(q.id) + '" data-tidx="' + idx + '">' + label;
+    if (it.teach && !(node.kind === 'step' && node.retry)) html += '<div class="teach">' + fmt(it.teach) + '</div>';
+    html += '<div class="stem">' + fmt(it.stem) + '</div>';
+    it.options.forEach(o => {
+      let cls = 'opt';
+      const elim = node.elim && node.elim.indexOf(o.letter) !== -1;
+      if (answered) {
+        if (o.letter === node.chosen) cls += node.chosen === it.answer ? ' correct' : ' incorrect';
+        else if (node.revealed && o.letter === it.answer) cls += ' correct';
+      }
+      if (elim) cls += ' elim';
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (live && !elim ? '' : ' disabled') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      const ok = node.chosen === it.answer;
+      if (ok || node.revealed) {
+        html += '<div class="feedback ' + (ok ? 'good' : 'bad') + '"><div class="verdict">' +
+          (ok ? '✓ Correct' : '✗ Answer: ' + esc(it.answer) + '. ' + fmt(optText(it, it.answer))) + '</div>' +
+          (it.explanation ? '<div>' + fmt(it.explanation) + '</div>' : '') + '</div>';
+      } else {
+        html += '<div class="nudge">✗ Not yet — let\'s break it down.</div>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function trailHtml(q, interactive) {
+    const t = tutor[q.id];
+    if (!t) return '';
+    let html = '<div class="tutor"><div class="tutor-head">Guided review</div>';
+    t.trail.forEach((n, i) => { html += nodeHtml(q, n, i, interactive); });
+    html += '</div>';
+    return html;
+  }
+
+  // ================= Rendering =================
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + fmt(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + fmt(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    const wrong = answered && chosen !== q.answer;
+    const tutoring = wrong && hasTutor(q);
+    const t = tutor[q.id];
+    // While the pathway is still in its teaching steps (exam mode), the correct answer stays hidden
+    const hideKey = mode === 'exam' && tutoring && t && t.phase === 'steps';
+    const status = tutoring ? tutorStatus(q) : null;
+
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    if (status === 'mastered') html += '<span class="badge mastered">Mastered after review</span>';
+    else if (status === 'review') html += '<span class="badge review">Flagged for review</span>';
+    else if (status === 'active') html += '<span class="badge active">Guided review in progress</span>';
+    html += '<div class="stem">' + fmt(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === chosen) cls += chosen === q.answer ? ' correct' : ' incorrect';
+        else if (o.letter === q.answer && !hideKey) cls += ' correct';
+        else if (!hideKey) cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      if (hideKey) {
+        html += '<div class="feedback tutoring"><div class="verdict">✗ Not quite — the answer stays hidden while we build up to it.</div>' +
+          '<div>Work through the guided questions below.</div></div>';
+      } else {
+        html += feedbackHtml(q, chosen);
+      }
+    }
+    if (tutoring && t) {
+      if (mode === 'exam') html += trailHtml(q, true);
+      else html += '<details class="trail"><summary>Guided review path (' +
+        t.trail.filter(n => n.kind !== 'note').length + ' questions)</summary>' + trailHtml(q, false) + '</details>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: a follow-up appears only once the question before it is
+    // resolved — answered correctly, or its guided review has finished.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && resolved(group[shown - 1])) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      const blocked = group[shown - 1];
+      const inTutor = answers[blocked.id] !== undefined && !resolved(blocked);
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') + ' in this case — ' +
+        (inTutor ? 'finish the guided review to continue' : 'answer above to continue') + '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Main-question clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll(':scope > .opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          const q = byId[qid];
+          answers[qid] = btn.getAttribute('data-letter');
+          if (answers[qid] !== q.answer && hasTutor(q)) startTutor(q);
+          renderPage(true);
+        });
+      });
+    });
+    // Tutor clicks
+    $('main').querySelectorAll('.tnode.active').forEach(nodeEl => {
+      const q = byId[nodeEl.getAttribute('data-tq')];
+      const idx = +nodeEl.getAttribute('data-tidx');
+      nodeEl.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || btn.disabled) return;
+          tutorAnswer(q, idx, btn.getAttribute('data-letter'));
+          renderPage(true);
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) {
+      window.scrollTo(0, savedY);
+      // Bring the newest tutor question / unlocked follow-up into view if it landed below the fold
+      const target = $('main').querySelector('.tnode.active') || $('main').querySelector('.tnote.mastered, .tnote.review');
+      if (target) {
+        const r = target.getBoundingClientRect();
+        const navH = $('navbar').offsetHeight || 0;
+        if (r.bottom > window.innerHeight - navH) {
+          window.scrollBy({ top: Math.min(r.top - 80, r.bottom - (window.innerHeight - navH) + 16), behavior: 'smooth' });
+        }
+      }
+    } else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  // ================= Grading =================
+  // Two lenses for the results page:
+  //   topic — WHAT you were tested on (e.g. "Paget's disease of bone"). Falls back to `section`.
+  //   skill — WHAT KIND of thinking (Identification, Disease process, Diagnostics & imaging,
+  //           Management, Complications…). Optional; the skill card is hidden when no question has one.
+  const topicOf = q => q.topic || q.section || 'All questions';
+  const skillOf = q => q.skill || null;
+
+  function tally(list, keyFn) {
+    const m = {};
+    list.forEach(q => {
+      const k = keyFn(q); if (!k) return;
+      if (!m[k]) m[k] = { name: k, correct: 0, total: 0, mastered: 0, review: 0, missed: 0 };
+      const e = m[k];
+      e.total++;
+      if (answers[q.id] === q.answer) { e.correct++; return; }
+      if (answers[q.id] === undefined) return;
+      const st = tutor[q.id] ? tutor[q.id].status : null;
+      if (st === 'mastered') e.mastered++; else if (st === 'review') e.review++; else e.missed++;
+    });
+    return Object.keys(m).map(k => { const e = m[k]; e.pct = e.total ? e.correct / e.total : 0; return e; })
+      .sort((a, b) => a.pct - b.pct || b.total - a.total);        // weakest first
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    graded.forEach(q => { if (answers[q.id] === q.answer) correct++; });
+    const ts = { started: 0, mastered: 0, review: 0, active: 0, tq: 0, tqRight: 0 };
+    Object.keys(tutor).forEach(id => {
+      const t = tutor[id];
+      ts.started++; ts[t.status]++;
+      t.trail.forEach(n => { if (n.kind !== 'note' && n.chosen !== null) { ts.tq++; if (n.chosen === n.item.answer) ts.tqRight++; } });
+    });
+    return { correct, graded: graded.length, total: questions.length, partial,
+             topics: tally(graded, topicOf), skills: tally(graded, skillOf), ts };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  // Lowest-scoring entries (ties included) — only meaningful when there's something to compare
+  function weakest(entries) {
+    if (entries.length < 2) return [];
+    const lo = entries[0].pct, hi = entries[entries.length - 1].pct;
+    if (lo === hi) return [];                                       // all equal: nothing stands out
+    return entries.filter(e => e.pct === lo);
+  }
+
+  function barsHtml(entries) {
+    const weakSet = weakest(entries).map(e => e.name);
+    return entries.map(e => {
+      const p = Math.round(e.pct * 100);
+      const cls = p >= 80 ? 'hi' : (weakSet.indexOf(e.name) !== -1 ? 'lo' : '');
+      const meta = [];
+      if (e.review) meta.push(e.review + ' flagged');
+      if (e.missed) meta.push(e.missed + ' missed');
+      if (e.mastered) meta.push(e.mastered + ' relearned in guided review');
+      return '<div class="bar-row"><div class="bar-head"><span class="nm">' + esc(e.name) +
+        (weakSet.indexOf(e.name) !== -1 ? '<span class="sec-tag weak">WEAKEST</span>' : '') +
+        '</span><span class="pc"><b>' + p + '%</b> · ' + e.correct + '/' + e.total + '</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + cls + '" style="width:' + Math.max(p, 2) + '%"></div></div>' +
+        (meta.length ? '<div class="bar-meta">' + meta.join(' · ') + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+    const hasSkills = r.skills.length > 0;
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + ' · first attempts</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.ts.started) html += '<div class="score-note">' + r.ts.mastered + ' of ' + r.ts.started +
+      ' missed concept' + (r.ts.started === 1 ? '' : 's') + ' relearned in guided review</div>';
+    else if (r.partial) html += '<div class="score-note">Unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    // ---- What to work on ----
+    const wTopic = weakest(r.topics), wSkill = weakest(r.skills);
+    const missed = missedQuestions();
+    html += '<div class="card"><h2>What to work on</h2><div class="sub">Ranked from the questions you missed on the first try</div>';
+    if (!missed.length) {
+      html += '<div class="focus-box ok"><div class="v">Nothing missed — every question right on the first try.</div></div>';
+    } else {
+      html += '<div class="focus-grid">';
+      if (wTopic.length) html += '<div class="focus-box"><div class="k">Weakest topic</div><div class="v">' +
+        wTopic.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wTopic.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      if (wSkill.length) html += '<div class="focus-box"><div class="k">Weakest skill</div><div class="v">' +
+        wSkill.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wSkill.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      html += '</div>';
+      // One line per missed concept: flagged first, then plain misses, then ones already relearned
+      const rank = { review: 0, active: 0, missed: 1, mastered: 2 };
+      const items = missed.map(q => {
+        const st = tutor[q.id] ? tutor[q.id].status : 'missed';
+        return { q, st: st === 'active' ? 'review' : st };
+      }).sort((a, b) => rank[a.st] - rank[b.st]);
+      const label = { review: 'Still shaky', missed: 'Missed', mastered: 'Relearned' };
+      html += '<ul class="todo">' + items.map(it => {
+        const sk = skillOf(it.q);
+        return '<li><span class="dot ' + it.st + '"></span><span class="what"><b>' + esc(topicOf(it.q)) + '</b>' +
+          (sk ? ' — ' + esc(sk) : '') + ' <span style="color:var(--ink-soft)">(Q' + esc(it.q.id) + ')</span></span>' +
+          '<span class="tag ' + it.st + '">' + label[it.st] + '</span></li>';
+      }).join('') + '</ul>';
+    }
+    html += '</div>';
+
+    // ---- By topic / by skill ----
+    html += '<div class="card"><h2>By topic</h2><div class="sub">First-attempt score for each disease or concept</div>' + barsHtml(r.topics) + '</div>';
+    if (hasSkills) html += '<div class="card"><h2>By skill</h2><div class="sub">Which kind of question trips you up, across all topics</div>' + barsHtml(r.skills) + '</div>';
+
+    if (r.ts.started) {
+      html += '<div class="card"><h2>Guided review</h2><div class="sub" style="margin-bottom:12px">How the tutor pathways went</div><div class="tutor-stats">' +
+        '<div class="tstat t"><b>' + r.ts.started + '</b>concepts reviewed</div>' +
+        '<div class="tstat m"><b>' + r.ts.mastered + '</b>passed mastery check</div>' +
+        '<div class="tstat r"><b>' + (r.ts.review + r.ts.active) + '</b>still shaky</div>' +
+        '<div class="tstat"><b>' + r.ts.tqRight + '/' + r.ts.tq + '</b>tutor questions right</div>' +
+        '</div></div>';
+    }
+
+    html += '<div class="results-actions">';
+    if (missed.length) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed.length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + fmt(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  const plain = s => String(s == null ? '' : s).replace(/\*\*(.+?)\*\*/g, '$1');
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id + ' — ' + topicOf(q) + (skillOf(q) ? ' / ' + skillOf(q) : '')];
+      if (group[0].id !== q.id) lines.push('Case: ' + plain(group[0].stem));
+      lines.push(plain(q.stem));
+      q.options.forEach(o => lines.push(o.letter + '. ' + plain(o.text)));
+      lines.push('My answer: ' + answers[q.id]);
+      lines.push('Correct answer: ' + q.answer + '. ' + plain(optText(q, q.answer)));
+      if (q.explanation) lines.push('Rationale: ' + plain(q.explanation));
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      const t = tutor[q.id];
+      if (t) {
+        const st = { mastered: 'MASTERED on re-check', review: 'STILL NEEDS REVIEW (missed mastery check)', active: 'guided review not finished' }[t.status];
+        lines.push('Guided review: ' + st);
+        t.trail.forEach(n => {
+          if (n.kind === 'note' || n.chosen === null) return;
+          const ok = n.chosen === n.item.answer;
+          lines.push('  ' + (ok ? '✓ ' : '✗ ') + plain(n.item.stem) + ' → ' + plain(optText(n.item, n.item.answer)));
+        });
+      }
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => !resolved(q))) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(tutor).forEach(k => delete tutor[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

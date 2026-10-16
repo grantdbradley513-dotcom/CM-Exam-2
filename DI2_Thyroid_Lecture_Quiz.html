@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- Adaptive tutor ---------- */
+  :root { --tutor: #5b3fa6; --tutor-bg: #f5f2fc; --tutor-line: #ddd3f3; }
+  .feedback.tutoring { background: var(--amber-bg); border-left: 4px solid var(--amber); margin-bottom: 22px; }
+  .feedback.tutoring .verdict { color: var(--amber); }
+  /* Guided review: a quiet rail instead of a filled box, so nested cards don't stack up visually */
+  .tutor { border-left: 3px solid var(--tutor-line); padding: 2px 0 2px 16px; margin: 0 0 6px 4px; }
+  .tutor-head { font-weight: 700; color: var(--tutor); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+  .tnode { background: var(--card); border: 1px solid var(--tutor-line); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+  .tnode.active { border-color: var(--tutor); box-shadow: 0 2px 10px rgba(91,63,166,0.10); }
+  .tnode.done { background: #fcfcfe; }
+  .tlabel { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--tutor); margin-bottom: 8px; }
+  .tlabel.cp { color: #fff; background: var(--tutor); border-radius: 6px; padding: 1px 8px; }
+  .tlabel.clar { color: var(--amber); }
+  .teach { border-left: 3px solid var(--tutor); padding: 2px 0 2px 12px; margin-bottom: 12px; font-size: 0.95em; white-space: pre-wrap; color: var(--ink); }
+  .tnode .stem { margin-bottom: 12px; font-weight: 500; }
+  .tnode .opt { padding: 8px 12px; margin-bottom: 8px; }
+  .tnode .feedback { margin-top: 10px; }
+  .tnode .nudge { margin-top: 8px; color: var(--amber); font-weight: 600; font-size: 0.9em; }
+  .opt.elim { opacity: 0.45; text-decoration: line-through; border-style: dashed; }
+  .tnote { border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 0.95em; }
+  .tnote.reveal { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .tnote.mastered { background: var(--green-bg); border-left: 4px solid var(--green); font-weight: 600; }
+  .tnote.review { background: var(--red-bg); border-left: 4px solid var(--red); font-weight: 600; }
+  .tnote.info { color: var(--ink-soft); padding: 0 2px; margin-bottom: 10px; font-style: italic; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 6px; padding: 1px 8px; margin-left: 8px; vertical-align: middle; }
+  .badge.mastered { background: var(--green-bg); color: var(--green); }
+  .badge.review { background: var(--red-bg); color: var(--red); }
+  .badge.active { background: var(--tutor-bg); color: var(--tutor); }
+  details.trail { margin-top: 12px; }
+  details.trail summary { cursor: pointer; color: var(--tutor); font-weight: 600; font-size: 0.9rem; }
+  details.trail .tutor { margin-top: 12px; }
+
+  .qcard > .feedback + .tutor { margin-top: 22px; }
+
+  /* ---------- Results: study plan ---------- */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 16px; }
+  .card h2 { font-size: 1.02rem; margin-bottom: 4px; }
+  .card .sub { font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 14px; }
+  .focus-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 640px) { .focus-grid { grid-template-columns: 1fr 1fr; } }
+  .focus-box { border-radius: 10px; padding: 12px 14px; background: var(--red-bg); border-left: 4px solid var(--red); }
+  .focus-box.ok { background: var(--green-bg); border-left-color: var(--green); }
+  .focus-box .k { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+  .focus-box .v { font-weight: 700; font-size: 1.02rem; margin-top: 2px; }
+  .focus-box .n { font-size: 0.85rem; color: var(--ink-soft); }
+  .todo { list-style: none; }
+  .todo li { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border); font-size: 0.93rem; }
+  .todo li:first-child { border-top: none; }
+  .todo .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; transform: translateY(-1px); }
+  .todo .dot.review { background: var(--red); } .todo .dot.missed { background: var(--amber); } .todo .dot.mastered { background: var(--green); }
+  .todo .what { flex: 1; }
+  .todo .what b { font-weight: 600; }
+  .todo .tag { flex: none; font-size: 0.75rem; font-weight: 700; color: var(--ink-soft); }
+  .todo .tag.review { color: var(--red); } .todo .tag.missed { color: var(--amber); } .todo .tag.mastered { color: var(--green); }
+  .bar-row { margin-bottom: 14px; }
+  .bar-row:last-child { margin-bottom: 2px; }
+  .bar-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.92rem; margin-bottom: 5px; }
+  .bar-head .nm { font-weight: 600; }
+  .bar-head .pc { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+  .bar-head .pc b { color: var(--ink); }
+  .bar-meta { font-size: 0.78rem; color: var(--ink-soft); margin-top: 3px; }
+  .tutor-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 640px) { .tutor-stats { grid-template-columns: repeat(4, 1fr); } }
+  .tstat { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; color: var(--ink-soft); }
+  .tstat b { display: block; font-size: 1.4rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tstat.m b { color: var(--green); } .tstat.r b { color: var(--red); } .tstat.t b { color: var(--tutor); }
+
+  /* Background infographic (added by Claude) */
+  body {
+    background-color: var(--bg);
+    background-image:
+      linear-gradient(rgba(244, 246, 250, 0.55), rgba(244, 246, 250, 0.55)),
+      url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAATwAAADiCAYAAADTRnvtAAAMVGlDQ1BJQ0MgUHJvZmlsZQAASImVVwdYU8kWnltSIbQAAlJCb4KIlABSQg8gvQg2QhIglBATgorY0EUF14KKCFZ0VUSxAyI2bKgsir0vFlSUdbFgRXmTBNDl7Xvve/N9c+e//znzz5lz5947A4BqN0ckykLVAMgW5oqjg3wZExKTGKSXgAqUgAYgADUOVyJiRUaGAVgG27+XDzcBImuv2cm0/t3+X4s6jy/hAoBEQpzCk3CzIT4EAN7CFYlzASAWQN50eq5IhjdDrCmGAUJ8SIbTFLhFhlMU+L7cJzbaD+IeAMjKHI44DQCVPsgz8rhpUEdVH2IHIU8ghFg2H6/s7BwexEshtoI+Iohl+syUn3TS/qaZMqTJ4aQNYcVc5IXsL5CIsjgz/890/O+SnSUdHMMKVuV0cXC0bM4wbz2ZOaEyrAwAigtTwiMg1oBYTcCT+8uwSbo0OE7hjzpxJX4wZ0Ab4mBJVgx7gJ/C4/iHQgzzhIr5Qj/WAL8sVRAo84GrBa0SZoWHDfQ9IMhlx0KsA3ELXxIQM8B3iHOiB2P4kCqW60AeI3PE8nigJmYozYxjKcbCHNP57AFNLDw/PTYBYirEvDxBfDjEKhALJZkxoQM+BfnpfuGDPmJptGxeZhCX8oVBvkMxiwOjB/zrsiWDecBa0wXs8AH8MDc9NliRN6yHy5HHD+eC9fGFrMFcLeNLJoQNzoXH9w9Q5AHX5AvjYhQ8bibK9Y1W9MVdRFmRA/54OD8rSMabQJwsyYsZ7FuYCxeqQh8vFeVGxirixLdncEIiFfHgTSAM+AF/wABSWFNADsgAgrbu+m54p7AEAg4QgzTAB3YDzGCPBLlFCK8xIB/8CREfSIb6+cqtfJAH+W/DWBknGOIUVzuQOmCTqWSCZxBnQ0sOyIJVCu8G/ePBU3gnGIonFHrw5R58qDs8Sg6s3AEVWa9/5gfZHwwLMmEDjHRwBIbqoCcxgOhPDCYGEq1xPdwL98DD4NUHVkecibsNxvrDn/CM0E54TLhB6CDcmSooFA+LcjzogPqBAzlL+TlnuAXUdMZ9cU+oDpVxbVwP2OFOcBwW7g1Hdobsz/EPRfvTExrQojhQUMoIig/Falj2GSo2Ks5DKrI8/pwLRVwpQ7n1G7IMU/nJIgA82IYO98QWYwex89gp7ALWhNUDBnYCa8BasWMyPLTinspX3OBo0fJ4MqHO8DXz4ynKsiZxqHHocuhT2HL5M3JlL6NfjmimWJCWnstgwb8Hn8EWcu1HMRwdHF0AkP2LFJ+6d1Hyfwyi3fqDW/AHAJ4n+vv7j/7gQk4AsN8VfhKO/OCsmPA3owRAyxGuVJyn4HDZhQC/HKrw7dMFhsAUfk3tgCNwAR7ABwSAEBABYkEimAKjT4frXAymgwIwHxSBErACrAEVYBPYCnaCPeAAqAdN4BQ4By6BK+AGuAdXSid4BXrAB/AVQRASQkPoiC5ihJgjtogjwkS8kAAkDIlGEpFkJA0RIlKkAFmAlCClSAWyBalG9iNHkFPIBaQduYM8QrqQt8gXFEOVUU3UALVAR6NMlIWGorHoZDQNnYbmowvRZWg5WoXuRuvQU+gl9Abagb5CezGAKWHamDFmhzExPywCS8JSMTE2ByvGyrAqrBZrhM/5GtaBdWOfcSJOxxm4HVytwXgczsWn4XPwpXgFvhOvw8/g1/BHeA/+nUAj6BNsCe4ENmECIY0wnVBEKCNsJxwmnIXvTSfhA5FI1CZaEl3he5dIzCDOIi4lbiDuJZ4kthOfEHtJJJIuyZbkSYogcUi5pCLSOtJu0gnSVVIn6RNZiWxEdiQHkpPIQnIhuYy8i3ycfJX8nPyVokYxp7hTIig8ykzKcso2SiPlMqWT8pWqTrWkelJjqRnU+dRyai31LPU+9Z2SkpKJkptSlJJAaZ5SudI+pRalR0qflTWUbZT9lCcpS5WXKe9QPql8R/kdjUazoPnQkmi5tGW0atpp2kPaJxW6ir0KW4WnMlelUqVO5arKa1WKqrkqS3WKar5qmepB1cuq3WoUNQs1PzWO2hy1SrUjarfUetXp6mPUI9Sz1Zeq71K/oP5Cg6RhoRGgwdNYqLFV47TGEzpGN6X70bn0BfRt9LP0Tk2ipqUmWzNDs0Rzj2abZo+WhpaTVrzWDK1KrWNaHdqYtoU2WztLe7n2Ae2b2l9GGIxgjeCPWDKidsTVER91Rur46PB1inX26tzQ+aLL0A3QzdRdqVuv+0AP17PRi9KbrrdR76xe90jNkR4juSOLRx4YeVcf1bfRj9afpb9Vv1W/18DQIMhAZLDO4LRBt6G2oY9hhuFqw+OGXUZ0Iy8jgdFqoxNGLxlaDBYji1HOOMPoMdY3DjaWGm8xbjP+amJpEmdSaLLX5IEp1ZRpmmq62rTZtMfMyGy8WYFZjdldc4o50zzdfK35efOPFpYWCRaLLOotXljqWLIt8y1rLO9b0ay8raZZVVldtyZaM60zrTdYX7FBbZxt0m0qbS7borYutgLbDbbtowij3EYJR1WNumWnbMeyy7OrsXtkr20fZl9oX2//erTZ6KTRK0efH/3dwdkhy2Gbw70xGmNCxhSOaRzz1tHGketY6Xh9LG1s4Ni5YxvGvnGydeI7bXS67Ux3Hu+8yLnZ+ZuLq4vYpdaly9XMNdl1vestpiYzkrmU2eJGcPN1m+vW5PbZ3cU91/2A+18edh6ZHrs8XoyzHMcft23cE08TT47nFs8OL4ZXstdmrw5vY2+Od5X3Yx9TH57Pdp/nLGtWBms367Wvg6/Y97DvRz93v9l+J/0x/yD/Yv+2AI2AuICKgIeBJoFpgTWBPUHOQbOCTgYTgkODVwbfYhuwuexqdk+Ia8jskDOhyqExoRWhj8NswsRhjePR8SHjV42/H24eLgyvjwAR7IhVEQ8iLSOnRR6NIkZFRlVGPYseE10QfT6GHjM1ZlfMh1jf2OWx9+Ks4qRxzfGq8ZPiq+M/JvgnlCZ0TBg9YfaES4l6iYLEhiRSUnzS9qTeiQET10zsnOQ8qWjSzcmWk2dMvjBFb0rWlGNTVadyph5MJiQnJO9K7uNEcKo4vSnslPUpPVw/7lruK54PbzWvi+/JL+U/T/VMLU19keaZtiqtK907vSy9W+AnqBC8yQjO2JTxMTMic0dmf1ZC1t5scnZy9hGhhjBTeCbHMGdGTrvIVlQk6pjmPm3NtB5xqHi7BJFMljTkasJNf6vUSvqL9FGeV15l3qfp8dMPzlCfIZzROtNm5pKZz/MD83+bhc/izmouMC6YX/BoNmv2ljnInJQ5zXNN5y6c2zkvaN7O+dT5mfN/L3QoLC18vyBhQeNCg4XzFj75JeiXmiKVInHRrUUeizYtxhcLFrctGbtk3ZLvxbziiyUOJWUlfUu5Sy/+OubX8l/7l6Uua1vusnzjCuIK4YqbK71X7ixVL80vfbJq/Kq61YzVxavfr5m65kKZU9mmtdS10rUd5WHlDevM1q1Y11eRXnGj0rdy73r99UvWf9zA23B1o8/G2k0Gm0o2fdks2Hx7S9CWuiqLqrKtxK15W59ti992/jfmb9Xb9baXbP+2Q7ijY2f0zjPVrtXVu/R3La9Ba6Q1Xbsn7b6yx39PQ61d7Za92ntL9oF90n0v9yfvv3kg9EDzQebB2kPmh9Yfph8urkPqZtb11KfXdzQkNrQfCTnS3OjRePio/dEdTcZNlce0ji0/Tj2+8Hj/ifwTvSdFJ7tPpZ160jy1+d7pCaevn4k603Y29GzLucBzp8+zzp9o8WxpuuB+4chF5sX6Sy6X6lqdWw//7vz74TaXtrrLrpcbrrhdaWwf1378qvfVU9f8r527zr5+6Ub4jfabcTdv35p0q+M27/aLO1l33tzNu/v13rz7hPvFD9QelD3Uf1j1h/UfeztcOo498n/U+jjm8b0n3Cevnkqe9nUufEZ7Vvbc6Hn1C8cXTV2BXVdeTnzZ+Ur06mt30Z/qf65/bfX60F8+f7X2TOjpfCN+0/926TvddzveO71v7o3sffgh+8PXj8WfdD/t/Mz8fP5LwpfnX6f3kfrKv1l/a/we+v1+f3Z/v4gj5si3AhisaGoqAG93AEBLBIB+Be4fJirOivKCKM63cgT+E1acJ+UF7lxq4Z4+qhvubm4BsG8bABZQX3USAJE0AGLdADp27FAdPNfJz6CyQoRng81x31KyU8A/FMX59Ke4h7dApuoEhrf/AgHyhZJAiZVgAAAABGNJQ1AMDQABbgPj7wAAAIplWElmTU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAIdpAAQAAAABAAAATgAAAAAAAACQAAAAAQAAAJAAAAABAAOShgAHAAAAEgAAAHigAgAEAAAAAQAAATygAwAEAAAAAQAAAOIAAAAAQVNDSUkAAABTY3JlZW5zaG90O+LGfAAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAAdZpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IlhNUCBDb3JlIDYuMC4wIj4KICAgPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4KICAgICAgPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIKICAgICAgICAgICAgeG1sbnM6ZXhpZj0iaHR0cDovL25zLmFkb2JlLmNvbS9leGlmLzEuMC8iPgogICAgICAgICA8ZXhpZjpQaXhlbFlEaW1lbnNpb24+MjI2PC9leGlmOlBpeGVsWURpbWVuc2lvbj4KICAgICAgICAgPGV4aWY6UGl4ZWxYRGltZW5zaW9uPjMxNjwvZXhpZjpQaXhlbFhEaW1lbnNpb24+CiAgICAgICAgIDxleGlmOlVzZXJDb21tZW50PlNjcmVlbnNob3Q8L2V4aWY6VXNlckNvbW1lbnQ+CiAgICAgIDwvcmRmOkRlc2NyaXB0aW9uPgogICA8L3JkZjpSREY+CjwveDp4bXBtZXRhPgogUv7sAAAAHGlET1QAAAACAAAAAAAAAHEAAAAoAAAAcQAAAHEAAAORV1Bc3QAAA11JREFUeAHs1MEJACAQA0Htv1PBhxUo2MbOdXCTkLnXucMRIEAgIDANXiBlLxIg8AUMniIQIJARMHiZqD1KgIDB0wECBDICBi8TtUcJEDB4OkCAQEbA4GWi9igBAgZPBwgQyAgYvEzUHiVAwODpAAECGQGDl4naowQIGDwdIEAgI2DwMlF7lAABg6cDBAhkBAxeJmqPEiBg8HSAAIGMgMHLRO1RAgQMng4QIJARMHiZqD1KgIDB0wECBDICBi8TtUcJEDB4OkCAQEbA4GWi9igBAgZPBwgQyAgYvEzUHiVAwODpAAECGQGDl4naowQIGDwdIEAgI2DwMlF7lAABg6cDBAhkBAxeJmqPEiBg8HSAAIGMgMHLRO1RAgQMng4QIJARMHiZqD1KgIDB0wECBDICBi8TtUcJEDB4OkCAQEbA4GWi9igBAgZPBwgQyAgYvEzUHiVAwODpAAECGQGDl4naowQIGDwdIEAgI2DwMlF7lAABg6cDBAhkBAxeJmqPEiBg8HSAAIGMgMHLRO1RAgQMng4QIJARMHiZqD1KgIDB0wECBDICBi8TtUcJEDB4OkCAQEbA4GWi9igBAgZPBwgQyAgYvEzUHiVAwODpAAECGQGDl4naowQIGDwdIEAgI2DwMlF7lAABg6cDBAhkBAxeJmqPEiBg8HSAAIGMgMHLRO1RAgQMng4QIJARMHiZqD1KgIDB0wECBDICBi8TtUcJEDB4OkCAQEbA4GWi9igBAgZPBwgQyAgYvEzUHiVAwODpAAECGQGDl4naowQIGDwdIEAgI2DwMlF7lAABg6cDBAhkBAxeJmqPEiBg8HSAAIGMgMHLRO1RAgQMng4QIJARMHiZqD1KgIDB0wECBDICBi8TtUcJEDB4OkCAQEbA4GWi9igBAgZPBwgQyAgYvEzUHiVAwODpAAECGQGDl4naowQIGDwdIEAgI2DwMlF7lAABg6cDBAhkBAxeJmqPEiBg8HSAAIGMgMHLRO1RAgQMng4QIJARMHiZqD1KgIDB0wECBDICBi8TtUcJEDB4OkCAQEbA4GWi9igBAgZPBwgQyAgYvEzUHiVAwODpAAECGQGDl4naowQIGDwdIEAgI2DwMlF7lAABg6cDBAhkBAxeJmqPEiBg8HSAAIGMwAMAAP//mCD4xAAAA1tJREFU7dTBCQAgEANB7b9TwYcVKNjGznVwk5C517nDESBAICAwDV4gZS8SIPAFDJ4iECCQETB4mag9SoCAwdMBAgQyAgYvE7VHCRAweDpAgEBGwOBlovYoAQIGTwcIEMgIGLxM1B4lQMDg6QABAhkBg5eJ2qMECBg8HSBAICNg8DJRe5QAAYOnAwQIZAQMXiZqjxIgYPB0gACBjIDBy0TtUQIEDJ4OECCQETB4mag9SoCAwdMBAgQyAgYvE7VHCRAweDpAgEBGwOBlovYoAQIGTwcIEMgIGLxM1B4lQMDg6QABAhkBg5eJ2qMECBg8HSBAICNg8DJRe5QAAYOnAwQIZAQMXiZqjxIgYPB0gACBjIDBy0TtUQIEDJ4OECCQETB4mag9SoCAwdMBAgQyAgYvE7VHCRAweDpAgEBGwOBlovYoAQIGTwcIEMgIGLxM1B4lQMDg6QABAhkBg5eJ2qMECBg8HSBAICNg8DJRe5QAAYOnAwQIZAQMXiZqjxIgYPB0gACBjIDBy0TtUQIEDJ4OECCQETB4mag9SoCAwdMBAgQyAgYvE7VHCRAweDpAgEBGwOBlovYoAQIGTwcIEMgIGLxM1B4lQMDg6QABAhkBg5eJ2qMECBg8HSBAICNg8DJRe5QAAYOnAwQIZAQMXiZqjxIgYPB0gACBjIDBy0TtUQIEDJ4OECCQETB4mag9SoCAwdMBAgQyAgYvE7VHCRAweDpAgEBGwOBlovYoAQIGTwcIEMgIGLxM1B4lQMDg6QABAhkBg5eJ2qMECBg8HSBAICNg8DJRe5QAAYOnAwQIZAQMXiZqjxIgYPB0gACBjIDBy0TtUQIEDJ4OECCQETB4mag9SoCAwdMBAgQyAgYvE7VHCRAweDpAgEBGwOBlovYoAQIGTwcIEMgIGLxM1B4lQMDg6QABAhkBg5eJ2qMECBg8HSBAICNg8DJRe5QAAYOnAwQIZAQMXiZqjxIgYPB0gACBjIDBy0TtUQIEDJ4OECCQETB4mag9SoCAwdMBAgQyAgYvE7VHCRAweDpAgEBGwOBlovYoAQIGTwcIEMgIGLxM1B4lQMDg6QABAhkBg5eJ2qMECBg8HSBAICNg8DJRe5QAAYOnAwQIZAQMXiZqjxIgYPB0gACBjMADsABWvupshrQAAAAASUVORK5CYII=");
+    background-repeat: no-repeat, no-repeat;
+    background-position: center center, center center;
+    background-size: cover, cover;
+    background-attachment: fixed, fixed;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, topic?, skill?, image?,
+//    remediation?: {                      // OPTIONAL — adaptive tutor pathway for a wrong first answer
+//      steps: [{ teach?, stem, options, answer, explanation?,
+//                clarify?: [{ teach?, stem, options, answer, explanation? }] }],   // simpler questions used when a step is missed
+//      checkpoints?: [{ teach?, stem, options, answer, explanation? }]             // mastery check(s): a new vignette on the same concept
+//    } }] }
+// Questions without `remediation` behave exactly like the classic exam (answer revealed immediately).
+// **double asterisks** in any text render as bold.
+const EXAM_DATA = {"title": "Thyroid Disease Diagnostic Evaluation — Fundamentals (DI 2 Exam 3)", "questions": [{"id": "1", "group": 1, "section": "TSH — reference range", "topic": "TSH", "skill": "Diagnostics & imaging", "stem": "What is an example of a normal adult TSH reference range?", "options": [{"letter": "A", "text": "4.2–10 mIU/L"}, {"letter": "B", "text": "0.4–4.2 mIU/L"}, {"letter": "C", "text": "0.04–0.4 mIU/L"}, {"letter": "D", "text": "10–25 mIU/L"}], "answer": "B", "explanation": "The lecture's example adult TSH range is **0.4–4.2 mIU/L** (upper limit is debated; higher in older adults, trimester-specific in pregnancy).", "objective": "", "remediation": {"steps": [{"teach": "**TSH (thyrotropin)** is the **pituitary** hormone that drives the thyroid; **T3/T4 feed back** to suppress it. The normal range starts below 1 and tops out in the low single digits.", "stem": "Normal TSH upper limit in a young adult is roughly →", "options": [{"letter": "A", "text": "About 4"}, {"letter": "B", "text": "About 25"}, {"letter": "C", "text": "About 0.4"}], "answer": "A", "explanation": "The upper limit of the example range is **~4.2 mIU/L**.", "clarify": [{"stem": "TSH is secreted by →", "options": [{"letter": "A", "text": "Pituitary gland"}, {"letter": "B", "text": "Thyroid gland"}], "answer": "A", "explanation": "TSH (thyrotropin) is a **pituitary** hormone that stimulates T3/T4 release."}, {"stem": "Rising T3/T4 levels make TSH →", "options": [{"letter": "A", "text": "Fall"}, {"letter": "B", "text": "Rise"}], "answer": "A", "explanation": "T3 and T4 provide **negative feedback** centrally, so TSH falls."}]}], "checkpoints": [{"stem": "Some labs set a HIGHER TSH upper limit for →", "options": [{"letter": "A", "text": "Adults 21–54"}, {"letter": "B", "text": "Children under 10"}, {"letter": "C", "text": "Older adults (55–87)"}], "answer": "C", "explanation": "Age-specific ranges: **55–87 yrs: 0.5–8.9** vs 21–54 yrs: 0.4–4.2."}, {"stem": "Relationship of pituitary to thyroid is best compared to →", "options": [{"letter": "A", "text": "Thermostat and heater"}, {"letter": "B", "text": "Gas pedal and brake"}, {"letter": "C", "text": "Lock and key"}], "answer": "A", "explanation": "The **heater/thermostat** analogy: pituitary senses hormone level and turns the thyroid on/off."}]}}, {"id": "2", "group": 2, "section": "TSH — initial test", "topic": "TSH", "skill": "Diagnostics & imaging", "stem": "What is the best initial test for suspected hypothyroidism or hyperthyroidism?", "options": [{"letter": "A", "text": "Free T4 level"}, {"letter": "B", "text": "Anti-TPO antibody"}, {"letter": "C", "text": "RAIU scan"}, {"letter": "D", "text": "Serum TSH"}], "answer": "D", "explanation": "Because the overwhelming majority of thyroid disorders are **primary**, **TSH** is the best initial test — a normal pituitary is a good \"informant.\"", "objective": "", "remediation": {"steps": [{"teach": "Most thyroid disease is **primary** (the gland itself). A healthy **pituitary** reacts to any thyroid change, making its hormone the most sensitive first look.", "stem": "Which hormone acts as the 'informant' on thyroid misbehavior?", "options": [{"letter": "A", "text": "Free T4"}, {"letter": "B", "text": "TSH"}, {"letter": "C", "text": "Thyroglobulin"}], "answer": "B", "explanation": "The pituitary's **TSH** shifts in response to thyroid dysfunction.", "clarify": [{"stem": "Most disorders of thyroid function are →", "options": [{"letter": "A", "text": "Secondary (pituitary)"}, {"letter": "B", "text": "Primary (thyroid gland)"}], "answer": "B", "explanation": "The **overwhelming majority are primary**, so TSH is reliable."}, {"stem": "Free T4 is mainly used →", "options": [{"letter": "A", "text": "Before any TSH"}, {"letter": "B", "text": "After an abnormal TSH"}], "answer": "B", "explanation": "Free T4 is the **follow-up** test to confirm an abnormal TSH."}]}], "checkpoints": [{"stem": "Initial TSH is abnormal → next test to confirm:", "options": [{"letter": "A", "text": "RAIU scan"}, {"letter": "B", "text": "Free T4"}, {"letter": "C", "text": "Thyroid ultrasound"}], "answer": "B", "explanation": "**Free T4** confirms the diagnosis after an abnormal TSH."}, {"stem": "RAIU scan is mainly used to →", "options": [{"letter": "A", "text": "Find the cause of hyperthyroidism"}, {"letter": "B", "text": "Screen for hypothyroidism"}, {"letter": "C", "text": "Measure TSH reserve"}], "answer": "A", "explanation": "RAIU distinguishes **causes of hyperthyroidism**; it is not a first-line screen."}]}}, {"id": "3", "group": 3, "section": "TSH — interpretation", "topic": "TSH", "skill": "Diagnostics & imaging", "stem": "What TSH level is expected in primary hypothyroidism?", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "Normal"}, {"letter": "C", "text": "Undetectable"}, {"letter": "D", "text": "High"}], "answer": "D", "explanation": "In **primary hypothyroidism** the failing gland makes little T4, so feedback is lost and **TSH is high**.", "objective": "", "remediation": {"steps": [{"teach": "In **primary** disease the thyroid is the problem; the pituitary responds normally to **low thyroid hormone** by pushing harder.", "stem": "Low T4 from a failing thyroid → pituitary response:", "options": [{"letter": "A", "text": "Secretes less TSH"}, {"letter": "B", "text": "No change in TSH"}, {"letter": "C", "text": "Secretes more TSH"}], "answer": "C", "explanation": "Loss of negative feedback → **more TSH**.", "clarify": [{"stem": "Primary hypothyroidism → free T4 is →", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "High"}], "answer": "A", "explanation": "The failing gland produces **low free T4**."}]}], "checkpoints": [{"stem": "Primary hypothyroidism → confirmatory free T4 is:", "options": [{"letter": "A", "text": "High"}, {"letter": "B", "text": "Low"}, {"letter": "C", "text": "Normal"}], "answer": "B", "explanation": "TSH high + **free T4 low** confirms primary hypothyroidism."}, {"stem": "TSH 25 mIU/L in a fatigued, weight-gaining patient → suggests:", "options": [{"letter": "A", "text": "Primary hyperthyroidism"}, {"letter": "B", "text": "Biotin interference"}, {"letter": "C", "text": "Primary hypothyroidism"}], "answer": "C", "explanation": "A **high TSH** points to primary hypothyroidism."}]}}, {"id": "3a", "group": 3, "section": "TSH — interpretation", "topic": "TSH", "skill": "Diagnostics & imaging", "stem": "Primary hyperthyroidism → expected TSH:", "options": [{"letter": "A", "text": "High"}, {"letter": "B", "text": "Normal"}, {"letter": "C", "text": "High-normal"}, {"letter": "D", "text": "Low or undetectable"}], "answer": "D", "explanation": "Excess thyroid hormone suppresses the pituitary, so in **primary hyperthyroidism TSH is low or nondetectable**.", "objective": "", "remediation": {"steps": [{"teach": "Excess **T3/T4** from an overactive gland feeds back on a normal pituitary.", "stem": "High T4 from the thyroid → pituitary TSH:", "options": [{"letter": "A", "text": "Suppressed"}, {"letter": "B", "text": "Stimulated"}, {"letter": "C", "text": "Unchanged"}], "answer": "A", "explanation": "Negative feedback **suppresses** TSH.", "clarify": [{"stem": "Primary hyperthyroidism → free T4 is →", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "High"}], "answer": "B", "explanation": "The overactive gland makes **high free T4**."}]}], "checkpoints": [{"stem": "TSH low → confirmatory free T4 in hyperthyroidism is:", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "Undetectable"}, {"letter": "C", "text": "High"}], "answer": "C", "explanation": "Low TSH + **high free T4** = primary hyperthyroidism."}]}}, {"id": "4", "group": 4, "section": "TSH — interpretation", "topic": "TSH", "skill": "Diagnostics & imaging", "stem": "Which conditions are generally ruled out by a normal TSH?", "options": [{"letter": "A", "text": "Primary hypo- AND hyperthyroidism"}, {"letter": "B", "text": "Primary hypothyroidism only"}, {"letter": "C", "text": "Primary hyperthyroidism only"}, {"letter": "D", "text": "Central hypo- AND hyperthyroidism"}], "answer": "A", "explanation": "A **normal TSH generally rules out both primary hypothyroidism and primary hyperthyroidism**; central disease can hide behind a normal TSH.", "objective": "", "remediation": {"steps": [{"teach": "A normal pituitary is a good **informant** in **primary** disease in either direction; it can't vouch for itself if the **pituitary** is the problem.", "stem": "TSH reliably reflects thyroid function when the disease is →", "options": [{"letter": "A", "text": "Central (pituitary)"}, {"letter": "B", "text": "Primary"}, {"letter": "C", "text": "Hypothalamic"}], "answer": "B", "explanation": "TSH is the informant for **primary** disorders.", "clarify": [{"stem": "Primary hypothyroidism → TSH would be →", "options": [{"letter": "A", "text": "High"}, {"letter": "B", "text": "Normal"}], "answer": "A", "explanation": "So a normal TSH argues against primary hypothyroidism."}, {"stem": "Primary hyperthyroidism → TSH would be →", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "Normal"}], "answer": "A", "explanation": "So a normal TSH argues against primary hyperthyroidism."}]}], "checkpoints": [{"stem": "TSH 4 (normal) with free T4 0.1 (low) → which is NOT excluded?", "options": [{"letter": "A", "text": "Euthyroid state"}, {"letter": "B", "text": "Primary hyperthyroidism"}, {"letter": "C", "text": "Central hypothyroidism"}], "answer": "C", "explanation": "An inappropriately **normal TSH with low free T4** is a red flag for **central hypothyroidism**."}]}}, {"id": "5", "group": 5, "section": "Biotin interference", "topic": "Thyroid function tests (free T4 & patterns)", "skill": "Diagnostics & imaging", "stem": "What is the likely explanation for low TSH and high T4 in a patient without thyroid symptoms who takes hair and nail supplements?", "options": [{"letter": "A", "text": "Biotin assay interference"}, {"letter": "B", "text": "Early Graves disease"}, {"letter": "C", "text": "Toxic multinodular goiter"}, {"letter": "D", "text": "Subacute thyroiditis"}], "answer": "A", "explanation": "Mega-dose **biotin (vitamin B7)** interferes with TSH/T4/T3 assays in a pattern that **mimics Graves** (low TSH, high T4) — suspect it when labs look thyrotoxic but the patient lacks symptoms.", "objective": "", "remediation": {"steps": [{"teach": "Hair/nail supplements contain **mega-dose biotin** (~10 mg vs ~30 mcg RDI). The clue is **labs without symptoms**.", "stem": "Thyrotoxic labs + NO symptoms → first suspect:", "options": [{"letter": "A", "text": "Lab assay interference"}, {"letter": "B", "text": "True hyperthyroidism"}, {"letter": "C", "text": "Central hypothyroidism"}], "answer": "A", "explanation": "Lab-symptom mismatch suggests **assay interference**.", "clarify": [{"stem": "Biotin's lab pattern mimics →", "options": [{"letter": "A", "text": "Graves disease"}, {"letter": "B", "text": "Hashimoto's thyroiditis"}], "answer": "A", "explanation": "Biotin gives **low TSH, high T4** — a **Graves**-like pattern."}]}], "checkpoints": [{"stem": "Biotin interference causes TSH to read falsely →", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "High"}, {"letter": "C", "text": "Normal"}], "answer": "A", "explanation": "Biotin pattern: **falsely low TSH**, falsely high free T4/T3."}]}}, {"id": "5a", "group": 5, "section": "Biotin interference", "topic": "Thyroid function tests (free T4 & patterns)", "skill": "Diagnostics & imaging", "stem": "Before repeat thyroid testing, hold biotin for →", "options": [{"letter": "A", "text": "6 hours"}, {"letter": "B", "text": "2 weeks"}, {"letter": "C", "text": "48 hours"}, {"letter": "D", "text": "3 months"}], "answer": "C", "explanation": "Hold biotin supplements for **48 hours** before thyroid function testing.", "objective": "", "remediation": {"steps": [{"teach": "Biotin effects on the assay wear off quickly — the lecture's hold time is measured in **days, not weeks**.", "stem": "Biotin hold before thyroid labs is about →", "options": [{"letter": "A", "text": "2 hours"}, {"letter": "B", "text": "2 months"}, {"letter": "C", "text": "2 days"}], "answer": "C", "explanation": "**48 hours** = 2 days.", "clarify": [{"stem": "Biotin is vitamin →", "options": [{"letter": "A", "text": "B7"}, {"letter": "B", "text": "B12"}], "answer": "A", "explanation": "Biotin = **vitamin B7**."}]}], "checkpoints": [{"stem": "Biotin interferes with assays for →", "options": [{"letter": "A", "text": "TSH, free T4, and total T3"}, {"letter": "B", "text": "Only TSH"}, {"letter": "C", "text": "Only anti-TPO"}], "answer": "A", "explanation": "It affects **TSH, free T4 and total T3** assays."}]}}, {"id": "6", "group": 6, "section": "Free T4", "topic": "Thyroid function tests (free T4 & patterns)", "skill": "Diagnostics & imaging", "stem": "Which thyroid hormone measurement is preferred after an abnormal TSH result?", "options": [{"letter": "A", "text": "Total T4"}, {"letter": "B", "text": "Free T4"}, {"letter": "C", "text": "Total T3"}, {"letter": "D", "text": "Free T3"}], "answer": "B", "explanation": "Order the **free** (not total) hormone — only free hormone is active and it's easier to interpret; T4 is the main circulating form, so **free T4** usually suffices.", "objective": "", "remediation": {"steps": [{"teach": "Hormone circulates **bound** and **free**; only the **free (unbound)** fraction is biologically active. T4 is the **main** circulating form.", "stem": "Biologically active thyroid hormone is the →", "options": [{"letter": "A", "text": "Free (unbound) fraction"}, {"letter": "B", "text": "Protein-bound fraction"}, {"letter": "C", "text": "Total storage pool"}], "answer": "A", "explanation": "Only **free** hormone is active.", "clarify": [{"stem": "Total T4 measures →", "options": [{"letter": "A", "text": "Bound + free hormone"}, {"letter": "B", "text": "Free hormone only"}], "answer": "A", "explanation": "Total = the **storage pool** of bound plus free."}, {"stem": "Main circulating thyroid hormone →", "options": [{"letter": "A", "text": "T4"}, {"letter": "B", "text": "T3"}], "answer": "A", "explanation": "**T4** is the main circulating form."}]}], "checkpoints": [{"stem": "Why is free T3 often not the first choice?", "options": [{"letter": "A", "text": "It is always normal"}, {"letter": "B", "text": "Technically harder, less accurate"}, {"letter": "C", "text": "Too slow to result"}], "answer": "B", "explanation": "**Free T3** is technically harder and less accurate; labs may suggest total T3."}, {"stem": "T4 half-life →", "options": [{"letter": "A", "text": "1 day"}, {"letter": "B", "text": "4–6 weeks"}, {"letter": "C", "text": "5–7 days"}], "answer": "C", "explanation": "T4 half-life is **5–7 days** vs T3 ~1 day, so T4 is easier to test."}]}}, {"id": "7", "group": 7, "section": "TFT patterns", "topic": "Thyroid function tests (free T4 & patterns)", "skill": "Diagnostics & imaging", "stem": "What diagnosis is indicated by high TSH and low free T4?", "options": [{"letter": "A", "text": "Subclinical hypothyroidism"}, {"letter": "B", "text": "Primary hypothyroidism"}, {"letter": "C", "text": "Central hypothyroidism"}, {"letter": "D", "text": "Central hyperthyroidism"}], "answer": "B", "explanation": "**High TSH + low free T4 = (primary) hypothyroidism** — the pituitary is responding appropriately to low hormone.", "objective": "", "remediation": {"steps": [{"teach": "Ask: do TSH and free T4 move in **opposite** directions (appropriate feedback = primary) or the **same** direction (central)? Is free T4 actually abnormal?", "stem": "TSH and free T4 moving in opposite directions points to →", "options": [{"letter": "A", "text": "Central (pituitary) disease"}, {"letter": "B", "text": "Lab error"}, {"letter": "C", "text": "Primary thyroid disease"}], "answer": "C", "explanation": "Opposite directions = intact feedback = **primary** disease.", "clarify": [{"stem": "Free T4 normal + abnormal TSH would be called →", "options": [{"letter": "A", "text": "Subclinical"}, {"letter": "B", "text": "Overt"}], "answer": "A", "explanation": "Normal hormone level = **subclinical**; here free T4 is low, so it's overt."}]}], "checkpoints": [{"stem": "TSH HIGH, free T4 HIGH →", "options": [{"letter": "A", "text": "Primary hypothyroidism"}, {"letter": "B", "text": "Central hyperthyroidism"}, {"letter": "C", "text": "Euthyroid"}], "answer": "B", "explanation": "Same-direction movement = **central** disease."}]}}, {"id": "8", "group": 8, "section": "TFT patterns", "topic": "Subclinical thyroid disease", "skill": "Diagnostics & imaging", "stem": "What diagnosis is indicated by high TSH and normal free T4?", "options": [{"letter": "A", "text": "Subclinical hypothyroidism"}, {"letter": "B", "text": "Primary hypothyroidism"}, {"letter": "C", "text": "Central hypothyroidism"}, {"letter": "D", "text": "Subclinical hyperthyroidism"}], "answer": "A", "explanation": "**Subclinical** = abnormal TSH with thyroid hormone in the normal range; a **high TSH + normal free T4 = subclinical hypothyroidism**.", "objective": "", "remediation": {"steps": [{"teach": "**Subclinical** means the **TSH is off but free T4 is still normal**. The TSH direction tells you hypo vs hyper.", "stem": "Abnormal TSH + normal free T4 is called →", "options": [{"letter": "A", "text": "Subclinical"}, {"letter": "B", "text": "Central"}, {"letter": "C", "text": "Euthyroid"}], "answer": "A", "explanation": "That's the definition of **subclinical**.", "clarify": [{"stem": "High TSH points toward →", "options": [{"letter": "A", "text": "Hyperthyroid side"}, {"letter": "B", "text": "Hypothyroid side"}], "answer": "B", "explanation": "**High TSH** = the pituitary is pushing a sluggish gland → hypo side."}]}], "checkpoints": [{"stem": "TSH LOW, free T4 NORMAL →", "options": [{"letter": "A", "text": "Subclinical hypothyroidism"}, {"letter": "B", "text": "Central hypothyroidism"}, {"letter": "C", "text": "Subclinical hyperthyroidism"}], "answer": "C", "explanation": "Low TSH + normal free T4 = **subclinical hyperthyroidism**."}]}}, {"id": "9", "group": 9, "section": "TFT patterns", "topic": "Subclinical thyroid disease", "skill": "Diagnostics & imaging", "stem": "What diagnosis is suggested by low TSH and normal free T4?", "options": [{"letter": "A", "text": "Primary hyperthyroidism"}, {"letter": "B", "text": "Central hypothyroidism"}, {"letter": "C", "text": "Subclinical hypothyroidism"}, {"letter": "D", "text": "Subclinical hyperthyroidism"}], "answer": "D", "explanation": "**Low TSH with a normal free T4 = subclinical hyperthyroidism.**", "objective": "", "remediation": {"steps": [{"teach": "Free T4 is **normal**, so this is **subclinical**; a **low** TSH places it on the hyper side.", "stem": "Low TSH points toward →", "options": [{"letter": "A", "text": "Hypothyroid side"}, {"letter": "B", "text": "Hyperthyroid side"}, {"letter": "C", "text": "Pituitary failure"}], "answer": "B", "explanation": "Excess hormone action suppresses TSH → **hyper side**.", "clarify": [{"stem": "If free T4 were HIGH instead, the label would be →", "options": [{"letter": "A", "text": "Primary hyperthyroidism"}, {"letter": "B", "text": "Subclinical hyperthyroidism"}], "answer": "A", "explanation": "Low TSH + **high** free T4 = overt **primary hyperthyroidism**."}]}], "checkpoints": [{"stem": "TSH LOW, free T4 HIGH →", "options": [{"letter": "A", "text": "Subclinical hyperthyroidism"}, {"letter": "B", "text": "Central hyperthyroidism"}, {"letter": "C", "text": "Primary hyperthyroidism"}], "answer": "C", "explanation": "Low TSH + high free T4 = **primary hyperthyroidism**."}]}}, {"id": "10", "group": 10, "section": "TFT patterns", "topic": "Central (secondary) thyroid disease", "skill": "Diagnostics & imaging", "stem": "What diagnosis is suggested by low TSH and low free T4?", "options": [{"letter": "A", "text": "Primary hypothyroidism"}, {"letter": "B", "text": "Secondary (central) hypothyroidism"}, {"letter": "C", "text": "Subclinical hyperthyroidism"}, {"letter": "D", "text": "Secondary (central) hyperthyroidism"}], "answer": "B", "explanation": "Both **low** = the pituitary is not responding to low hormone — the **\"red flag\" for secondary (central) hypothyroidism**.", "objective": "", "remediation": {"steps": [{"teach": "With a healthy pituitary, **low T4 should drive TSH UP**. If TSH is low too, the **pituitary** itself has failed.", "stem": "Low free T4 with a normal pituitary should make TSH →", "options": [{"letter": "A", "text": "Fall"}, {"letter": "B", "text": "Stay unchanged"}, {"letter": "C", "text": "Rise"}], "answer": "C", "explanation": "Feedback should make TSH **rise**; a low TSH means the pituitary is the problem.", "clarify": [{"stem": "Low free T4 means the patient is functionally →", "options": [{"letter": "A", "text": "Hyperthyroid"}, {"letter": "B", "text": "Hypothyroid"}], "answer": "B", "explanation": "Low hormone = **hypothyroid**."}]}], "checkpoints": [{"stem": "TSH HIGH and free T4 HIGH →", "options": [{"letter": "A", "text": "Secondary (central) hyperthyroidism"}, {"letter": "B", "text": "Primary hyperthyroidism"}, {"letter": "C", "text": "Primary hypothyroidism"}], "answer": "A", "explanation": "Both **high** = central (secondary) hyperthyroidism."}]}}, {"id": "11", "group": 11, "section": "TFT patterns", "topic": "Central (secondary) thyroid disease", "skill": "Diagnostics & imaging", "stem": "What diagnosis is suggested by high TSH and high free T4?", "options": [{"letter": "A", "text": "Secondary (central) hyperthyroidism"}, {"letter": "B", "text": "Primary hypothyroidism"}, {"letter": "C", "text": "Primary hyperthyroidism"}, {"letter": "D", "text": "Subclinical hypothyroidism"}], "answer": "A", "explanation": "Both **high** = the pituitary is driving the gland despite high hormone → **secondary (central) hyperthyroidism** (very rare).", "objective": "", "remediation": {"steps": [{"teach": "High T4 should **suppress** TSH. A TSH that stays **high** means the pituitary is the source of the drive.", "stem": "High free T4 with a normal pituitary should make TSH →", "options": [{"letter": "A", "text": "Fall"}, {"letter": "B", "text": "Rise"}, {"letter": "C", "text": "Stay high"}], "answer": "A", "explanation": "Normal feedback **suppresses** TSH; a high TSH = central source.", "clarify": [{"stem": "High free T4 means the patient is functionally →", "options": [{"letter": "A", "text": "Hyperthyroid"}, {"letter": "B", "text": "Hypothyroid"}], "answer": "A", "explanation": "High hormone = **hyperthyroid**."}]}], "checkpoints": [{"stem": "TSH and free T4 moving in the SAME direction → think:", "options": [{"letter": "A", "text": "Primary thyroid disease"}, {"letter": "B", "text": "Central (pituitary) disease"}, {"letter": "C", "text": "Subclinical disease"}], "answer": "B", "explanation": "Same-direction movement is the **red flag for central** disease."}]}}, {"id": "12", "group": 12, "section": "Who to test", "topic": "TSH", "skill": "Diagnostics & imaging", "stem": "What should be checked in a patient with newly diagnosed hyperlipidemia before starting a statin?", "options": [{"letter": "A", "text": "Free T3 level"}, {"letter": "B", "text": "Anti-Tg antibody"}, {"letter": "C", "text": "Thyroid ultrasound"}, {"letter": "D", "text": "TSH level"}], "answer": "D", "explanation": "AACE/ATA recommend checking **TSH** in new hyperlipidemia before a statin — ~5% are hypothyroid and could be treated with T4 instead.", "objective": "", "remediation": {"steps": [{"teach": "**Hypothyroidism** raises cholesterol; treating it can resolve the hyperlipidemia. The screening test for any suspected thyroid dysfunction is the same.", "stem": "Hypothyroidism tends to make cholesterol →", "options": [{"letter": "A", "text": "Fall"}, {"letter": "B", "text": "Rise"}, {"letter": "C", "text": "Stay unchanged"}], "answer": "B", "explanation": "Hypothyroidism is a cause of **hyperlipidemia**.", "clarify": [{"stem": "Universal thyroid screening per USPSTF →", "options": [{"letter": "A", "text": "Insufficient evidence"}, {"letter": "B", "text": "Recommended for all adults"}], "answer": "A", "explanation": "No universal screening — but **low threshold** in high-risk groups."}]}], "checkpoints": [{"stem": "Which group warrants a LOW threshold for TSH testing?", "options": [{"letter": "A", "text": "Down or Turner syndrome"}, {"letter": "B", "text": "Recent ankle sprain"}, {"letter": "C", "text": "Seasonal allergies"}], "answer": "A", "explanation": "**Down** and **Turner** syndrome have high rates of hypothyroidism."}, {"stem": "Hypothyroidism found in new hyperlipidemia → approx. proportion:", "options": [{"letter": "A", "text": "~5%"}, {"letter": "B", "text": "~50%"}, {"letter": "C", "text": "~0.1%"}], "answer": "A", "explanation": "About **5%** of new hyperlipidemia patients are hypothyroid."}]}}, {"id": "13", "group": 13, "section": "Subclinical states", "topic": "Subclinical thyroid disease", "skill": "Diagnostics & imaging", "stem": "When should laboratory testing be repeated to confirm an abnormal TSH with normal free T4?", "options": [{"letter": "A", "text": "1–3 months"}, {"letter": "B", "text": "1–2 weeks"}, {"letter": "C", "text": "6–12 months"}, {"letter": "D", "text": "2–3 years"}], "answer": "A", "explanation": "Always **repeat labs after 1–3 months** to confirm a subclinical diagnosis before labeling or treating.", "objective": "", "remediation": {"steps": [{"teach": "Subclinical results can be **transient**, so you confirm with a repeat — in a matter of **months, not weeks or years**.", "stem": "Subclinical results should be confirmed by →", "options": [{"letter": "A", "text": "Starting treatment"}, {"letter": "B", "text": "Repeating the labs"}, {"letter": "C", "text": "Ordering an RAIU"}], "answer": "B", "explanation": "**Repeat** first — subclinical changes may resolve.", "clarify": [{"stem": "Subclinical means free T4 is →", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "Normal"}], "answer": "B", "explanation": "Abnormal TSH with **normal** hormone."}]}], "checkpoints": [{"stem": "Most patients with subclinical hypothyroidism →", "options": [{"letter": "A", "text": "Can simply be observed"}, {"letter": "B", "text": "Need RAI ablation"}, {"letter": "C", "text": "Need brain MRI"}], "answer": "A", "explanation": "Most can be **observed without treatment**."}]}}, {"id": "14", "group": 14, "section": "Subclinical hypothyroidism — AACE", "topic": "Subclinical thyroid disease", "skill": "Management", "stem": "At what TSH level does AACE recommend treatment for subclinical hypothyroidism?", "options": [{"letter": "A", "text": "> 2.5 mIU/L"}, {"letter": "B", "text": "> 4.2 mIU/L"}, {"letter": "C", "text": "> 10 mIU/L"}, {"letter": "D", "text": "> 7.5 mIU/L"}], "answer": "C", "explanation": "AACE: treat subclinical hypothyroidism when **TSH > 10 mIU/L** (or 5–10 with positive anti-TPO or goiter).", "objective": "", "remediation": {"steps": [{"teach": "Mild elevations are usually watched; AACE draws the automatic-treat line at a TSH well above the normal upper limit — **double digits**.", "stem": "AACE treatment threshold for TSH alone is in the →", "options": [{"letter": "A", "text": "Low single digits"}, {"letter": "B", "text": "Below normal"}, {"letter": "C", "text": "Double digits"}], "answer": "C", "explanation": "Threshold is **> 10 mIU/L**.", "clarify": [{"stem": "Normal TSH upper limit (example) →", "options": [{"letter": "A", "text": "~4.2 mIU/L"}, {"letter": "B", "text": "~10 mIU/L"}], "answer": "A", "explanation": "Upper normal ~**4.2**, so 10 is well above it."}]}], "checkpoints": [{"stem": "75 yo, TSH 12.5, free T4 normal → AACE approach:", "options": [{"letter": "A", "text": "Observe only"}, {"letter": "B", "text": "Treat (TSH > 10)"}, {"letter": "C", "text": "Order RAIU scan"}], "answer": "B", "explanation": "TSH **> 10** → treat per AACE."}]}}, {"id": "14a", "group": 14, "section": "Subclinical hypothyroidism — AACE", "topic": "Subclinical thyroid disease", "skill": "Management", "stem": "TSH 5–10, free T4 normal → AACE treats if also present:", "options": [{"letter": "A", "text": "Positive TSI antibodies"}, {"letter": "B", "text": "ESR above 50 mm/h"}, {"letter": "C", "text": "Positive anti-TPO or goiter"}, {"letter": "D", "text": "Low RAIU uptake"}], "answer": "C", "explanation": "TSH **5–10 with positive anti-TPO antibodies or goiter** has the highest progression to overt hypothyroidism → treat.", "objective": "", "remediation": {"steps": [{"teach": "The add-on findings that tip toward treatment are signs of **Hashimoto's autoimmunity** or gland enlargement.", "stem": "Antibody that marks Hashimoto's →", "options": [{"letter": "A", "text": "TSI"}, {"letter": "B", "text": "Anti-TPO"}, {"letter": "C", "text": "None"}], "answer": "B", "explanation": "**Anti-TPO** marks Hashimoto's.", "clarify": [{"stem": "TSI antibodies point to →", "options": [{"letter": "A", "text": "Hashimoto's thyroiditis"}, {"letter": "B", "text": "Graves disease"}], "answer": "B", "explanation": "TSI = **Graves**, not relevant to subclinical hypo."}]}], "checkpoints": [{"stem": "Subclinical hypothyroidism → also consider treating if:", "options": [{"letter": "A", "text": "Patient is over 90"}, {"letter": "B", "text": "TSH falls on repeat"}, {"letter": "C", "text": "Current or planned pregnancy"}], "answer": "C", "explanation": "AACE: also consider treatment with **current/planned pregnancy**."}]}}, {"id": "15", "group": 15, "section": "Subclinical hyperthyroidism", "topic": "Subclinical thyroid disease", "skill": "Disease process", "stem": "What is the most common cause of subclinical hyperthyroidism in a patient older than 65?", "options": [{"letter": "A", "text": "Toxic adenoma or TMG"}, {"letter": "B", "text": "Graves disease"}, {"letter": "C", "text": "Subacute thyroiditis"}, {"letter": "D", "text": "TSH-secreting adenoma"}], "answer": "A", "explanation": "In older patients the MC causes are **single toxic adenomas or toxic multinodular goiters — NOT Graves**.", "objective": "", "remediation": {"steps": [{"teach": "In the **elderly**, autonomous **nodules** are the usual culprit — the lecture specifically says it is **not** the autoimmune cause.", "stem": "In patients > 65, subclinical hyperthyroidism usually comes from →", "options": [{"letter": "A", "text": "Autoimmune antibodies"}, {"letter": "B", "text": "Viral inflammation"}, {"letter": "C", "text": "Autonomous nodules"}], "answer": "C", "explanation": "Hot **nodules** (adenoma/TMG).", "clarify": [{"stem": "Graves disease is the MC cause of subclinical hyper in > 65?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "B", "explanation": "The slide explicitly says **NOT Graves** in this age group."}]}], "checkpoints": [{"stem": "AACE treats subclinical hyperthyroidism if →", "options": [{"letter": "A", "text": "Age < 30 and asymptomatic"}, {"letter": "B", "text": "Positive anti-TPO only"}, {"letter": "C", "text": "Age > 65 or CV dz/osteoporosis"}], "answer": "C", "explanation": "Treat if significantly symptomatic, **> 65**, **CV disease or osteoporosis**."}]}}, {"id": "16", "group": 16, "section": "Secondary (central) hypothyroidism", "topic": "Central (secondary) thyroid disease", "skill": "Disease process", "stem": "What is the basic differential diagnosis for low TSH with low free T4?", "options": [{"letter": "A", "text": "Pituitary mass lesion"}, {"letter": "B", "text": "Hashimoto's thyroiditis"}, {"letter": "C", "text": "Toxic multinodular goiter"}, {"letter": "D", "text": "Postpartum thyroiditis"}], "answer": "A", "explanation": "Central hypothyroidism DDx: **pituitary mass lesions** (e.g. nonfunctioning adenoma compressing thyrotropes), CNS tumors, infiltrative disease (sarcoid, hemochromatosis), TBI, CNS radiation.", "objective": "", "remediation": {"steps": [{"teach": "Both values low = the **pituitary** isn't making enough TSH. Look for something that damages or compresses the **thyrotropes**.", "stem": "The problem in central hypothyroidism is located in →", "options": [{"letter": "A", "text": "Thyroid gland"}, {"letter": "B", "text": "Peripheral tissues"}, {"letter": "C", "text": "Pituitary/hypothalamus"}], "answer": "C", "explanation": "**Central** = pituitary/hypothalamus.", "clarify": [{"stem": "Hashimoto's thyroiditis would give →", "options": [{"letter": "A", "text": "Low TSH, low free T4"}, {"letter": "B", "text": "High TSH, low free T4"}], "answer": "B", "explanation": "Hashimoto's is **primary** — TSH goes **up**."}]}], "checkpoints": [{"stem": "Infiltrative disease that can cause central hypothyroidism →", "options": [{"letter": "A", "text": "Sarcoidosis"}, {"letter": "B", "text": "Graves disease"}, {"letter": "C", "text": "Struma ovarii"}], "answer": "A", "explanation": "**Sarcoidosis** or **hemochromatosis** can infiltrate the pituitary."}, {"stem": "Pituitary cells that make TSH are called →", "options": [{"letter": "A", "text": "Thyrotropes"}, {"letter": "B", "text": "Follicular cells"}, {"letter": "C", "text": "Parafollicular cells"}], "answer": "A", "explanation": "**Thyrotropes** produce TSH."}]}}, {"id": "17", "group": 17, "section": "Secondary (central) hyperthyroidism", "topic": "Central (secondary) thyroid disease", "skill": "Disease process", "stem": "What rare condition can cause both high TSH and high free T4?", "options": [{"letter": "A", "text": "TSH-secreting pituitary adenoma"}, {"letter": "B", "text": "Toxic multinodular goiter"}, {"letter": "C", "text": "Hashimoto's thyroiditis"}, {"letter": "D", "text": "Subacute painful thyroiditis"}], "answer": "A", "explanation": "Central hyperthyroidism (very rare): **TSH-secreting pituitary adenoma** or partial thyroid hormone resistance.", "objective": "", "remediation": {"steps": [{"teach": "TSH stays **high** despite high T4 → something is making TSH **autonomously** in the pituitary.", "stem": "A tumor making excess TSH would be located in the →", "options": [{"letter": "A", "text": "Thyroid"}, {"letter": "B", "text": "Ovary"}, {"letter": "C", "text": "Pituitary"}], "answer": "C", "explanation": "A **pituitary** adenoma secreting TSH.", "clarify": [{"stem": "Toxic multinodular goiter would give TSH that is →", "options": [{"letter": "A", "text": "High"}, {"letter": "B", "text": "Low"}], "answer": "B", "explanation": "TMG is **primary** → TSH **suppressed**."}]}], "checkpoints": [{"stem": "Other rare cause of central hyperthyroidism →", "options": [{"letter": "A", "text": "Biotin ingestion"}, {"letter": "B", "text": "Thyroid hormone resistance"}, {"letter": "C", "text": "Iodine deficiency"}], "answer": "B", "explanation": "Partial **resistance to T4/T3 feedback** (T3-receptor defects)."}]}}, {"id": "18", "group": 18, "section": "Secondary states — imaging", "topic": "Central (secondary) thyroid disease", "skill": "Diagnostics & imaging", "stem": "What is the best imaging study for suspected secondary or central thyroid disease?", "options": [{"letter": "A", "text": "Head CT"}, {"letter": "B", "text": "Thyroid ultrasound"}, {"letter": "C", "text": "Brain MRI"}, {"letter": "D", "text": "RAIU scan"}], "answer": "C", "explanation": "**Brain imaging — MRI best** — is helpful in the secondary scenarios to look for a pituitary lesion.", "objective": "", "remediation": {"steps": [{"teach": "In central disease the lesion is in the **pituitary**, so image the **brain**, not the neck.", "stem": "Central disease → image the →", "options": [{"letter": "A", "text": "Thyroid gland"}, {"letter": "B", "text": "Ovaries"}, {"letter": "C", "text": "Brain/pituitary"}], "answer": "C", "explanation": "Look at the **pituitary**.", "clarify": [{"stem": "Best modality for the pituitary per lecture →", "options": [{"letter": "A", "text": "CT"}, {"letter": "B", "text": "MRI"}], "answer": "B", "explanation": "**MRI** is best."}]}], "checkpoints": [{"stem": "60 yo, TSH 4 (normal), free T4 0.1 → also evaluate:", "options": [{"letter": "A", "text": "Anti-TPO titers"}, {"letter": "B", "text": "Other pituitary axes"}, {"letter": "C", "text": "Thyroid ultrasound"}], "answer": "B", "explanation": "Central hypothyroidism → MRI plus check **other pituitary axes** (hypopituitarism)."}]}}, {"id": "19", "group": 19, "section": "Thyroid autoantibodies", "topic": "Thyroid autoantibodies", "skill": "Disease process", "stem": "Which thyroid disorder generally has no associated autoantibodies?", "options": [{"letter": "A", "text": "Hashimoto's thyroiditis"}, {"letter": "B", "text": "Graves disease"}, {"letter": "C", "text": "Toxic multinodular goiter"}, {"letter": "D", "text": "Postpartum thyroiditis"}], "answer": "C", "explanation": "**No antibodies** with toxic multinodular goiter, toxic adenoma, or subacute painful thyroiditis; Hashimoto's, Graves and postpartum thyroiditis do have antibodies.", "objective": "", "remediation": {"steps": [{"teach": "The two classic **autoimmune** thyroid diseases are **Hashimoto's** (hypo) and **Graves** (hyper); **postpartum** thyroiditis also has antibodies. Nodular disease is **autonomous**, not autoimmune.", "stem": "Two major autoimmune thyroid diseases →", "options": [{"letter": "A", "text": "Hashimoto's and Graves"}, {"letter": "B", "text": "TMG and toxic adenoma"}, {"letter": "C", "text": "de Quervain's and TMG"}], "answer": "A", "explanation": "**Hashimoto's** and **Graves** are autoimmune.", "clarify": [{"stem": "Postpartum thyroiditis usually has antibodies?", "options": [{"letter": "A", "text": "No"}, {"letter": "B", "text": "Yes (anti-TPO)"}], "answer": "B", "explanation": "Usually **anti-TPO positive**."}]}], "checkpoints": [{"stem": "Subacute painful (de Quervain's) thyroiditis → antibodies:", "options": [{"letter": "A", "text": "None associated"}, {"letter": "B", "text": "Anti-TPO in 95%"}, {"letter": "C", "text": "TSI in 90%"}], "answer": "A", "explanation": "**No autoantibody** association in de Quervain's."}]}}, {"id": "20", "group": 20, "section": "Anti-TPO antibodies", "topic": "Thyroid autoantibodies", "skill": "Diagnostics & imaging", "stem": "Which antibody is positive in approximately 95% of patients with Hashimoto thyroiditis?", "options": [{"letter": "A", "text": "Anti-TPO antibody"}, {"letter": "B", "text": "Anti-Tg antibody"}, {"letter": "C", "text": "TSI antibody"}, {"letter": "D", "text": "Antinuclear antibody"}], "answer": "A", "explanation": "Nearly all (~95%) patients with Hashimoto's have high **anti-thyroid peroxidase (anti-TPO)** antibodies.", "objective": "", "remediation": {"steps": [{"teach": "**Thyroid peroxidase** is the enzyme used to manufacture T3/T4; the antibody against it is the most sensitive Hashimoto's marker.", "stem": "Thyroid peroxidase is →", "options": [{"letter": "A", "text": "A TSH receptor"}, {"letter": "B", "text": "An enzyme that makes T3/T4"}, {"letter": "C", "text": "A binding protein"}], "answer": "B", "explanation": "TPO is an **enzyme** in hormone synthesis.", "clarify": [{"stem": "Anti-Tg antibodies are positive in Hashimoto's about →", "options": [{"letter": "A", "text": "~95%"}, {"letter": "B", "text": "~80%"}], "answer": "B", "explanation": "Anti-Tg ~**80%**; anti-TPO ~**95%**."}]}], "checkpoints": [{"stem": "Hashimoto's thyroiditis is autoimmune →", "options": [{"letter": "A", "text": "Hypothyroidism"}, {"letter": "B", "text": "Hyperthyroidism"}, {"letter": "C", "text": "Thyroid cancer"}], "answer": "A", "explanation": "Hashimoto's = **autoimmune hypothyroidism**."}]}}, {"id": "21", "group": 21, "section": "Hashimoto's — MC cause", "topic": "Thyroid autoantibodies", "skill": "Disease process", "stem": "What is the most common cause of overt hypothyroidism in iodine-sufficient areas?", "options": [{"letter": "A", "text": "Subacute thyroiditis"}, {"letter": "B", "text": "Postpartum thyroiditis"}, {"letter": "C", "text": "Pituitary adenoma"}, {"letter": "D", "text": "Hashimoto's thyroiditis"}], "answer": "D", "explanation": "In iodine-sufficient areas **autoimmune (Hashimoto's) thyroiditis** is by far the most common cause of overt hypothyroidism — so antibody testing is often unnecessary.", "objective": "", "remediation": {"steps": [{"teach": "The MC cause is the **autoimmune** one marked by anti-TPO; the others are transient or central.", "stem": "Hashimoto's mechanism →", "options": [{"letter": "A", "text": "Autoimmune"}, {"letter": "B", "text": "Viral"}, {"letter": "C", "text": "Pituitary mass"}], "answer": "A", "explanation": "Hashimoto's is **autoimmune** thyroiditis.", "clarify": [{"stem": "Subacute and postpartum thyroiditis are usually →", "options": [{"letter": "A", "text": "Permanent"}, {"letter": "B", "text": "Transient"}], "answer": "B", "explanation": "They are **self-limited/transient** courses."}]}], "checkpoints": [{"stem": "Classic Hashimoto's picture → is anti-TPO testing mandatory?", "options": [{"letter": "A", "text": "Yes, before any therapy"}, {"letter": "B", "text": "Yes, plus RAIU"}, {"letter": "C", "text": "No, can treat presumptively"}], "answer": "C", "explanation": "Testing is **debatable**; patients can be treated under a presumptive diagnosis."}]}}, {"id": "22", "group": 22, "section": "Anti-TPO — subclinical", "topic": "Thyroid autoantibodies", "skill": "Diagnostics & imaging", "stem": "What does a positive anti-TPO result indicate in a patient with subclinical hypothyroidism?", "options": [{"letter": "A", "text": "Coexisting Graves disease"}, {"letter": "B", "text": "Higher risk of overt progression"}, {"letter": "C", "text": "Need for an RAIU scan"}, {"letter": "D", "text": "Lab assay interference"}], "answer": "B", "explanation": "Anti-TPO in subclinical hypothyroidism **predicts progression to overt hypothyroidism** (4.3%/yr vs 2.1%/yr) — an argument for treating.", "objective": "", "remediation": {"steps": [{"teach": "Antibodies mean **ongoing autoimmune destruction** — the gland is more likely to keep failing.", "stem": "Anti-TPO positive vs negative → yearly progression is →", "options": [{"letter": "A", "text": "About the same"}, {"letter": "B", "text": "Lower"}, {"letter": "C", "text": "About double"}], "answer": "C", "explanation": "**4.3%/yr vs 2.1%/yr.**", "clarify": [{"stem": "Positive anti-TPO in subclinical hypo argues →", "options": [{"letter": "A", "text": "For treating"}, {"letter": "B", "text": "Against treating"}], "answer": "A", "explanation": "It favors **low-dose thyroxine**."}]}], "checkpoints": [{"stem": "Positive anti-TPO also raises risk of other autoimmune dz, e.g. →", "options": [{"letter": "A", "text": "Type 1 diabetes"}, {"letter": "B", "text": "Osteoarthritis"}, {"letter": "C", "text": "Gout"}], "answer": "A", "explanation": "Also flags risk of **adrenal insufficiency, T1DM**."}]}}, {"id": "23", "group": 23, "section": "Anti-Tg antibodies", "topic": "Thyroid autoantibodies", "skill": "Diagnostics & imaging", "stem": "In approximately what percentage of patients with Hashimoto thyroiditis are anti-thyroglobulin antibodies positive?", "options": [{"letter": "A", "text": "~95%"}, {"letter": "B", "text": "~50%"}, {"letter": "C", "text": "~80%"}, {"letter": "D", "text": "~20%"}], "answer": "C", "explanation": "About **80%** of Hashimoto's patients have positive anti-Tg antibodies (vs ~95% for anti-TPO).", "objective": "", "remediation": {"steps": [{"teach": "**Thyroglobulin** is the protein base for T3/T4 synthesis. Its antibody is common in Hashimoto's but a bit **less** frequent than anti-TPO.", "stem": "Compared with anti-TPO, anti-Tg is positive in Hashimoto's →", "options": [{"letter": "A", "text": "More often"}, {"letter": "B", "text": "Never"}, {"letter": "C", "text": "Somewhat less often"}], "answer": "C", "explanation": "Anti-Tg (~80%) < anti-TPO (~95%).", "clarify": [{"stem": "Thyroglobulin is made by →", "options": [{"letter": "A", "text": "Pituitary thyrotropes"}, {"letter": "B", "text": "Follicular cells"}], "answer": "B", "explanation": "Synthesized by **follicular cells**, stored in the follicle lumen."}]}], "checkpoints": [{"stem": "Anti-TPO positivity in Hashimoto's →", "options": [{"letter": "A", "text": "~80%"}, {"letter": "B", "text": "~95%"}, {"letter": "C", "text": "~50%"}], "answer": "B", "explanation": "Anti-TPO ~**95%**."}]}}, {"id": "24", "group": 24, "section": "TSH receptor-stimulating antibodies", "topic": "Thyroid autoantibodies", "skill": "Diagnostics & imaging", "stem": "Which disease is associated with thyroid-stimulating immunoglobulin, also called TSI or TSHR-S?", "options": [{"letter": "A", "text": "Graves disease"}, {"letter": "B", "text": "Hashimoto's thyroiditis"}, {"letter": "C", "text": "Toxic adenoma"}, {"letter": "D", "text": "Subacute thyroiditis"}], "answer": "A", "explanation": "**TSI** act as TSH-receptor agonists and are seen in ~90% of **Graves disease** — very helpful in diagnosis.", "objective": "", "remediation": {"steps": [{"teach": "These antibodies **stimulate** the TSH receptor, driving the gland to make **more** hormone — autoimmune **hyper**thyroidism.", "stem": "TSI act at the TSH receptor as →", "options": [{"letter": "A", "text": "Agonists (stimulate)"}, {"letter": "B", "text": "Blockers"}, {"letter": "C", "text": "Enzyme inhibitors"}], "answer": "A", "explanation": "**TSH receptor agonists**.", "clarify": [{"stem": "Stimulating the TSH receptor causes →", "options": [{"letter": "A", "text": "Hyperthyroidism"}, {"letter": "B", "text": "Hypothyroidism"}], "answer": "A", "explanation": "More T3/T4 → **hyper**."}]}], "checkpoints": [{"stem": "TSI positive in about what % of Graves?", "options": [{"letter": "A", "text": "~50%"}, {"letter": "B", "text": "~90%"}, {"letter": "C", "text": "~20%"}], "answer": "B", "explanation": "Seen in ~**90%** of Graves."}, {"stem": "Diffuse smooth goiter, bruit, eye findings + hyperthyroid → antibody to order:", "options": [{"letter": "A", "text": "Anti-TPO"}, {"letter": "B", "text": "TSI"}, {"letter": "C", "text": "Anti-Tg"}], "answer": "B", "explanation": "**TSI** confirms Graves."}]}}, {"id": "25", "group": 25, "section": "Levothyroxine monitoring", "topic": "Lab monitoring on therapy", "skill": "Diagnostics & imaging", "stem": "When should TSH be rechecked after starting levothyroxine or changing its dose?", "options": [{"letter": "A", "text": "4–6 weeks"}, {"letter": "B", "text": "1–2 weeks"}, {"letter": "C", "text": "3–6 months"}, {"letter": "D", "text": "12 months"}], "answer": "A", "explanation": "Repeat **TSH 4–6 weeks** after starting replacement and after **any** dose adjustment.", "objective": "", "remediation": {"steps": [{"teach": "T4 has a long half-life (5–7 days), so a new steady state takes **several weeks** — recheck in about **a month and a half**.", "stem": "Recheck after a dose change is measured in →", "options": [{"letter": "A", "text": "Days"}, {"letter": "B", "text": "Years"}, {"letter": "C", "text": "Weeks"}], "answer": "C", "explanation": "**4–6 weeks.**", "clarify": [{"stem": "Once stable on levothyroxine, TSH is checked →", "options": [{"letter": "A", "text": "Every 4–6 weeks"}, {"letter": "B", "text": "Annually"}], "answer": "B", "explanation": "Stable → **annually** or sooner with symptoms."}]}], "checkpoints": [{"stem": "Dose adjustments of levothyroxine are typically made in →", "options": [{"letter": "A", "text": "12–25 mcg increments"}, {"letter": "B", "text": "100 mcg increments"}, {"letter": "C", "text": "1–2 mcg increments"}], "answer": "A", "explanation": "Adjust in **12–25 mcg** steps."}, {"stem": "Before raising the dose for a persistently high TSH, always ask about →", "options": [{"letter": "A", "text": "Biotin intake only"}, {"letter": "B", "text": "Adherence"}, {"letter": "C", "text": "Family history"}], "answer": "B", "explanation": "Always ask if the pt is taking it **consistently**."}]}}, {"id": "26", "group": 26, "section": "Levothyroxine monitoring", "topic": "Lab monitoring on therapy", "skill": "Diagnostics & imaging", "stem": "What is the target TSH for a patient receiving thyroid hormone replacement?", "options": [{"letter": "A", "text": "Upper end of normal range"}, {"letter": "B", "text": "Below the normal range"}, {"letter": "C", "text": "Lower end of normal range"}, {"letter": "D", "text": "Above the normal range"}], "answer": "C", "explanation": "Aim for normalization, typically toward the **lower end of the normal reference range** (≈1–2).", "objective": "", "remediation": {"steps": [{"teach": "You want TSH **normal** — not suppressed (over-replacement) — and the lecture favors the **lower half** of normal.", "stem": "A suppressed TSH on levothyroxine means →", "options": [{"letter": "A", "text": "Over-replacement"}, {"letter": "B", "text": "Under-replacement"}, {"letter": "C", "text": "Ideal dosing"}], "answer": "A", "explanation": "Low TSH = **too much** hormone → decrease dose.", "clarify": [{"stem": "TSH still high on levothyroxine → dose should be →", "options": [{"letter": "A", "text": "Decreased"}, {"letter": "B", "text": "Increased"}], "answer": "B", "explanation": "High TSH = under-replaced → **increase**."}]}], "checkpoints": [{"stem": "On Synthroid 100 mcg, TSH 0.3 at 6 wks → next:", "options": [{"letter": "A", "text": "Increase to 112 mcg"}, {"letter": "B", "text": "No change"}, {"letter": "C", "text": "Decrease to 88 mcg"}], "answer": "C", "explanation": "Low TSH = over-replaced → **decrease** (e.g. 88 mcg), recheck in 6 wks."}]}}, {"id": "27", "group": 27, "section": "Methimazole monitoring", "topic": "Lab monitoring on therapy", "skill": "Diagnostics & imaging", "stem": "Which laboratory values should be followed every 4–6 weeks initially after starting methimazole for Graves disease?", "options": [{"letter": "A", "text": "TSH alone"}, {"letter": "B", "text": "Free T4 and T3"}, {"letter": "C", "text": "Anti-TPO antibody"}, {"letter": "D", "text": "ESR and CRP"}], "answer": "B", "explanation": "Use **serial free T4 and T3** every 4–6 weeks initially to bring hormone levels into the normal range.", "objective": "", "remediation": {"steps": [{"teach": "Early in Graves treatment, **TSH stays suppressed** for a while, so you follow the **hormones themselves**.", "stem": "Early in thionamide therapy, follow →", "options": [{"letter": "A", "text": "Thyroid hormone levels"}, {"letter": "B", "text": "TSH alone"}, {"letter": "C", "text": "Thyroid ultrasound"}], "answer": "A", "explanation": "Follow **free T4/T3** early.", "clarify": [{"stem": "Once stable on maintenance methimazole, check →", "options": [{"letter": "A", "text": "Free T3 weekly"}, {"letter": "B", "text": "TSH and free T4 every few months"}], "answer": "B", "explanation": "Stable → **TSH + free T4 every few months**."}]}], "checkpoints": [{"stem": "Free T4 normalized on methimazole → dose change:", "options": [{"letter": "A", "text": "Decrease by 30–50%"}, {"letter": "B", "text": "Increase by 30–50%"}, {"letter": "C", "text": "Stop immediately"}], "answer": "A", "explanation": "Once normal, **decrease MMI by 30–50%**."}, {"stem": "Thionamide preferred over PTU except in pregnancy →", "options": [{"letter": "A", "text": "Propylthiouracil"}, {"letter": "B", "text": "Methimazole"}, {"letter": "C", "text": "Levothyroxine"}], "answer": "B", "explanation": "**Methimazole** is preferred (except pregnancy)."}]}}, {"id": "28", "group": 28, "section": "Methimazole — TSI", "topic": "Lab monitoring on therapy", "skill": "Diagnostics & imaging", "stem": "What does it suggest when TSI antibodies become undetectable during methimazole treatment?", "options": [{"letter": "A", "text": "Switch to PTU"}, {"letter": "B", "text": "Reasonable to taper off"}, {"letter": "C", "text": "Proceed to I-131"}, {"letter": "D", "text": "Increase the dose"}], "answer": "B", "explanation": "Falling/disappearing **TSI** during methimazole is prognostic — tapering off is reasonable with hope for **durable remission**.", "objective": "", "remediation": {"steps": [{"teach": "TSI is the **driver** of Graves. If the driver disappears, the disease may be in **remission**.", "stem": "Undetectable TSI suggests the Graves process is →", "options": [{"letter": "A", "text": "In remission"}, {"letter": "B", "text": "Worsening"}, {"letter": "C", "text": "Unchanged"}], "answer": "A", "explanation": "Loss of TSI → **remission** likely.", "clarify": [{"stem": "Usual US course of methimazole →", "options": [{"letter": "A", "text": "1–2 months"}, {"letter": "B", "text": "1–2 years"}], "answer": "B", "explanation": "Typically **1–2 years**."}]}], "checkpoints": [{"stem": "After stopping methimazole in remission, some patients →", "options": [{"letter": "A", "text": "Relapse later"}, {"letter": "B", "text": "Become hypothyroid immediately"}, {"letter": "C", "text": "Develop TMG"}], "answer": "A", "explanation": "A subset **relapse** after discontinuation."}]}}, {"id": "29", "group": 29, "section": "Subacute painful thyroiditis", "topic": "Subacute painful (de Quervain's) thyroiditis", "skill": "Identification", "stem": "What is the most common cause of a painful thyroid gland?", "options": [{"letter": "A", "text": "Postpartum thyroiditis"}, {"letter": "B", "text": "Hashimoto's thyroiditis"}, {"letter": "C", "text": "Toxic multinodular goiter"}, {"letter": "D", "text": "Subacute (de Quervain's) thyroiditis"}], "answer": "D", "explanation": "**Subacute painful (de Quervain's, granulomatous) thyroiditis** is the MC cause of a painful thyroid — often post-viral.", "objective": "", "remediation": {"steps": [{"teach": "The clue is **pain/tenderness**, usually after a **viral URI** — a granulomatous inflammation of the gland.", "stem": "Painful thyroid after a cold suggests the cause is →", "options": [{"letter": "A", "text": "Viral/post-viral inflammation"}, {"letter": "B", "text": "Autoimmune antibodies"}, {"letter": "C", "text": "Autonomous nodules"}], "answer": "A", "explanation": "De Quervain's is **viral/post-viral**.", "clarify": [{"stem": "Postpartum thyroiditis gland is →", "options": [{"letter": "A", "text": "NOT painful"}, {"letter": "B", "text": "Very painful"}], "answer": "A", "explanation": "Postpartum thyroiditis is **painless**."}]}], "checkpoints": [{"stem": "De Quervain's demographic →", "options": [{"letter": "A", "text": "Women 25–35"}, {"letter": "B", "text": "Men over 70"}, {"letter": "C", "text": "Children under 5"}], "answer": "A", "explanation": "Women 4–5× > men, typically **25–35 yrs**."}]}}, {"id": "30", "group": 30, "section": "Subacute painful thyroiditis — ESR", "topic": "Subacute painful (de Quervain's) thyroiditis", "skill": "Diagnostics & imaging", "stem": "What ESR result is expected in a patient with a tender thyroid after a viral upper respiratory infection?", "options": [{"letter": "A", "text": "Normal (< 20 mm/h)"}, {"letter": "B", "text": "Mildly ↑ (20–30 mm/h)"}, {"letter": "C", "text": "Low (< 5 mm/h)"}, {"letter": "D", "text": "> 50 mm/h, often > 100"}], "answer": "D", "explanation": "ESR is usually **> 50 mm/h, often > 100 mm/h** in subacute painful thyroiditis.", "objective": "", "remediation": {"steps": [{"teach": "ESR measures **inflammation**; de Quervain's is an intensely **inflamed** gland, so expect a markedly high value.", "stem": "ESR in de Quervain's is →", "options": [{"letter": "A", "text": "Normal"}, {"letter": "B", "text": "Markedly elevated"}, {"letter": "C", "text": "Low"}], "answer": "B", "explanation": "**Markedly elevated.**", "clarify": [{"stem": "Another inflammatory marker elevated in de Quervain's →", "options": [{"letter": "A", "text": "CRP"}, {"letter": "B", "text": "Anti-TPO"}], "answer": "A", "explanation": "**CRP** is elevated too; antibodies are not."}]}], "checkpoints": [{"stem": "De Quervain's → autoantibodies:", "options": [{"letter": "A", "text": "None associated"}, {"letter": "B", "text": "Anti-TPO positive"}, {"letter": "C", "text": "TSI positive"}], "answer": "A", "explanation": "**No autoantibody** association."}]}}, {"id": "31", "group": 31, "section": "Subacute painful thyroiditis — RAIU", "topic": "Subacute painful (de Quervain's) thyroiditis", "skill": "Diagnostics & imaging", "stem": "What radioactive iodine uptake pattern is expected during the hyperthyroid phase of de Quervain thyroiditis?", "options": [{"letter": "A", "text": "Diffuse high uptake"}, {"letter": "B", "text": "Low / depressed uptake"}, {"letter": "C", "text": "Single hot nodule"}, {"letter": "D", "text": "Multiple hot foci"}], "answer": "B", "explanation": "The hyperthyroid phase is **release of preformed hormone** from damaged follicles, so **RAIU is low/depressed**.", "objective": "", "remediation": {"steps": [{"teach": "Inflamed follicles **leak stored hormone**; the gland is not making new hormone, so it doesn't trap much iodine.", "stem": "Hyperthyroidism in de Quervain's comes from →", "options": [{"letter": "A", "text": "Release of preformed hormone"}, {"letter": "B", "text": "New hormone synthesis"}, {"letter": "C", "text": "TSH stimulation"}], "answer": "A", "explanation": "**Leakage of preformed hormone.**", "clarify": [{"stem": "Low RAIU uptake means →", "options": [{"letter": "A", "text": "Excess new synthesis"}, {"letter": "B", "text": "No new hormone synthesis"}], "answer": "B", "explanation": "Low uptake = **not making** new hormone."}]}], "checkpoints": [{"stem": "Graves disease → RAIU pattern:", "options": [{"letter": "A", "text": "Low uptake"}, {"letter": "B", "text": "Diffuse high uptake"}, {"letter": "C", "text": "No uptake"}], "answer": "B", "explanation": "Graves = **diffuse, homogeneous high uptake**."}]}}, {"id": "32", "group": 32, "section": "Subacute painful thyroiditis — course", "topic": "Subacute painful (de Quervain's) thyroiditis", "skill": "Disease process", "stem": "What is the classic course of subacute painful thyroiditis?", "options": [{"letter": "A", "text": "Hypo → hyper → euthyroid"}, {"letter": "B", "text": "Persistent hyperthyroid"}, {"letter": "C", "text": "Permanent hypothyroid"}, {"letter": "D", "text": "Hyper → hypo → euthyroid"}], "answer": "D", "explanation": "Typically **triphasic: hyper → hypo → euthyroid**, with complete recovery in **3–4 months** (self-limited).", "objective": "", "remediation": {"steps": [{"teach": "Damaged follicles first **dump stored hormone** (hyper); then the depleted gland is **underactive** (hypo) before it heals.", "stem": "First phase of de Quervain's →", "options": [{"letter": "A", "text": "Hypothyroid"}, {"letter": "B", "text": "Euthyroid"}, {"letter": "C", "text": "Hyperthyroid"}], "answer": "C", "explanation": "It **starts hyper** from released hormone.", "clarify": [{"stem": "De Quervain's is →", "options": [{"letter": "A", "text": "Self-limited"}, {"letter": "B", "text": "Lifelong"}], "answer": "A", "explanation": "Complete recovery in **3–4 months** is characteristic."}]}], "checkpoints": [{"stem": "Typical time to complete recovery in de Quervain's →", "options": [{"letter": "A", "text": "3–4 months"}, {"letter": "B", "text": "3–4 years"}, {"letter": "C", "text": "3–4 days"}], "answer": "A", "explanation": "**3–4 months.**"}]}}, {"id": "33", "group": 33, "section": "Postpartum thyroiditis", "topic": "Postpartum thyroiditis", "skill": "Identification", "stem": "What diagnosis is most likely when thyroiditis develops within 1 year after delivery and the gland is not tender?", "options": [{"letter": "A", "text": "Subacute painful thyroiditis"}, {"letter": "B", "text": "Toxic adenoma"}, {"letter": "C", "text": "Postpartum thyroiditis"}, {"letter": "D", "text": "Central hyperthyroidism"}], "answer": "C", "explanation": "**Postpartum thyroiditis** is a subacute thyroiditis with onset within the first year after childbirth — the thyroid is **NOT painful**.", "objective": "", "remediation": {"steps": [{"teach": "Two clues: **within a year of delivery** and a **painless** gland.", "stem": "Painless gland excludes →", "options": [{"letter": "A", "text": "Postpartum thyroiditis"}, {"letter": "B", "text": "Hashimoto's"}, {"letter": "C", "text": "Subacute painful thyroiditis"}], "answer": "C", "explanation": "De Quervain's is **painful**; postpartum is **painless**.", "clarify": [{"stem": "Postpartum thyroiditis course is usually →", "options": [{"letter": "A", "text": "Monophasic hypo"}, {"letter": "B", "text": "Triphasic"}], "answer": "B", "explanation": "**Hyper → hypo → euthyroid**, like de Quervain's."}]}], "checkpoints": [{"stem": "Postpartum thyroiditis → RAIU in the hyperthyroid phase:", "options": [{"letter": "A", "text": "Low uptake"}, {"letter": "B", "text": "Diffuse high uptake"}, {"letter": "C", "text": "Single hot nodule"}], "answer": "A", "explanation": "Release of preformed hormone → **low uptake**."}, {"stem": "Postpartum thyroiditis → % permanent hypothyroidism:", "options": [{"letter": "A", "text": "20–30%"}, {"letter": "B", "text": "90–100%"}, {"letter": "C", "text": "0%"}], "answer": "A", "explanation": "Permanent hypothyroidism in **20–30%**."}]}}, {"id": "34", "group": 34, "section": "Postpartum thyroiditis — antibodies", "topic": "Postpartum thyroiditis", "skill": "Diagnostics & imaging", "stem": "Which antibody is usually present in postpartum thyroiditis?", "options": [{"letter": "A", "text": "TSI antibody"}, {"letter": "B", "text": "No antibodies"}, {"letter": "C", "text": "Anti-TPO antibody"}, {"letter": "D", "text": "Antinuclear antibody"}], "answer": "C", "explanation": "Women with postpartum thyroiditis usually have **anti-TPO** antibodies (60–85%) — transient, unless they persist (then Hashimoto's).", "objective": "", "remediation": {"steps": [{"teach": "Postpartum thyroiditis is on the **Hashimoto's-like autoimmune** side, unlike de Quervain's.", "stem": "Postpartum thyroiditis is →", "options": [{"letter": "A", "text": "Viral"}, {"letter": "B", "text": "Nodular"}, {"letter": "C", "text": "Autoimmune"}], "answer": "C", "explanation": "It carries **antibodies**.", "clarify": [{"stem": "Persistent anti-TPO after postpartum thyroiditis means →", "options": [{"letter": "A", "text": "Developed Hashimoto's"}, {"letter": "B", "text": "Developed Graves"}], "answer": "A", "explanation": "Persisting antibodies = **Hashimoto's**."}]}], "checkpoints": [{"stem": "De Quervain's vs postpartum: which has antibodies?", "options": [{"letter": "A", "text": "de Quervain's thyroiditis"}, {"letter": "B", "text": "Both equally"}, {"letter": "C", "text": "Postpartum thyroiditis"}], "answer": "C", "explanation": "**Postpartum** (anti-TPO); de Quervain's has none."}]}}, {"id": "35", "group": 35, "section": "Postpartum thyroiditis — recognition", "topic": "Postpartum thyroiditis", "skill": "Diagnostics & imaging", "stem": "Which laboratory test should be checked in a new mother with postpartum depression or anxiety?", "options": [{"letter": "A", "text": "ESR"}, {"letter": "B", "text": "Anti-Tg"}, {"letter": "C", "text": "Free T3"}, {"letter": "D", "text": "TSH"}], "answer": "D", "explanation": "Postpartum thyroiditis is easily mistaken for newborn stress or postpartum mood disorder — **check TSH**.", "objective": "", "remediation": {"steps": [{"teach": "Thyroid swings mimic **mood** symptoms; use the standard **first-line** thyroid test.", "stem": "Best initial test for any suspected thyroid dysfunction →", "options": [{"letter": "A", "text": "TSH"}, {"letter": "B", "text": "ESR"}, {"letter": "C", "text": "RAIU"}], "answer": "A", "explanation": "**TSH** first.", "clarify": [{"stem": "Postpartum is a time to consider thyroid disease?", "options": [{"letter": "A", "text": "Yes"}, {"letter": "B", "text": "No"}], "answer": "A", "explanation": "The lecture flags **postpartum** as a time to check."}]}], "checkpoints": [{"stem": "Risk factor for postpartum thyroiditis →", "options": [{"letter": "A", "text": "Prior appendectomy"}, {"letter": "B", "text": "Low BMI"}, {"letter": "C", "text": "Type 1 diabetes"}], "answer": "C", "explanation": "Autoimmune disease such as **T1DM** increases risk."}]}}, {"id": "36", "group": 36, "section": "RAIU — procedure", "topic": "RAIU scan", "skill": "Diagnostics & imaging", "stem": "Which isotope is used for a radioactive iodine uptake scan, and how is it administered?", "options": [{"letter": "A", "text": "Oral I-131"}, {"letter": "B", "text": "Oral I-123"}, {"letter": "C", "text": "IV I-123"}, {"letter": "D", "text": "IV I-131"}], "answer": "B", "explanation": "**I-123 is taken orally** and the gland is imaged by a gamma camera at **6 and 24 hours**.", "objective": "", "remediation": {"steps": [{"teach": "**I-123** emits only gamma rays → imaging. I-131 adds beta → destroys tissue. The diagnostic dose is swallowed.", "stem": "Isotope used for diagnostic imaging →", "options": [{"letter": "A", "text": "I-123"}, {"letter": "B", "text": "I-131"}, {"letter": "C", "text": "Both equally"}], "answer": "A", "explanation": "**123 = diagnose; 131 = destroy.**", "clarify": [{"stem": "RAIU images are taken at →", "options": [{"letter": "A", "text": "6 and 24 hours"}, {"letter": "B", "text": "1 and 2 weeks"}], "answer": "A", "explanation": "Imaged at **6 and 24 h**."}]}], "checkpoints": [{"stem": "I-131 emits →", "options": [{"letter": "A", "text": "Gamma AND beta radiation"}, {"letter": "B", "text": "Gamma only"}, {"letter": "C", "text": "Alpha only"}], "answer": "A", "explanation": "I-131 = **gamma + beta** → ablation."}]}}, {"id": "37", "group": 37, "section": "RAIU — normal values", "topic": "RAIU scan", "skill": "Diagnostics & imaging", "stem": "What is the normal 24-hour radioactive iodine uptake range?", "options": [{"letter": "A", "text": "~2–16%"}, {"letter": "B", "text": "~8–25%"}, {"letter": "C", "text": "~30–50%"}, {"letter": "D", "text": "~0–2%"}], "answer": "B", "explanation": "Normal **24-hour uptake ~8–25%** (6-hour ~2–16%).", "objective": "", "remediation": {"steps": [{"teach": "Uptake **accumulates** over time, so the 24-hour normal range is **higher** than the 6-hour range.", "stem": "Compared with 6-hour uptake, normal 24-hour uptake is →", "options": [{"letter": "A", "text": "Lower"}, {"letter": "B", "text": "Identical"}, {"letter": "C", "text": "Higher"}], "answer": "C", "explanation": "24-h (8–25%) > 6-h (2–16%).", "clarify": [{"stem": "Normal 6-hour uptake →", "options": [{"letter": "A", "text": "~2–16%"}, {"letter": "B", "text": "~8–25%"}], "answer": "A", "explanation": "6-hour ~**2–16%**."}]}], "checkpoints": [{"stem": "Normal 6-hour RAIU →", "options": [{"letter": "A", "text": "~30–50%"}, {"letter": "B", "text": "~2–16%"}, {"letter": "C", "text": "~60–80%"}], "answer": "B", "explanation": "6-hour normal ~**2–16%**."}]}}, {"id": "38", "group": 38, "section": "RAIU — interpretation", "topic": "RAIU scan", "skill": "Disease process", "stem": "What does high radioactive iodine uptake represent?", "options": [{"letter": "A", "text": "Release of preformed hormone"}, {"letter": "B", "text": "Exogenous hormone intake"}, {"letter": "C", "text": "New hormone synthesis"}, {"letter": "D", "text": "Thyroid gland destruction"}], "answer": "C", "explanation": "**High uptake = excessive de novo synthesis** of hormone (Graves, TMG, toxic adenoma); low uptake = leakage of preformed hormone or exogenous hormone.", "objective": "", "remediation": {"steps": [{"teach": "The gland traps iodine to **build** hormone. More trapping = more **manufacturing**.", "stem": "A gland making lots of NEW hormone traps iodine →", "options": [{"letter": "A", "text": "Poorly"}, {"letter": "B", "text": "Avidly"}, {"letter": "C", "text": "Not at all"}], "answer": "B", "explanation": "Active synthesis → **avid uptake**.", "clarify": [{"stem": "Low uptake hyperthyroidism means →", "options": [{"letter": "A", "text": "New synthesis"}, {"letter": "B", "text": "Preformed hormone release"}], "answer": "B", "explanation": "Low uptake = **leakage** or exogenous hormone."}]}], "checkpoints": [{"stem": "LOW uptake + hyperthyroid → mechanism:", "options": [{"letter": "A", "text": "Release of preformed hormone"}, {"letter": "B", "text": "New hormone synthesis"}, {"letter": "C", "text": "TSH-secreting tumor"}], "answer": "A", "explanation": "Low uptake = **destruction/leakage** (or exogenous)."}, {"stem": "RAIU is mainly used to determine →", "options": [{"letter": "A", "text": "Cause of hypothyroidism"}, {"letter": "B", "text": "Etiology of hyperthyroidism"}, {"letter": "C", "text": "Nodule malignancy"}], "answer": "B", "explanation": "RAIU sorts **causes of hyperthyroidism**."}]}}, {"id": "39", "group": 39, "section": "RAIU — high uptake patterns", "topic": "RAIU scan", "skill": "Diagnostics & imaging", "stem": "Which diagnosis is indicated by an enlarged thyroid gland with intense, homogeneous, diffusely increased radioactive iodine uptake?", "options": [{"letter": "A", "text": "Toxic adenoma"}, {"letter": "B", "text": "Toxic multinodular goiter"}, {"letter": "C", "text": "Graves disease"}, {"letter": "D", "text": "Subacute thyroiditis"}], "answer": "C", "explanation": "An enlarged gland with **intense, homogeneous, diffuse** increased uptake is typical of **Graves disease**.", "objective": "", "remediation": {"steps": [{"teach": "**Diffuse** = the whole gland is stimulated (by TSI), not just discrete nodules.", "stem": "What stimulates the whole gland in Graves?", "options": [{"letter": "A", "text": "A single nodule"}, {"letter": "B", "text": "Viral inflammation"}, {"letter": "C", "text": "TSI antibodies"}], "answer": "C", "explanation": "TSI stimulate **all** TSH receptors → diffuse uptake.", "clarify": [{"stem": "Subacute thyroiditis uptake is →", "options": [{"letter": "A", "text": "High"}, {"letter": "B", "text": "Low"}], "answer": "B", "explanation": "Thyroiditis = **low** uptake."}]}], "checkpoints": [{"stem": "Single hot area with suppression of the rest of the gland →", "options": [{"letter": "A", "text": "Graves disease"}, {"letter": "B", "text": "Toxic adenoma"}, {"letter": "C", "text": "Subacute thyroiditis"}], "answer": "B", "explanation": "One discrete hot nodule with suppressed surroundings = **toxic adenoma**."}, {"stem": "Multiple discrete foci of increased uptake →", "options": [{"letter": "A", "text": "Graves disease"}, {"letter": "B", "text": "Postpartum thyroiditis"}, {"letter": "C", "text": "Toxic multinodular goiter"}], "answer": "C", "explanation": "Multifocal = **TMG**."}]}}, {"id": "40", "group": 40, "section": "RAIU — high uptake patterns", "topic": "RAIU scan", "skill": "Identification", "stem": "Which diagnosis is indicated by one discrete hot nodule with suppression of the rest of the thyroid gland?", "options": [{"letter": "A", "text": "Toxic adenoma"}, {"letter": "B", "text": "Graves disease"}, {"letter": "C", "text": "Toxic multinodular goiter"}, {"letter": "D", "text": "Postpartum thyroiditis"}], "answer": "A", "explanation": "One discrete region of increased tracer corresponding to a nodule, with **suppression of extranodular tissue**, = **toxic adenoma**.", "objective": "", "remediation": {"steps": [{"teach": "Count the **hot areas**: one vs many vs whole gland. The surrounding tissue is suppressed because high hormone lowers TSH.", "stem": "Why is the surrounding tissue 'cold'?", "options": [{"letter": "A", "text": "Destroyed by virus"}, {"letter": "B", "text": "Blocked by antibodies"}, {"letter": "C", "text": "Suppressed TSH"}], "answer": "C", "explanation": "The autonomous nodule's hormone **suppresses TSH** → rest of gland is quiet.", "clarify": [{"stem": "Multiple hot foci instead of one →", "options": [{"letter": "A", "text": "Toxic adenoma"}, {"letter": "B", "text": "Toxic multinodular goiter"}], "answer": "B", "explanation": "Many foci = **TMG**."}]}], "checkpoints": [{"stem": "Multiple foci of variably increased uptake →", "options": [{"letter": "A", "text": "Toxic adenoma"}, {"letter": "B", "text": "Toxic multinodular goiter"}, {"letter": "C", "text": "Graves disease"}], "answer": "B", "explanation": "Multifocal = **TMG**."}]}}, {"id": "41", "group": 41, "section": "RAIU — low uptake", "topic": "RAIU scan", "skill": "Identification", "stem": "Which diagnosis should be suspected in a patient with hyperthyroidism who has access to levothyroxine, low radioactive iodine uptake, and no goiter?", "options": [{"letter": "A", "text": "Graves disease"}, {"letter": "B", "text": "TSH-secreting adenoma"}, {"letter": "C", "text": "Surreptitious thyroid hormone use"}, {"letter": "D", "text": "Toxic multinodular goiter"}], "answer": "C", "explanation": "Low uptake is seen with **excessive or surreptitious thyroid hormone ingestion** — the gland is suppressed and not making new hormone.", "objective": "", "remediation": {"steps": [{"teach": "Exogenous T4 **suppresses TSH**, so the patient's own gland goes quiet and **traps little iodine**.", "stem": "Exogenous levothyroxine makes the patient's own gland →", "options": [{"letter": "A", "text": "Overactive (high uptake)"}, {"letter": "B", "text": "Nodular"}, {"letter": "C", "text": "Inactive (low uptake)"}], "answer": "C", "explanation": "Suppressed gland → **low uptake**.", "clarify": [{"stem": "Graves disease uptake is →", "options": [{"letter": "A", "text": "Low"}, {"letter": "B", "text": "High"}], "answer": "B", "explanation": "Graves = **high diffuse** uptake."}]}], "checkpoints": [{"stem": "Rare ectopic cause of low-uptake hyperthyroidism →", "options": [{"letter": "A", "text": "TSH-secreting adenoma"}, {"letter": "B", "text": "Toxic adenoma"}, {"letter": "C", "text": "Struma ovarii"}], "answer": "C", "explanation": "**Struma ovarii** (ovarian teratoma with >50% thyroid tissue)."}, {"stem": "Which belongs in the LOW-uptake group?", "options": [{"letter": "A", "text": "Graves disease"}, {"letter": "B", "text": "Postpartum thyroiditis"}, {"letter": "C", "text": "Toxic adenoma"}], "answer": "B", "explanation": "**Postpartum thyroiditis** = low uptake (preformed hormone release)."}]}}, {"id": "42", "group": 42, "section": "Radioactive iodine ablation", "topic": "Radioactive iodine (diagnosis vs ablation)", "skill": "Management", "stem": "Which isotope is used for radioactive iodine ablation of hyperthyroidism?", "options": [{"letter": "A", "text": "I-123"}, {"letter": "B", "text": "Technetium-99m"}, {"letter": "C", "text": "Gallium-67"}, {"letter": "D", "text": "I-131"}], "answer": "D", "explanation": "Ablation is done with **I-131** (gamma + beta) rather than I-123 (gamma only, imaging).", "objective": "", "remediation": {"steps": [{"teach": "Destroying tissue needs **beta** radiation; imaging needs only gamma.", "stem": "Isotope that emits beta radiation →", "options": [{"letter": "A", "text": "I-131"}, {"letter": "B", "text": "I-123"}, {"letter": "C", "text": "Neither"}], "answer": "A", "explanation": "**I-131** emits gamma **and beta**.", "clarify": [{"stem": "I-123 is used for →", "options": [{"letter": "A", "text": "Imaging"}, {"letter": "B", "text": "Ablation"}], "answer": "A", "explanation": "**123 = diagnose.**"}]}], "checkpoints": [{"stem": "RAI (I-123 or I-131) in a pregnant or nursing patient is →", "options": [{"letter": "A", "text": "Safe at low dose"}, {"letter": "B", "text": "Preferred imaging"}, {"letter": "C", "text": "Contraindicated"}], "answer": "C", "explanation": "**Never** use RAI in pregnancy or nursing."}, {"stem": "RAIU percent uptake is sometimes used to →", "options": [{"letter": "A", "text": "Calculate the I-131 dose"}, {"letter": "B", "text": "Diagnose hypothyroidism"}, {"letter": "C", "text": "Measure ESR"}], "answer": "A", "explanation": "Uptake % can help **dose I-131** for ablation."}]}}, {"id": "43", "group": 43, "section": "Thyroid ultrasound", "topic": "Thyroid ultrasound", "skill": "Diagnostics & imaging", "stem": "Which diagnosis is suggested by a hypervascular thyroid inferno pattern on ultrasound?", "options": [{"letter": "A", "text": "Hashimoto's thyroiditis"}, {"letter": "B", "text": "Graves disease"}, {"letter": "C", "text": "Subacute thyroiditis"}, {"letter": "D", "text": "Postpartum thyroiditis"}], "answer": "B", "explanation": "**\"Thyroid inferno\"** (hypervascular gland) on ultrasound in a goiter suggests **Graves disease** — correlates with a thyroid bruit.", "objective": "", "remediation": {"steps": [{"teach": "A **hypervascular**, highly stimulated gland → you might even hear a **bruit** — the TSI-driven gland.", "stem": "Thyroid bruit on exam suggests →", "options": [{"letter": "A", "text": "Increased blood flow"}, {"letter": "B", "text": "Calcified nodule"}, {"letter": "C", "text": "Atrophic gland"}], "answer": "A", "explanation": "A bruit = **high flow**, like the inferno pattern.", "clarify": [{"stem": "If you hear a thyroid bruit, also look carefully for →", "options": [{"letter": "A", "text": "Eye findings of Graves"}, {"letter": "B", "text": "Hung-up reflexes"}], "answer": "A", "explanation": "Bruit → look for **Graves eye findings**."}]}], "checkpoints": [{"stem": "Common ultrasound indication →", "options": [{"letter": "A", "text": "Palpable or incidental nodule"}, {"letter": "B", "text": "Measuring TSH reserve"}, {"letter": "C", "text": "Detecting TSI"}], "answer": "A", "explanation": "Ultrasound evaluates **nodules** (size, features, FNA guidance, monitoring)."}]}}, {"id": "44", "group": 44, "section": "Thyroid ultrasound — pregnancy", "topic": "Thyroid ultrasound", "skill": "Diagnostics & imaging", "stem": "What is the imaging test of choice for a pregnant or breastfeeding patient who needs thyroid imaging?", "options": [{"letter": "A", "text": "I-123 RAIU scan"}, {"letter": "B", "text": "Thyroid ultrasound"}, {"letter": "C", "text": "I-131 whole-body scan"}, {"letter": "D", "text": "CT neck with contrast"}], "answer": "B", "explanation": "**Ultrasound** is the preferred imaging in pregnant or breastfeeding women — they must not receive radioactive iodine.", "objective": "", "remediation": {"steps": [{"teach": "**Radioactive iodine** (both 123 and 131) is off-limits in pregnancy and nursing; choose imaging with **no radiation**.", "stem": "RAI in pregnancy or nursing →", "options": [{"letter": "A", "text": "Contraindicated"}, {"letter": "B", "text": "Allowed with shielding"}, {"letter": "C", "text": "Preferred"}], "answer": "A", "explanation": "**Never** in pregnancy or nursing.", "clarify": [{"stem": "Ultrasound provides mainly →", "options": [{"letter": "A", "text": "Function"}, {"letter": "B", "text": "Anatomy"}], "answer": "B", "explanation": "US = **anatomy**; RAIU = function."}]}], "checkpoints": [{"stem": "Which applies to BOTH I-123 and I-131?", "options": [{"letter": "A", "text": "Used for ablation"}, {"letter": "B", "text": "Avoid in pregnancy/nursing"}, {"letter": "C", "text": "Emit beta radiation"}], "answer": "B", "explanation": "Both are **contraindicated in pregnancy/nursing**."}]}}, {"id": "45", "group": 45, "section": "Review questions", "topic": "Graves disease & causes of hyperthyroidism", "skill": "Identification", "stem": "What is the most common cause of hyperthyroidism?", "options": [{"letter": "A", "text": "Toxic multinodular goiter"}, {"letter": "B", "text": "Toxic adenoma"}, {"letter": "C", "text": "Subacute thyroiditis"}, {"letter": "D", "text": "Graves disease"}], "answer": "D", "explanation": "**Graves disease** (autoimmune hyperthyroidism) is the most common cause of hyperthyroidism.", "objective": "", "remediation": {"steps": [{"teach": "The MC cause is the **autoimmune** one driven by **TSI**.", "stem": "Graves is driven by →", "options": [{"letter": "A", "text": "Anti-TPO antibodies"}, {"letter": "B", "text": "TSH-receptor stimulating Ab"}, {"letter": "C", "text": "Viral infection"}], "answer": "B", "explanation": "**TSI** drive Graves.", "clarify": [{"stem": "Graves disease is autoimmune →", "options": [{"letter": "A", "text": "Hyperthyroidism"}, {"letter": "B", "text": "Hypothyroidism"}], "answer": "A", "explanation": "Graves = autoimmune **hyper**."}]}], "checkpoints": [{"stem": "Graves disease → RAIU pattern:", "options": [{"letter": "A", "text": "Diffuse increased uptake"}, {"letter": "B", "text": "Single hot nodule"}, {"letter": "C", "text": "Low uptake"}], "answer": "A", "explanation": "**Diffuse** high uptake."}]}}, {"id": "45a", "group": 45, "section": "Review questions", "topic": "Graves disease & causes of hyperthyroidism", "skill": "Identification", "stem": "Second most common cause of hyperthyroidism →", "options": [{"letter": "A", "text": "Toxic multinodular goiter"}, {"letter": "B", "text": "Graves disease"}, {"letter": "C", "text": "Postpartum thyroiditis"}, {"letter": "D", "text": "TSH-secreting adenoma"}], "answer": "A", "explanation": "After Graves, **toxic multinodular goiter** is the second most common cause of hyperthyroidism.", "objective": "", "remediation": {"steps": [{"teach": "Think of the high-uptake **nodular** disease seen especially in older patients.", "stem": "TMG RAIU pattern →", "options": [{"letter": "A", "text": "Multiple hot foci"}, {"letter": "B", "text": "Diffuse uptake"}, {"letter": "C", "text": "Low uptake"}], "answer": "A", "explanation": "TMG = **multiple foci**.", "clarify": [{"stem": "TSH-secreting adenoma is →", "options": [{"letter": "A", "text": "Very rare"}, {"letter": "B", "text": "Common"}], "answer": "A", "explanation": "TSH-omas are **very rare**."}]}], "checkpoints": [{"stem": "TMG → associated autoantibodies:", "options": [{"letter": "A", "text": "TSI"}, {"letter": "B", "text": "None"}, {"letter": "C", "text": "Anti-TPO"}], "answer": "B", "explanation": "**No antibodies** with TMG."}]}}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  const LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  function shuffleOptions(item) {
+    if (!item || !item.options || item.options.length < 2) return;
+    const key = (item.options.find(o => o.letter === item.answer) || {}).text;
+    const texts = item.options.map(o => o.text);
+    for (let i = texts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [texts[i], texts[j]] = [texts[j], texts[i]]; }
+    item.options = texts.map((t, i) => ({ letter: LET[i], text: t }));
+    item.answer = (item.options.find(o => o.text === key) || {}).letter;
+  }
+  // Tutor questions get fresh option order on every open, like the main exam
+  if (EXAM_DATA.shuffleTutorOptions !== false) {
+    questions.forEach(q => {
+      const r = q.remediation; if (!r) return;
+      (r.steps || []).forEach(s => { shuffleOptions(s); (s.clarify || []).forEach(shuffleOptions); });
+      (r.checkpoints || []).forEach(shuffleOptions);
+    });
+  }
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter (FIRST attempt — this is what is scored)
+  const tutor = {};          // question id -> tutor session (see startTutor)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);
+  let page = 0;
+  let lastGrade = null;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const optText = (item, letter) => { const o = item.options.find(x => x.letter === letter); return o ? o.text : ''; };
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  // ================= Adaptive tutor engine =================
+  // A session is a growing "trail" of nodes rendered under the missed question.
+  // Node kinds: step | clarify | checkpoint (answerable), note (text only).
+  function hasTutor(q) { return !!(q.remediation && q.remediation.steps && q.remediation.steps.length); }
+
+  function startTutor(q) {
+    const t = { status: 'active', phase: 'steps', trail: [], step: 0, clar: 0, wrong: [], cp: 0 };
+    tutor[q.id] = t;
+    pushStep(q, t, false);
+  }
+
+  function pushStep(q, t, retry) {
+    const steps = q.remediation.steps;
+    if (t.step >= steps.length) return finishSteps(q, t);
+    t.trail.push({ kind: 'step', item: steps[t.step], sIdx: t.step, retry: retry,
+                   elim: retry ? t.wrong.slice() : [], chosen: null, revealed: false });
+  }
+
+  function nextStep(q, t) { t.step++; t.clar = 0; t.wrong = []; pushStep(q, t, false); }
+
+  function pushClarify(q, t) {
+    const cl = q.remediation.steps[t.step].clarify || [];
+    if (t.clar < cl.length) {
+      t.trail.push({ kind: 'clarify', item: cl[t.clar], sIdx: t.step, chosen: null, revealed: false });
+      t.clar++;
+      return true;
+    }
+    return false;
+  }
+
+  function finishSteps(q, t) {
+    t.phase = 'checkpoint';
+    t.trail.push({ kind: 'note', cls: 'reveal',
+      html: '<b>Back to Question ' + esc(q.id) + ':</b> the answer is <b>' + esc(q.answer) + '. ' + fmt(optText(q, q.answer)) + '</b>' +
+            (q.explanation ? '<div style="margin-top:4px">' + fmt(q.explanation) + '</div>' : '') });
+    pushCheckpoint(q, t);
+  }
+
+  function pushCheckpoint(q, t) {
+    const cps = q.remediation.checkpoints || [];
+    if (t.cp < cps.length) {
+      t.trail.push({ kind: 'checkpoint', item: cps[t.cp], chosen: null, revealed: false, n: t.cp + 1 });
+    } else if (!cps.length) {
+      t.status = 'mastered'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Pathway complete — continue the case.' });
+    } else {
+      t.status = 'review'; t.phase = 'done';
+      t.trail.push({ kind: 'note', cls: 'review',
+        html: '⚑ Flagged for review — this concept is saved to your missed list. Continue the case when ready.' });
+    }
+  }
+
+  function tutorAnswer(q, idx, letter) {
+    const t = tutor[q.id];
+    const node = t.trail[idx];
+    if (!node || node.chosen !== null || idx !== t.trail.length - 1) return;
+    node.chosen = letter;
+    const ok = letter === node.item.answer;
+
+    if (node.kind === 'step') {
+      if (ok) return nextStep(q, t);
+      t.wrong.push(letter);
+      if (pushClarify(q, t)) return;
+      // Out of simpler questions: teach the step's answer, then move on
+      node.revealed = true;
+      return nextStep(q, t);
+    }
+    if (node.kind === 'clarify') {
+      if (ok) return pushStep(q, t, true);              // foundation fixed -> retry the step
+      if (pushClarify(q, t)) return;                    // still shaky -> go simpler again
+      node.revealed = true;                             // teach the basic fact, then retry the step
+      return pushStep(q, t, true);
+    }
+    if (node.kind === 'checkpoint') {
+      if (ok) {
+        t.status = 'mastered'; t.phase = 'done';
+        t.trail.push({ kind: 'note', cls: 'mastered', html: '★ Mastered — you applied it to a new case. Continue below.' });
+        return;
+      }
+      node.revealed = true;
+      t.cp++;
+      const more = t.cp < (q.remediation.checkpoints || []).length;
+      if (more) t.trail.push({ kind: 'note', cls: 'info', html: 'Same concept, one more case:' });
+      return pushCheckpoint(q, t);
+    }
+  }
+
+  // A question is "resolved" (lets its follow-up appear) once answered right,
+  // answered wrong without a pathway, or its pathway has finished.
+  function resolved(q) {
+    if (answers[q.id] === undefined) return false;
+    if (answers[q.id] === q.answer || !hasTutor(q)) return true;
+    return tutor[q.id] && tutor[q.id].status !== 'active';
+  }
+
+  function tutorStatus(q) {
+    const t = tutor[q.id];
+    return t ? t.status : null;
+  }
+
+  function nodeHtml(q, node, idx, interactive) {
+    if (node.kind === 'note') return '<div class="tnote ' + node.cls + '">' + node.html + '</div>';
+    const it = node.item;
+    const answered = node.chosen !== null;
+    const live = interactive && !answered;
+    let label;
+    if (node.kind === 'step') label = '<span class="tlabel">Step ' + (node.sIdx + 1) + ' of ' + q.remediation.steps.length + (node.retry ? ' · try again' : '') + '</span>';
+    else if (node.kind === 'clarify') label = '<span class="tlabel clar">Let\'s go simpler</span>';
+    else label = '<span class="tlabel cp">Mastery check' + ((q.remediation.checkpoints || []).length > 1 ? ' ' + node.n : '') + '</span>';
+
+    let html = '<div class="tnode' + (answered ? ' done' : ' active') + '" data-tq="' + esc(q.id) + '" data-tidx="' + idx + '">' + label;
+    if (it.teach && !(node.kind === 'step' && node.retry)) html += '<div class="teach">' + fmt(it.teach) + '</div>';
+    html += '<div class="stem">' + fmt(it.stem) + '</div>';
+    it.options.forEach(o => {
+      let cls = 'opt';
+      const elim = node.elim && node.elim.indexOf(o.letter) !== -1;
+      if (answered) {
+        if (o.letter === node.chosen) cls += node.chosen === it.answer ? ' correct' : ' incorrect';
+        else if (node.revealed && o.letter === it.answer) cls += ' correct';
+      }
+      if (elim) cls += ' elim';
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (live && !elim ? '' : ' disabled') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      const ok = node.chosen === it.answer;
+      if (ok || node.revealed) {
+        html += '<div class="feedback ' + (ok ? 'good' : 'bad') + '"><div class="verdict">' +
+          (ok ? '✓ Correct' : '✗ Answer: ' + esc(it.answer) + '. ' + fmt(optText(it, it.answer))) + '</div>' +
+          (it.explanation ? '<div>' + fmt(it.explanation) + '</div>' : '') + '</div>';
+      } else {
+        html += '<div class="nudge">✗ Not yet — let\'s break it down.</div>';
+      }
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function trailHtml(q, interactive) {
+    const t = tutor[q.id];
+    if (!t) return '';
+    let html = '<div class="tutor"><div class="tutor-head">Guided review</div>';
+    t.trail.forEach((n, i) => { html += nodeHtml(q, n, i, interactive); });
+    html += '</div>';
+    return html;
+  }
+
+  // ================= Rendering =================
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + fmt(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + fmt(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    const wrong = answered && chosen !== q.answer;
+    const tutoring = wrong && hasTutor(q);
+    const t = tutor[q.id];
+    // While the pathway is still in its teaching steps (exam mode), the correct answer stays hidden
+    const hideKey = mode === 'exam' && tutoring && t && t.phase === 'steps';
+    const status = tutoring ? tutorStatus(q) : null;
+
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    if (status === 'mastered') html += '<span class="badge mastered">Mastered after review</span>';
+    else if (status === 'review') html += '<span class="badge review">Flagged for review</span>';
+    else if (status === 'active') html += '<span class="badge active">Guided review in progress</span>';
+    html += '<div class="stem">' + fmt(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === chosen) cls += chosen === q.answer ? ' correct' : ' incorrect';
+        else if (o.letter === q.answer && !hideKey) cls += ' correct';
+        else if (!hideKey) cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + fmt(o.text) + '</span></button>';
+    });
+    if (answered) {
+      if (hideKey) {
+        html += '<div class="feedback tutoring"><div class="verdict">✗ Not quite — the answer stays hidden while we build up to it.</div>' +
+          '<div>Work through the guided questions below.</div></div>';
+      } else {
+        html += feedbackHtml(q, chosen);
+      }
+    }
+    if (tutoring && t) {
+      if (mode === 'exam') html += trailHtml(q, true);
+      else html += '<details class="trail"><summary>Guided review path (' +
+        t.trail.filter(n => n.kind !== 'note').length + ' questions)</summary>' + trailHtml(q, false) + '</details>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: a follow-up appears only once the question before it is
+    // resolved — answered correctly, or its guided review has finished.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && resolved(group[shown - 1])) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      const blocked = group[shown - 1];
+      const inTutor = answers[blocked.id] !== undefined && !resolved(blocked);
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') + ' in this case — ' +
+        (inTutor ? 'finish the guided review to continue' : 'answer above to continue') + '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Main-question clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll(':scope > .opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          const q = byId[qid];
+          answers[qid] = btn.getAttribute('data-letter');
+          if (answers[qid] !== q.answer && hasTutor(q)) startTutor(q);
+          renderPage(true);
+        });
+      });
+    });
+    // Tutor clicks
+    $('main').querySelectorAll('.tnode.active').forEach(nodeEl => {
+      const q = byId[nodeEl.getAttribute('data-tq')];
+      const idx = +nodeEl.getAttribute('data-tidx');
+      nodeEl.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || btn.disabled) return;
+          tutorAnswer(q, idx, btn.getAttribute('data-letter'));
+          renderPage(true);
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) {
+      window.scrollTo(0, savedY);
+      // Bring the newest tutor question / unlocked follow-up into view if it landed below the fold
+      const target = $('main').querySelector('.tnode.active') || $('main').querySelector('.tnote.mastered, .tnote.review');
+      if (target) {
+        const r = target.getBoundingClientRect();
+        const navH = $('navbar').offsetHeight || 0;
+        if (r.bottom > window.innerHeight - navH) {
+          window.scrollBy({ top: Math.min(r.top - 80, r.bottom - (window.innerHeight - navH) + 16), behavior: 'smooth' });
+        }
+      }
+    } else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  // ================= Grading =================
+  // Two lenses for the results page:
+  //   topic — WHAT you were tested on (e.g. "Paget's disease of bone"). Falls back to `section`.
+  //   skill — WHAT KIND of thinking (Identification, Disease process, Diagnostics & imaging,
+  //           Management, Complications…). Optional; the skill card is hidden when no question has one.
+  const topicOf = q => q.topic || q.section || 'All questions';
+  const skillOf = q => q.skill || null;
+
+  function tally(list, keyFn) {
+    const m = {};
+    list.forEach(q => {
+      const k = keyFn(q); if (!k) return;
+      if (!m[k]) m[k] = { name: k, correct: 0, total: 0, mastered: 0, review: 0, missed: 0 };
+      const e = m[k];
+      e.total++;
+      if (answers[q.id] === q.answer) { e.correct++; return; }
+      if (answers[q.id] === undefined) return;
+      const st = tutor[q.id] ? tutor[q.id].status : null;
+      if (st === 'mastered') e.mastered++; else if (st === 'review') e.review++; else e.missed++;
+    });
+    return Object.keys(m).map(k => { const e = m[k]; e.pct = e.total ? e.correct / e.total : 0; return e; })
+      .sort((a, b) => a.pct - b.pct || b.total - a.total);        // weakest first
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    graded.forEach(q => { if (answers[q.id] === q.answer) correct++; });
+    const ts = { started: 0, mastered: 0, review: 0, active: 0, tq: 0, tqRight: 0 };
+    Object.keys(tutor).forEach(id => {
+      const t = tutor[id];
+      ts.started++; ts[t.status]++;
+      t.trail.forEach(n => { if (n.kind !== 'note' && n.chosen !== null) { ts.tq++; if (n.chosen === n.item.answer) ts.tqRight++; } });
+    });
+    return { correct, graded: graded.length, total: questions.length, partial,
+             topics: tally(graded, topicOf), skills: tally(graded, skillOf), ts };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  // Lowest-scoring entries (ties included) — only meaningful when there's something to compare
+  function weakest(entries) {
+    if (entries.length < 2) return [];
+    const lo = entries[0].pct, hi = entries[entries.length - 1].pct;
+    if (lo === hi) return [];                                       // all equal: nothing stands out
+    return entries.filter(e => e.pct === lo);
+  }
+
+  function barsHtml(entries) {
+    const weakSet = weakest(entries).map(e => e.name);
+    return entries.map(e => {
+      const p = Math.round(e.pct * 100);
+      const cls = p >= 80 ? 'hi' : (weakSet.indexOf(e.name) !== -1 ? 'lo' : '');
+      const meta = [];
+      if (e.review) meta.push(e.review + ' flagged');
+      if (e.missed) meta.push(e.missed + ' missed');
+      if (e.mastered) meta.push(e.mastered + ' relearned in guided review');
+      return '<div class="bar-row"><div class="bar-head"><span class="nm">' + esc(e.name) +
+        (weakSet.indexOf(e.name) !== -1 ? '<span class="sec-tag weak">WEAKEST</span>' : '') +
+        '</span><span class="pc"><b>' + p + '%</b> · ' + e.correct + '/' + e.total + '</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + cls + '" style="width:' + Math.max(p, 2) + '%"></div></div>' +
+        (meta.length ? '<div class="bar-meta">' + meta.join(' · ') + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+    const hasSkills = r.skills.length > 0;
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + ' · first attempts</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.ts.started) html += '<div class="score-note">' + r.ts.mastered + ' of ' + r.ts.started +
+      ' missed concept' + (r.ts.started === 1 ? '' : 's') + ' relearned in guided review</div>';
+    else if (r.partial) html += '<div class="score-note">Unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    // ---- What to work on ----
+    const wTopic = weakest(r.topics), wSkill = weakest(r.skills);
+    const missed = missedQuestions();
+    html += '<div class="card"><h2>What to work on</h2><div class="sub">Ranked from the questions you missed on the first try</div>';
+    if (!missed.length) {
+      html += '<div class="focus-box ok"><div class="v">Nothing missed — every question right on the first try.</div></div>';
+    } else {
+      html += '<div class="focus-grid">';
+      if (wTopic.length) html += '<div class="focus-box"><div class="k">Weakest topic</div><div class="v">' +
+        wTopic.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wTopic.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      if (wSkill.length) html += '<div class="focus-box"><div class="k">Weakest skill</div><div class="v">' +
+        wSkill.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wSkill.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      html += '</div>';
+      // One line per missed concept: flagged first, then plain misses, then ones already relearned
+      const rank = { review: 0, active: 0, missed: 1, mastered: 2 };
+      const items = missed.map(q => {
+        const st = tutor[q.id] ? tutor[q.id].status : 'missed';
+        return { q, st: st === 'active' ? 'review' : st };
+      }).sort((a, b) => rank[a.st] - rank[b.st]);
+      const label = { review: 'Still shaky', missed: 'Missed', mastered: 'Relearned' };
+      html += '<ul class="todo">' + items.map(it => {
+        const sk = skillOf(it.q);
+        return '<li><span class="dot ' + it.st + '"></span><span class="what"><b>' + esc(topicOf(it.q)) + '</b>' +
+          (sk ? ' — ' + esc(sk) : '') + ' <span style="color:var(--ink-soft)">(Q' + esc(it.q.id) + ')</span></span>' +
+          '<span class="tag ' + it.st + '">' + label[it.st] + '</span></li>';
+      }).join('') + '</ul>';
+    }
+    html += '</div>';
+
+    // ---- By topic / by skill ----
+    html += '<div class="card"><h2>By topic</h2><div class="sub">First-attempt score for each disease or concept</div>' + barsHtml(r.topics) + '</div>';
+    if (hasSkills) html += '<div class="card"><h2>By skill</h2><div class="sub">Which kind of question trips you up, across all topics</div>' + barsHtml(r.skills) + '</div>';
+
+    if (r.ts.started) {
+      html += '<div class="card"><h2>Guided review</h2><div class="sub" style="margin-bottom:12px">How the tutor pathways went</div><div class="tutor-stats">' +
+        '<div class="tstat t"><b>' + r.ts.started + '</b>concepts reviewed</div>' +
+        '<div class="tstat m"><b>' + r.ts.mastered + '</b>passed mastery check</div>' +
+        '<div class="tstat r"><b>' + (r.ts.review + r.ts.active) + '</b>still shaky</div>' +
+        '<div class="tstat"><b>' + r.ts.tqRight + '/' + r.ts.tq + '</b>tutor questions right</div>' +
+        '</div></div>';
+    }
+
+    html += '<div class="results-actions">';
+    if (missed.length) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed.length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + fmt(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  const plain = s => String(s == null ? '' : s).replace(/\*\*(.+?)\*\*/g, '$1');
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id + ' — ' + topicOf(q) + (skillOf(q) ? ' / ' + skillOf(q) : '')];
+      if (group[0].id !== q.id) lines.push('Case: ' + plain(group[0].stem));
+      lines.push(plain(q.stem));
+      q.options.forEach(o => lines.push(o.letter + '. ' + plain(o.text)));
+      lines.push('My answer: ' + answers[q.id]);
+      lines.push('Correct answer: ' + q.answer + '. ' + plain(optText(q, q.answer)));
+      if (q.explanation) lines.push('Rationale: ' + plain(q.explanation));
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      const t = tutor[q.id];
+      if (t) {
+        const st = { mastered: 'MASTERED on re-check', review: 'STILL NEEDS REVIEW (missed mastery check)', active: 'guided review not finished' }[t.status];
+        lines.push('Guided review: ' + st);
+        t.trail.forEach(n => {
+          if (n.kind === 'note' || n.chosen === null) return;
+          const ok = n.chosen === n.item.answer;
+          lines.push('  ' + (ok ? '✓ ' : '✗ ') + plain(n.item.stem) + ' → ' + plain(optText(n.item, n.item.answer)));
+        });
+      }
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => !resolved(q))) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(tutor).forEach(k => delete tutor[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
