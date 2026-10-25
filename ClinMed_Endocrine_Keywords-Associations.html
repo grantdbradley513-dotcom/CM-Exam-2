@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = (function (raw) {
+  // Reshuffle stack order and option order on every open; renumber ids.
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  const groups = {}; const order = [];
+  raw.questions.forEach(q => { if (!groups[q.group]) { groups[q.group] = []; order.push(q.group); } groups[q.group].push(q); });
+  shuffle(order);
+  const out = []; const letters = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+  order.forEach((g, gi) => {
+    groups[g].forEach((q, qi) => {
+      const correct = q.options.find(o => o.letter === q.answer).text;
+      const opts = shuffle(q.options.map(o => o.text)).map((t, i) => ({ letter: letters[i], text: t }));
+      const ans = opts.find(o => o.text === correct).letter;
+      out.push(Object.assign({}, q, { id: String(gi + 1) + (qi === 0 ? '' : letters[qi - 1]), group: gi + 1, options: opts, answer: ans }));
+    });
+  });
+  return { title: raw.title, questions: out };
+})({"title": "Endocrine Exam 5 — Keywords, Associations & Rules", "questions": [{"id": "1", "group": 1, "section": "Thyroid", "objective": "TSH / free T4 pattern → diagnosis", "stem": "Suspected hypo- OR hyperthyroidism → Best initial test:", "options": [{"letter": "A", "text": "Total T3"}, {"letter": "B", "text": "TSH"}, {"letter": "C", "text": "Free T4"}, {"letter": "D", "text": "Thyroid ultrasound"}], "answer": "B", "explanation": "TSH first, free T4 second. A normal TSH does not exclude secondary (central) disease."}, {"id": "1a", "group": 1, "section": "Thyroid", "objective": "TSH / free T4 pattern → diagnosis", "stem": "↑ TSH + ↓ free T4 → Diagnosis:", "options": [{"letter": "A", "text": "Primary hypothyroidism"}, {"letter": "B", "text": "T3 toxicosis"}, {"letter": "C", "text": "Subclinical hypothyroidism"}, {"letter": "D", "text": "Secondary (central) hypothyroidism"}], "answer": "A", "explanation": "Hashimoto until proven otherwise; levothyroxine, recheck TSH in 4–6 wk. No imaging needed for hypothyroidism."}, {"id": "1b", "group": 1, "section": "Thyroid", "objective": "TSH / free T4 pattern → diagnosis", "stem": "↑ TSH + normal free T4 → Diagnosis:", "options": [{"letter": "A", "text": "Subclinical hyperthyroidism"}, {"letter": "B", "text": "Central hypothyroidism"}, {"letter": "C", "text": "Primary hypothyroidism"}, {"letter": "D", "text": "Subclinical hypothyroidism"}], "answer": "D", "explanation": "Repeat in 1–3 mo; treat if TSH >10, TSH 5–10 with antibodies, or pregnancy."}, {"id": "1c", "group": 1, "section": "Thyroid", "objective": "TSH / free T4 pattern → diagnosis", "stem": "Low/normal TSH + ↓ free T4 → Diagnosis:", "options": [{"letter": "A", "text": "Exogenous T4 excess"}, {"letter": "B", "text": "Secondary (central) hypothyroidism"}, {"letter": "C", "text": "Subclinical hypothyroidism"}, {"letter": "D", "text": "Primary hypothyroidism"}], "answer": "B", "explanation": "Red flag → pituitary MRI; check adrenal/gonadal/PRL/GH; hydrocortisone BEFORE levothyroxine; titrate by free T4, not TSH."}, {"id": "1d", "group": 1, "section": "Thyroid", "objective": "TSH / free T4 pattern → diagnosis", "stem": "↑ TSH + ↑ free T4 → Diagnosis:", "options": [{"letter": "A", "text": "Thyroid storm"}, {"letter": "B", "text": "Hashimoto thyroiditis"}, {"letter": "C", "text": "Primary hyperthyroidism"}, {"letter": "D", "text": "TSH-secreting pituitary adenoma"}], "answer": "D", "explanation": "The only hyperthyroid state with a HIGH TSH → pituitary MRI → surgery, octreotide."}, {"id": "2", "group": 2, "section": "Thyroid", "objective": "Hyperthyroidism — naming the cause", "stem": "Young woman, diffuse goiter with bruit, exophthalmos, pretibial myxedema → Diagnosis:", "options": [{"letter": "A", "text": "Toxic multinodular goiter"}, {"letter": "B", "text": "Graves disease"}, {"letter": "C", "text": "Toxic adenoma"}, {"letter": "D", "text": "Subacute (de Quervain) thyroiditis"}], "answer": "B", "explanation": "Only Graves has ophthalmopathy and dermopathy. TSI/TRAb +, diffuse ↑ RAIU, US 'thyroid inferno'."}, {"id": "2a", "group": 2, "section": "Thyroid", "objective": "Hyperthyroidism — naming the cause", "stem": "Painful tender goiter after a URI, pain radiating to the jaw/ears, ↑ ESR → Diagnosis:", "options": [{"letter": "A", "text": "Graves disease"}, {"letter": "B", "text": "Subacute (de Quervain) thyroiditis"}, {"letter": "C", "text": "Riedel thyroiditis"}, {"letter": "D", "text": "Hashimoto thyroiditis"}], "answer": "B", "explanation": "Triphasic course, very low RAIU. NSAIDs ± steroids + beta-blocker — NO thionamides (nothing to block)."}, {"id": "2b", "group": 2, "section": "Thyroid", "objective": "Hyperthyroidism — naming the cause", "stem": "Patient >60, insidious mild hyperthyroidism, nodular gland, PATCHY uptake → Diagnosis:", "options": [{"letter": "A", "text": "Graves disease"}, {"letter": "B", "text": "Toxic multinodular goiter"}, {"letter": "C", "text": "Toxic adenoma"}, {"letter": "D", "text": "Painless thyroiditis"}], "answer": "B", "explanation": "Never remits → I-131, surgery, or long-term methimazole. Jod-Basedow after an iodine load."}, {"id": "2c", "group": 2, "section": "Thyroid", "objective": "Hyperthyroidism — naming the cause", "stem": "Single palpable nodule >2.5 cm, scan shows ONE hot nodule with the rest suppressed → Diagnosis:", "options": [{"letter": "A", "text": "Toxic multinodular goiter"}, {"letter": "B", "text": "Graves disease"}, {"letter": "C", "text": "Hashimoto thyroiditis"}, {"letter": "D", "text": "Toxic adenoma"}], "answer": "D", "explanation": "Never remits → I-131 or surgery."}, {"id": "2d", "group": 2, "section": "Thyroid", "objective": "Hyperthyroidism — naming the cause", "stem": "Hyperthyroid 6 months after delivery, painless gland, anti-TPO positive → Diagnosis:", "options": [{"letter": "A", "text": "Postpartum (painless) thyroiditis"}, {"letter": "B", "text": "Toxic adenoma"}, {"letter": "C", "text": "Graves disease"}, {"letter": "D", "text": "Subacute (de Quervain) thyroiditis"}], "answer": "A", "explanation": "Hyper → hypo → euthyroid; low RAIU; beta-blocker prn, temporary levothyroxine in the hypo phase; ~20% permanent."}, {"id": "2e", "group": 2, "section": "Thyroid", "objective": "Hyperthyroidism — naming the cause", "stem": "Hyperthyroidism in a patient on amiodarone, no antibodies → Likely cause:", "options": [{"letter": "A", "text": "Toxic multinodular goiter"}, {"letter": "B", "text": "Drug-induced thyroid dysfunction"}, {"letter": "C", "text": "Subacute thyroiditis"}, {"letter": "D", "text": "Graves disease"}], "answer": "B", "explanation": "Amiodarone (MC), lithium, interferons, TKIs. TSH before starting and q6 mo on these drugs."}, {"id": "3", "group": 3, "section": "Thyroid", "objective": "Thyroid treatment rules", "stem": "Graves disease, non-pregnant adult → Thionamide of choice:", "options": [{"letter": "A", "text": "Liothyronine"}, {"letter": "B", "text": "Propylthiouracil"}, {"letter": "C", "text": "Levothyroxine"}, {"letter": "D", "text": "Methimazole"}], "answer": "D", "explanation": "Once daily, fewer adverse effects. PTU carries worse hepatotoxicity."}, {"id": "3a", "group": 3, "section": "Thyroid", "objective": "Thyroid treatment rules", "stem": "Most common definitive therapy for hyperthyroidism in the US →", "options": [{"letter": "A", "text": "Radioactive iodine (I-131)"}, {"letter": "B", "text": "Long-term methimazole"}, {"letter": "C", "text": "Beta-blocker alone"}, {"letter": "D", "text": "Thyroidectomy"}], "answer": "A", "explanation": "Hypothyroid in 6–18 wk → lifelong T4. Contraindicated in pregnancy/lactation; relatively contraindicated with moderate–severe ophthalmopathy."}, {"id": "3b", "group": 3, "section": "Thyroid", "objective": "Thyroid treatment rules", "stem": "On methimazole, develops fever and sore throat → Next step:", "options": [{"letter": "A", "text": "Stop the drug and check a CBC"}, {"letter": "B", "text": "Reduce the dose"}, {"letter": "C", "text": "Switch to I-131"}, {"letter": "D", "text": "Add propranolol"}], "answer": "A", "explanation": "Agranulocytosis (~0.3%). Serial CBCs are useless — teach the warning symptoms."}, {"id": "3c", "group": 3, "section": "Thyroid", "objective": "Thyroid treatment rules", "stem": "Levothyroxine over-replacement → Two long-term risks:", "options": [{"letter": "A", "text": "Bradycardia and hyperlipidemia"}, {"letter": "B", "text": "Nephrolithiasis and gout"}, {"letter": "C", "text": "Atrial fibrillation and osteoporosis"}, {"letter": "D", "text": "Hypoglycemia and weight gain"}], "answer": "C", "explanation": "Goal TSH 0.5–2. Ask about adherence before raising the dose."}, {"id": "3d", "group": 3, "section": "Thyroid", "objective": "Thyroid treatment rules", "stem": "Stony hard, fixed, PAINLESS goiter with compressive symptoms → Diagnosis:", "options": [{"letter": "A", "text": "Hashimoto thyroiditis"}, {"letter": "B", "text": "Riedel thyroiditis"}, {"letter": "C", "text": "Graves disease"}, {"letter": "D", "text": "Subacute thyroiditis"}], "answer": "B", "explanation": "Open biopsy to separate from anaplastic cancer; steroids/rituximab."}, {"id": "4", "group": 4, "section": "Thyroid", "objective": "Hypo ⟷ hyper systems grid & screening", "stem": "Delayed 'hung-up' reflexes, loss of the lateral eyebrows, constipation → Diagnosis:", "options": [{"letter": "A", "text": "Cushing's syndrome"}, {"letter": "B", "text": "Hypothyroidism"}, {"letter": "C", "text": "Hyperthyroidism"}, {"letter": "D", "text": "Hypoparathyroidism"}], "answer": "B", "explanation": "Low BMR, cold intolerance, dry skin, ↑ LDL, bradycardia."}, {"id": "4a", "group": 4, "section": "Thyroid", "objective": "Hypo ⟷ hyper systems grid & screening", "stem": "Brisk reflexes, postural tremor, hyperdefecation, heat intolerance → Diagnosis:", "options": [{"letter": "A", "text": "Pheochromocytoma"}, {"letter": "B", "text": "Hypoglycemia"}, {"letter": "C", "text": "Hypothyroidism"}, {"letter": "D", "text": "Hyperthyroidism"}], "answer": "D", "explanation": "↑ BMR, weight loss, tachycardia/AFib, warm moist skin, ↓ LDL, osteopenia."}, {"id": "4b", "group": 4, "section": "Thyroid", "objective": "Hypo ⟷ hyper systems grid & screening", "stem": "UNILATERAL proptosis → Interpretation:", "options": [{"letter": "A", "text": "Orbital tumor until proven otherwise"}, {"letter": "B", "text": "Graves ophthalmopathy"}, {"letter": "C", "text": "Hypothyroidism"}, {"letter": "D", "text": "Normal variant"}], "answer": "A", "explanation": "Graves eye disease is bilateral."}, {"id": "4c", "group": 4, "section": "Thyroid", "objective": "Hypo ⟷ hyper systems grid & screening", "stem": "Most common endocrine abnormality on the newborn screen →", "options": [{"letter": "A", "text": "Congenital hypothyroidism"}, {"letter": "B", "text": "Type 1 diabetes"}, {"letter": "C", "text": "Congenital adrenal hyperplasia"}, {"letter": "D", "text": "Hypoparathyroidism"}], "answer": "A", "explanation": "1:2,000–4,000; thyroid dysgenesis 80–85%; treat within weeks or intellectual disability is permanent."}, {"id": "4d", "group": 4, "section": "Thyroid", "objective": "Hypo ⟷ hyper systems grid & screening", "stem": "New atrial fibrillation, new hyperlipidemia, carpal tunnel, or new 'depression' → Lab to consider:", "options": [{"letter": "A", "text": "A1C"}, {"letter": "B", "text": "AM cortisol"}, {"letter": "C", "text": "TSH"}, {"letter": "D", "text": "PTH"}], "answer": "C", "explanation": "The 'hidden hypothyroidism' list; PIRATES — T = thyroid."}, {"id": "5", "group": 5, "section": "Diabetes", "objective": "Diagnosis by number", "stem": "A1C 6.3%, fasting glucose 112 → Classification:", "options": [{"letter": "A", "text": "Type 2 diabetes"}, {"letter": "B", "text": "Normal"}, {"letter": "C", "text": "Type 1 diabetes"}, {"letter": "D", "text": "Prediabetes"}], "answer": "D", "explanation": "A1C 5.7–6.4 · IFG 100–125 · IGT 140–199. Retest yearly; 5–7% weight loss."}, {"id": "5a", "group": 5, "section": "Diabetes", "objective": "Diagnosis by number", "stem": "Asymptomatic patient with ONE A1C of 6.8% → Next step:", "options": [{"letter": "A", "text": "Diagnose diabetes now"}, {"letter": "B", "text": "Confirm with a repeat test"}, {"letter": "C", "text": "Start insulin"}, {"letter": "D", "text": "Order C-peptide"}], "answer": "B", "explanation": "Repeat the same test another day, OR two different tests from one sample."}, {"id": "5b", "group": 5, "section": "Diabetes", "objective": "Diagnosis by number", "stem": "Random glucose 260 with polyuria and polydipsia → Next step:", "options": [{"letter": "A", "text": "Diagnose diabetes — no confirmation needed"}, {"letter": "B", "text": "Repeat the test another day"}, {"letter": "C", "text": "Fasting glucose tomorrow"}, {"letter": "D", "text": "Order a 2-h OGTT"}], "answer": "A", "explanation": "Classic symptoms or crisis need no confirmation."}, {"id": "5c", "group": 5, "section": "Diabetes", "objective": "Diagnosis by number", "stem": "Age to begin screening ALL adults for diabetes →", "options": [{"letter": "A", "text": "18"}, {"letter": "B", "text": "45"}, {"letter": "C", "text": "35"}, {"letter": "D", "text": "50"}], "answer": "C", "explanation": "<35 if BMI ≥25 + ≥1 risk factor. Normal → repeat q3 yr."}, {"id": "5d", "group": 5, "section": "Diabetes", "objective": "Diagnosis by number", "stem": "A1C goal for most non-pregnant adults →", "options": [{"letter": "A", "text": "<7%"}, {"letter": "B", "text": "<6%"}, {"letter": "C", "text": "<9%"}, {"letter": "D", "text": "<8%"}], "answer": "A", "explanation": "<6.5% if safe; <7.5–8% older/frail. Pre-meal 80–130, post-meal <180."}, {"id": "6", "group": 6, "section": "Diabetes", "objective": "Type 1 vs type 2 · fasting hyperglycemia · hypoglycemia", "stem": "Child with polyuria/polydipsia/polyphagia WITH weight loss over weeks → Diagnosis:", "options": [{"letter": "A", "text": "Type 2 diabetes"}, {"letter": "B", "text": "Diabetes insipidus"}, {"letter": "C", "text": "Prediabetes"}, {"letter": "D", "text": "Type 1 diabetes"}], "answer": "D", "explanation": "Autoantibodies + (GAD65, IA-2, ZnT8, IAA), low C-peptide; insulin always."}, {"id": "6a", "group": 6, "section": "Diabetes", "objective": "Type 1 vs type 2 · fasting hyperglycemia · hypoglycemia", "stem": "Test pair that separates type 1 from type 2 →", "options": [{"letter": "A", "text": "Islet autoantibodies + C-peptide"}, {"letter": "B", "text": "Presence of DKA + age"}, {"letter": "C", "text": "BMI + family history"}, {"letter": "D", "text": "A1C + fasting glucose"}], "answer": "A", "explanation": "Not habitus or DKA alone."}, {"id": "6b", "group": 6, "section": "Diabetes", "objective": "Type 1 vs type 2 · fasting hyperglycemia · hypoglycemia", "stem": "Lean adult labeled 'type 2' failing oral agents within 1–2 years → Diagnosis to consider:", "options": [{"letter": "A", "text": "LADA"}, {"letter": "B", "text": "Ketosis-prone type 2"}, {"letter": "C", "text": "Dawn phenomenon"}, {"letter": "D", "text": "Prediabetes"}], "answer": "A", "explanation": "Check GAD antibodies — it is type 1."}, {"id": "6c", "group": 6, "section": "Diabetes", "objective": "Type 1 vs type 2 · fasting hyperglycemia · hypoglycemia", "stem": "Fasting hyperglycemia; overnight CGM shows glucose normal/HIGH → Diagnosis:", "options": [{"letter": "A", "text": "Dawn phenomenon"}, {"letter": "B", "text": "Somogyi effect"}, {"letter": "C", "text": "LADA"}, {"letter": "D", "text": "Nocturnal hypoglycemia"}], "answer": "A", "explanation": "Physiologic GH counter-regulatory surge; adjust timing/dose of long-acting insulin."}, {"id": "6d", "group": 6, "section": "Diabetes", "objective": "Type 1 vs type 2 · fasting hyperglycemia · hypoglycemia", "stem": "Fasting hyperglycemia; overnight glucose LOW → Diagnosis:", "options": [{"letter": "A", "text": "Dumping syndrome"}, {"letter": "B", "text": "HHS"}, {"letter": "C", "text": "Somogyi effect"}, {"letter": "D", "text": "Dawn phenomenon"}], "answer": "C", "explanation": "Rebound after nocturnal hypoglycemia; overdiagnosed — do NOT reflexively cut basal; confirm the low first."}, {"id": "6e", "group": 6, "section": "Diabetes", "objective": "Type 1 vs type 2 · fasting hyperglycemia · hypoglycemia", "stem": "Confused, unable to self-treat hypoglycemia → First treatment:", "options": [{"letter": "A", "text": "Wait and recheck in 15 min"}, {"letter": "B", "text": "Glucagon (IM/intranasal) + EMS"}, {"letter": "C", "text": "Oral glucose 15 g"}, {"letter": "D", "text": "IV insulin"}], "answer": "B", "explanation": "Level 3 regardless of the number. Never give insulin."}, {"id": "6f", "group": 6, "section": "Diabetes", "objective": "Type 1 vs type 2 · fasting hyperglycemia · hypoglycemia", "stem": "Insulin or sulfonylurea user drinks alcohol in the evening → Risk:", "options": [{"letter": "A", "text": "Immediate hyperglycemia"}, {"letter": "B", "text": "Delayed hypoglycemia 6–12 h later"}, {"letter": "C", "text": "DKA"}, {"letter": "D", "text": "Lactic acidosis"}], "answer": "B", "explanation": "Alcohol suppresses gluconeogenesis — often overnight."}, {"id": "7", "group": 7, "section": "Diabetes", "objective": "Drug choice by comorbidity", "stem": "Type 2 diabetes with heart failure or CKD → Class to add regardless of A1C:", "options": [{"letter": "A", "text": "DPP-4 inhibitor"}, {"letter": "B", "text": "SGLT2 inhibitor"}, {"letter": "C", "text": "Pioglitazone"}, {"letter": "D", "text": "Sulfonylurea"}], "answer": "B", "explanation": "Continue to eGFR 20 (don't start below). Hold for fasting/surgery/illness."}, {"id": "7a", "group": 7, "section": "Diabetes", "objective": "Drug choice by comorbidity", "stem": "Type 2 diabetes with established ASCVD or obesity → Preferred class:", "options": [{"letter": "A", "text": "Sulfonylurea"}, {"letter": "B", "text": "Pioglitazone"}, {"letter": "C", "text": "GLP-1 receptor agonist"}, {"letter": "D", "text": "Basal insulin"}], "answer": "C", "explanation": "Also MASH and CKD benefit; tirzepatide = largest A1C and weight effect."}, {"id": "7b", "group": 7, "section": "Diabetes", "objective": "Drug choice by comorbidity", "stem": "Type 2 diabetes with NO organ-protective indication → First agent:", "options": [{"letter": "A", "text": "SGLT2 inhibitor"}, {"letter": "B", "text": "Metformin"}, {"letter": "C", "text": "Sulfonylurea"}, {"letter": "D", "text": "Basal insulin"}], "answer": "B", "explanation": "Cheap; GI upset, B12↓."}, {"id": "7c", "group": 7, "section": "Diabetes", "objective": "Drug choice by comorbidity", "stem": "Personal/family history of medullary thyroid cancer or MEN2 → Class to avoid:", "options": [{"letter": "A", "text": "SGLT2 inhibitors"}, {"letter": "B", "text": "Metformin"}, {"letter": "C", "text": "Sulfonylureas"}, {"letter": "D", "text": "GLP-1 receptor agonists"}], "answer": "D", "explanation": ""}, {"id": "7d", "group": 7, "section": "Diabetes", "objective": "Drug choice by comorbidity", "stem": "Diabetic on an SGLT2 inhibitor, anion-gap acidosis, glucose only 180 → Diagnosis:", "options": [{"letter": "A", "text": "Euglycemic DKA"}, {"letter": "B", "text": "HHS"}, {"letter": "C", "text": "Lactic acidosis"}, {"letter": "D", "text": "Starvation ketosis"}], "answer": "A", "explanation": "~10% of DKA: SGLT2i, pregnancy, fasting, alcohol, post-op → check ketones regardless of glucose."}, {"id": "7e", "group": 7, "section": "Diabetes", "objective": "Drug choice by comorbidity", "stem": "Class that causes hypoglycemia, weight gain, and 'burns out' →", "options": [{"letter": "A", "text": "Sulfonylureas"}, {"letter": "B", "text": "SGLT2 inhibitors"}, {"letter": "C", "text": "GLP-1 receptor agonists"}, {"letter": "D", "text": "Metformin"}], "answer": "A", "explanation": "Switch to an SGLT2i if HF develops."}, {"id": "7f", "group": 7, "section": "Diabetes", "objective": "Drug choice by comorbidity", "stem": "Persistent albuminuria despite max ACEi/ARB + SGLT2i → Next pillar:", "options": [{"letter": "A", "text": "Sulfonylurea"}, {"letter": "B", "text": "Pioglitazone"}, {"letter": "C", "text": "Finerenone"}, {"letter": "D", "text": "Loop diuretic"}], "answer": "C", "explanation": "Needs eGFR ≥25 and normal K⁺. Pillars: ACEi/ARB → SGLT2i → finerenone → global risk."}, {"id": "8", "group": 8, "section": "Diabetes", "objective": "Chronic complications", "stem": "Diabetic kidney disease is defined by →", "options": [{"letter": "A", "text": "Dipstick proteinuria once"}, {"letter": "B", "text": "Serum creatinine >1.5"}, {"letter": "C", "text": "UACR ≥30 mg/g or eGFR <60 for ≥3 months"}, {"letter": "D", "text": "Any hematuria"}], "answer": "C", "explanation": "Order the ACR, not a dipstick. Nephrology for eGFR <30, rapid decline, active sediment, nephrotic syndrome."}, {"id": "8a", "group": 8, "section": "Diabetes", "objective": "Chronic complications", "stem": "Albuminuria in a diabetic → First drug:", "options": [{"letter": "A", "text": "Calcium channel blocker"}, {"letter": "B", "text": "Beta-blocker"}, {"letter": "C", "text": "ACE inhibitor or ARB"}, {"letter": "D", "text": "Thiazide"}], "answer": "C", "explanation": ""}, {"id": "8b", "group": 8, "section": "Diabetes", "objective": "Chronic complications", "stem": "Warm, swollen, red, INSENSATE foot in a diabetic → Diagnosis until proven otherwise:", "options": [{"letter": "A", "text": "Charcot foot"}, {"letter": "B", "text": "DVT"}, {"letter": "C", "text": "Gout"}, {"letter": "D", "text": "Cellulitis"}], "answer": "A", "explanation": "Off-load first; x-ray then MRI."}, {"id": "8c", "group": 8, "section": "Diabetes", "objective": "Chronic complications", "stem": "Painful diabetic peripheral neuropathy → Drugs:", "options": [{"letter": "A", "text": "NSAIDs"}, {"letter": "B", "text": "Opioids"}, {"letter": "C", "text": "Gabapentinoids, duloxetine, amitriptyline"}, {"letter": "D", "text": "Tramadol or tapentadol"}], "answer": "C", "explanation": "Neuropathy is a diagnosis of exclusion; 10-g monofilament; never opioids/tramadol/tapentadol."}, {"id": "8d", "group": 8, "section": "Diabetes", "objective": "Chronic complications", "stem": "EARLIEST finding in diabetic retinopathy →", "options": [{"letter": "A", "text": "Retinal detachment"}, {"letter": "B", "text": "Microaneurysms"}, {"letter": "C", "text": "Macular edema"}, {"letter": "D", "text": "Neovascularization"}], "answer": "B", "explanation": "Macular edema = main cause of vision loss; neovascularization = proliferative → panretinal photocoagulation / anti-VEGF."}, {"id": "8e", "group": 8, "section": "Diabetes", "objective": "Chronic complications", "stem": "Type 2 diabetes — start eye, kidney, and nerve screening →", "options": [{"letter": "A", "text": "At diagnosis"}, {"letter": "B", "text": "Only if symptomatic"}, {"letter": "C", "text": "5 years after diagnosis"}, {"letter": "D", "text": "At age 40"}], "answer": "A", "explanation": "Type 1: at 5 years. Annual UACR + eGFR, dilated eye exam, foot exam, lipids."}, {"id": "9", "group": 9, "section": "Diabetes", "objective": "DKA vs HHS", "stem": "Glucose 350, BHB 4.2, pH 7.18, Kussmaul respirations → Diagnosis:", "options": [{"letter": "A", "text": "DKA"}, {"letter": "B", "text": "HHS"}, {"letter": "C", "text": "Euglycemic DKA"}, {"letter": "D", "text": "Lactic acidosis"}], "answer": "A", "explanation": "All 3: glucose ≥200 (or known DM) + BHB ≥3.0 + pH <7.3 / HCO₃ <18. NO insulin → unrestrained lipolysis."}, {"id": "9a", "group": 9, "section": "Diabetes", "objective": "DKA vs HHS", "stem": "Glucose 820, effective osm 330, BHB 1.0, pH 7.36, obtunded elderly type 2 → Diagnosis:", "options": [{"letter": "A", "text": "Mixed DKA-HHS"}, {"letter": "B", "text": "HHS"}, {"letter": "C", "text": "DKA"}, {"letter": "D", "text": "Severe hypoglycemia"}], "answer": "B", "explanation": "SOME insulin stops ketogenesis, not hyperglycemia; ~9 L deficit over days–weeks."}, {"id": "9b", "group": 9, "section": "Diabetes", "objective": "DKA vs HHS", "stem": "DKA severity is graded by →", "options": [{"letter": "A", "text": "Anion gap size"}, {"letter": "B", "text": "Glucose level"}, {"letter": "C", "text": "pH and mental status"}, {"letter": "D", "text": "Ketone level"}], "answer": "C", "explanation": "Mild 7.25–7.30 · moderate 7.00–7.24 · severe <7.00 (ICU) — not glucose."}, {"id": "9c", "group": 9, "section": "Diabetes", "objective": "DKA vs HHS", "stem": "First step in treating DKA or HHS →", "options": [{"letter": "A", "text": "IV 0.9% saline"}, {"letter": "B", "text": "IV regular insulin"}, {"letter": "C", "text": "Potassium replacement"}, {"letter": "D", "text": "Bicarbonate"}], "answer": "A", "explanation": ""}, {"id": "9d", "group": 9, "section": "Diabetes", "objective": "DKA vs HHS", "stem": "DKA with potassium 3.2 → Rule:", "options": [{"letter": "A", "text": "Start insulin immediately"}, {"letter": "B", "text": "Give bicarbonate"}, {"letter": "C", "text": "Give dextrose"}, {"letter": "D", "text": "Replace potassium; hold insulin until K ≥3.5"}], "answer": "D", "explanation": "K⁺ before insulin — insulin drives K⁺ into cells."}, {"id": "9e", "group": 9, "section": "Diabetes", "objective": "DKA vs HHS", "stem": "During DKA treatment glucose falls below 250 → Action:", "options": [{"letter": "A", "text": "Give bicarbonate"}, {"letter": "B", "text": "Add dextrose to fluids and continue insulin"}, {"letter": "C", "text": "Stop the fluids"}, {"letter": "D", "text": "Stop the insulin"}], "answer": "B", "explanation": "Endpoint = anion-gap closure, not glucose."}, {"id": "10", "group": 10, "section": "Calcium & Parathyroid", "objective": "Hypercalcemia workup engine", "stem": "Calcium 10.9 with albumin 2.0 → First step:", "options": [{"letter": "A", "text": "Order PTH"}, {"letter": "B", "text": "Correct calcium for albumin (or ionized Ca)"}, {"letter": "C", "text": "Start IV fluids"}, {"letter": "D", "text": "Order a sestamibi scan"}], "answer": "B", "explanation": "Corrected Ca = measured + 0.8 × (4 − albumin). Alkalosis lowers ionized Ca."}, {"id": "10a", "group": 10, "section": "Calcium & Parathyroid", "objective": "Hypercalcemia workup engine", "stem": "Confirmed hypercalcemia → Next test:", "options": [{"letter": "A", "text": "PTHrP"}, {"letter": "B", "text": "24-h urine calcium"}, {"letter": "C", "text": "Sestamibi scan"}, {"letter": "D", "text": "Intact PTH"}], "answer": "D", "explanation": "PTH picks the branch; interpret it only against the calcium."}, {"id": "10b", "group": 10, "section": "Calcium & Parathyroid", "objective": "Hypercalcemia workup engine", "stem": "High calcium with a 'normal' PTH → Interpretation:", "options": [{"letter": "A", "text": "Malignancy"}, {"letter": "B", "text": "Rules out parathyroid disease"}, {"letter": "C", "text": "Vitamin D deficiency"}, {"letter": "D", "text": "Inappropriately normal — primary hyperparathyroidism"}], "answer": "D", "explanation": ""}, {"id": "10c", "group": 10, "section": "Calcium & Parathyroid", "objective": "Hypercalcemia workup engine", "stem": "High calcium with SUPPRESSED PTH → Next tests:", "options": [{"letter": "A", "text": "24-h urine Ca/Cr"}, {"letter": "B", "text": "Sestamibi scan"}, {"letter": "C", "text": "PTHrP, 25-OH and 1,25-OH vitamin D, SPEP"}, {"letter": "D", "text": "Parathyroid ultrasound"}], "answer": "C", "explanation": "Malignancy (MC inpatient), vitamin D excess, granuloma/lymphoma, thyrotoxicosis, immobilization, milk-alkali."}, {"id": "10d", "group": 10, "section": "Calcium & Parathyroid", "objective": "Hypercalcemia workup engine", "stem": "High calcium + non-suppressed PTH → Test that separates PHPT from FHH:", "options": [{"letter": "A", "text": "Sestamibi scan"}, {"letter": "B", "text": "PTHrP"}, {"letter": "C", "text": "DXA"}, {"letter": "D", "text": "24-h urine calcium/creatinine ratio"}], "answer": "D", "explanation": ">0.02 PHPT · <0.01 FHH. Exclude FHH before parathyroidectomy."}, {"id": "11", "group": 11, "section": "Calcium & Parathyroid", "objective": "Ca · PO₄ · PTH lab-pattern grid", "stem": "↑ Ca, ↓ PO₄, ↑ PTH → Diagnosis:", "options": [{"letter": "A", "text": "Secondary hyperparathyroidism"}, {"letter": "B", "text": "Malignancy (PTHrP)"}, {"letter": "C", "text": "Primary hyperparathyroidism"}, {"letter": "D", "text": "Hypoparathyroidism"}], "answer": "C", "explanation": "Stones, bones, groans, thrones, psychiatric overtones; adenoma 85%; short QT."}, {"id": "11a", "group": 11, "section": "Calcium & Parathyroid", "objective": "Ca · PO₄ · PTH lab-pattern grid", "stem": "↓/normal Ca, ↑ PO₄, ↑ PTH in CKD → Diagnosis:", "options": [{"letter": "A", "text": "Pseudohypoparathyroidism"}, {"letter": "B", "text": "Secondary hyperparathyroidism"}, {"letter": "C", "text": "Primary hyperparathyroidism"}, {"letter": "D", "text": "Tertiary hyperparathyroidism"}], "answer": "B", "explanation": "Reactive — treat the cause: phosphate restriction/binders, calcitriol, cinacalcet on dialysis."}, {"id": "11b", "group": 11, "section": "Calcium & Parathyroid", "objective": "Ca · PO₄ · PTH lab-pattern grid", "stem": "↑ Ca, ↑ PO₄, VERY high PTH after years of dialysis → Diagnosis:", "options": [{"letter": "A", "text": "FHH"}, {"letter": "B", "text": "Secondary hyperparathyroidism"}, {"letter": "C", "text": "Tertiary hyperparathyroidism"}, {"letter": "D", "text": "Primary hyperparathyroidism"}], "answer": "C", "explanation": "Autonomous after longstanding secondary → parathyroidectomy."}, {"id": "11c", "group": 11, "section": "Calcium & Parathyroid", "objective": "Ca · PO₄ · PTH lab-pattern grid", "stem": "Acute severe hypercalcemia, PTH suppressed, squamous cell lung cancer → Mediator:", "options": [{"letter": "A", "text": "Calcidiol"}, {"letter": "B", "text": "Calcitriol"}, {"letter": "C", "text": "PTH"}, {"letter": "D", "text": "PTHrP"}], "answer": "D", "explanation": "Squamous (lung, head/neck), renal, bladder, breast, ovarian."}, {"id": "11d", "group": 11, "section": "Calcium & Parathyroid", "objective": "Ca · PO₄ · PTH lab-pattern grid", "stem": "↓ Ca, ↑ PO₄, LOW PTH on post-op day 2 after total thyroidectomy → Diagnosis:", "options": [{"letter": "A", "text": "Hypomagnesemia"}, {"letter": "B", "text": "Pseudohypoparathyroidism"}, {"letter": "C", "text": "Post-surgical hypoparathyroidism"}, {"letter": "D", "text": "Vitamin D deficiency"}], "answer": "C", "explanation": "MCC of hypoparathyroidism; Chvostek/Trousseau, prolonged QT; confirm ×2 ≥2 wk apart."}, {"id": "11e", "group": 11, "section": "Calcium & Parathyroid", "objective": "Ca · PO₄ · PTH lab-pattern grid", "stem": "↓/normal Ca, ↓/normal PO₄, ↑ PTH → Diagnosis:", "options": [{"letter": "A", "text": "Hypoparathyroidism"}, {"letter": "B", "text": "Pseudohypoparathyroidism"}, {"letter": "C", "text": "Primary hyperparathyroidism"}, {"letter": "D", "text": "Vitamin D deficiency"}], "answer": "D", "explanation": "25(OH)D <20 deficient, 20–29 insufficient. Never order calcitriol to diagnose."}, {"id": "11f", "group": 11, "section": "Calcium & Parathyroid", "objective": "Ca · PO₄ · PTH lab-pattern grid", "stem": "↓ Ca, ↑ PO₄, ↑ PTH, NORMAL creatinine → Diagnosis:", "options": [{"letter": "A", "text": "Pseudohypoparathyroidism"}, {"letter": "B", "text": "Hypoparathyroidism"}, {"letter": "C", "text": "Vitamin D deficiency"}, {"letter": "D", "text": "Secondary HPT from CKD"}], "answer": "A", "explanation": "PTH resistance — the creatinine separates it from CKD."}, {"id": "11g", "group": 11, "section": "Calcium & Parathyroid", "objective": "Ca · PO₄ · PTH lab-pattern grid", "stem": "Mild hypercalcemia, normal PTH, urine Ca/Cr <0.01, family history → Diagnosis:", "options": [{"letter": "A", "text": "Milk-alkali syndrome"}, {"letter": "B", "text": "Familial hypocalciuric hypercalcemia"}, {"letter": "C", "text": "Malignancy"}, {"letter": "D", "text": "Primary hyperparathyroidism"}], "answer": "B", "explanation": "Inherited CaSR — mimics PHPT; no surgery."}, {"id": "12", "group": 12, "section": "Calcium & Parathyroid", "objective": "Calcium buzzwords & emergencies", "stem": "Salt-and-pepper skull, brown tumors, acroosteolysis →", "options": [{"letter": "A", "text": "Paget disease"}, {"letter": "B", "text": "Osteitis fibrosa cystica"}, {"letter": "C", "text": "Renal osteodystrophy"}, {"letter": "D", "text": "Osteoporosis"}], "answer": "B", "explanation": "Advanced PTH excess."}, {"id": "12a", "group": 12, "section": "Calcium & Parathyroid", "objective": "Calcium buzzwords & emergencies", "stem": "Rugger-jersey spine →", "options": [{"letter": "A", "text": "Primary hyperparathyroidism"}, {"letter": "B", "text": "Osteoporosis"}, {"letter": "C", "text": "Renal osteodystrophy (CKD secondary/tertiary HPT)"}, {"letter": "D", "text": "Vitamin D excess"}], "answer": "C", "explanation": ""}, {"id": "12b", "group": 12, "section": "Calcium & Parathyroid", "objective": "Calcium buzzwords & emergencies", "stem": "Inflating a BP cuff produces carpopedal spasm → Sign:", "options": [{"letter": "A", "text": "Chvostek"}, {"letter": "B", "text": "Tinel"}, {"letter": "C", "text": "Trousseau"}, {"letter": "D", "text": "Homans"}], "answer": "C", "explanation": "94% sensitive. Chvostek is absent in ⅓ of hypocalcemics and present in 10% of normals."}, {"id": "12c", "group": 12, "section": "Calcium & Parathyroid", "objective": "Calcium buzzwords & emergencies", "stem": "Calcium 15.2, AMS, AKI → FIRST treatment:", "options": [{"letter": "A", "text": "IV 0.9% saline"}, {"letter": "B", "text": "Loop diuretic"}, {"letter": "C", "text": "Calcitonin"}, {"letter": "D", "text": "Zoledronic acid"}], "answer": "A", "explanation": "Treat urgently if Ca >14 or symptomatic with dehydration/AKI/AMS/arrhythmia."}, {"id": "12d", "group": 12, "section": "Calcium & Parathyroid", "objective": "Calcium buzzwords & emergencies", "stem": "After saline in hypercalcemic crisis → FASTEST-acting adjunct:", "options": [{"letter": "A", "text": "Denosumab"}, {"letter": "B", "text": "Zoledronic acid"}, {"letter": "C", "text": "Salmon calcitonin"}, {"letter": "D", "text": "Furosemide"}], "answer": "C", "explanation": "Onset 2–6 h; tachyphylaxis ~48 h."}, {"id": "12e", "group": 12, "section": "Calcium & Parathyroid", "objective": "Calcium buzzwords & emergencies", "stem": "Tetany, seizures, prolonged QT, Ca 6.9 → Treatment:", "options": [{"letter": "A", "text": "IV calcium gluconate on telemetry"}, {"letter": "B", "text": "Oral calcium carbonate"}, {"letter": "C", "text": "Thiazide"}, {"letter": "D", "text": "Calcitriol alone"}], "answer": "A", "explanation": "Caution with digoxin. Mild/chronic (7.6–8.4) → oral calcium."}, {"id": "12f", "group": 12, "section": "Calcium & Parathyroid", "objective": "Calcium buzzwords & emergencies", "stem": "Chronic hypoparathyroidism → Vitamin D form required:", "options": [{"letter": "A", "text": "Calcitriol"}, {"letter": "B", "text": "Calcidiol"}, {"letter": "C", "text": "Cholecalciferol"}, {"letter": "D", "text": "Ergocalciferol"}], "answer": "A", "explanation": "No PTH → no 1α-hydroxylation. Target low-normal Ca; thiazide for hypercalciuria."}, {"id": "12g", "group": 12, "section": "Calcium & Parathyroid", "objective": "Calcium buzzwords & emergencies", "stem": "Hypoparathyroidism + mucocutaneous candidiasis + Addison's →", "options": [{"letter": "A", "text": "APS-1"}, {"letter": "B", "text": "MEN-1"}, {"letter": "C", "text": "APS-2"}, {"letter": "D", "text": "MEN-2A"}], "answer": "A", "explanation": "AIRE, autosomal recessive."}, {"id": "13", "group": 13, "section": "Calcium & Parathyroid", "objective": "Parathyroid management rules", "stem": "Asymptomatic PHPT, age 45, otherwise unremarkable → Surgery?", "options": [{"letter": "A", "text": "Yes — age <50 is an indication"}, {"letter": "B", "text": "Only if kidney stones"}, {"letter": "C", "text": "No — observe"}, {"letter": "D", "text": "Only if Ca >14"}], "answer": "A", "explanation": "Also: Ca >1 above ULN, T-score ≤ −2.5 or vertebral fracture, stones, eGFR <60, hypercalciuria. ~98% curative."}, {"id": "13a", "group": 13, "section": "Calcium & Parathyroid", "objective": "Parathyroid management rules", "stem": "PHPT not going to surgery, calcium high → Drug:", "options": [{"letter": "A", "text": "Calcitriol"}, {"letter": "B", "text": "Thiazide"}, {"letter": "C", "text": "Cinacalcet"}, {"letter": "D", "text": "Bisphosphonate"}], "answer": "C", "explanation": "Low BMD → bisphosphonate/denosumab (treat the bone, not the PTH)."}, {"id": "13b", "group": 13, "section": "Calcium & Parathyroid", "objective": "Parathyroid management rules", "stem": "PHPT managed without surgery → Avoid:", "options": [{"letter": "A", "text": "Loop diuretics"}, {"letter": "B", "text": "Thiazides, lithium, excess calcium/vitamin D"}, {"letter": "C", "text": "Beta-blockers"}, {"letter": "D", "text": "ACE inhibitors"}], "answer": "B", "explanation": "Hydrate; monitor Ca, eGFR, 25(OH)D, DXA."}, {"id": "13c", "group": 13, "section": "Calcium & Parathyroid", "objective": "Parathyroid management rules", "stem": "Hypercalcemia discovered on hydrochlorothiazide → First step:", "options": [{"letter": "A", "text": "Sestamibi scan"}, {"letter": "B", "text": "Parathyroidectomy"}, {"letter": "C", "text": "Calcitonin"}, {"letter": "D", "text": "Stop the thiazide and remeasure"}], "answer": "D", "explanation": "Thiazides may unmask PHPT."}, {"id": "14", "group": 14, "section": "Osteoporosis", "objective": "Screen, score, decide", "stem": "Age to begin DXA screening in ALL women →", "options": [{"letter": "A", "text": "60"}, {"letter": "B", "text": "50"}, {"letter": "C", "text": "70"}, {"letter": "D", "text": "65"}], "answer": "D", "explanation": "USPSTF B. Men = I statement."}, {"id": "14a", "group": 14, "section": "Osteoporosis", "objective": "Screen, score, decide", "stem": "Postmenopausal woman <65 → Tool that answers 'should she get a DXA?':", "options": [{"letter": "A", "text": "ORAI"}, {"letter": "B", "text": "T-score"}, {"letter": "C", "text": "FRAX"}, {"letter": "D", "text": "TBS"}], "answer": "A", "explanation": "ORAI ≥9 → DXA (age 55–64 +5, 65–74 +9, ≥75 +15; weight <60 kg +9; no estrogen +2)."}, {"id": "14b", "group": 14, "section": "Osteoporosis", "objective": "Screen, score, decide", "stem": "Osteopenia on DXA → Tool that answers 'should she be treated?':", "options": [{"letter": "A", "text": "FRAX"}, {"letter": "B", "text": "VFA"}, {"letter": "C", "text": "Z-score"}, {"letter": "D", "text": "ORAI"}], "answer": "A", "explanation": "Treat if 10-yr hip ≥3% or major osteoporotic fracture ≥20%."}, {"id": "14c", "group": 14, "section": "Osteoporosis", "objective": "Screen, score, decide", "stem": "T-score −2.7 → Classification:", "options": [{"letter": "A", "text": "Normal"}, {"letter": "B", "text": "Osteoporosis"}, {"letter": "C", "text": "Severe osteoporosis"}, {"letter": "D", "text": "Osteopenia"}], "answer": "B", "explanation": "≤ −2.5 = osteoporosis; + fragility fracture = severe."}, {"id": "14d", "group": 14, "section": "Osteoporosis", "objective": "Screen, score, decide", "stem": "T-score −1.8 → Classification:", "options": [{"letter": "A", "text": "Osteopenia"}, {"letter": "B", "text": "Osteoporosis"}, {"letter": "C", "text": "Severe osteoporosis"}, {"letter": "D", "text": "Normal"}], "answer": "A", "explanation": "−1.0 to −2.5."}, {"id": "14e", "group": 14, "section": "Osteoporosis", "objective": "Screen, score, decide", "stem": "Hip fragility fracture with T-score −1.6 → Diagnosis:", "options": [{"letter": "A", "text": "Osteopenia"}, {"letter": "B", "text": "Needs FRAX first"}, {"letter": "C", "text": "Osteoporosis — fracture overrides the T-score"}, {"letter": "D", "text": "Normal bone"}], "answer": "C", "explanation": "A hip or spine fragility fracture is osteoporosis regardless of T-score."}, {"id": "14f", "group": 14, "section": "Osteoporosis", "objective": "Screen, score, decide", "stem": "38-year-old woman's DXA → Correct score to read:", "options": [{"letter": "A", "text": "T-score"}, {"letter": "B", "text": "Z-score"}, {"letter": "C", "text": "FRAX"}, {"letter": "D", "text": "ORAI"}], "answer": "B", "explanation": "Z = age/sex-matched → premenopausal women, men <50, children. Z < −2.5 → hunt a secondary cause; Z never diagnoses osteoporosis."}, {"id": "15", "group": 15, "section": "Osteoporosis", "objective": "Fractures, labs, and treatment", "stem": "Most common osteoporotic fracture →", "options": [{"letter": "A", "text": "Pelvis"}, {"letter": "B", "text": "Vertebral"}, {"letter": "C", "text": "Distal radius"}, {"letter": "D", "text": "Hip"}], "answer": "B", "explanation": "T7–T8, T12–L1; 60% unrecognized → distal radius (Colles) → hip."}, {"id": "15a", "group": 15, "section": "Osteoporosis", "objective": "Fractures, labs, and treatment", "stem": "Deadliest osteoporotic fracture →", "options": [{"letter": "A", "text": "Proximal humerus"}, {"letter": "B", "text": "Distal radius"}, {"letter": "C", "text": "Vertebral"}, {"letter": "D", "text": "Hip"}], "answer": "D", "explanation": "20–25% 1-yr mortality (PE, pneumonia); <50% regain function; 90% from a sideways fall."}, {"id": "15b", "group": 15, "section": "Osteoporosis", "objective": "Fractures, labs, and treatment", "stem": "Height loss >1.5 in, kyphosis, ↑ occiput-to-wall distance → Next test:", "options": [{"letter": "A", "text": "Lateral spine x-ray or VFA"}, {"letter": "B", "text": "DXA alone"}, {"letter": "C", "text": "MRI spine"}, {"letter": "D", "text": "Bone scan"}], "answer": "A", "explanation": "Shapes: wedge (anterior), vertebra plana, codfish (biconcave)."}, {"id": "15c", "group": 15, "section": "Osteoporosis", "objective": "Fractures, labs, and treatment", "stem": "Osteoporosis labs come back abnormal → Interpretation:", "options": [{"letter": "A", "text": "Expected in primary osteoporosis"}, {"letter": "B", "text": "Start a bisphosphonate anyway"}, {"letter": "C", "text": "Look for a secondary cause"}, {"letter": "D", "text": "Repeat the DXA"}], "answer": "C", "explanation": "Labs are NORMAL in primary osteoporosis."}, {"id": "15d", "group": 15, "section": "Osteoporosis", "objective": "Fractures, labs, and treatment", "stem": "Anchor drug class for osteoporosis →", "options": [{"letter": "A", "text": "Calcitonin"}, {"letter": "B", "text": "Estrogen"}, {"letter": "C", "text": "Bisphosphonates"}, {"letter": "D", "text": "Calcitriol"}], "answer": "C", "explanation": "Cut fracture risk ~50%; ONJ ≈ 0.7/100,000/yr (lightning) vs hip fracture 387/100,000/yr."}, {"id": "15e", "group": 15, "section": "Osteoporosis", "objective": "Fractures, labs, and treatment", "stem": "Before starting a bisphosphonate → Check:", "options": [{"letter": "A", "text": "TSH"}, {"letter": "B", "text": "Liver enzymes"}, {"letter": "C", "text": "Prolactin"}, {"letter": "D", "text": "Vitamin D, calcium, renal function"}], "answer": "D", "explanation": ""}, {"id": "15f", "group": 15, "section": "Osteoporosis", "objective": "Fractures, labs, and treatment", "stem": "Treat OSTEOPENIA when →", "options": [{"letter": "A", "text": "Hip/spine fragility fracture or FRAX hip ≥3% / MOF ≥20%"}, {"letter": "B", "text": "Age over 65"}, {"letter": "C", "text": "Only if T-score reaches −2.5"}, {"letter": "D", "text": "Any T-score below −1"}], "answer": "A", "explanation": "AACE/ACE 2020. Everyone: calcium + vitamin D, weight-bearing exercise, fall-risk reduction (STEADI), stop smoking, alcohol <3/day."}, {"id": "15g", "group": 15, "section": "Osteoporosis", "objective": "Fractures, labs, and treatment", "stem": "Classic DRUG cause of secondary osteoporosis →", "options": [{"letter": "A", "text": "ACE inhibitors"}, {"letter": "B", "text": "Prolonged glucocorticoids"}, {"letter": "C", "text": "Statins"}, {"letter": "D", "text": "Metformin"}], "answer": "B", "explanation": "Also PPIs, anticonvulsants, heparin, aromatase inhibitors, ADT, levothyroxine excess, SGLT2i, TZDs."}, {"id": "16", "group": 16, "section": "Pituitary", "objective": "Which hormone, which test", "stem": "Hormones STORED (not made) in the posterior pituitary →", "options": [{"letter": "A", "text": "ACTH and TSH"}, {"letter": "B", "text": "FSH and LH"}, {"letter": "C", "text": "GH and prolactin"}, {"letter": "D", "text": "ADH and oxytocin"}], "answer": "D", "explanation": "Hypothalamic, via nerve tract. Anterior lobe makes GH, TSH, ACTH, FSH, LH, prolactin."}, {"id": "16a", "group": 16, "section": "Pituitary", "objective": "Which hormone, which test", "stem": "Suspected acromegaly → Best screening test:", "options": [{"letter": "A", "text": "Glucose suppression test"}, {"letter": "B", "text": "MRI sella"}, {"letter": "C", "text": "IGF-1"}, {"letter": "D", "text": "Random GH"}], "answer": "C", "explanation": "GH is pulsatile; IGF-1 is steady."}, {"id": "16b", "group": 16, "section": "Pituitary", "objective": "Which hormone, which test", "stem": "Confirming acromegaly → Dynamic test:", "options": [{"letter": "A", "text": "Water deprivation"}, {"letter": "B", "text": "Insulin hypoglycemia — GH fails to rise"}, {"letter": "C", "text": "Oral glucose — GH fails to suppress"}, {"letter": "D", "text": "Cosyntropin stimulation"}], "answer": "C", "explanation": "100 g glucose; normal GH falls <1 ng/mL by 2 h."}, {"id": "16c", "group": 16, "section": "Pituitary", "objective": "Which hormone, which test", "stem": "Suspected GH deficiency → Gold-standard dynamic test:", "options": [{"letter": "A", "text": "Random GH"}, {"letter": "B", "text": "Oral glucose suppression"}, {"letter": "C", "text": "Insulin-induced hypoglycemia — GH fails to rise"}, {"letter": "D", "text": "IGF-1 alone"}], "answer": "C", "explanation": "Dangerous; glucagon stimulation is the alternative; endocrinology only."}, {"id": "16d", "group": 16, "section": "Pituitary", "objective": "Which hormone, which test", "stem": "Sellar incidentaloma → Two questions to ask:", "options": [{"letter": "A", "text": "Is it calcified? Is it cystic?"}, {"letter": "B", "text": "Headache? Fever?"}, {"letter": "C", "text": "Age? Sex?"}, {"letter": "D", "text": "Is it functional? Is it near the chiasm?"}], "answer": "D", "explanation": "4–20% of CTs, 10–38% of MRIs; may be cyst, hyperplasia, old bleed."}, {"id": "16e", "group": 16, "section": "Pituitary", "objective": "Which hormone, which test", "stem": "Suspected panhypopituitarism → Measure:", "options": [{"letter": "A", "text": "Random GH"}, {"letter": "B", "text": "Trophic hormones only"}, {"letter": "C", "text": "Target-gland hormones (free T4, AM cortisol, sex steroids, IGF-1)"}, {"letter": "D", "text": "Prolactin only"}], "answer": "C", "explanation": ""}, {"id": "17", "group": 17, "section": "Pituitary", "objective": "Disorder → test → treatment", "stem": "Galactorrhea + amenorrhea, prolactin 320 ng/mL → Diagnosis:", "options": [{"letter": "A", "text": "Prolactinoma"}, {"letter": "B", "text": "Macroprolactinemia"}, {"letter": "C", "text": "Hypothyroidism"}, {"letter": "D", "text": "Pregnancy"}], "answer": "A", "explanation": "Prolactin >250 ≈ prolactinoma; level parallels tumor size. Most common pituitary adenoma (~40%)."}, {"id": "17a", "group": 17, "section": "Pituitary", "objective": "Disorder → test → treatment", "stem": "Hyperprolactinemia → Exclude FIRST:", "options": [{"letter": "A", "text": "Diabetes insipidus"}, {"letter": "B", "text": "Pregnancy, hypothyroidism, drugs"}, {"letter": "C", "text": "Acromegaly"}, {"letter": "D", "text": "Cushing's disease"}], "answer": "B", "explanation": "Risperidone, haloperidol, SSRIs, metoclopramide, verapamil, methyldopa."}, {"id": "17b", "group": 17, "section": "Pituitary", "objective": "Disorder → test → treatment", "stem": "Prolactinoma → First-line treatment:", "options": [{"letter": "A", "text": "Radiation"}, {"letter": "B", "text": "Transsphenoidal surgery"}, {"letter": "C", "text": "Octreotide"}, {"letter": "D", "text": "Cabergoline or bromocriptine"}], "answer": "D", "explanation": "~80% respond. The ONLY adenoma treated drugs-first; everything else = surgery first."}, {"id": "17c", "group": 17, "section": "Pituitary", "objective": "Disorder → test → treatment", "stem": "Huge macroadenoma, prolactin reads low/normal → Pitfall:", "options": [{"letter": "A", "text": "Non-functioning adenoma"}, {"letter": "B", "text": "Pregnancy"}, {"letter": "C", "text": "Hook effect — ask the lab to dilute"}, {"letter": "D", "text": "Macroprolactin"}], "answer": "C", "explanation": "Very high prolactin saturates the assay."}, {"id": "17d", "group": 17, "section": "Pituitary", "objective": "Disorder → test → treatment", "stem": "Very high prolactin, NO symptoms, NO mass → Pitfall:", "options": [{"letter": "A", "text": "Macroprolactin (inactive isoform)"}, {"letter": "B", "text": "Hypothyroidism"}, {"letter": "C", "text": "Hook effect"}, {"letter": "D", "text": "Prolactinoma"}], "answer": "A", "explanation": ""}, {"id": "17e", "group": 17, "section": "Pituitary", "objective": "Disorder → test → treatment", "stem": "Enlarging hands/feet/jaw, ↑ IGF-1, GH not suppressed → First treatment:", "options": [{"letter": "A", "text": "Pegvisomant"}, {"letter": "B", "text": "Octreotide"}, {"letter": "C", "text": "Transsphenoidal resection"}, {"letter": "D", "text": "Cabergoline"}], "answer": "C", "explanation": "Then octreotide/lanreotide, pegvisomant (GH-receptor antagonist), cabergoline (~10%)."}, {"id": "17f", "group": 17, "section": "Pituitary", "objective": "Disorder → test → treatment", "stem": "GH excess BEFORE epiphyseal closure (gigantism) → Syndrome to think of:", "options": [{"letter": "A", "text": "MEN-2B"}, {"letter": "B", "text": "MEN-2A"}, {"letter": "C", "text": "APS-1"}, {"letter": "D", "text": "MEN-1"}], "answer": "D", "explanation": ""}, {"id": "18", "group": 18, "section": "Pituitary", "objective": "Mass effect, apoplexy, DI", "stem": "Bitemporal hemianopsia → Structure compressed:", "options": [{"letter": "A", "text": "Optic nerve"}, {"letter": "B", "text": "Cavernous sinus"}, {"letter": "C", "text": "Occipital cortex"}, {"letter": "D", "text": "Optic chiasm"}], "answer": "D", "explanation": "Confrontational visual fields; papilledema may precede visual complaints → fundoscopy."}, {"id": "18a", "group": 18, "section": "Pituitary", "objective": "Mass effect, apoplexy, DI", "stem": "Known adenoma, sudden severe headache, visual loss, collapse → Diagnosis:", "options": [{"letter": "A", "text": "Pituitary apoplexy"}, {"letter": "B", "text": "Migraine"}, {"letter": "C", "text": "Subarachnoid hemorrhage"}, {"letter": "D", "text": "Meningitis"}], "answer": "A", "explanation": "Emergent steroids + neurosurgery."}, {"id": "18b", "group": 18, "section": "Pituitary", "objective": "Mass effect, apoplexy, DI", "stem": "Postpartum hemorrhage, now can't lactate, amenorrheic → Diagnosis:", "options": [{"letter": "A", "text": "Prolactinoma"}, {"letter": "B", "text": "Sheehan syndrome"}, {"letter": "C", "text": "Postpartum thyroiditis"}, {"letter": "D", "text": "Addison's disease"}], "answer": "B", "explanation": ""}, {"id": "18c", "group": 18, "section": "Pituitary", "objective": "Mass effect, apoplexy, DI", "stem": "Polyuria >3 L/day, urine SG <1.005, Posm >287 → Diagnosis:", "options": [{"letter": "A", "text": "SIADH"}, {"letter": "B", "text": "Diabetes mellitus"}, {"letter": "C", "text": "Diabetes insipidus"}, {"letter": "D", "text": "Primary polydipsia"}], "answer": "C", "explanation": "Confirm hypotonic polyuria before the water-deprivation test."}, {"id": "18d", "group": 18, "section": "Pituitary", "objective": "Mass effect, apoplexy, DI", "stem": "Water deprivation: urine stays dilute, then CONCENTRATES after desmopressin → Diagnosis:", "options": [{"letter": "A", "text": "Central DI"}, {"letter": "B", "text": "Nephrogenic DI"}, {"letter": "C", "text": "SIADH"}, {"letter": "D", "text": "Primary polydipsia"}], "answer": "A", "explanation": "Desmopressin intranasal; free water; low-Na diet; watch for hyponatremia."}, {"id": "18e", "group": 18, "section": "Pituitary", "objective": "Mass effect, apoplexy, DI", "stem": "Water deprivation: urine stays dilute and does NOT respond to desmopressin → Diagnosis:", "options": [{"letter": "A", "text": "Central DI"}, {"letter": "B", "text": "Nephrogenic DI"}, {"letter": "C", "text": "Primary polydipsia"}, {"letter": "D", "text": "SIADH"}], "answer": "B", "explanation": "Lithium, hypercalcemia → treat the cause; thiazides/NSAIDs, not desmopressin."}, {"id": "18f", "group": 18, "section": "Pituitary", "objective": "Mass effect, apoplexy, DI", "stem": "Concentrated urine (Uosm >100) with hyponatremia → Diagnosis:", "options": [{"letter": "A", "text": "Primary polydipsia"}, {"letter": "B", "text": "Nephrogenic DI"}, {"letter": "C", "text": "Central DI"}, {"letter": "D", "text": "SIADH"}], "answer": "D", "explanation": "DI = dilute urine + hypernatremia tendency."}, {"id": "18g", "group": 18, "section": "Pituitary", "objective": "Mass effect, apoplexy, DI", "stem": "Hypopituitarism replacement → Order:", "options": [{"letter": "A", "text": "Sex steroids first"}, {"letter": "B", "text": "Levothyroxine first"}, {"letter": "C", "text": "Hydrocortisone before levothyroxine"}, {"letter": "D", "text": "GH first"}], "answer": "C", "explanation": "Then sex steroids → GH → desmopressin. Post-op: new hypopituitarism and transient DI."}, {"id": "19", "group": 19, "section": "Adrenal", "objective": "Cushing's engine", "stem": "Cushingoid features → Step 1 of the workup:", "options": [{"letter": "A", "text": "24-h urine free cortisol"}, {"letter": "B", "text": "ACTH level"}, {"letter": "C", "text": "Ask about exogenous steroids (oral, inhaled, topical, injected)"}, {"letter": "D", "text": "Adrenal CT"}], "answer": "C", "explanation": "Exogenous = MCC. Found → taper (never stop), stop testing."}, {"id": "19a", "group": 19, "section": "Adrenal", "objective": "Cushing's engine", "stem": "Confirming hypercortisolism → Screening tests:", "options": [{"letter": "A", "text": "Cosyntropin stimulation"}, {"letter": "B", "text": "ACTH level"}, {"letter": "C", "text": "24-h urine free cortisol, late-night salivary cortisol, 1-mg DST"}, {"letter": "D", "text": "Pituitary MRI"}], "answer": "C", "explanation": "1-mg DST: AM cortisol should be <1.8 mcg/dL. Not valid in acute illness/post-op."}, {"id": "19b", "group": 19, "section": "Adrenal", "objective": "Cushing's engine", "stem": "Hypercortisolism confirmed → Next test:", "options": [{"letter": "A", "text": "Pituitary MRI"}, {"letter": "B", "text": "Adrenal CT"}, {"letter": "C", "text": "Chest CT"}, {"letter": "D", "text": "ACTH"}], "answer": "D", "explanation": "Biochemistry before imaging."}, {"id": "19c", "group": 19, "section": "Adrenal", "objective": "Cushing's engine", "stem": "Confirmed Cushing's, ACTH SUPPRESSED → Source / imaging:", "options": [{"letter": "A", "text": "Exogenous → stop testing"}, {"letter": "B", "text": "Adrenal → adrenal CT/MRI"}, {"letter": "C", "text": "Pituitary → MRI sella"}, {"letter": "D", "text": "Ectopic → chest CT"}], "answer": "B", "explanation": "Virilization → adrenal carcinoma. Unilateral or bilateral adrenalectomy."}, {"id": "19d", "group": 19, "section": "Adrenal", "objective": "Cushing's engine", "stem": "Confirmed Cushing's, ACTH normal/HIGH → Next step:", "options": [{"letter": "A", "text": "Pituitary MRI (IPSS / high-dose DST if equivocal)"}, {"letter": "B", "text": "Stop testing"}, {"letter": "C", "text": "Renal ultrasound"}, {"letter": "D", "text": "Adrenal CT"}], "answer": "A", "explanation": "Sella clean → chest CT for small cell."}, {"id": "19e", "group": 19, "section": "Adrenal", "objective": "Cushing's engine", "stem": "Very high ACTH, severe hypokalemia, hyperpigmentation, small cell lung cancer →", "options": [{"letter": "A", "text": "Pseudo-Cushing's"}, {"letter": "B", "text": "Ectopic ACTH"}, {"letter": "C", "text": "Cushing's disease"}, {"letter": "D", "text": "Adrenal Cushing's"}], "answer": "B", "explanation": "Also islet cell, medullary thyroid, thymus."}, {"id": "19f", "group": 19, "section": "Adrenal", "objective": "Cushing's engine", "stem": "Cushingoid labs, alcohol abuse or severe depression, no tumor →", "options": [{"letter": "A", "text": "Cushing's disease"}, {"letter": "B", "text": "Pseudo-Cushing's"}, {"letter": "C", "text": "Ectopic ACTH"}, {"letter": "D", "text": "Adrenal adenoma"}], "answer": "B", "explanation": "Also OSA, uncontrolled DM, PCOS, eating disorders. Treat the cause — no surgery, no drugs."}, {"id": "19g", "group": 19, "section": "Adrenal", "objective": "Cushing's engine", "stem": "Endogenous Cushing's — any source → First-line treatment:", "options": [{"letter": "A", "text": "Ketoconazole"}, {"letter": "B", "text": "Radiation"}, {"letter": "C", "text": "Surgery"}, {"letter": "D", "text": "Cabergoline"}], "answer": "C", "explanation": "Ketoconazole = first-choice DRUG (needs acid → stop PPIs)."}, {"id": "20", "group": 20, "section": "Adrenal", "objective": "Adrenal insufficiency engine", "stem": "Weight loss, fatigue, salt craving, orthostasis, hyperpigmented creases → Diagnosis:", "options": [{"letter": "A", "text": "Pheochromocytoma"}, {"letter": "B", "text": "Secondary adrenal insufficiency"}, {"letter": "C", "text": "Cushing's syndrome"}, {"letter": "D", "text": "Primary adrenal insufficiency (Addison's)"}], "answer": "D", "explanation": "Na↓ K↑ glucose↓ Ca↑, eosinophilia, mild acidosis."}, {"id": "20a", "group": 20, "section": "Adrenal", "objective": "Adrenal insufficiency engine", "stem": "Suspected adrenal insufficiency → First test:", "options": [{"letter": "A", "text": "Adrenal CT"}, {"letter": "B", "text": "ACTH"}, {"letter": "C", "text": "Random cortisol"}, {"letter": "D", "text": "8 AM cortisol"}], "answer": "D", "explanation": "<3 = AI; normal 10–20 mcg/dL (diurnal — highest early AM)."}, {"id": "20b", "group": 20, "section": "Adrenal", "objective": "Adrenal insufficiency engine", "stem": "Equivocal AM cortisol → Confirmatory test:", "options": [{"letter": "A", "text": "Oral glucose tolerance"}, {"letter": "B", "text": "Cosyntropin stimulation"}, {"letter": "C", "text": "24-h urine free cortisol"}, {"letter": "D", "text": "Dexamethasone suppression"}], "answer": "B", "explanation": "Cortisol at 30 & 60 min; no rise = AI."}, {"id": "20c", "group": 20, "section": "Adrenal", "objective": "Adrenal insufficiency engine", "stem": "AI confirmed → Test that separates primary from secondary:", "options": [{"letter": "A", "text": "Renin"}, {"letter": "B", "text": "Repeat cortisol"}, {"letter": "C", "text": "Basal ACTH"}, {"letter": "D", "text": "Aldosterone"}], "answer": "C", "explanation": "HIGH → primary; LOW → secondary."}, {"id": "20d", "group": 20, "section": "Adrenal", "objective": "Adrenal insufficiency engine", "stem": "Low cortisol, LOW ACTH, normal potassium, no hyperpigmentation → Diagnosis:", "options": [{"letter": "A", "text": "Congenital adrenal hyperplasia"}, {"letter": "B", "text": "Addison's disease"}, {"letter": "C", "text": "Adrenal crisis"}, {"letter": "D", "text": "Secondary adrenal insufficiency"}], "answer": "D", "explanation": "Steroid withdrawal (MCC overall), Sheehan, pituitary disease. Hydrocortisone only."}, {"id": "20e", "group": 20, "section": "Adrenal", "objective": "Adrenal insufficiency engine", "stem": "Addison's → Lifelong replacement:", "options": [{"letter": "A", "text": "Fludrocortisone only"}, {"letter": "B", "text": "Prednisone + levothyroxine"}, {"letter": "C", "text": "Hydrocortisone + fludrocortisone"}, {"letter": "D", "text": "Hydrocortisone only"}], "answer": "C", "explanation": "Stress dosing, Solu-Cortef kit, medical ID. Never stop."}, {"id": "20f", "group": 20, "section": "Adrenal", "objective": "Adrenal insufficiency engine", "stem": "Addison's patient with fever → Sick-day rule:", "options": [{"letter": "A", "text": "Double (or triple) the glucocorticoid dose"}, {"letter": "B", "text": "No change"}, {"letter": "C", "text": "Hold the dose"}, {"letter": "D", "text": "Stop fludrocortisone"}], "answer": "A", "explanation": "'Triple for 3 days' when in doubt; back to baseline 1–3 days after recovery."}, {"id": "21", "group": 21, "section": "Adrenal", "objective": "Crisis, CAH, Conn, pheochromocytoma", "stem": "Known AI, vomiting illness, now hypotensive and confused, Na↓ K↑ glucose↓ → Diagnosis:", "options": [{"letter": "A", "text": "Adrenal crisis"}, {"letter": "B", "text": "DKA"}, {"letter": "C", "text": "Myxedema coma"}, {"letter": "D", "text": "Septic shock"}], "answer": "A", "explanation": "GI illness precipitates 80%. Don't wait for labs."}, {"id": "21a", "group": 21, "section": "Adrenal", "objective": "Crisis, CAH, Conn, pheochromocytoma", "stem": "Adrenal crisis → Treatment:", "options": [{"letter": "A", "text": "IV hydrocortisone + IV normal saline + dextrose"}, {"letter": "B", "text": "Vasopressors first"}, {"letter": "C", "text": "Fludrocortisone alone"}, {"letter": "D", "text": "Oral prednisone"}], "answer": "A", "explanation": "Fludrocortisone not needed acutely; treat the trigger."}, {"id": "21b", "group": 21, "section": "Adrenal", "objective": "Crisis, CAH, Conn, pheochromocytoma", "stem": "Virilized newborn girl with Na↓ K↑ → Diagnosis:", "options": [{"letter": "A", "text": "Congenital adrenal hyperplasia (21-hydroxylase)"}, {"letter": "B", "text": "Addison's disease"}, {"letter": "C", "text": "Conn syndrome"}, {"letter": "D", "text": "Cushing's syndrome"}], "answer": "A", "explanation": "CYP21A2 90–95%; hydrocortisone + fludrocortisone at the smallest dose that suppresses androgens."}, {"id": "21c", "group": 21, "section": "Adrenal", "objective": "Crisis, CAH, Conn, pheochromocytoma", "stem": "Hypertension + hypokalemia + metabolic alkalosis, aldosterone ELEVATED → Diagnosis:", "options": [{"letter": "A", "text": "Pheochromocytoma"}, {"letter": "B", "text": "Licorice ingestion"}, {"letter": "C", "text": "Cushing's syndrome"}, {"letter": "D", "text": "Conn syndrome (primary hyperaldosteronism)"}], "answer": "D", "explanation": "Adenoma 75% — 'curable hypertension' → adrenalectomy."}, {"id": "21d", "group": 21, "section": "Adrenal", "objective": "Crisis, CAH, Conn, pheochromocytoma", "stem": "Identical picture to Conn but aldosterone SUPPRESSED → Cause:", "options": [{"letter": "A", "text": "Adrenal adenoma"}, {"letter": "B", "text": "Pheochromocytoma"}, {"letter": "C", "text": "Licorice (11β-HSD2 inhibition)"}, {"letter": "D", "text": "Renal artery stenosis"}], "answer": "C", "explanation": "Cortisol hits the mineralocorticoid receptor. Stop the licorice."}, {"id": "22", "group": 22, "section": "Adrenal", "objective": "Crisis, CAH, Conn, pheochromocytoma", "stem": "Headache + sweating + tachycardia with paroxysmal hypertension in a young patient → Diagnosis:", "options": [{"letter": "A", "text": "Conn syndrome"}, {"letter": "B", "text": "Pheochromocytoma"}, {"letter": "C", "text": "Hyperthyroidism"}, {"letter": "D", "text": "Panic disorder"}], "answer": "B", "explanation": ""}, {"id": "22a", "group": 22, "section": "Adrenal", "objective": "Crisis, CAH, Conn, pheochromocytoma", "stem": "Suspected pheochromocytoma → First test:", "options": [{"letter": "A", "text": "Biopsy"}, {"letter": "B", "text": "24-h urine (or plasma) metanephrines"}, {"letter": "C", "text": "Adrenal CT"}, {"letter": "D", "text": "MRI"}], "answer": "B", "explanation": "Biochemistry BEFORE imaging; never biopsy an adrenal mass before excluding pheo."}, {"id": "22b", "group": 22, "section": "Adrenal", "objective": "Crisis, CAH, Conn, pheochromocytoma", "stem": "Pheochromocytoma → Preoperative drug order:", "options": [{"letter": "A", "text": "Beta-blocker first"}, {"letter": "B", "text": "Alpha-blockade first, then beta-blocker"}, {"letter": "C", "text": "ACE inhibitor first"}, {"letter": "D", "text": "Surgery without blockade"}], "answer": "B", "explanation": "Phenoxybenzamine → nifedipine → metoprolol → surgery. Unopposed β → hypertensive crisis."}, {"id": "22c", "group": 22, "section": "Adrenal", "objective": "Crisis, CAH, Conn, pheochromocytoma", "stem": "Incidental adrenal mass → Always check:", "options": [{"letter": "A", "text": "Nothing if under 4 cm"}, {"letter": "B", "text": "Metanephrines (plus DST and aldosterone/renin)"}, {"letter": "C", "text": "PTH"}, {"letter": "D", "text": "Biopsy"}], "answer": "B", "explanation": "Resect if functional or >4 cm; surveil adenoma <4 cm; carcinoma >6 cm."}, {"id": "23", "group": 23, "section": "Adrenal", "objective": "MEN & autoimmune clusters", "stem": "PHPT in the 20s + prolactinoma + pancreatic islet tumor →", "options": [{"letter": "A", "text": "APS-2"}, {"letter": "B", "text": "MEN-2B"}, {"letter": "C", "text": "MEN-1"}, {"letter": "D", "text": "MEN-2A"}], "answer": "C", "explanation": "3 P's; annual Ca, PTH, prolactin; germline MEN1."}, {"id": "23a", "group": 23, "section": "Adrenal", "objective": "MEN & autoimmune clusters", "stem": "Medullary thyroid cancer + pheochromocytoma + parathyroid hyperplasia →", "options": [{"letter": "A", "text": "MEN-2B"}, {"letter": "B", "text": "APS-1"}, {"letter": "C", "text": "MEN-2A"}, {"letter": "D", "text": "MEN-1"}], "answer": "C", "explanation": "RET testing."}, {"id": "23b", "group": 23, "section": "Adrenal", "objective": "MEN & autoimmune clusters", "stem": "Medullary thyroid cancer + pheo + mucosal neuromas + Marfanoid habitus, NO parathyroid →", "options": [{"letter": "A", "text": "APS-1"}, {"letter": "B", "text": "MEN-2B"}, {"letter": "C", "text": "MEN-1"}, {"letter": "D", "text": "MEN-2A"}], "answer": "B", "explanation": "Earlier, more aggressive MTC."}, {"id": "23c", "group": 23, "section": "Adrenal", "objective": "MEN & autoimmune clusters", "stem": "MEN-2 patient scheduled for thyroidectomy → Before surgery:", "options": [{"letter": "A", "text": "Prolactin"}, {"letter": "B", "text": "Cosyntropin test"}, {"letter": "C", "text": "DXA"}, {"letter": "D", "text": "Screen for pheochromocytoma"}], "answer": "D", "explanation": ""}, {"id": "23d", "group": 23, "section": "Adrenal", "objective": "MEN & autoimmune clusters", "stem": "Addison's + autoimmune thyroid disease + type 1 diabetes →", "options": [{"letter": "A", "text": "APS-2"}, {"letter": "B", "text": "MEN-2A"}, {"letter": "C", "text": "APS-1"}, {"letter": "D", "text": "MEN-1"}], "answer": "A", "explanation": "APS-1 = hypoparathyroidism + candidiasis + Addison."}, {"id": "24", "group": 24, "section": "Emergencies", "objective": "Recognize, then the first move", "stem": "Elderly untreated hypothyroid, hypothermia, bradycardia, AMS after an infection → Diagnosis:", "options": [{"letter": "A", "text": "Adrenal crisis"}, {"letter": "B", "text": "Myxedema coma"}, {"letter": "C", "text": "Thyroid storm"}, {"letter": "D", "text": "HHS"}], "answer": "B", "explanation": ""}, {"id": "24a", "group": 24, "section": "Emergencies", "objective": "Recognize, then the first move", "stem": "Myxedema coma → FIRST drug:", "options": [{"letter": "A", "text": "Propranolol"}, {"letter": "B", "text": "Oral levothyroxine"}, {"letter": "C", "text": "IV steroids (then IV T3/T4)"}, {"letter": "D", "text": "IV levothyroxine first"}], "answer": "C", "explanation": "Possible coexisting adrenal insufficiency; treat the infection; ICU."}, {"id": "24b", "group": 24, "section": "Emergencies", "objective": "Recognize, then the first move", "stem": "Fever 105, HR 150, CHF, agitation in undertreated Graves after surgery → Diagnosis:", "options": [{"letter": "A", "text": "Thyroid storm"}, {"letter": "B", "text": "Pheochromocytoma crisis"}, {"letter": "C", "text": "Myxedema coma"}, {"letter": "D", "text": "Adrenal crisis"}], "answer": "A", "explanation": "ICU + endocrinology; beta-blocker + thionamide."}, {"id": "24c", "group": 24, "section": "Emergencies", "objective": "Recognize, then the first move", "stem": "Preventing thyroid storm → Rule:", "options": [{"letter": "A", "text": "Hold beta-blockers"}, {"letter": "B", "text": "Make the patient euthyroid before ANY thyroid surgery"}, {"letter": "C", "text": "Give I-131 preoperatively"}, {"letter": "D", "text": "Start levothyroxine"}], "answer": "B", "explanation": "Thionamide pretreatment."}, {"id": "24d", "group": 24, "section": "Emergencies", "objective": "Recognize, then the first move", "stem": "Wild BP swings and arrhythmia after a beta-blocker was started → Suspect:", "options": [{"letter": "A", "text": "Thyroid storm"}, {"letter": "B", "text": "Adrenal crisis"}, {"letter": "C", "text": "Pheochromocytoma crisis (unopposed β-blockade)"}, {"letter": "D", "text": "Hypoglycemia"}], "answer": "C", "explanation": "Alpha-blockade; avoid unopposed beta-blockade."}, {"id": "25", "group": 25, "section": "Rules & Order of Operations", "objective": "Do this before that", "stem": "Central hypothyroidism or panhypopituitarism → Replace FIRST:", "options": [{"letter": "A", "text": "Hydrocortisone"}, {"letter": "B", "text": "Growth hormone"}, {"letter": "C", "text": "Levothyroxine"}, {"letter": "D", "text": "Testosterone"}], "answer": "A", "explanation": "T4 ↑ cortisol clearance → adrenal crisis."}, {"id": "25a", "group": 25, "section": "Rules & Order of Operations", "objective": "Do this before that", "stem": "Hypocalcemia that won't correct → Replete FIRST:", "options": [{"letter": "A", "text": "Phosphate"}, {"letter": "B", "text": "Vitamin D"}, {"letter": "C", "text": "Potassium"}, {"letter": "D", "text": "Magnesium"}], "answer": "D", "explanation": "And correct for albumin before calling it hypocalcemia."}, {"id": "25b", "group": 25, "section": "Rules & Order of Operations", "objective": "Do this before that", "stem": "Before the water-deprivation test → Confirm:", "options": [{"letter": "A", "text": "Low ADH level"}, {"letter": "B", "text": "Hypernatremia"}, {"letter": "C", "text": "Hypotonic polyuria"}, {"letter": "D", "text": "MRI findings"}], "answer": "C", "explanation": ""}, {"id": "25c", "group": 25, "section": "Rules & Order of Operations", "objective": "Do this before that", "stem": "Exogenous steroid cause of Cushing's found → Rule:", "options": [{"letter": "A", "text": "Order ACTH"}, {"letter": "B", "text": "Continue the workup"}, {"letter": "C", "text": "Taper — never stop abruptly — and stop testing"}, {"letter": "D", "text": "Stop immediately"}], "answer": "C", "explanation": ""}, {"id": "25d", "group": 25, "section": "Rules & Order of Operations", "objective": "Do this before that", "stem": "Fasting hyperglycemia on basal insulin → Before adjusting:", "options": [{"letter": "A", "text": "Increase basal"}, {"letter": "B", "text": "Confirm the overnight glucose pattern"}, {"letter": "C", "text": "Add prandial insulin"}, {"letter": "D", "text": "Decrease basal"}], "answer": "B", "explanation": "Dawn vs Somogyi."}, {"id": "25e", "group": 25, "section": "Rules & Order of Operations", "objective": "Do this before that", "stem": "Low testosterone with low/normal LH/FSH → Diagnosis:", "options": [{"letter": "A", "text": "Normal"}, {"letter": "B", "text": "Prolactin deficiency"}, {"letter": "C", "text": "Primary hypogonadism"}, {"letter": "D", "text": "Secondary (central) hypogonadism"}], "answer": "D", "explanation": "Measure the target hormone, not just the trophic one."}, {"id": "26", "group": 26, "section": "Cross-Cutting Drugs", "objective": "Drug fingerprints across lectures", "stem": "Drug causing hypo- OR hyperthyroidism, hypercalcemia, and nephrogenic DI →", "options": [{"letter": "A", "text": "Hydrochlorothiazide"}, {"letter": "B", "text": "Lithium"}, {"letter": "C", "text": "Metformin"}, {"letter": "D", "text": "Amiodarone"}], "answer": "B", "explanation": "TSH/fT4 before and q6 mo."}, {"id": "26a", "group": 26, "section": "Cross-Cutting Drugs", "objective": "Drug fingerprints across lectures", "stem": "Class that unmasks PHPT but TREATS hypercalciuria in hypoparathyroidism →", "options": [{"letter": "A", "text": "Thiazides"}, {"letter": "B", "text": "Bisphosphonates"}, {"letter": "C", "text": "SGLT2 inhibitors"}, {"letter": "D", "text": "Loop diuretics"}], "answer": "A", "explanation": "Also nephrogenic DI treatment and BP in diabetes."}, {"id": "26b", "group": 26, "section": "Cross-Cutting Drugs", "objective": "Drug fingerprints across lectures", "stem": "Drugs that raise prolactin →", "options": [{"letter": "A", "text": "Antipsychotics, SSRIs, metoclopramide, verapamil, methyldopa"}, {"letter": "B", "text": "Metformin, statins"}, {"letter": "C", "text": "Beta-blockers"}, {"letter": "D", "text": "Bisphosphonates"}], "answer": "A", "explanation": "Review meds before imaging the sella."}, {"id": "26c", "group": 26, "section": "Cross-Cutting Drugs", "objective": "Drug fingerprints across lectures", "stem": "Agents that treat bone/hypercalcemia but can all CAUSE hypocalcemia →", "options": [{"letter": "A", "text": "Bisphosphonates, denosumab, calcitonin"}, {"letter": "B", "text": "Calcitriol"}, {"letter": "C", "text": "Thiazides"}, {"letter": "D", "text": "Cholecalciferol"}], "answer": "A", "explanation": "Renal function/vitamin D first."}, {"id": "26d", "group": 26, "section": "Cross-Cutting Drugs", "objective": "Drug fingerprints across lectures", "stem": "Cinacalcet → Indications:", "options": [{"letter": "A", "text": "PHPT without surgery, secondary HPT on dialysis, tertiary HPT"}, {"letter": "B", "text": "Vitamin D deficiency"}, {"letter": "C", "text": "Hypoparathyroidism"}, {"letter": "D", "text": "Osteoporosis"}], "answer": "A", "explanation": "↑ CaSR sensitivity → ↓ PTH; also parathyroid carcinoma."}, {"id": "26e", "group": 26, "section": "Cross-Cutting Drugs", "objective": "Drug fingerprints across lectures", "stem": "Desmopressin over-use → Risk:", "options": [{"letter": "A", "text": "Hypercalcemia"}, {"letter": "B", "text": "Hyponatremia"}, {"letter": "C", "text": "Hyperkalemia"}, {"letter": "D", "text": "Hypernatremia"}], "answer": "B", "explanation": "Free water access; low-Na diet."}]});
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

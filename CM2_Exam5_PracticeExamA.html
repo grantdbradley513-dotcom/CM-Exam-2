@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "Endocrine Exam 5 Practice A", "questions": [{"id": "1", "group": 1, "stem": "A 16-year-old boy has had 3 weeks of extreme thirst, large-volume urination, and a 12-lb weight loss despite a good appetite. Over the past day he developed nausea, vomiting, abdominal pain, and deep, rapid breathing. Pulse is 124, BP 96/58, respirations 28 and deep, mucous membranes are dry, and his breath smells fruity. Fingerstick glucose is 540 mg/dL. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Hyperosmolar hyperglycemic state"}, {"letter": "B", "text": "Diabetic ketoacidosis from new-onset type 1 diabetes"}, {"letter": "C", "text": "Acute gastroenteritis with severe dehydration"}, {"letter": "D", "text": "Thyroid storm with hyperglycemia"}, {"letter": "E", "text": "Adrenal crisis with stress hyperglycemia"}], "answer": "B", "explanation": "Weeks of the three polys with weight loss in a teenager, then vomiting, abdominal pain, Kussmaul respirations, fruity breath, and glucose 540 is new-onset T1DM presenting in DKA (up to a third present this way).", "objective": "Source: Case 1 · Type 1 DM / DKA", "section": "Diabetes"}, {"id": "1a", "group": 1, "stem": "Which set of laboratory findings would confirm his acute complication?", "options": [{"letter": "A", "text": "pH below 7.3, bicarbonate below 18, elevated anion gap, positive beta-hydroxybutyrate"}, {"letter": "B", "text": "Effective osmolality above 320, pH above 7.3, trace ketones"}, {"letter": "C", "text": "Elevated C-peptide with negative islet autoantibodies"}, {"letter": "D", "text": "Random glucose above 200 with A1c above 6.5 percent"}, {"letter": "E", "text": "Low bicarbonate with a normal anion gap and negative ketones"}], "answer": "A", "explanation": "DKA = glucose ≥200 (or known diabetes), pH <7.3, HCO3 <18, elevated anion gap, and positive serum/urine ketones (BHB preferred). Option B describes HHS.", "objective": "Source: Case 1 · DKA diagnostics", "section": "Diabetes"}, {"id": "1b", "group": 1, "stem": "Initial labs return with a potassium of 3.0 mEq/L. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Start the continuous IV regular insulin infusion now"}, {"letter": "B", "text": "Give IV sodium bicarbonate before any insulin"}, {"letter": "C", "text": "Replace potassium first and hold insulin until it is at least 3.3"}, {"letter": "D", "text": "Switch fluids to dextrose-containing half-normal saline"}, {"letter": "E", "text": "Give subcutaneous basal insulin instead of an infusion"}], "answer": "C", "explanation": "Check potassium before insulin: if K is below 3.3, replace potassium first; insulin drives potassium into cells and will worsen hypokalemia. If 3.3–5.3, add potassium to the fluids and start insulin.", "objective": "Source: Case 1 · DKA management", "section": "Diabetes"}, {"id": "2", "group": 2, "stem": "A 9-year-old girl is 6 hours into treatment for diabetic ketoacidosis with IV fluids and an insulin infusion. Her glucose has fallen from 520 to 310 mg/dL. She now complains of a severe headache, her heart rate has dropped from 128 to 70, her blood pressure has risen to 138/90, and she is becoming difficult to arouse. Which of the following is the most likely explanation?", "options": [{"letter": "A", "text": "Cerebral edema from treatment of DKA"}, {"letter": "B", "text": "Hypoglycemia from the insulin infusion"}, {"letter": "C", "text": "Resolution of the ketoacidosis"}, {"letter": "D", "text": "Hyperkalemia causing bradycardia"}, {"letter": "E", "text": "Sepsis from an occult infection"}], "answer": "A", "explanation": "In children, headache, falling heart rate, rising blood pressure, and worsening consciousness during DKA treatment are the warning signs of cerebral edema — the reason fluid replacement is more cautious in children.", "objective": "Source: Case 1 · DKA in children", "section": "Diabetes"}, {"id": "3", "group": 3, "stem": "A 52-year-old man with obesity (BMI 34), hypertension, and a father with type 2 diabetes comes in for a physical. He reports mild fatigue, getting up twice at night to urinate, and recurrent yeast infections in his skin folds. He works a desk job and does not exercise. Fasting glucose is 168 mg/dL and A1c is 8.4%. Which of the following best describes his diagnostic status?", "options": [{"letter": "A", "text": "Prediabetes; repeat the A1c in one year"}, {"letter": "B", "text": "Diabetes; a second confirmatory test on another day is still required"}, {"letter": "C", "text": "Diabetes; two tests from one sample both meet criteria, so no further confirmation is needed"}, {"letter": "D", "text": "Indeterminate; a 2-hour 75-g oral glucose tolerance test is needed"}, {"letter": "E", "text": "Stress hyperglycemia; recheck after treating the candidiasis"}], "answer": "C", "explanation": "FPG ≥126 and A1c ≥6.5% each meet criteria; two different abnormal tests from the same sample confirm the diagnosis without a repeat visit.", "objective": "Source: Case 2 · Type 2 DM diagnosis", "section": "Diabetes"}, {"id": "3a", "group": 3, "stem": "Which of the following should be obtained at this first diabetes visit?", "options": [{"letter": "A", "text": "Urine albumin-to-creatinine ratio, eGFR, lipid panel, and a dilated retinal exam"}, {"letter": "B", "text": "C-peptide, GAD65 antibodies, and a thyroid panel"}, {"letter": "C", "text": "Serum insulin level and 2-hour oral glucose tolerance test"}, {"letter": "D", "text": "Nerve conduction studies and an ankle-brachial index"}, {"letter": "E", "text": "Echocardiogram, stress test, and coronary calcium score"}], "answer": "A", "explanation": "Baseline work-up at T2DM diagnosis: UACR and creatinine/eGFR, lipid panel, liver enzymes, dilated eye exam, foot exam, blood pressure — complications may already be present at diagnosis.", "objective": "Source: Case 2 · Type 2 DM baseline testing", "section": "Diabetes"}, {"id": "3b", "group": 3, "stem": "Which of the following is the most appropriate initial pharmacologic plan?", "options": [{"letter": "A", "text": "Metformin alone, reassessing in 6 months"}, {"letter": "B", "text": "Glipizide, because it is inexpensive and effective"}, {"letter": "C", "text": "Basal insulin, because the A1c is above 8 percent"}, {"letter": "D", "text": "Metformin with early addition of a GLP-1 receptor agonist"}, {"letter": "E", "text": "Pioglitazone, because he is insulin resistant"}], "answer": "D", "explanation": "A1c more than 1.5% above goal warrants early dual therapy; metformin is first line, and a GLP-1 RA is attractive with obesity because it promotes weight loss. Lifestyle change and a statin accompany it.", "objective": "Source: Case 2 · Type 2 DM initial management", "section": "Diabetes"}, {"id": "4", "group": 4, "stem": "A 61-year-old woman with type 2 diabetes for 12 years had a myocardial infarction with stenting 3 years ago. She takes metformin 1000 mg twice daily and a high-intensity statin. Her A1c is 7.9%, BMI is 31, eGFR is 82, and UACR is 45 mg/g. Which of the following additions is indicated regardless of her A1c?", "options": [{"letter": "A", "text": "Glipizide"}, {"letter": "B", "text": "Pioglitazone"}, {"letter": "C", "text": "Semaglutide"}, {"letter": "D", "text": "Sitagliptin"}, {"letter": "E", "text": "NPH insulin"}], "answer": "C", "explanation": "With established ASCVD, add a GLP-1 RA or SGLT2 inhibitor with proven cardiovascular benefit independent of A1c and metformin — organ protection is its own indication.", "objective": "Source: Case 3 · DM with ASCVD", "section": "Diabetes"}, {"id": "5", "group": 5, "stem": "A 64-year-old man with type 2 diabetes for 10 years on long-term metformin reports burning pain and numbness in both feet that is worse at night. Monofilament sensation is reduced at the toes bilaterally and ankle reflexes are absent. Pedal pulses are normal. Before attributing this to diabetic neuropathy, which of the following should be checked?", "options": [{"letter": "A", "text": "Nerve conduction studies and EMG"}, {"letter": "B", "text": "Vitamin B12 and TSH"}, {"letter": "C", "text": "MRI of the lumbar spine"}, {"letter": "D", "text": "Ankle-brachial index"}, {"letter": "E", "text": "Sural nerve biopsy"}], "answer": "B", "explanation": "Diabetic neuropathy is a diagnosis of exclusion: check B12 (deficiency is common with metformin), TSH, and a metabolic panel; NCS/EMG are not needed for typical distal symmetric polyneuropathy.", "objective": "Source: Case 3 · Diabetic neuropathy", "section": "Diabetes"}, {"id": "5a", "group": 5, "stem": "His work-up is unremarkable and the pain is interfering with sleep. Which of the following is the most appropriate treatment for the pain?", "options": [{"letter": "A", "text": "Tramadol at bedtime"}, {"letter": "B", "text": "Tighter glycemic control alone"}, {"letter": "C", "text": "Duloxetine"}, {"letter": "D", "text": "Oxycodone as needed"}, {"letter": "E", "text": "Metoclopramide"}], "answer": "C", "explanation": "Painful diabetic neuropathy is treated with duloxetine, pregabalin/gabapentin, or a TCA; glucose control slows progression but does not relieve established pain, and opioids, tramadol, and tapentadol are not recommended.", "objective": "Source: Case 3 · Painful neuropathy", "section": "Diabetes"}, {"id": "6", "group": 6, "stem": "A 72-year-old woman with type 2 diabetes and dementia is brought from her nursing facility with 5 days of worsening confusion and poor oral intake while being treated for a urinary tract infection. She is lethargic and dehydrated. Temperature is 100.8°F, pulse 118, BP 92/54. Glucose is 920 mg/dL, sodium 138, potassium 5.0, bicarbonate 22, pH 7.34, ketones trace, and serum osmolality 370 mOsm/kg. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Diabetic ketoacidosis"}, {"letter": "B", "text": "Hyperosmolar hyperglycemic state"}, {"letter": "C", "text": "Urosepsis with stress hyperglycemia"}, {"letter": "D", "text": "Central diabetes insipidus"}, {"letter": "E", "text": "Euglycemic ketoacidosis"}], "answer": "B", "explanation": "Glucose above 600, effective osmolality above 320, severe dehydration, and altered mental status without significant ketoacidosis (pH above 7.30, HCO3 above 18) over days in an older T2DM patient is HHS.", "objective": "Source: Case 5 · HHS", "section": "Diabetes"}, {"id": "6a", "group": 6, "stem": "Which of the following is her corrected serum sodium?", "options": [{"letter": "A", "text": "About 125 mEq/L"}, {"letter": "B", "text": "About 138 mEq/L"}, {"letter": "C", "text": "About 143 mEq/L"}, {"letter": "D", "text": "About 151 mEq/L"}, {"letter": "E", "text": "About 165 mEq/L"}], "answer": "D", "explanation": "Add 1.6 mEq/L for every 100 mg/dL of glucose above 100: (920 − 100)/100 × 1.6 ≈ 13, so 138 + 13 ≈ 151 — revealing a severe free-water deficit.", "objective": "Source: Case 5 · Corrected sodium", "section": "Diabetes"}, {"id": "6b", "group": 6, "stem": "Which of the following is the most appropriate first step in her management?", "options": [{"letter": "A", "text": "IV regular insulin bolus followed by an infusion"}, {"letter": "B", "text": "0.45% saline at a maintenance rate"}, {"letter": "C", "text": "IV sodium bicarbonate"}, {"letter": "D", "text": "Isotonic saline at 15 to 20 mL/kg over the first hour"}, {"letter": "E", "text": "Dextrose-containing fluids to prevent hypoglycemia"}], "answer": "D", "explanation": "Aggressive isotonic fluid replacement comes first in HHS; insulin is started only after fluids are running and potassium is at least 3.3, at a lower rate than in DKA, because insulin before volume can worsen hypotension.", "objective": "Source: Case 5 · HHS management", "section": "Diabetes"}, {"id": "7", "group": 7, "stem": "A 24-year-old woman with type 1 diabetes on basal-bolus insulin is found by her roommate at 3 AM confused, diaphoretic, and unable to follow commands after drinking alcohol at a party. She cannot safely swallow. Fingerstick glucose is 38 mg/dL. Which of the following is the most appropriate immediate treatment?", "options": [{"letter": "A", "text": "Place glucose gel inside her cheek"}, {"letter": "B", "text": "Give intranasal or injectable glucagon and call EMS"}, {"letter": "C", "text": "Give 4 ounces of juice by mouth"}, {"letter": "D", "text": "Give a rapid-acting insulin correction dose"}, {"letter": "E", "text": "Observe and recheck glucose in 15 minutes"}], "answer": "B", "explanation": "Level 3 hypoglycemia (needs another person's help, cannot swallow) is treated with glucagon and EMS activation; oral carbohydrate is for the alert patient who can swallow. Alcohol causes delayed overnight lows.", "objective": "Source: Structured guide · Hypoglycemia", "section": "Diabetes"}, {"id": "7a", "group": 7, "stem": "Two weeks later she is alert at home with tremor and sweating and a fingerstick glucose of 58 mg/dL. Which of the following is the correct treatment?", "options": [{"letter": "A", "text": "15 g of fast-acting carbohydrate, recheck in 15 minutes, repeat until glucose is at least 70"}, {"letter": "B", "text": "A chocolate bar, then recheck in 30 minutes"}, {"letter": "C", "text": "A protein snack to prevent further drops"}, {"letter": "D", "text": "Glucagon 1 mg intramuscularly"}, {"letter": "E", "text": "Skip her next basal insulin dose"}], "answer": "A", "explanation": "Rule of 15 for level 1–2 hypoglycemia in a patient who can swallow; avoid chocolate (fat slows absorption) and protein alone (stimulates insulin). Glucagon is for level 3.", "objective": "Source: Structured guide · Hypoglycemia", "section": "Diabetes"}, {"id": "8", "group": 8, "stem": "A 34-year-old man with type 1 diabetes has fasting glucose readings of 190 to 230 mg/dL every morning despite good daytime control. His continuous glucose monitor shows overnight values of 110 to 130 mg/dL with a steady rise beginning around 4 AM and no readings below 70. Which of the following best explains the pattern and the appropriate response?", "options": [{"letter": "A", "text": "Somogyi effect; reduce the evening basal insulin dose"}, {"letter": "B", "text": "Dawn phenomenon; adjust the timing or dose of long-acting insulin"}, {"letter": "C", "text": "Inadequate prandial coverage; increase dinner bolus insulin"}, {"letter": "D", "text": "Nocturnal hypoglycemia; add a bedtime snack"}, {"letter": "E", "text": "Insulin resistance; add metformin"}], "answer": "B", "explanation": "Fasting hyperglycemia with normal-to-high overnight glucose and an early-morning rise is the dawn phenomenon (counter-regulatory hormone surge). The discriminator is the overnight glucose — a documented overnight low would point to rebound.", "objective": "Source: Structured guide · Dawn vs Somogyi", "section": "Diabetes"}, {"id": "9", "group": 9, "stem": "A 31-year-old woman has had 3 months of a 15-lb weight loss despite a good appetite, palpitations, heat intolerance, tremor, diarrhea, and lighter irregular periods. She smokes half a pack a day. Pulse is 118, BP 146/66, skin is warm and moist, and there is a fine tremor. The thyroid is diffusely enlarged, nontender, with a bruit. She has lid retraction, mild proptosis, and thickened orange-peel plaques over both shins. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Toxic multinodular goiter"}, {"letter": "B", "text": "Subacute granulomatous thyroiditis"}, {"letter": "C", "text": "Graves disease"}, {"letter": "D", "text": "TSH-secreting pituitary adenoma"}, {"letter": "E", "text": "Toxic adenoma"}], "answer": "C", "explanation": "Diffuse goiter with a bruit, thyroid eye disease, and pretibial myxedema are specific to Graves disease; nodular disease and thyroiditis lack the eye and skin findings.", "objective": "Source: Case 6 · Graves disease", "section": "Thyroid"}, {"id": "9a", "group": 9, "stem": "TSH is suppressed and free T4 is elevated. Which of the following confirms the diagnosis?", "options": [{"letter": "A", "text": "Elevated anti-thyroid peroxidase antibodies"}, {"letter": "B", "text": "Positive TSH receptor antibodies (TRAb or TSI)"}, {"letter": "C", "text": "Markedly elevated ESR"}, {"letter": "D", "text": "Low radioactive iodine uptake"}, {"letter": "E", "text": "Elevated serum thyroglobulin"}], "answer": "B", "explanation": "TSH receptor antibodies confirm Graves; if unclear, RAIU is diffusely increased (low in thyroiditis, patchy in nodular disease).", "objective": "Source: Case 6 · Graves diagnostics", "section": "Thyroid"}, {"id": "9b", "group": 9, "stem": "She hopes to avoid lifelong hormone replacement and asks for medication. Which of the following is the most appropriate plan?", "options": [{"letter": "A", "text": "Propylthiouracil, with liver tests every 2 weeks"}, {"letter": "B", "text": "Radioactive iodine, with prednisone to protect her eyes"}, {"letter": "C", "text": "Methimazole for 12 to 18 months, instructed to stop and call for fever or sore throat"}, {"letter": "D", "text": "Levothyroxine to suppress TSH and shrink the goiter"}, {"letter": "E", "text": "Propranolol alone until symptoms resolve"}], "answer": "C", "explanation": "Methimazole is the preferred antithyroid drug (chance of remission after 12–18 months); counsel on agranulocytosis (stop for fever/sore throat, check CBC), hepatotoxicity, and rash. PTU is reserved for first-trimester pregnancy and thyroid storm.", "objective": "Source: Case 6 · Graves management", "section": "Thyroid"}, {"id": "10", "group": 10, "stem": "A 41-year-old woman has had 10 days of severe anterior neck pain radiating to her jaw and ear, worse with swallowing, 3 weeks after an upper respiratory infection. She has a low-grade fever, palpitations, sweating, and tremor. The thyroid is firm, enlarged, and exquisitely tender. ESR is 86 mm/h, TSH is low, free T4 is high, and 24-hour radioactive iodine uptake is 2%. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Graves disease"}, {"letter": "B", "text": "Subacute granulomatous (de Quervain) thyroiditis"}, {"letter": "C", "text": "Acute suppurative thyroiditis"}, {"letter": "D", "text": "Hashimoto thyroiditis in a thyrotoxic phase"}, {"letter": "E", "text": "Riedel thyroiditis"}], "answer": "B", "explanation": "Painful tender thyroid after a viral illness with a very high ESR, thyrotoxic labs, and near-absent RAIU is subacute granulomatous thyroiditis — the damaged gland leaks stored hormone and cannot trap iodine.", "objective": "Source: Case 7 · Subacute thyroiditis", "section": "Thyroid"}, {"id": "10a", "group": 10, "stem": "Which of the following is the most appropriate treatment?", "options": [{"letter": "A", "text": "Methimazole plus propranolol"}, {"letter": "B", "text": "Radioactive iodine ablation"}, {"letter": "C", "text": "NSAIDs, prednisone if pain is severe, and a beta-blocker for symptoms"}, {"letter": "D", "text": "IV antibiotics and surgical drainage"}, {"letter": "E", "text": "Levothyroxine started now"}], "answer": "C", "explanation": "Treat pain with NSAIDs (prednisone taper if severe or unresponsive) and a beta-blocker for thyrotoxic symptoms; antithyroid drugs and RAI do not help because the hormone is leaking, not being overproduced. Most recover; ~5% stay hypothyroid.", "objective": "Source: Case 7 · Subacute thyroiditis management", "section": "Thyroid"}, {"id": "11", "group": 11, "stem": "A 38-year-old woman reports a year of fatigue, cold intolerance, constipation, 10-lb weight gain, dry skin, and heavy periods. Her sister has type 1 diabetes. Pulse is 56. The thyroid is firm, symmetric, nontender, and mildly enlarged. Ankle reflexes show a delayed relaxation phase. TSH is 14 mIU/L and free T4 is low. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Subclinical hypothyroidism"}, {"letter": "B", "text": "Hashimoto thyroiditis"}, {"letter": "C", "text": "Central hypothyroidism"}, {"letter": "D", "text": "Subacute lymphocytic thyroiditis"}, {"letter": "E", "text": "Iodine-deficiency goiter"}], "answer": "B", "explanation": "Elevated TSH with low free T4 is primary hypothyroidism, and in an iodine-sufficient country with a firm nontender goiter and autoimmune family history that is Hashimoto thyroiditis (anti-TPO positive in ~95%).", "objective": "Source: Structured guide · Hashimoto thyroiditis", "section": "Thyroid"}, {"id": "11a", "group": 11, "stem": "She weighs 70 kg and is otherwise healthy. Which of the following is the most appropriate treatment and monitoring plan?", "options": [{"letter": "A", "text": "Levothyroxine 25 mcg daily; recheck TSH in 1 week"}, {"letter": "B", "text": "Levothyroxine about 1.6 mcg/kg daily; recheck TSH in 4 to 6 weeks"}, {"letter": "C", "text": "Liothyronine daily; recheck free T3 in 2 weeks"}, {"letter": "D", "text": "Desiccated thyroid extract; recheck TSH in 3 months"}, {"letter": "E", "text": "Levothyroxine 200 mcg daily; recheck TSH in 6 months"}], "answer": "B", "explanation": "Full replacement (~1.6 mcg/kg/day) in a healthy adult, taken on an empty stomach, with TSH rechecked 4–6 weeks after starting and after each dose change; T4 alone is the treatment of choice.", "objective": "Source: Structured guide · Hashimoto management", "section": "Thyroid"}, {"id": "12", "group": 12, "stem": "A 79-year-old woman with stable angina is found to have a TSH of 22 mIU/L and a low free T4. Which of the following is the most appropriate way to start levothyroxine?", "options": [{"letter": "A", "text": "1.6 mcg/kg daily, the standard full replacement dose"}, {"letter": "B", "text": "12.5 to 25 mcg daily, titrated slowly"}, {"letter": "C", "text": "100 mcg daily, titrated every 2 weeks"}, {"letter": "D", "text": "Liothyronine, which acts faster"}, {"letter": "E", "text": "Withhold treatment until her angina is revascularized"}], "answer": "B", "explanation": "In the elderly and in ischemic heart disease, start low (12.5–25 mcg/day) and titrate slowly — full doses can precipitate angina or arrhythmia.", "objective": "Source: Structured guide · Hypothyroidism in elderly/CAD", "section": "Thyroid"}, {"id": "13", "group": 13, "stem": "An 81-year-old woman is brought in obtunded from home in January. She was diagnosed with hypothyroidism years ago but stopped her medication. Temperature is 93°F, pulse 44, BP 80/50, and respirations 8. Her face is puffy, her skin is dry and cool, and she has nonpitting edema of the legs. A chest X-ray shows a right lower lobe pneumonia. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Septic shock"}, {"letter": "B", "text": "Myxedema coma"}, {"letter": "C", "text": "Adrenal crisis"}, {"letter": "D", "text": "Hypothermia from exposure"}, {"letter": "E", "text": "Pituitary apoplexy"}], "answer": "B", "explanation": "Hypothermia, bradycardia, hypotension, hypoventilation, and altered mental status in a patient with untreated hypothyroidism and a precipitating infection is myxedema coma — an ICU emergency.", "objective": "Source: Structured guide · Myxedema coma", "section": "Thyroid"}, {"id": "13a", "group": 13, "stem": "Labs are drawn. Which of the following should be given first?", "options": [{"letter": "A", "text": "IV levothyroxine"}, {"letter": "B", "text": "IV liothyronine"}, {"letter": "C", "text": "IV hydrocortisone"}, {"letter": "D", "text": "Oral levothyroxine by nasogastric tube"}, {"letter": "E", "text": "IV antibiotics only, pending thyroid results"}], "answer": "C", "explanation": "Give IV corticosteroids before IV thyroid hormone to cover possible coexisting adrenal insufficiency — thyroid replacement can precipitate adrenal crisis. Do not wait for lab results to treat; also treat the pneumonia.", "objective": "Source: Structured guide · Myxedema coma management", "section": "Thyroid"}, {"id": "14", "group": 14, "stem": "A 44-year-old woman has 4 months of palpitations, heat intolerance, and weight loss. There is no eye disease or skin change. Exam shows a single 3-cm firm nodule in the left thyroid lobe. TSH is suppressed and free T4 is elevated. A radioiodine scan shows an intense solitary focus of uptake in the left lobe with suppression of the rest of the gland. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Papillary thyroid carcinoma"}, {"letter": "B", "text": "Toxic multinodular goiter"}, {"letter": "C", "text": "Toxic adenoma"}, {"letter": "D", "text": "Graves disease"}, {"letter": "E", "text": "Subacute thyroiditis"}], "answer": "C", "explanation": "Hyperthyroidism with a solitary 'hot' nodule and suppression of the remaining gland is a toxic adenoma — an autonomously functioning benign nodule.", "objective": "Source: Structured guide · Toxic adenoma", "section": "Thyroid"}, {"id": "14a", "group": 14, "stem": "Which of the following is the most appropriate management of the nodule?", "options": [{"letter": "A", "text": "Fine-needle aspiration to exclude malignancy"}, {"letter": "B", "text": "Total thyroidectomy"}, {"letter": "C", "text": "Radioactive iodine ablation after symptom control with a beta-blocker"}, {"letter": "D", "text": "Methimazole for 18 months, then stop and observe for remission"}, {"letter": "E", "text": "Levothyroxine suppression therapy"}], "answer": "C", "explanation": "A hot nodule is almost never malignant, so FNA is not needed; toxic adenomas do not remit, so definitive therapy is RAI (or surgery), with a beta-blocker for symptoms meanwhile.", "objective": "Source: Structured guide · Toxic adenoma management", "section": "Thyroid"}, {"id": "15", "group": 15, "stem": "A 44-year-old woman has a lump in her neck noticed by her hairdresser. She has no pain, dysphagia, hoarseness, radiation history, or family history of thyroid cancer. Exam shows a firm, nontender 2-cm right thyroid nodule that moves with swallowing and no cervical lymphadenopathy. TSH is 1.9 mIU/L. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Radioactive iodine uptake and scan"}, {"letter": "B", "text": "Thyroid ultrasound"}, {"letter": "C", "text": "Fine-needle aspiration without imaging"}, {"letter": "D", "text": "Serum calcitonin and thyroglobulin"}, {"letter": "E", "text": "Repeat TSH in 3 months"}], "answer": "B", "explanation": "With a normal (or high) TSH, every nodule gets an ultrasound to assess size and features; a radioiodine scan is reserved for a LOW TSH to look for a hot nodule.", "objective": "Source: Case 11 · Thyroid nodule work-up", "section": "Thyroid"}, {"id": "15a", "group": 15, "stem": "Which of the following ultrasound features would most raise concern for malignancy?", "options": [{"letter": "A", "text": "Purely cystic nodule with smooth margins"}, {"letter": "B", "text": "Spongiform appearance"}, {"letter": "C", "text": "Solid hypoechoic nodule with microcalcifications and a taller-than-wide shape"}, {"letter": "D", "text": "Isoechoic nodule with a thin halo"}, {"letter": "E", "text": "Multiple similar nodules throughout both lobes"}], "answer": "C", "explanation": "Suspicious features: solid hypoechoic, irregular or lobulated margins, microcalcifications, taller-than-wide shape, extrathyroidal extension — these set the TI-RADS score that decides on FNA.", "objective": "Source: Case 11 · Ultrasound features", "section": "Thyroid"}, {"id": "15b", "group": 15, "stem": "Fine-needle aspiration is performed and reported as Bethesda category II. Which of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Diagnostic lobectomy"}, {"letter": "B", "text": "Total thyroidectomy"}, {"letter": "C", "text": "Periodic ultrasound surveillance with repeat FNA only if the nodule grows or changes"}, {"letter": "D", "text": "Levothyroxine to suppress nodule growth"}, {"letter": "E", "text": "Radioactive iodine ablation"}], "answer": "C", "explanation": "Bethesda II is benign: follow with periodic ultrasound and repeat FNA for growth or new suspicious features. Levothyroxine suppression is not recommended for benign nodules.", "objective": "Source: Case 11 · Nodule management", "section": "Thyroid"}, {"id": "16", "group": 16, "stem": "A 29-year-old woman noticed a painless neck lump 2 months ago. As a child she received radiation to the neck for an enlarged thymus. Exam shows a firm 2.5-cm left thyroid nodule and a firm 1.5-cm left lateral neck lymph node. TSH is normal. Ultrasound shows a solid hypoechoic nodule with microcalcifications, and FNA shows cells with optically clear nuclei, nuclear grooves, and psammoma bodies. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Follicular thyroid carcinoma"}, {"letter": "B", "text": "Medullary thyroid carcinoma"}, {"letter": "C", "text": "Papillary thyroid carcinoma"}, {"letter": "D", "text": "Anaplastic thyroid carcinoma"}, {"letter": "E", "text": "Thyroid lymphoma"}], "answer": "C", "explanation": "Childhood radiation exposure, early cervical node spread, and 'Orphan Annie eye' nuclei with nuclear grooves and psammoma bodies are papillary carcinoma — the most common thyroid cancer, spreading by lymphatics.", "objective": "Source: Case 12 · Papillary thyroid cancer", "section": "Thyroid"}, {"id": "16a", "group": 16, "stem": "After total thyroidectomy and neck dissection, which of the following is used as the tumor marker for surveillance?", "options": [{"letter": "A", "text": "Serum calcitonin"}, {"letter": "B", "text": "Serum thyroglobulin"}, {"letter": "C", "text": "Carcinoembryonic antigen"}, {"letter": "D", "text": "TSH receptor antibodies"}, {"letter": "E", "text": "Anti-thyroid peroxidase antibodies"}], "answer": "B", "explanation": "Once the thyroid is removed, serum thyroglobulin (with neck ultrasound) tracks recurrence of differentiated thyroid cancer; calcitonin and CEA are the markers for medullary carcinoma.", "objective": "Source: Case 12 · Papillary cancer follow-up", "section": "Thyroid"}, {"id": "17", "group": 17, "stem": "A 55-year-old woman treated with levothyroxine for Hashimoto thyroiditis has felt well but reports new palpitations. TSH is 0.05 mIU/L with a normal free T4. Which of the following is the most appropriate response?", "options": [{"letter": "A", "text": "Add propranolol and continue the current dose"}, {"letter": "B", "text": "Reduce the levothyroxine dose"}, {"letter": "C", "text": "Order a radioactive iodine uptake scan"}, {"letter": "D", "text": "Add methimazole"}, {"letter": "E", "text": "Increase the dose because free T4 is normal"}], "answer": "B", "explanation": "A suppressed TSH on levothyroxine is iatrogenic subclinical hyperthyroidism — cut the dose. Over-replacement causes atrial fibrillation and bone loss; titrate to TSH, not symptoms.", "objective": "Source: Structured guide · Levothyroxine over-replacement", "section": "Thyroid"}, {"id": "18", "group": 18, "stem": "A 58-year-old postmenopausal woman has had two kidney stones in 3 years, constipation, fatigue, low mood, and aching bones. She takes no medications. Labs: calcium 11.4 mg/dL, phosphorus 2.1 mg/dL (low), intact PTH 98 pg/mL (elevated), creatinine 1.0, 25-hydroxyvitamin D 32 ng/mL. DXA shows a T-score of −2.7 at the distal one-third radius. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Humoral hypercalcemia of malignancy"}, {"letter": "B", "text": "Primary hyperparathyroidism"}, {"letter": "C", "text": "Secondary hyperparathyroidism"}, {"letter": "D", "text": "Vitamin D intoxication"}, {"letter": "E", "text": "Familial hypocalciuric hypercalcemia"}], "answer": "B", "explanation": "Hypercalcemia with an elevated (or inappropriately normal) PTH and low phosphate is primary hyperparathyroidism — in malignancy PTH is suppressed, and in secondary HPT calcium is low or normal.", "objective": "Source: Case 14 · Primary hyperparathyroidism", "section": "Parathyroid & Calcium"}, {"id": "18a", "group": 18, "stem": "Which of the following should be obtained before recommending surgery?", "options": [{"letter": "A", "text": "Sestamibi scan to confirm the diagnosis"}, {"letter": "B", "text": "24-hour urine calcium and creatinine"}, {"letter": "C", "text": "PTH-related peptide"}, {"letter": "D", "text": "Serum calcitonin"}, {"letter": "E", "text": "Bone biopsy"}], "answer": "B", "explanation": "A 24-hour urine calcium excludes familial hypocalciuric hypercalcemia (low urinary calcium), in which parathyroidectomy would not help. Localization imaging is done only after the decision to operate.", "objective": "Source: Case 14 · Excluding FHH", "section": "Parathyroid & Calcium"}, {"id": "18b", "group": 18, "stem": "She asks about surgery. Which of the following is correct?", "options": [{"letter": "A", "text": "Surgery is not indicated because her calcium is below 12 mg/dL"}, {"letter": "B", "text": "Cinacalcet is preferred over surgery at her age"}, {"letter": "C", "text": "Parathyroidectomy is indicated because she has kidney stones, osteoporosis, and symptoms"}, {"letter": "D", "text": "Bisphosphonate therapy should be tried first for 2 years"}, {"letter": "E", "text": "Surgery is deferred until a sestamibi scan localizes an adenoma"}], "answer": "C", "explanation": "Parathyroidectomy is the only definitive treatment and is recommended for all symptomatic patients; asymptomatic indications include age under 50, calcium more than 1 mg/dL above normal, T-score ≤ −2.5 or fragility fracture, eGFR below 60, stones, or urine calcium above 250–300 mg/day.", "objective": "Source: Case 14 · Surgical indications", "section": "Parathyroid & Calcium"}, {"id": "19", "group": 19, "stem": "A 46-year-old woman had a total thyroidectomy for Graves disease 2 days ago. This evening she has numbness around her mouth and fingertips, painful cramping of both hands, and muscle twitching. Tapping in front of her ear produces facial twitching. Labs: calcium 6.8 mg/dL, albumin 4.0 g/dL, magnesium 1.4 mg/dL (low), intact PTH 6 pg/mL (low). ECG shows a prolonged QT interval. Which of the following is the most appropriate immediate treatment?", "options": [{"letter": "A", "text": "Oral calcium carbonate and ergocalciferol"}, {"letter": "B", "text": "IV calcium gluconate on a cardiac monitor, plus IV magnesium replacement"}, {"letter": "C", "text": "IV calcium chloride through a peripheral line, no magnesium needed"}, {"letter": "D", "text": "Recombinant PTH injection"}, {"letter": "E", "text": "Thiazide diuretic to retain calcium"}], "answer": "B", "explanation": "Symptomatic hypocalcemia with tetany, QT prolongation, or calcium below 7.5 needs IV calcium gluconate with continuous monitoring; replace magnesium too, because hypomagnesemia causes treatment resistance.", "objective": "Source: Case 15 · Post-operative hypocalcemia", "section": "Parathyroid & Calcium"}, {"id": "19a", "group": 19, "stem": "She is stabilized. Which of the following is the most appropriate long-term regimen while her parathyroid function is assessed?", "options": [{"letter": "A", "text": "Oral calcium plus ergocalciferol (vitamin D2)"}, {"letter": "B", "text": "Oral calcium plus calcitriol"}, {"letter": "C", "text": "High-dose cholecalciferol alone"}, {"letter": "D", "text": "Oral magnesium alone"}, {"letter": "E", "text": "Levothyroxine dose increase to improve calcium absorption"}], "answer": "B", "explanation": "Without PTH the kidney cannot 1α-hydroxylate vitamin D, so post-operative hypoparathyroidism is treated with oral calcium plus active vitamin D (calcitriol), aiming for a low-normal calcium. It may be transient (stunned glands) or permanent after 6–12 months.", "objective": "Source: Case 15 · Hypoparathyroidism management", "section": "Parathyroid & Calcium"}, {"id": "20", "group": 20, "stem": "A 66-year-old man with a 50-pack-year smoking history is admitted with 1 week of confusion, polyuria, constipation, and vomiting. He has lost 20 lb. Chest CT shows a 5-cm cavitary mass in the right upper lobe. Labs: calcium 14.8 mg/dL, albumin 3.8, phosphorus 2.0, intact PTH 6 pg/mL (suppressed), creatinine 1.9. Which of the following is the most likely mechanism of his hypercalcemia?", "options": [{"letter": "A", "text": "Autonomous PTH secretion from a parathyroid adenoma"}, {"letter": "B", "text": "Tumor secretion of PTH-related peptide"}, {"letter": "C", "text": "Tumor production of calcitriol"}, {"letter": "D", "text": "Osteolytic bone metastases"}, {"letter": "E", "text": "Excess vitamin D ingestion"}], "answer": "B", "explanation": "Severe hypercalcemia with a suppressed PTH in a smoker with a lung mass is humoral hypercalcemia of malignancy — squamous cell carcinomas secrete PTHrP (calcitriol is the lymphoma/granulomatous mechanism; osteolytic is myeloma/breast).", "objective": "Source: Structured guide · Hypercalcemia of malignancy", "section": "Parathyroid & Calcium"}, {"id": "20a", "group": 20, "stem": "Which of the following is the most appropriate initial management?", "options": [{"letter": "A", "text": "Furosemide to force calcium excretion"}, {"letter": "B", "text": "IV normal saline, then calcitonin and IV zoledronic acid"}, {"letter": "C", "text": "Oral prednisone"}, {"letter": "D", "text": "Emergent hemodialysis"}, {"letter": "E", "text": "Cinacalcet"}], "answer": "B", "explanation": "Calcium above 14 with symptoms is an emergency: volume-replete with isotonic saline first, add calcitonin for rapid short-term lowering, and a bisphosphonate (zoledronic acid) for durable control. Loop diuretics only for volume overload.", "objective": "Source: Structured guide · Hypercalcemia management", "section": "Parathyroid & Calcium"}, {"id": "21", "group": 21, "stem": "A 69-year-old thin woman fell from standing height and had sudden mid-back pain. She is 5 ft 1 in, down from 5 ft 4 in. Menopause was at 49, she smokes half a pack a day, and her mother had a hip fracture. Exam shows thoracic kyphosis and tenderness at T12. Lateral spine X-ray shows a T12 wedge compression fracture, and DXA shows a lumbar spine T-score of −3.2 and total hip T-score of −2.8. Which of the following best describes her diagnosis?", "options": [{"letter": "A", "text": "Osteopenia with a traumatic fracture"}, {"letter": "B", "text": "Osteoporosis, established by both the T-score and the fragility fracture"}, {"letter": "C", "text": "Osteomalacia until vitamin D is checked"}, {"letter": "D", "text": "Multiple myeloma until proven otherwise"}, {"letter": "E", "text": "Degenerative disc disease with height loss"}], "answer": "B", "explanation": "A T-score of −2.5 or lower defines osteoporosis, and a fragility fracture of the hip or spine establishes it clinically regardless of T-score; she has both.", "objective": "Source: Case 16 · Primary osteoporosis", "section": "Osteoporosis"}, {"id": "21a", "group": 21, "stem": "Which of the following is the most appropriate first-line pharmacotherapy?", "options": [{"letter": "A", "text": "Calcium and vitamin D alone"}, {"letter": "B", "text": "Weekly oral alendronate, taken upright with a full glass of water on an empty stomach"}, {"letter": "C", "text": "Teriparatide daily injections"}, {"letter": "D", "text": "Raloxifene"}, {"letter": "E", "text": "Calcitonin nasal spray"}], "answer": "B", "explanation": "Oral bisphosphonate (alendronate 70 mg weekly) is first line for osteoporosis with a fragility fracture, with calcium 1,200 mg/day and vitamin D 800–1,000 IU/day; anabolic agents are for very high risk such as multiple vertebral fractures.", "objective": "Source: Case 16 · Osteoporosis treatment", "section": "Osteoporosis"}, {"id": "21b", "group": 21, "stem": "Which of the following laboratory panels is appropriate to exclude secondary causes?", "options": [{"letter": "A", "text": "Calcium, phosphorus, creatinine, alkaline phosphatase, 25-hydroxyvitamin D, TSH, CBC, and serum protein electrophoresis"}, {"letter": "B", "text": "Bone-specific alkaline phosphatase and urinary N-telopeptide only"}, {"letter": "C", "text": "Estradiol, FSH, and prolactin"}, {"letter": "D", "text": "Rheumatoid factor and ESR"}, {"letter": "E", "text": "Serum calcitriol and PTH-related peptide"}], "answer": "A", "explanation": "Baseline labs: calcium, phosphorus, creatinine, alk phos, 25-OH vitamin D, TSH, CBC — and with a vertebral fracture, PTH and SPEP (myeloma). Calcitriol is never the vitamin D test.", "objective": "Source: Case 16 · Secondary-cause labs", "section": "Osteoporosis"}, {"id": "22", "group": 22, "stem": "A 67-year-old woman with no prior fractures has a screening DXA with a femoral neck T-score of −1.8. Her FRAX 10-year probability is 3.4% for hip fracture and 14% for major osteoporotic fracture. Which of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Calcium and vitamin D only; repeat DXA in 2 years"}, {"letter": "B", "text": "Start a bisphosphonate"}, {"letter": "C", "text": "Start teriparatide"}, {"letter": "D", "text": "Start hormone replacement therapy"}, {"letter": "E", "text": "No intervention; T-score is not in the osteoporosis range"}], "answer": "B", "explanation": "In osteopenia, treat when FRAX 10-year hip fracture risk is ≥3% or major osteoporotic fracture risk is ≥20%; her hip risk crosses the threshold.", "objective": "Source: Structured guide · Osteopenia / FRAX", "section": "Osteoporosis"}, {"id": "23", "group": 23, "stem": "An 80-year-old woman falls sideways at home and cannot bear weight. Her right leg is shortened and externally rotated, and X-ray shows a femoral neck fracture. She has never had a DXA scan and takes no osteoporosis medication. After surgical repair, which of the following should happen before discharge?", "options": [{"letter": "A", "text": "Defer any osteoporosis decision until an outpatient DXA in 6 months"}, {"letter": "B", "text": "Start osteoporosis pharmacotherapy and fall-prevention measures now"}, {"letter": "C", "text": "Prescribe calcium and vitamin D only, since the fracture was traumatic"}, {"letter": "D", "text": "Order a bone biopsy to exclude osteomalacia"}, {"letter": "E", "text": "Start teriparatide only if a second fracture occurs"}], "answer": "B", "explanation": "A hip fragility fracture establishes osteoporosis regardless of T-score; secondary prevention (bisphosphonate, fall prevention, VTE prophylaxis) should start before discharge — most hip-fracture patients are never treated, and 20–25% die within a year.", "objective": "Source: Structured guide · Osteoporotic hip fracture", "section": "Osteoporosis"}, {"id": "24", "group": 24, "stem": "A 27-year-old woman has had no menstrual periods for 8 months and milky discharge from both breasts, with mild headaches and decreased libido. She takes no medications and her pregnancy test is negative. Visual fields and thyroid exam are normal. Prolactin is 210 ng/mL, TSH is normal, and MRI shows a 7-mm pituitary lesion. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Stalk compression by a nonfunctioning macroadenoma"}, {"letter": "B", "text": "Prolactin-secreting microadenoma"}, {"letter": "C", "text": "Primary hypothyroidism with reactive hyperprolactinemia"}, {"letter": "D", "text": "Medication-induced hyperprolactinemia"}, {"letter": "E", "text": "Macroprolactinemia"}], "answer": "B", "explanation": "A prolactin above 200 ng/mL strongly suggests a prolactinoma; under 10 mm it is a microadenoma. Stalk effect usually gives prolactin under 100; TSH is normal; she takes no drugs.", "objective": "Source: Case 18 · Prolactinoma", "section": "Pituitary"}, {"id": "24a", "group": 24, "stem": "Which of the following is the most appropriate initial treatment?", "options": [{"letter": "A", "text": "Transsphenoidal surgery"}, {"letter": "B", "text": "Cabergoline"}, {"letter": "C", "text": "Combined oral contraceptives alone"}, {"letter": "D", "text": "Octreotide"}, {"letter": "E", "text": "Observation with repeat MRI in a year"}], "answer": "B", "explanation": "Dopamine agonists are first line for nearly all prolactinomas — cabergoline is preferred (twice weekly, better tolerated); surgery is for failure or intolerance of medication.", "objective": "Source: Case 18 · Prolactinoma management", "section": "Pituitary"}, {"id": "25", "group": 25, "stem": "A 44-year-old man has headaches and a bitemporal visual field defect. MRI shows a 3-cm pituitary macroadenoma. Serum prolactin returns at 45 ng/mL. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Proceed directly to transsphenoidal surgery for a nonfunctioning adenoma"}, {"letter": "B", "text": "Ask the laboratory to repeat the prolactin on a diluted sample"}, {"letter": "C", "text": "Start cabergoline for a prolactinoma"}, {"letter": "D", "text": "Treat as stalk effect and repeat MRI in 6 months"}, {"letter": "E", "text": "Order a TRH stimulation test"}], "answer": "B", "explanation": "A very large tumor with an unexpectedly modest prolactin may be the hook effect — extremely high prolactin saturating the assay; dilution unmasks a giant prolactinoma, which is treated medically rather than surgically.", "objective": "Source: Case 18 · Hook effect", "section": "Pituitary"}, {"id": "26", "group": 26, "stem": "A 46-year-old man reports that his shoe, hat, and ring sizes have increased over several years. He has coarse facial features, excessive sweating, joint pain, nighttime hand numbness, snoring, and daytime sleepiness. BP is 158/96. He has a prominent jaw, widely spaced teeth, a large tongue, spade-like hands, and skin tags. Fasting glucose is 128 mg/dL. Which of the following is the most appropriate initial test?", "options": [{"letter": "A", "text": "Random serum growth hormone"}, {"letter": "B", "text": "Serum IGF-1"}, {"letter": "C", "text": "Pituitary MRI"}, {"letter": "D", "text": "Overnight dexamethasone suppression test"}, {"letter": "E", "text": "Serum prolactin"}], "answer": "B", "explanation": "IGF-1 is the screening test for acromegaly — it reflects integrated GH secretion, whereas random GH is pulsatile and unreliable. Imaging follows biochemical confirmation.", "objective": "Source: Case 19 · Acromegaly screening", "section": "Pituitary"}, {"id": "26a", "group": 26, "stem": "IGF-1 is elevated. Which of the following confirms the diagnosis?", "options": [{"letter": "A", "text": "Failure of GH to suppress below 1 ng/mL after a 75-g oral glucose load"}, {"letter": "B", "text": "A rise in GH after insulin-induced hypoglycemia"}, {"letter": "C", "text": "A rise in GH after glucagon stimulation"}, {"letter": "D", "text": "An elevated 24-hour urinary free cortisol"}, {"letter": "E", "text": "A pituitary macroadenoma on MRI"}], "answer": "A", "explanation": "Suppress to prove excess: in acromegaly GH fails to suppress during an oral glucose tolerance test. Stimulation tests (insulin, glucagon) are used to prove deficiency.", "objective": "Source: Case 19 · Acromegaly confirmation", "section": "Pituitary"}, {"id": "26b", "group": 26, "stem": "MRI shows a 1.4-cm pituitary adenoma. Which of the following is the most appropriate first-line treatment?", "options": [{"letter": "A", "text": "Octreotide"}, {"letter": "B", "text": "Pegvisomant"}, {"letter": "C", "text": "Transsphenoidal surgery"}, {"letter": "D", "text": "Cabergoline"}, {"letter": "E", "text": "Pituitary radiation"}], "answer": "C", "explanation": "Transsphenoidal surgery is first line; somatostatin receptor ligands, pegvisomant, or cabergoline are used when surgery fails or is not possible, and radiation is third line. Screen complications: colonoscopy, sleep study, echo, glucose.", "objective": "Source: Case 19 · Acromegaly treatment", "section": "Pituitary"}, {"id": "27", "group": 27, "stem": "A 32-year-old man admitted 5 days ago with a severe traumatic brain injury now passes 8 to 10 L of very dilute urine daily, has intense thirst with a craving for ice water, and wakes several times a night to urinate. He is alert. Sodium is 150 mEq/L, serum osmolality 312 mOsm/kg, urine osmolality 110 mOsm/kg, and urine specific gravity 1.002. Glucose and calcium are normal. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Primary polydipsia"}, {"letter": "B", "text": "Central diabetes insipidus"}, {"letter": "C", "text": "Nephrogenic diabetes insipidus"}, {"letter": "D", "text": "Syndrome of inappropriate ADH"}, {"letter": "E", "text": "Cerebral salt wasting"}], "answer": "B", "explanation": "Hypernatremia with high serum osmolality and inappropriately dilute urine after head trauma is diabetes insipidus; after TBI or pituitary surgery the cause is central (ADH deficiency). Primary polydipsia gives a low-normal sodium.", "objective": "Source: Case 22 · Central diabetes insipidus", "section": "Pituitary"}, {"id": "27a", "group": 27, "stem": "Which of the following distinguishes a central from a nephrogenic cause?", "options": [{"letter": "A", "text": "Serum sodium above 145 at presentation"}, {"letter": "B", "text": "Urine osmolality rising by more than 50% after desmopressin"}, {"letter": "C", "text": "Urine specific gravity below 1.005"}, {"letter": "D", "text": "A 24-hour urine volume above 3 L"}, {"letter": "E", "text": "Loss of the posterior pituitary bright spot on MRI"}], "answer": "B", "explanation": "After water deprivation, giving desmopressin concentrates the urine (>50% rise in osmolality) in central DI but not in nephrogenic DI. Plasma copeptin is a newer, accurate alternative.", "objective": "Source: Case 22 · Central vs nephrogenic DI", "section": "Pituitary"}, {"id": "27b", "group": 27, "stem": "Which of the following is the most appropriate treatment?", "options": [{"letter": "A", "text": "Fluid restriction to 1 L per day"}, {"letter": "B", "text": "Hydrochlorothiazide and a low-sodium diet"}, {"letter": "C", "text": "Desmopressin with free access to water, correcting sodium no faster than 10 to 12 mEq/L per day"}, {"letter": "D", "text": "Rapid correction of sodium with IV D5W over 6 hours"}, {"letter": "E", "text": "Tolvaptan"}], "answer": "C", "explanation": "Central DI: desmopressin (nasal, oral, or SC/IV in hospital) with thirst-regulated water access; correct hypernatremia slowly with hypotonic fluid to avoid cerebral edema, and watch for hyponatremia from desmopressin plus excess fluid. Thiazides are for nephrogenic DI.", "objective": "Source: Case 22 · DI management", "section": "Pituitary"}, {"id": "28", "group": 28, "stem": "A 68-year-old man with a 50-pack-year smoking history has 2 weeks of nausea, headache, confusion, and weakness, a 15-lb weight loss, and a chronic cough. He is not dehydrated, has no edema, and no orthostasis. Labs: sodium 118 mEq/L, serum osmolality 248, urine osmolality 520, urine sodium 52, low uric acid and BUN, normal TSH and morning cortisol. Chest CT shows a central lung mass. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Hypovolemic hyponatremia from poor intake"}, {"letter": "B", "text": "SIADH from small cell lung cancer"}, {"letter": "C", "text": "Adrenal insufficiency"}, {"letter": "D", "text": "Primary polydipsia"}, {"letter": "E", "text": "Hypothyroidism-related hyponatremia"}], "answer": "B", "explanation": "Euvolemic hypotonic hyponatremia with inappropriately concentrated urine, urine sodium above 30, low uric acid, and normal thyroid/adrenal function is SIADH — classic for small cell lung cancer (ectopic ADH).", "objective": "Source: Case 23 · SIADH", "section": "Pituitary"}, {"id": "28a", "group": 28, "stem": "In the emergency department he has a generalized seizure. Which of the following is the most appropriate treatment?", "options": [{"letter": "A", "text": "Fluid restriction to 800 mL per day"}, {"letter": "B", "text": "Normal saline bolus of 1 L"}, {"letter": "C", "text": "Hypertonic 3% saline 100 to 150 mL bolus"}, {"letter": "D", "text": "Oral salt tablets and furosemide"}, {"letter": "E", "text": "Tolvaptan"}], "answer": "C", "explanation": "Severe symptoms (seizure, coma) call for a 3% saline bolus aiming to raise sodium 4–6 mEq/L in the first hours. Normal saline can worsen SIADH hyponatremia because the urine is more concentrated than the infusate.", "objective": "Source: Case 23 · Severe hyponatremia", "section": "Pituitary"}, {"id": "28b", "group": 28, "stem": "Which of the following correction limits and complications apply to his chronic hyponatremia?", "options": [{"letter": "A", "text": "No more than 8 mEq/L in 24 hours; osmotic demyelination syndrome"}, {"letter": "B", "text": "No more than 20 mEq/L in 24 hours; cerebral edema"}, {"letter": "C", "text": "No more than 2 mEq/L in 24 hours; central pontine hemorrhage"}, {"letter": "D", "text": "No limit, as long as symptoms resolve; rebound hyponatremia"}, {"letter": "E", "text": "No more than 15 mEq/L in 6 hours; seizures"}], "answer": "A", "explanation": "Correct chronic hyponatremia no faster than 8 mEq/L per 24 hours (never more than 10–12); overly rapid correction causes osmotic demyelination 2–6 days later (dysarthria, dysphagia, quadriparesis, locked-in state). Check sodium every 2–4 hours.", "objective": "Source: Case 23 · Correction rate", "section": "Pituitary"}, {"id": "29", "group": 29, "stem": "A 41-year-old woman has gained 35 lb over 18 months, mostly in her face and abdomen. She bruises easily, cannot climb stairs or rise from a chair without difficulty, has irregular periods, and feels depressed. She takes no medications, creams, or injections. BP is 158/98. She has a round face, dorsocervical fat pad, central obesity with thin limbs, wide violaceous abdominal striae, and proximal weakness. Fasting glucose is 138 mg/dL. Which of the following is the most appropriate initial testing?", "options": [{"letter": "A", "text": "Morning plasma ACTH"}, {"letter": "B", "text": "Pituitary MRI with contrast"}, {"letter": "C", "text": "Two of: late-night salivary cortisol, 24-hour urinary free cortisol, 1-mg overnight dexamethasone suppression test"}, {"letter": "D", "text": "Random serum cortisol"}, {"letter": "E", "text": "CT of the adrenal glands"}], "answer": "C", "explanation": "After excluding exogenous steroids, confirm hypercortisolism with at least two screening tests; ACTH and imaging come only after biochemical confirmation (incidental adrenal and pituitary lesions are common).", "objective": "Source: Case 24 · Cushing syndrome screening", "section": "Adrenal"}, {"id": "29a", "group": 29, "stem": "Hypercortisolism is confirmed and morning plasma ACTH is undetectable. Which of the following is the most appropriate next step?", "options": [{"letter": "A", "text": "Pituitary MRI"}, {"letter": "B", "text": "Inferior petrosal sinus sampling"}, {"letter": "C", "text": "High-dose dexamethasone suppression test"}, {"letter": "D", "text": "CT or MRI of the adrenal glands"}, {"letter": "E", "text": "Chest CT for an ectopic source"}], "answer": "D", "explanation": "A low ACTH (below about 5 pg/mL) means ACTH-independent adrenal disease — image the adrenals. A normal or high ACTH would prompt pituitary MRI, then IPSS if equivocal.", "objective": "Source: Case 24 · Localizing the source", "section": "Adrenal"}, {"id": "29b", "group": 29, "stem": "Imaging shows a 3-cm left adrenal adenoma and she undergoes laparoscopic adrenalectomy. Which of the following is essential afterward?", "options": [{"letter": "A", "text": "Lifelong fludrocortisone"}, {"letter": "B", "text": "Perioperative and continued glucocorticoid replacement until the HPA axis recovers"}, {"letter": "C", "text": "Ketoconazole to prevent recurrence"}, {"letter": "D", "text": "Immediate contralateral adrenalectomy"}, {"letter": "E", "text": "No hormone replacement; the remaining gland functions normally"}], "answer": "B", "explanation": "The adenoma suppressed ACTH, so the contralateral adrenal is atrophic; she needs hydrocortisone coverage and replacement for months to over a year with stress-dose education. Mineralocorticoid is not needed with one intact gland.", "objective": "Source: Case 24 · Post-adrenalectomy", "section": "Adrenal"}, {"id": "30", "group": 30, "stem": "A 35-year-old woman is brought to the ED with 2 days of vomiting, diarrhea, abdominal pain, and fever, and she is confused. She has had months of fatigue, weight loss, and salt craving. Temperature is 101.2°F, pulse 130, BP 68/40. She has dark palmar creases, bluish-brown patches on her gums, and darkened scars. Labs: sodium 122, potassium 6.4, glucose 46, creatinine 1.8, eosinophils 600/µL. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Septic shock from gastroenteritis"}, {"letter": "B", "text": "Adrenal crisis from primary adrenal insufficiency"}, {"letter": "C", "text": "Diabetic ketoacidosis"}, {"letter": "D", "text": "Secondary adrenal insufficiency"}, {"letter": "E", "text": "Myxedema coma"}], "answer": "B", "explanation": "Shock with hyponatremia, hyperkalemia, hypoglycemia, eosinophilia, and hyperpigmentation (high ACTH) is an adrenal crisis from primary adrenal insufficiency; hyperkalemia and pigmentation are absent in secondary disease.", "objective": "Source: Case 26 · Adrenal crisis", "section": "Adrenal"}, {"id": "30a", "group": 30, "stem": "Which of the following is the most appropriate immediate management?", "options": [{"letter": "A", "text": "Draw cortisol and ACTH and await results before treating"}, {"letter": "B", "text": "Hydrocortisone 100 mg IV immediately plus 0.9% saline resuscitation and dextrose"}, {"letter": "C", "text": "Fludrocortisone 0.1 mg orally and oral rehydration"}, {"letter": "D", "text": "Dexamethasone 4 mg IV after a cosyntropin stimulation test is completed"}, {"letter": "E", "text": "Norepinephrine infusion as the first intervention"}], "answer": "B", "explanation": "Do not delay for testing: give hydrocortisone 100 mg IV (then 200 mg/24 h), resuscitate with normal saline, correct hypoglycemia, treat the precipitant. High-dose hydrocortisone has mineralocorticoid effect, so fludrocortisone is not needed acutely.", "objective": "Source: Case 26 · Crisis management", "section": "Adrenal"}, {"id": "30b", "group": 30, "stem": "She recovers and a cosyntropin test confirms primary adrenal insufficiency with positive 21-hydroxylase antibodies. Which of the following is the most appropriate long-term plan?", "options": [{"letter": "A", "text": "Hydrocortisone in divided doses plus fludrocortisone, with stress-dose teaching and an emergency injection kit"}, {"letter": "B", "text": "Prednisone alone, doubled only before surgery"}, {"letter": "C", "text": "Fludrocortisone alone, since aldosterone is the main deficit"}, {"letter": "D", "text": "Hydrocortisone only, since fludrocortisone is unnecessary in autoimmune disease"}, {"letter": "E", "text": "Dexamethasone nightly to suppress ACTH"}], "answer": "A", "explanation": "Primary adrenal insufficiency loses both cortisol and aldosterone: hydrocortisone 15–25 mg/day divided plus fludrocortisone, with sick-day rules (double or triple dose, injectable hydrocortisone for vomiting), an emergency kit, medical alert bracelet, and screening for other autoimmune disease.", "objective": "Source: Case 26 · Addison disease maintenance", "section": "Adrenal"}, {"id": "31", "group": 31, "stem": "A 38-year-old man has episodes several times a week of pounding headache, drenching sweats, and palpitations lasting 20 minutes, during which his home blood pressure reads as high as 190/110; between episodes it runs in the 140s. He has lost 8 lb and feels anxious. Which of the following is the most appropriate initial test?", "options": [{"letter": "A", "text": "CT of the abdomen and pelvis with contrast"}, {"letter": "B", "text": "Plasma free metanephrines or 24-hour urine fractionated metanephrines"}, {"letter": "C", "text": "Aldosterone-to-renin ratio"}, {"letter": "D", "text": "MIBG scan"}, {"letter": "E", "text": "Overnight dexamethasone suppression test"}], "answer": "B", "explanation": "Paroxysms of headache, sweating, and palpitations with labile hypertension suggest pheochromocytoma; biochemistry (metanephrines) comes before any imaging.", "objective": "Source: Structured guide · Pheochromocytoma", "section": "Adrenal"}, {"id": "31a", "group": 31, "stem": "Metanephrines are markedly elevated and CT shows a 4-cm right adrenal mass. Which of the following is the correct preoperative sequence?", "options": [{"letter": "A", "text": "Metoprolol first, then phenoxybenzamine once the heart rate is controlled"}, {"letter": "B", "text": "Phenoxybenzamine first, then a beta-blocker only after adequate alpha blockade"}, {"letter": "C", "text": "Lisinopril and a low-salt diet"}, {"letter": "D", "text": "No premedication; proceed to urgent adrenalectomy"}, {"letter": "E", "text": "Hydrocortisone stress dosing, then surgery"}], "answer": "B", "explanation": "Alpha blockade (phenoxybenzamine or doxazosin) must precede beta blockade — a beta-blocker alone leaves alpha stimulation unopposed and can trigger a hypertensive crisis.", "objective": "Source: Structured guide · Pheochromocytoma preoperative care", "section": "Adrenal"}, {"id": "32", "group": 32, "stem": "A 47-year-old man has hypertension that remains 162/98 despite three antihypertensives including a diuretic. He reports fatigue, muscle cramps, and nocturia. Potassium is 3.0 mEq/L and bicarbonate 31 mEq/L. Which of the following is the most appropriate screening test?", "options": [{"letter": "A", "text": "Plasma metanephrines"}, {"letter": "B", "text": "Plasma aldosterone concentration with plasma renin activity"}, {"letter": "C", "text": "24-hour urinary free cortisol"}, {"letter": "D", "text": "Renal artery duplex ultrasound"}, {"letter": "E", "text": "Serum cortisol and ACTH"}], "answer": "B", "explanation": "Resistant hypertension with hypokalemia and metabolic alkalosis points to primary hyperaldosteronism; screen with aldosterone and renin (elevated aldosterone, suppressed renin), then image once biochemistry is positive.", "objective": "Source: Structured guide · Primary hyperaldosteronism", "section": "Adrenal"}, {"id": "32a", "group": 32, "stem": "Testing confirms primary hyperaldosteronism and adrenal CT shows a 1.5-cm left adrenal adenoma with a normal right gland. Which of the following is the most appropriate definitive treatment?", "options": [{"letter": "A", "text": "Spironolactone indefinitely"}, {"letter": "B", "text": "Laparoscopic left adrenalectomy"}, {"letter": "C", "text": "Bilateral adrenalectomy"}, {"letter": "D", "text": "Radiofrequency ablation"}, {"letter": "E", "text": "Potassium supplementation and salt restriction"}], "answer": "B", "explanation": "An aldosterone-producing adenoma is treated with unilateral adrenalectomy ('curable hypertension'); medical therapy with a mineralocorticoid antagonist is for bilateral hyperplasia or non-operative patients.", "objective": "Source: Structured guide · Conn syndrome management", "section": "Adrenal"}, {"id": "33", "group": 33, "stem": "A 9-day-old infant noted at birth to have an enlarged clitoris and fused labioscrotal folds has vomited repeatedly over the past day, fed poorly, and become lethargic. She is dehydrated with a BP of 52/30. Sodium is 124 mEq/L, potassium 7.0 mEq/L, and glucose 32 mg/dL. Karyotype is 46,XX and ultrasound shows a uterus and ovaries. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "Pyloric stenosis"}, {"letter": "B", "text": "Classic salt-wasting 21-hydroxylase deficiency"}, {"letter": "C", "text": "11β-hydroxylase deficiency"}, {"letter": "D", "text": "Neonatal sepsis"}, {"letter": "E", "text": "Androgen insensitivity syndrome"}], "answer": "B", "explanation": "A virilized 46,XX infant who crashes in the first weeks with hyponatremia, hyperkalemia, hypoglycemia, and hypotension has classic salt-wasting CAH from 21-hydroxylase deficiency (90% of CAH); 11β-hydroxylase deficiency causes hypertension instead.", "objective": "Source: Case 28 · Congenital adrenal hyperplasia", "section": "Adrenal"}, {"id": "33a", "group": 33, "stem": "Which of the following confirms the diagnosis?", "options": [{"letter": "A", "text": "Markedly elevated serum 17-hydroxyprogesterone"}, {"letter": "B", "text": "Elevated serum cortisol with low ACTH"}, {"letter": "C", "text": "Low plasma renin activity"}, {"letter": "D", "text": "Elevated 11-deoxycorticosterone"}, {"letter": "E", "text": "Low serum testosterone"}], "answer": "A", "explanation": "A markedly elevated 17-hydroxyprogesterone (often above 1,000 ng/dL) confirms 21-hydroxylase deficiency; renin is high in salt wasting, and androgens are elevated. CYP21A2 testing guides counseling.", "objective": "Source: Case 28 · CAH diagnosis", "section": "Adrenal"}, {"id": "33b", "group": 33, "stem": "Which of the following is the most appropriate acute treatment?", "options": [{"letter": "A", "text": "Oral hydrocortisone and sodium chloride supplements"}, {"letter": "B", "text": "IV hydrocortisone, a 20 mL/kg normal saline bolus, and dextrose"}, {"letter": "C", "text": "IV fludrocortisone alone"}, {"letter": "D", "text": "IV dexamethasone and potassium supplementation"}, {"letter": "E", "text": "IV insulin and glucose for the hyperkalemia only"}], "answer": "B", "explanation": "Treat as an adrenal crisis: IV hydrocortisone bolus, isotonic saline bolus, dextrose for hypoglycemia, and correct hyperkalemia if needed. Long term: oral hydrocortisone (avoid long-acting steroids in children) plus fludrocortisone and salt in infancy.", "objective": "Source: Case 28 · CAH management", "section": "Adrenal"}, {"id": "34", "group": 34, "stem": "A 34-year-old woman has had two kidney stones, fatigue, and constipation. For 8 months she has had amenorrhea and milky nipple discharge, and she has had three duodenal ulcers in 2 years, one distal to the duodenal bulb, with chronic diarrhea. Her father had parathyroid surgery and died of a pancreatic tumor. Labs: calcium 11.6 mg/dL, PTH 120 pg/mL, prolactin 95 ng/mL, fasting gastrin 1,400 pg/mL with gastric pH below 2. MRI shows an 8-mm pituitary lesion and CT a 1.5-cm pancreatic mass. Which of the following is the most likely diagnosis?", "options": [{"letter": "A", "text": "MEN 2A"}, {"letter": "B", "text": "MEN 1"}, {"letter": "C", "text": "MEN 2B"}, {"letter": "D", "text": "Autoimmune polyglandular syndrome type 2"}, {"letter": "E", "text": "Sporadic Zollinger-Ellison syndrome"}], "answer": "B", "explanation": "Parathyroid, pancreatic (gastrinoma), and pituitary (prolactinoma) tumors with an affected first-degree relative is MEN 1 (Wermer) — an autosomal dominant MEN1/menin mutation on chromosome 11q13.", "objective": "Source: Case 29 · MEN 1", "section": "MEN & Polyglandular"}, {"id": "34a", "group": 34, "stem": "Which of the following should be treated first, and how?", "options": [{"letter": "A", "text": "The gastrinoma, with pancreaticoduodenectomy"}, {"letter": "B", "text": "The prolactinoma, with transsphenoidal surgery"}, {"letter": "C", "text": "The hyperparathyroidism, with subtotal (3.5-gland) parathyroidectomy"}, {"letter": "D", "text": "The hyperparathyroidism, with removal of a single adenoma"}, {"letter": "E", "text": "The ulcers, with a 2-week course of a proton pump inhibitor"}], "answer": "C", "explanation": "Treat the hyperparathyroidism first because hypercalcemia stimulates gastrin release; unlike sporadic disease, MEN 1 involves all four glands, so surgery is subtotal parathyroidectomy (or total with autotransplantation). PPIs control acid, cabergoline treats the prolactinoma.", "objective": "Source: Case 29 · MEN 1 management", "section": "MEN & Polyglandular"}, {"id": "35", "group": 35, "stem": "A 58-year-old man with hypertension on two medications has an abdominal CT for flank pain from a kidney stone. It shows a 3.5-cm homogeneous, smooth right adrenal mass with an unenhanced attenuation of 6 Hounsfield units. He has no symptoms of hormone excess and no history of cancer. Potassium is normal. Which of the following biochemical evaluation does he need?", "options": [{"letter": "A", "text": "None; a mass under 4 cm with low attenuation needs no testing"}, {"letter": "B", "text": "1-mg overnight dexamethasone suppression test, plasma or urine metanephrines, and an aldosterone-to-renin ratio"}, {"letter": "C", "text": "Serum cortisol and ACTH only"}, {"letter": "D", "text": "24-hour urinary free cortisol only"}, {"letter": "E", "text": "Serum DHEA-S and testosterone only"}], "answer": "B", "explanation": "Every incidentaloma is screened for autonomous cortisol secretion (1-mg DST) and pheochromocytoma (metanephrines — though ≤10 HU makes pheo very unlikely); with hypertension or hypokalemia, add an aldosterone-to-renin ratio. Never biopsy before excluding pheochromocytoma.", "objective": "Source: Case 27 · Adrenal incidentaloma work-up", "section": "Adrenal"}, {"id": "35a", "group": 35, "stem": "The hormonal work-up is negative. Which of the following is the most appropriate management?", "options": [{"letter": "A", "text": "Laparoscopic adrenalectomy because the mass is over 3 cm"}, {"letter": "B", "text": "CT-guided biopsy"}, {"letter": "C", "text": "No further imaging; the mass has benign features"}, {"letter": "D", "text": "Repeat CT every 6 months for 5 years"}, {"letter": "E", "text": "Chemical-shift MRI then surgery if indeterminate"}], "answer": "C", "explanation": "A homogeneous, lipid-rich (≤10 HU) mass under 4 cm with a negative hormone work-up is a benign nonfunctioning adenoma and needs no further imaging; indeterminate masses (10–20 HU) get washout CT or repeat imaging, and masses ≥4 cm or suspicious ones are removed.", "objective": "Source: Case 27 · Incidentaloma management", "section": "Adrenal"}]};
+
+  // Reshuffle on every open: stack (page) order and option order within each question.
+  // Answer letters are remapped so A-E always read top-to-bottom.
+  (function shuffleExam() {
+    function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+    const gOrder = []; const gMap = {};
+    EXAM_DATA.questions.forEach(q => { if (!gMap[q.group]) { gMap[q.group] = []; gOrder.push(q.group); } gMap[q.group].push(q); });
+    shuffle(gOrder);
+    const out = [];
+    gOrder.forEach((g, gi) => {
+      gMap[g].forEach((q, qi) => {
+        const correct = q.options.find(o => o.letter === q.answer);
+        const opts = shuffle(q.options.slice());
+        const L = 'ABCDEFGH';
+        q.options = opts.map((o, i) => ({ letter: L[i], text: o.text }));
+        q.answer = L[opts.indexOf(correct)];
+        const suffix = q.id.replace(/^\d+/, '');
+        q.id = String(gi + 1) + suffix;
+        q.group = gi + 1;
+        out.push(q);
+      });
+    });
+    EXAM_DATA.questions = out;
+  })();
+
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  let mode = 'exam';         // 'exam' | 'results' | 'review'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += '<div class="stem">' + esc(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {
+    return questions.filter(q => answers[q.id] !== undefined && answers[q.id] !== q.answer);
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed questions (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed questions</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + esc(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed questions (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed question' + (missed.length === 1 ? '' : 's');
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + group[0].stem);
+      lines.push(q.stem);
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      lines.push('My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed questions'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
