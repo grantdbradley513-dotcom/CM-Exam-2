@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  /* LQ-PATCH: two-across option grid, select-all-that-apply, hint + second attempt */
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .opts .opt { margin-bottom: 0; height: 100%; }
+  .opts .opt:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  @media (max-width: 560px) { .opts { grid-template-columns: 1fr; } }
+  .group.c3 .opts, .group.c4 .opts { gap: 5px; margin-bottom: 5px; }
+  .group.c2 .opts { gap: 6px; margin-bottom: 6px; }
+  .opt.picked { border-color: var(--accent); background: var(--accent-soft); }
+  .opt .box { min-width: 1.25em; height: 1.25em; line-height: 1.15em; text-align: center;
+    border: 2px solid var(--border); border-radius: 4px; font-size: 0.8em; font-weight: 700;
+    color: transparent; flex: 0 0 auto; }
+  .opt .box.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .opt.correct .box.on { background: var(--green); border-color: var(--green); }
+  .opt.incorrect .box.on { background: var(--red); border-color: var(--red); }
+  .sata-note { font-size: 0.85em; font-weight: 700; color: var(--accent); margin: -6px 0 10px; }
+  .sata-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .opt-submit { font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 8px;
+    padding: 8px 18px; background: var(--accent); color: #fff; }
+  .opt-submit:disabled { opacity: 0.45; cursor: default; }
+  .sata-count { font-size: 0.85em; color: var(--ink-soft); }
+  .tnode.hint { margin-bottom: 14px; }
+  .tnode .teach:last-child { margin-bottom: 0; }
+  .firstpick { font-size: 0.88em; color: var(--ink-soft); margin: 2px 0 8px; }
+  .flagrow { margin-top: 12px; }
+  .flagbtn { font: inherit; font-size: 0.82em; font-weight: 600; cursor: pointer; background: transparent;
+    border: 1.5px dashed var(--border); border-radius: 8px; padding: 4px 11px; color: var(--ink-soft); }
+  .flagbtn:hover { border-color: var(--amber); color: var(--amber); }
+  .flagbtn.on { background: var(--amber-bg); border-style: solid; border-color: var(--amber); color: var(--amber); }
+  .todo .dot.flagged { background: var(--accent); }
+  .todo .tag.flagged { color: var(--accent); }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- Adaptive tutor ---------- */
+  :root { --tutor: #5b3fa6; --tutor-bg: #f5f2fc; --tutor-line: #ddd3f3; }
+  .feedback.tutoring { background: var(--amber-bg); border-left: 4px solid var(--amber); margin-bottom: 22px; }
+  .feedback.tutoring .verdict { color: var(--amber); }
+  /* Guided review: a quiet rail instead of a filled box, so nested cards don't stack up visually */
+  .tutor { border-left: 3px solid var(--tutor-line); padding: 2px 0 2px 16px; margin: 0 0 6px 4px; }
+  .tutor-head { font-weight: 700; color: var(--tutor); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+  .tnode { background: var(--card); border: 1px solid var(--tutor-line); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+  .tnode.active { border-color: var(--tutor); box-shadow: 0 2px 10px rgba(91,63,166,0.10); }
+  .tnode.done { background: #fcfcfe; }
+  .tlabel { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--tutor); margin-bottom: 8px; }
+  .tlabel.cp { color: #fff; background: var(--tutor); border-radius: 6px; padding: 1px 8px; }
+  .tlabel.clar { color: var(--amber); }
+  .teach { border-left: 3px solid var(--tutor); padding: 2px 0 2px 12px; margin-bottom: 12px; font-size: 0.95em; white-space: pre-wrap; color: var(--ink); }
+  .tnode .stem { margin-bottom: 12px; font-weight: 500; }
+  .tnode .opt { padding: 8px 12px; margin-bottom: 8px; }
+  .tnode .feedback { margin-top: 10px; }
+  .tnode .nudge { margin-top: 8px; color: var(--amber); font-weight: 600; font-size: 0.9em; }
+  .opt.elim { opacity: 0.45; text-decoration: line-through; border-style: dashed; }
+  .tnote { border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 0.95em; }
+  .tnote.reveal { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .tnote.mastered { background: var(--green-bg); border-left: 4px solid var(--green); font-weight: 600; }
+  .tnote.review { background: var(--red-bg); border-left: 4px solid var(--red); font-weight: 600; }
+  .tnote.info { color: var(--ink-soft); padding: 0 2px; margin-bottom: 10px; font-style: italic; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 6px; padding: 1px 8px; margin-left: 8px; vertical-align: middle; }
+  .badge.mastered { background: var(--green-bg); color: var(--green); }
+  .badge.review { background: var(--red-bg); color: var(--red); }
+  .badge.active { background: var(--tutor-bg); color: var(--tutor); }
+  details.trail { margin-top: 12px; }
+  details.trail summary { cursor: pointer; color: var(--tutor); font-weight: 600; font-size: 0.9rem; }
+  details.trail .tutor { margin-top: 12px; }
+
+  .qcard > .feedback + .tutor { margin-top: 22px; }
+
+  /* ---------- Results: study plan ---------- */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 16px; }
+  .card h2 { font-size: 1.02rem; margin-bottom: 4px; }
+  .card .sub { font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 14px; }
+  .focus-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 640px) { .focus-grid { grid-template-columns: 1fr 1fr; } }
+  .focus-box { border-radius: 10px; padding: 12px 14px; background: var(--red-bg); border-left: 4px solid var(--red); }
+  .focus-box.ok { background: var(--green-bg); border-left-color: var(--green); }
+  .focus-box .k { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+  .focus-box .v { font-weight: 700; font-size: 1.02rem; margin-top: 2px; }
+  .focus-box .n { font-size: 0.85rem; color: var(--ink-soft); }
+  .todo { list-style: none; }
+  .todo li { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border); font-size: 0.93rem; }
+  .todo li:first-child { border-top: none; }
+  .todo .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; transform: translateY(-1px); }
+  .todo .dot.review { background: var(--red); } .todo .dot.missed { background: var(--amber); } .todo .dot.mastered { background: var(--green); }
+  .todo .what { flex: 1; }
+  .todo .what b { font-weight: 600; }
+  .todo .tag { flex: none; font-size: 0.75rem; font-weight: 700; color: var(--ink-soft); }
+  .todo .tag.review { color: var(--red); } .todo .tag.missed { color: var(--amber); } .todo .tag.mastered { color: var(--green); }
+  .bar-row { margin-bottom: 14px; }
+  .bar-row:last-child { margin-bottom: 2px; }
+  .bar-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.92rem; margin-bottom: 5px; }
+  .bar-head .nm { font-weight: 600; }
+  .bar-head .pc { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+  .bar-head .pc b { color: var(--ink); }
+  .bar-meta { font-size: 0.78rem; color: var(--ink-soft); margin-top: 3px; }
+  .tutor-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 640px) { .tutor-stats { grid-template-columns: repeat(4, 1fr); } }
+  .tstat { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; color: var(--ink-soft); }
+  .tstat b { display: block; font-size: 1.4rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tstat.m b { color: var(--green); } .tstat.r b { color: var(--red); } .tstat.t b { color: var(--tutor); }
+
+  /* LQ-BG: lecture image as the page background; cards stay opaque for legibility */
+  body {
+    background: var(--bg) url("data:image/png;base64,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") center / cover no-repeat fixed;
+  }
+  @media (max-width: 560px) { body { background-attachment: scroll; } }
+  header, .qcard, .card { background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, topic?, skill?, image?,
+//    hint?: string                       // shown after a wrong first answer, then the SAME
+//                                        // question is asked again; the first attempt is scored }] }
+// Questions without `remediation` behave exactly like the classic exam (answer revealed immediately).
+// **double asterisks** in any text render as bold.
+const EXAM_DATA = {"title": "Pulmonary Emergencies — Lecture Quiz (Adaptive)", "questions": [{"id": "1", "group": 1, "slide": 5, "section": "Pulmonary Workup", "topic": "ED approach to pulmonary complaints", "skill": "Identification", "stem": "A patient arrives in the ED with a pulmonary complaint. What must be settled before any differential diagnosis is built?", "options": [{"letter": "A", "text": "Respiratory distress and airway protection"}, {"letter": "B", "text": "Which labs and biomarkers to send first"}, {"letter": "C", "text": "The need for CT versus V/Q imaging"}, {"letter": "D", "text": "Pulmonary versus cardiac versus other source"}], "answer": "A", "explanation": "Count the rate, ask whether they are **protecting the airway**, and decide on O2, PAP, or a tube; only when vitals are stable do you move on to labs, imaging, and the differential.", "objective": "", "hint": "The lecturer's opening instruction puts **hypoxia and hypercapnia** first and treats the rest of the assessment as something you earn only once vital signs are stable. Imaging, labs, and sorting the differential all come after that gate."}, {"id": "2", "group": 2, "slide": 12, "section": "Hemoptysis", "topic": "Hemoptysis", "skill": "Identification", "stem": "A healthy adult coughs up blood-tinged sputum after a week of viral cough. Which diagnosis is the most common cause of hemoptysis overall?", "options": [{"letter": "A", "text": "Pulmonary tuberculosis"}, {"letter": "B", "text": "Acute bronchitis"}, {"letter": "C", "text": "Pulmonary embolism"}, {"letter": "D", "text": "Bronchogenic carcinoma"}], "answer": "B", "explanation": "**Bronchitis** is the most common cause of hemoptysis overall; TB leads worldwide and bronchogenic carcinoma is the second most common cause. Ninety percent of bleeds come from the high-pressure bronchial arteries.", "objective": "", "hint": "Think about which of these you see weekly rather than which is the deadliest; **TB** is the leading cause worldwide and lung cancer is the second most common cause overall."}, {"id": "3", "group": 3, "slide": 14, "section": "Hemoptysis", "topic": "Hemoptysis", "skill": "Diagnostics & imaging", "stem": "A patient with non-massive hemoptysis has had a history, exam, and chest X-ray. Which features move the workup on to a CT of the chest?", "options": [{"letter": "A", "text": "Smoker older than 40"}, {"letter": "B", "text": "Normal oxygen saturation"}, {"letter": "C", "text": "Hemoptysis lasting more than one week"}, {"letter": "D", "text": "Abnormal chest X-ray"}, {"letter": "E", "text": "Known COPD or lung cancer"}, {"letter": "F", "text": "Bleeding that has already stopped"}], "answer": "ACDE", "explanation": "Abnormal CXR or any risk factor (**smoker >40**, cancer, COPD, hemoptysis >1 wk) means CT chest with or without bronchoscopy; no risk factors plus normal CXR plus bleeding stopped means treat bronchitis and observe. Every hemoptysis gets a CXR regardless.", "objective": "", "hint": "The algorithm sends the low-risk patient with a clean film and no further bleeding home as **bronchitis** with PCP follow-up; anything that raises the odds of an underlying structural or malignant lesion earns more imaging."}, {"id": "4", "group": 4, "slide": 15, "section": "Hemoptysis", "topic": "Massive hemoptysis", "skill": "Management", "stem": "A patient coughing up more than 600 mL of blood in 24 hours is bleeding from the left lung. How should the patient be positioned and why?", "options": [{"letter": "A", "text": "Left side down, so gravity keeps blood out of the right lung"}, {"letter": "B", "text": "Supine with the head elevated to protect the airway"}, {"letter": "C", "text": "Right side down, so the bleeding lung drains upward"}, {"letter": "D", "text": "Prone to encourage clot expulsion with coughing"}], "answer": "A", "explanation": "Lateral decubitus with the **bleeding side down** lets gravity protect the healthy lung; secure the airway with a large ETT (>8.5) so bronchoscopy is possible, give TXA, and get CTA then IR for bronchial artery embolization, CT surgery, and ICU.", "objective": "", "hint": "The goal is to **separate** the bleeding lung from the lung still exchanging gas; think about which direction blood flows under gravity and which lung you want it flowing away from."}, {"id": "5", "group": 5, "slide": 18, "section": "Hemoptysis", "topic": "Bronchitis", "skill": "Management", "stem": "A patient with fever, cough, and minor hemoptysis has a normal chest X-ray and is diagnosed with acute bronchitis. What is the appropriate treatment?", "options": [{"letter": "A", "text": "Admission for CT and bronchoscopy"}, {"letter": "B", "text": "Benzonatate and guaifenesin, home"}, {"letter": "C", "text": "Oseltamivir started within 48 hours"}, {"letter": "D", "text": "Azithromycin with discharge home"}], "answer": "B", "explanation": "Bronchitis is viral and gets **no antibiotics**; supportive care with benzonatate and guaifenesin and discharge. It is the most common cause of hemoptysis, so the CXR is there to rule out pneumonia.", "objective": "", "hint": "The causes are adenovirus, influenza, parainfluenza, RSV, and COVID, none of which respond to an antibacterial. Treatment targets the **cough** itself and the patient goes home once pneumonia and PE are not a concern."}, {"id": "6", "group": 6, "slide": 19, "section": "Hemoptysis", "topic": "Tuberculosis", "skill": "Management", "stem": "An immigrant with weeks of cough, weight loss, night sweats, and hemoptysis has cavitary apical lesions on chest X-ray. What is the ED's role?", "options": [{"letter": "A", "text": "Obtain an IGRA and discharge if negative"}, {"letter": "B", "text": "Admit every suspected case to the ICU"}, {"letter": "C", "text": "Isolate, notify public health, arrange follow-up"}, {"letter": "D", "text": "Start RIPE therapy before discharge"}], "answer": "C", "explanation": "In the ER, **isolate** the patient, get the CXR, contact public health, and give isolation and follow-up instructions; RIPE is not usually started in the ER. Admit if ill-appearing, diagnosis uncertain, or non-adherent (negative-pressure room).", "objective": "", "hint": "This is a reportable, **airborne** infection whose four-drug regimen is not usually begun in the emergency department; admission is reserved for the ill-appearing, uncertain, or non-adherent patient."}, {"id": "7", "group": 7, "slide": 22, "section": "Hemoptysis", "topic": "Pneumonia (CAP)", "skill": "Pharmacology", "stem": "A patient with community-acquired pneumonia is being admitted to a medical floor, not the ICU. Which empiric antibiotic regimen is appropriate?", "options": [{"letter": "A", "text": "Ceftriaxone plus azithromycin"}, {"letter": "B", "text": "Piperacillin-tazobactam plus vancomycin"}, {"letter": "C", "text": "Amoxicillin-clavulanate plus doxycycline"}, {"letter": "D", "text": "Amoxicillin or doxycycline alone"}], "answer": "A", "explanation": "Inpatient non-ICU CAP gets **ceftriaxone + azithromycin** (or a respiratory FQ); healthy outpatients get amoxicillin or doxycycline, comorbid outpatients Augmentin + doxy/macrolide or an FQ; add vancomycin or linezolid for MRSA risk and an antipseudomonal beta-lactam for Pseudomonas risk.", "objective": "", "hint": "Each regimen on the slide matches a setting: a single oral agent for the healthy outpatient, a combination oral regimen or a respiratory fluoroquinolone for outpatients with comorbidities, and **broader** coverage reserved for Pseudomonas or MRSA risk. Pick the one written for the ward."}, {"id": "8", "group": 8, "slide": 23, "section": "Hemoptysis", "topic": "Pneumonia (CAP)", "skill": "Diagnostics & imaging", "stem": "Which variables are scored in the CURB-65 tool used to risk-stratify community-acquired pneumonia?", "options": [{"letter": "A", "text": "Temperature above 38 °C"}, {"letter": "B", "text": "Age 65 or older"}, {"letter": "C", "text": "Respiratory rate of 30 or more"}, {"letter": "D", "text": "Oxygen saturation below 90%"}, {"letter": "E", "text": "BUN greater than 19"}, {"letter": "F", "text": "Confusion"}], "answer": "BCEF", "explanation": "**CURB-65** = Confusion, BUN >19, RR ≥30, BP <90/≤60, age ≥65. Score 0–1 outpatient, 2 observation versus admit, ≥3 admit (ICU if 4–5).", "objective": "", "hint": "The acronym spells out its own items, one of which is **blood pressure** (SBP <90 or DBP ≤60) and is not offered here. Fever and oxygen saturation belong to other severity tools, not this one."}, {"id": "9", "group": 9, "slide": 27, "section": "Hemoptysis", "topic": "HIV pneumonia (PJP)", "skill": "Identification", "stem": "An HIV patient with a CD4 count of 120 has progressive dyspnea, dry cough, hypoxia, and bilateral ground-glass infiltrates. What is the diagnosis and first-line treatment?", "options": [{"letter": "A", "text": "Bacterial CAP; ceftriaxone and azithromycin"}, {"letter": "B", "text": "Tuberculosis; isolation and RIPE"}, {"letter": "C", "text": "Influenza pneumonia; oseltamivir"}, {"letter": "D", "text": "PJP; trimethoprim-sulfamethoxazole"}], "answer": "D", "explanation": "CD4 <200 with bilateral ground-glass infiltrates is **PJP**; treat with TMP/SMX, add steroids if moderate to severe, and give Bactrim prophylaxis whenever CD4 <200. Bacterial CAP is still common in HIV and is treated like any CAP.", "objective": "", "hint": "The **CD4 count** is the discriminator: below 200 the opportunistic organism becomes the board answer, and its treatment is the same drug used for prophylaxis at that threshold, with steroids added when moderate to severe."}, {"id": "10", "group": 10, "slide": 28, "section": "Hemoptysis", "topic": "Empyema", "skill": "Complications", "stem": "A patient admitted for bacterial pneumonia is not improving after several days of appropriate antibiotics. Which complication should be suspected and how is it managed?", "options": [{"letter": "A", "text": "Lung abscess; prolonged oral antibiotics"}, {"letter": "B", "text": "ARDS; lung-protective ventilation"}, {"letter": "C", "text": "Pulmonary embolism; anticoagulation"}, {"letter": "D", "text": "Empyema; chest tube drainage plus antibiotics"}], "answer": "D", "explanation": "**Empyema** is pus in the pleural space, usually a complication of pneumonia; suspect it when pneumonia fails to resolve, confirm on CT/US (loculated, fluid pH <7.10, low glucose, neutrophils), and treat with drainage plus antibiotics. Admit.", "objective": "", "hint": "The lecture's rule is that a pneumonia that fails to resolve on therapy has an **infected collection** beside it that antibiotics alone cannot reach; the fix is mechanical as well as medical."}, {"id": "11", "group": 11, "slide": 33, "section": "Hemoptysis", "topic": "Pulmonary embolism", "skill": "Diagnostics & imaging", "stem": "A low pretest probability patient is being evaluated with the PERC rule. Which items, if present, prevent PE from being ruled out?", "options": [{"letter": "A", "text": "Oxygen saturation below 95% on room air"}, {"letter": "B", "text": "Age 50 or older"}, {"letter": "C", "text": "Current estrogen or hormone use"}, {"letter": "D", "text": "Fever above 38 °C"}, {"letter": "E", "text": "Pleuritic chest pain"}, {"letter": "F", "text": "Unilateral leg swelling"}], "answer": "ABCF", "explanation": "The eight **PERC** criteria: age ≥50, HR ≥100, SpO2 <95% RA, unilateral leg swelling, hemoptysis, recent surgery/trauma, prior PE/DVT, hormone use. All negative = PE ruled out with no further testing; any positive = move to Wells.", "objective": "", "hint": "PERC is used only when pretest probability is under 15%, and every criterion must be negative to stop the workup. The items are the classic **VTE risk factors** and vital-sign abnormalities, not symptom descriptors or infectious signs."}, {"id": "12", "group": 12, "slide": 34, "section": "Hemoptysis", "topic": "Pulmonary embolism", "skill": "Diagnostics & imaging", "stem": "A patient cannot be PERC-negative and scores 6 on the Wells criteria. What is the next diagnostic step?", "options": [{"letter": "A", "text": "CT pulmonary angiography directly"}, {"letter": "B", "text": "D-dimer, then CTA only if positive"}, {"letter": "C", "text": "Lower-extremity venous ultrasound"}, {"letter": "D", "text": "Bedside echocardiogram for RV strain"}], "answer": "A", "explanation": "Wells >4 (PE likely) goes **straight to CTA**; Wells 0–4 gets a D-dimer, and a positive D-dimer mandates CTA. High gestalt also skips the calculator and images.", "objective": "", "hint": "The two-tier cutoff on the slide is a Wells score of **4**: at or below it the patient is 'PE unlikely' and gets a screening blood test; above it the patient is 'PE likely' and a negative screen could not be trusted anyway."}, {"id": "13", "group": 13, "slide": 35, "section": "Hemoptysis", "topic": "Pulmonary embolism", "skill": "Diagnostics & imaging", "stem": "In which patient can a D-dimer below the exclusion cutoff not be trusted to rule out pulmonary embolism?", "options": [{"letter": "A", "text": "A patient already on anticoagulation"}, {"letter": "B", "text": "A patient with a Wells score of 2"}, {"letter": "C", "text": "A patient with symptoms for two days"}, {"letter": "D", "text": "A 75-year-old using the age-adjusted cutoff"}], "answer": "A", "explanation": "A D-dimer <500 (or age × 10 if >50) has NPV >99% — **unless** the patient is on anticoagulation or symptoms have lasted >2 weeks (organized clot). Values above 4000–5000 suggest massive PE, malignancy, dissection, or DIC.", "objective": "", "hint": "The test detects **active** fibrin breakdown. Anything that blocks new clot from forming, or lets the clot organize for more than two weeks, blunts the signal, so a reassuring value is falsely reassuring."}, {"id": "14", "group": 14, "slide": 38, "section": "Hemoptysis", "topic": "Pulmonary embolism", "skill": "Diagnostics & imaging", "stem": "A patient with suspected PE has a wedge-shaped peripheral opacity on chest X-ray. What does this finding represent?", "options": [{"letter": "A", "text": "Lobar consolidation from pneumonia"}, {"letter": "B", "text": "Hampton's hump from a pulmonary infarct"}, {"letter": "C", "text": "Atelectasis from splinting"}, {"letter": "D", "text": "Westermark sign of focal oligemia"}], "answer": "B", "explanation": "**Hampton's hump** is a wedge-shaped peripheral opacity from pulmonary infarction (mimics peripheral pneumonia); Westermark sign is focal oligemia distal to the embolus. The classic ECG is S1Q3T3 plus sinus tachycardia.", "objective": "", "hint": "Two eponyms belong to PE on the plain film: one is a region of **absent vessels** distal to the clot, the other is tissue that died for lack of blood supply. The shape tells you which."}, {"id": "15", "group": 15, "slide": 41, "section": "Hemoptysis", "topic": "Pulmonary embolism", "skill": "Diagnostics & imaging", "stem": "When should a V/Q scan replace CT angiography as the definitive imaging study for suspected pulmonary embolism?", "options": [{"letter": "A", "text": "When contrast is contraindicated or in pregnancy"}, {"letter": "B", "text": "When bedside echo already shows RV strain"}, {"letter": "C", "text": "When the D-dimer falls in the gray zone"}, {"letter": "D", "text": "Whenever the Wells score exceeds four"}], "answer": "A", "explanation": "**V/Q scan** when contrast is contraindicated, after a recent contrast CT, or in pregnancy. In pregnancy use the YEARS algorithm (leg signs mean LE ultrasound first); fetal dose from either study is far below the teratogenic threshold, but CT gives 20–100× more radiation to maternal breast tissue.", "objective": "", "hint": "CTA is the test of choice; the alternative exists for patients who cannot receive the **dye** or who just received it, plus one special population in which maternal breast radiation matters."}, {"id": "16", "group": 16, "slide": 43, "section": "Hemoptysis", "topic": "Pulmonary embolism", "skill": "Pharmacology", "stem": "A hemodynamically stable patient has a confirmed pulmonary embolism. Which statement best describes the initial anticoagulation strategy?", "options": [{"letter": "A", "text": "Warfarin bridged with heparin is first-line"}, {"letter": "B", "text": "Anticoagulate all; LMWH over UFH, DOAC over warfarin"}, {"letter": "C", "text": "Anticoagulate only if PESI class III or higher"}, {"letter": "D", "text": "Unfractionated heparin preferred for everyone"}], "answer": "B", "explanation": "**All** PE patients are anticoagulated unless contraindicated; LMWH is preferred over UFH for initial parenteral therapy and DOACs over VKAs (apixaban is the preferred oral agent, safe at all CKD stages). Continue beyond 3–6 months if no reversible risk factor.", "objective": "", "hint": "Anticoagulation is the one therapy every PE patient receives unless contraindicated, and the preferences on the slide favor the **newer** agents for both the parenteral and the oral phase."}, {"id": "17", "group": 17, "slide": 44, "section": "Hemoptysis", "topic": "Pulmonary embolism", "skill": "Management", "stem": "A patient with confirmed PE has persistent hypotension despite resuscitation. Which treatment is indicated, and for which patients is it reserved?", "options": [{"letter": "A", "text": "Thrombolysis; unstable Category D/E patients"}, {"letter": "B", "text": "IVC filter; all patients with recurrent PE"}, {"letter": "C", "text": "Anticoagulation alone; mortality is low"}, {"letter": "D", "text": "Thrombolysis; any PE with RV strain"}], "answer": "A", "explanation": "**Thrombolytics** are for unstable confirmed (or highly suspected in arrest) PE — 2026 AHA/ACC Categories D and E; unstable PE mortality is 25–50%. Activate the PERT team; surgical or catheter embolectomy if lysis is contraindicated.", "objective": "", "hint": "Hypotension is present in only about one in ten PE patients but is the strongest predictor of **mortality**. Clot-busting therapy is reserved for those in incipient or established cardiopulmonary failure, not for everyone with a strained right ventricle."}, {"id": "18", "group": 18, "slide": 48, "section": "Hemoptysis", "topic": "Pulmonary embolism", "skill": "Pharmacology", "stem": "Which histories are absolute contraindications to thrombolytic therapy for pulmonary embolism?", "options": [{"letter": "A", "text": "Age over 75 years"}, {"letter": "B", "text": "Heavy menstrual bleeding"}, {"letter": "C", "text": "Active internal bleeding"}, {"letter": "D", "text": "Suspected aortic dissection"}, {"letter": "E", "text": "Prior intracranial hemorrhage"}, {"letter": "F", "text": "Ischemic stroke within the past 3 months"}], "answer": "CDEF", "explanation": "Absolute contraindications: prior **ICH**, known structural cerebral vascular lesion, malignant intracranial neoplasm, ischemic stroke within 3 months, suspected aortic dissection, active bleeding or bleeding diathesis (not menses), significant closed-head or facial trauma within 3 months.", "objective": "", "hint": "Absolute contraindications are conditions in which a lytic would cause **catastrophic** bleeding into a closed space or a vessel wall already torn. Physiologic bleeding and advanced age are not on the list."}, {"id": "19", "group": 19, "slide": 49, "section": "Hemoptysis", "topic": "Pulmonary embolism", "skill": "Management", "stem": "A patient with confirmed PE is PESI class II with normal RV function, normal troponin, and reliable access to medication and follow-up. What is the disposition?", "options": [{"letter": "A", "text": "Observe in the ED and repeat the troponin"}, {"letter": "B", "text": "Admit to telemetry for 24 hours of observation"}, {"letter": "C", "text": "Admit to the ICU for possible thrombolysis"}, {"letter": "D", "text": "Discharge on a DOAC with follow-up within 7 days"}], "answer": "D", "explanation": "**PESI I–II** (Categories A/B) with no RV strain, normal biomarkers, and no new O2 need can go home on a DOAC — but only after screening social determinants (access, cost, transport) and securing follow-up within 7 days. PESI III–V or any admit trigger means hospitalization.", "objective": "", "hint": "The low PESI classes carry 30-day mortality under 2% and were non-inferior as **outpatients**; the admit triggers are RV strain, hypotension, new O2 requirement, elevated lactate, or elevated troponin/pro-BNP, none of which are present here."}, {"id": "20", "group": 20, "slide": 56, "section": "Hemoptysis", "topic": "Pulmonary embolism in pregnancy", "skill": "Pharmacology", "stem": "A pregnant patient at 30 weeks is diagnosed with pulmonary embolism. Which anticoagulant is appropriate?", "options": [{"letter": "A", "text": "Rivaroxaban"}, {"letter": "B", "text": "Warfarin"}, {"letter": "C", "text": "Low-molecular-weight heparin"}, {"letter": "D", "text": "Apixaban"}], "answer": "C", "explanation": "Pregnancy PE gets **heparin or LMWH only** — no DOAC, no warfarin. VTE risk peaks in the 6 weeks postpartum and returns to baseline by 12 weeks.", "objective": "", "hint": "DOACs are contraindicated in pregnancy and breastfeeding, and the vitamin K antagonist is a **teratogen**; the safe class is the parenteral agent that does not cross the placenta."}, {"id": "21", "group": 21, "slide": 64, "section": "Cough", "topic": "Influenza", "skill": "Pharmacology", "stem": "A healthy adult has 36 hours of fever, myalgias, headache, and cough, and tests positive for influenza. What is the treatment approach?", "options": [{"letter": "A", "text": "Dexamethasone to shorten the illness"}, {"letter": "B", "text": "Consider oseltamivir, hydrate, acetaminophen"}, {"letter": "C", "text": "Azithromycin to prevent secondary pneumonia"}, {"letter": "D", "text": "Admission for IV fluids and observation"}], "answer": "B", "explanation": "Influenza (antigen/PCR) is treated supportively — hydration, acetaminophen — with **oseltamivir** considered within 48 h via shared decision-making. Admit if significantly dehydrated, in respiratory distress, hypoxemic, or AMS.", "objective": "", "hint": "The antiviral shortens illness by about a day only when started within **48 hours**, and recent meta-analyses show no reduction in hospitalization, which is why the slide says 'consider' rather than 'give'. Admission is for dehydration, hypoxia, or altered mental status."}, {"id": "22", "group": 22, "slide": 65, "section": "Cough", "topic": "Pertussis", "skill": "Management", "stem": "An unvaccinated adult has had a cough for 2 weeks with paroxysms, inspiratory whoop, and post-tussive emesis. What is the correct ED management?", "options": [{"letter": "A", "text": "Admit for IV antibiotics and observation"}, {"letter": "B", "text": "Amoxicillin and airborne isolation"}, {"letter": "C", "text": "Supportive care only; antibiotics no longer help"}, {"letter": "D", "text": "Azithromycin, droplet precautions, prophylaxis for contacts"}], "answer": "D", "explanation": "Pertussis (NP PCR) gets **azithromycin** if within 3 weeks of cough onset, droplet precautions, and post-exposure prophylaxis for household and healthcare contacts; most go home.", "objective": "", "hint": "Antibiotics are worthwhile within **3 weeks** of cough onset because that is the highest-transmission window, and the public-health half of the plan reaches beyond the patient to the household and healthcare workers exposed."}, {"id": "23", "group": 23, "slide": 66, "section": "Cough", "topic": "Bronchiolitis (RSV)", "skill": "Management", "stem": "A 9-month-old in January has wheezing, tachypnea, and rhinorrhea, with SpO2 of 94% and no retractions. What is the appropriate ED treatment?", "options": [{"letter": "A", "text": "Oxygen by nasal cannula and admission"}, {"letter": "B", "text": "Azithromycin for atypical coverage"}, {"letter": "C", "text": "Albuterol nebulizer and oral dexamethasone"}, {"letter": "D", "text": "Nasal suction and supportive care"}], "answer": "D", "explanation": "Bronchiolitis (RSV, ages 0–2, winter) is **supportive**: nasal suctioning, O2 only if SpO2 <92%. Admit if hypoxic, using accessory muscles, or dehydrated. Prevention: maternal RSV vaccine at 32–36 weeks or nirsevimab for infants <8 months if the mother was unvaccinated.", "objective": "", "hint": "The RSV threshold for supplemental oxygen is an SpO2 under **92%**, and bronchodilators and steroids have no role; admission is for hypoxia, accessory muscle use, or dehydration, none of which are present."}, {"id": "24", "group": 24, "slide": 68, "section": "Cough", "topic": "Croup", "skill": "Pharmacology", "stem": "A 2-year-old with a barking cough and stridor at rest is treated for croup. Which medication is given and which is avoided, and why?", "options": [{"letter": "A", "text": "Ipratropium; dexamethasone avoided in toddlers"}, {"letter": "B", "text": "Ceftriaxone; epinephrine avoided for tachycardia"}, {"letter": "C", "text": "Albuterol; steroids avoided in a viral illness"}, {"letter": "D", "text": "Dexamethasone; albuterol avoided because it worsens edema"}], "answer": "D", "explanation": "**Dexamethasone** is first line for all croup; nebulized racemic epinephrine if stridor at rest, then observe 2–3 h. No albuterol — vasodilation worsens the edema. Admit if ≥2 epi doses or unable to tolerate PO.", "objective": "", "hint": "Croup is **subglottic** swelling, not bronchospasm, so the drugs that help shrink the airway are a steroid for every patient and a nebulized vasoconstrictor for stridor at rest; ask what a bronchodilator does to blood vessels."}, {"id": "25", "group": 25, "slide": 70, "section": "Cough", "topic": "Foreign body aspiration", "skill": "Diagnostics & imaging", "stem": "A 3-year-old has sudden wheeze, cough, and unilateral decreased breath sounds, but the chest X-ray is normal. What is the next step?", "options": [{"letter": "A", "text": "CT chest to look for pneumonia"}, {"letter": "B", "text": "Reassure and discharge with return precautions"}, {"letter": "C", "text": "Albuterol trial and repeat examination"}, {"letter": "D", "text": "Rigid bronchoscopy under general anesthesia"}], "answer": "D", "explanation": "Foreign body aspiration (ages 1–5): CXR misses ~75% because most objects are **radiolucent**. Heimlich or intubation to dislodge a complete obstruction; partial obstruction goes to rigid bronchoscopy under GA. Discharge once removed.", "objective": "", "hint": "About **75%** of aspirated objects do not show on a plain film, so a normal study excludes nothing; the sudden, unilateral story in this age group is the diagnosis, and the definitive step both confirms and removes it."}, {"id": "26", "group": 26, "slide": 83, "section": "Shortness of Breath", "topic": "Tension pneumothorax", "skill": "Identification", "stem": "Which clinical findings differentiate a tension pneumothorax from a simple spontaneous pneumothorax at the bedside?", "options": [{"letter": "A", "text": "Hypotension"}, {"letter": "B", "text": "Jugular venous distension"}, {"letter": "C", "text": "Decreased breath sounds on the affected side"}, {"letter": "D", "text": "Hyperresonance on the affected side"}, {"letter": "E", "text": "Pleuritic chest pain"}, {"letter": "F", "text": "Tracheal deviation away from the affected side"}], "answer": "ABF", "explanation": "Tension adds **tracheal deviation**, hypotension, JVD, severe distress, and worsening hypoxia (rising peak pressures if ventilated) to the shared SOB, pleuritic pain, decreased breath sounds, hyperresonance, and tachycardia. Tracheal deviation is a late sign — do not require it.", "objective": "", "hint": "Both share the findings of air in the pleural space. Tension adds the consequences of **mediastinal shift** and kinked vena cavae — signs of obstructive shock rather than signs of a collapsed lung."}, {"id": "27", "group": 27, "slide": 83, "section": "Shortness of Breath", "topic": "Tension pneumothorax", "skill": "Management", "stem": "A dyspneic trauma patient is hypotensive with JVD and absent breath sounds on the right. What is the immediate management?", "options": [{"letter": "A", "text": "Positive-pressure ventilation and fluid bolus"}, {"letter": "B", "text": "Needle decompression, then tube thoracostomy"}, {"letter": "C", "text": "Bedside ultrasound, then CT of the chest"}, {"letter": "D", "text": "Portable chest X-ray to confirm, then chest tube"}], "answer": "B", "explanation": "Tension PTX: immediate **needle decompression** followed by tube thoracostomy; do not wait for imaging and avoid positive-pressure ventilation until decompressed. Admit always.", "objective": "", "hint": "Tension pneumothorax is a **clinical** diagnosis; imaging delays treatment, and positive pressure drives more air through the one-way valve. Relieve the pressure first with the fastest available intervention, then place the definitive one."}, {"id": "28", "group": 28, "slide": 84, "section": "Shortness of Breath", "topic": "Pneumothorax", "skill": "Management", "stem": "A patient with COPD presents with a 1.5 cm spontaneous pneumothorax and mild dyspnea. What is the appropriate management and disposition?", "options": [{"letter": "A", "text": "Oxygen, observe 3 hours, repeat CXR, discharge"}, {"letter": "B", "text": "Discharge with repeat CXR in 2 weeks"}, {"letter": "C", "text": "Chest tube or catheter and admission"}, {"letter": "D", "text": "Needle aspiration and discharge with follow-up"}], "answer": "C", "explanation": "A **secondary** pneumothorax (COPD, asthma, ILD, cancer) of any size gets a small catheter or chest tube and admission. Small (≤2 cm) primary first-time PTX in a stable patient: NRB O2, observe >3 h, repeat CXR, discharge with return precautions and a 2-week recheck; >2 cm or symptomatic: chest tube and admit. Bedside US shows absent lung sliding with a lung point.", "objective": "", "hint": "Size rules (the 2 cm cutoff) govern a **primary** pneumothorax in a healthy lung. Underlying lung disease changes everything — the disposition is the same regardless of how small the film looks."}, {"id": "29", "group": 29, "slide": 85, "section": "Shortness of Breath", "topic": "Pleural effusion", "skill": "Diagnostics & imaging", "stem": "Which pleural fluid measurements make up Light's criteria for classifying an effusion as exudative?", "options": [{"letter": "A", "text": "Pleural fluid glucose below 60"}, {"letter": "B", "text": "Neutrophil predominance"}, {"letter": "C", "text": "Pleural fluid to serum protein ratio greater than 0.5"}, {"letter": "D", "text": "Pleural fluid to serum LDH ratio greater than 0.6"}, {"letter": "E", "text": "Pleural fluid LDH above two-thirds the serum upper limit"}, {"letter": "F", "text": "Pleural fluid pH below 7.10"}], "answer": "CDE", "explanation": "**Light's criteria** (exudate if ≥1): fluid/serum protein >0.5, fluid/serum LDH >0.6, fluid LDH >2/3 ULN serum. Cell count (neutrophils = parapneumonic/PE/pancreatitis; lymphocytes = cancer/TB), low glucose, pH <7.10 (parapneumonic needing a tube), and amylase then refine the cause. CXR needs 150–200 mL to blunt the costophrenic angle.", "objective": "", "hint": "Light's criteria compare two **chemistries** with their serum values and nothing else. Glucose, pH, and cell count are the next-step tests that narrow the cause of an exudate once you have one."}, {"id": "30", "group": 30, "slide": 86, "section": "Shortness of Breath", "topic": "Pleural effusion", "skill": "Management", "stem": "A patient with heart failure has a moderate pleural effusion on CXR, mild dyspnea, and stable vital signs. What is the ED plan?", "options": [{"letter": "A", "text": "Diuresis and discharge with PCP follow-up"}, {"letter": "B", "text": "Emergent thoracentesis and discharge"}, {"letter": "C", "text": "Observe 4 hours and discharge if improved"}, {"letter": "D", "text": "Diuresis and admission"}], "answer": "D", "explanation": "Transudates (CHF, nephrotic, cirrhosis) get **diuresis**; thoracentesis if unstable or for symptom control. Only a trace effusion with no life-threatening cause goes home — anything beyond trace is admitted.", "objective": "", "hint": "Thoracentesis is reserved for the unstable or symptomatic patient, and a transudate from hydrostatic pressure responds to volume removal by medication. Disposition hinges on one word on the slide: **trace**."}, {"id": "31", "group": 31, "slide": 90, "section": "Shortness of Breath", "topic": "Hemothorax", "skill": "Management", "stem": "A trauma patient's chest tube drains 1600 mL of blood immediately after placement. What does this output indicate?", "options": [{"letter": "A", "text": "Need for a second, larger chest tube"}, {"letter": "B", "text": "Chylothorax from thoracic duct injury"}, {"letter": "C", "text": "Expected drainage; continue tube thoracostomy"}, {"letter": "D", "text": "Massive hemothorax requiring thoracotomy"}], "answer": "D", "explanation": "Hemothorax = blood in the pleural space, usually from direct lung injury; most resolve with a large tube. **Thoracotomy** if >1500 mL initial output, 150–200 mL/h for 2–4 h, or persistent transfusion need. Massive hemothorax is on the life-threatening effusion list — admit.", "objective": "", "hint": "Most hemothoraces resolve with a large tube alone. The surgical triggers are an initial output above **1500 mL**, ongoing output of 150–200 mL/h for 2–4 hours, or a persistent transfusion requirement."}, {"id": "32", "group": 32, "slide": 90, "section": "Shortness of Breath", "topic": "Chylothorax", "skill": "Identification", "stem": "After thoracic surgery, a patient's pleural drain fills with milky white fluid. What is the diagnosis and which structure was injured?", "options": [{"letter": "A", "text": "Empyema; parapneumonic space"}, {"letter": "B", "text": "Transudate; pulmonary lymphatics"}, {"letter": "C", "text": "Hemothorax; intercostal artery"}, {"letter": "D", "text": "Chylothorax; thoracic duct"}], "answer": "D", "explanation": "**Chylothorax** is lymphatic fluid (chyle) in the pleural space from thoracic duct injury (surgery, penetrating trauma) or lymphoma; it is milky white. Treat with drainage, fat restriction/MCT or TPN, and ligation if persistent.", "objective": "", "hint": "The word that defines each pleural collection is the **fluid** — pus, blood, or lymph. The appearance here points to lymph, and the single large lymphatic channel that runs through the chest is the one surgery can injure."}, {"id": "33", "group": 33, "slide": 91, "section": "Shortness of Breath", "topic": "ARDS", "skill": "Diagnostics & imaging", "stem": "A septic patient develops profound dyspnea with new bilateral opacities and a PaO2/FiO2 ratio of 150 despite a normal cardiac evaluation. How is this classified and ventilated?", "options": [{"letter": "A", "text": "Cardiogenic pulmonary edema; diuresis and BiPAP"}, {"letter": "B", "text": "Moderate ARDS; tidal volume 6 mL/kg ideal body weight"}, {"letter": "C", "text": "Mild ARDS; supplemental oxygen by nasal cannula"}, {"letter": "D", "text": "Severe ARDS; high tidal volumes to recruit alveoli"}], "answer": "B", "explanation": "**ARDS**: bilateral opacities not from heart failure, P/F <300 (mild 200–300, moderate 100–200, severe <100). Treat the cause, mechanical ventilation with tidal volume 6 mL/kg IBW, consider steroids, ICU. FiO2 on nasal cannula ≈ 20% + 4 × L/min.", "objective": "", "hint": "ARDS is non-cardiogenic edema defined by a P/F ratio under **300**, with severity bands of 200–300, 100–200, and under 100. Ventilation is lung-protective, which means small breaths, not big ones."}, {"id": "34", "group": 34, "slide": 94, "section": "Shortness of Breath", "topic": "Epiglottitis", "skill": "Management", "stem": "A febrile child is drooling, tripoding, and stridulous with a muffled voice. What is the appropriate ED management?", "options": [{"letter": "A", "text": "Lateral neck film, then tongue-depressor exam of the throat"}, {"letter": "B", "text": "Supine positioning and oral antibiotics, discharge home"}, {"letter": "C", "text": "Dexamethasone and racemic epinephrine, observe 3 hours"}, {"letter": "D", "text": "Keep upright, no oral exam, secure airway, ceftriaxone"}], "answer": "D", "explanation": "**Epiglottitis**: keep the child upright, do not examine the oropharynx, nebulized epinephrine, prepare for airway management (may need cricothyrotomy), ceftriaxone ± vancomycin for MRSA. Admit to ICU with ENT consultation.", "objective": "", "hint": "This is a **supraglottic** emergency in which agitation or instrumenting the mouth can trigger laryngospasm; the diagnosis is clinical (thumbprint sign confirms but is not required) and the plan is airway first, antibiotics second, ICU and ENT third."}, {"id": "35", "group": 35, "slide": 98, "section": "Wheezing", "topic": "Asthma exacerbation", "skill": "Management", "stem": "A wheezing asthmatic arrives with SpO2 of 88% and dyspnea limiting conversation. What is the initial ED treatment, and which diagnostic test is not used?", "options": [{"letter": "A", "text": "Albuterol alone; no steroids or oxygen"}, {"letter": "B", "text": "O2, IV magnesium, ketamine; no chest X-ray"}, {"letter": "C", "text": "BiPAP and IV antibiotics; no peak flow"}, {"letter": "D", "text": "O2, albuterol-ipratropium, steroids; no PFTs"}], "answer": "D", "explanation": "Asthma exacerbation: O2 if SpO2 <90%, **duoneb** (albuterol/ipratropium, continuous if needed), and systemic steroids. Diagnosis is clinical — no PFTs in the ER; CXR only if pneumonia, PTX, or foreign body is suspected.", "objective": "", "hint": "The lecture's line is that formal spirometry has no role in the ER; diagnosis is clinical and response is tracked by bedside peak flow and saturation. First-line therapy is the standard **trio**, with the adjuncts reserved for failure to improve."}, {"id": "36", "group": 36, "slide": 103, "section": "Wheezing", "topic": "Status asthmaticus", "skill": "Management", "stem": "An asthmatic has a silent chest and accessory muscle use despite repeated duonebs and steroids. Which adjunct is given first, and what must be excluded before starting NIPPV?", "options": [{"letter": "A", "text": "IV magnesium sulfate; pneumothorax"}, {"letter": "B", "text": "IV antibiotics; pneumonia"}, {"letter": "C", "text": "Nebulized racemic epinephrine; croup"}, {"letter": "D", "text": "IV furosemide; heart failure"}], "answer": "A", "explanation": "**Status asthmaticus**: IV magnesium 1–2 g (monitor BP and DTRs), NIPPV after ruling out pneumothorax, epinephrine, ketamine. Intubate for altered sensorium, progressive hypercarbia, acidosis, or inability to protect the airway — ventilation only rests the patient, it does not relieve the obstruction.", "objective": "", "hint": "A silent chest is **worse** than loud wheezing. The first-line IV adjunct is a smooth-muscle relaxant monitored by blood pressure and deep tendon reflexes, and the condition that positive pressure can convert into tension is the one to rule out."}, {"id": "37", "group": 37, "slide": 105, "section": "Wheezing", "topic": "COPD exacerbation", "skill": "Management", "stem": "A COPD patient in exacerbation has an SpO2 of 85%. What oxygen saturation target should guide supplemental O2?", "options": [{"letter": "A", "text": "Above 98%"}, {"letter": "B", "text": "No target; give high-flow O2"}, {"letter": "C", "text": "88–92%"}, {"letter": "D", "text": "Above 94%"}], "answer": "C", "explanation": "COPD: titrate O2 to **88–92%** (PaO2 60–70 mmHg), duoneb, steroids, BiPAP if needed; ABG shows PaO2 <60 or PCO2 >44 (respiratory acidosis). ICU for pH <7.2, NIV failure, AMS, or hemodynamic instability.", "objective": "", "hint": "Over-oxygenating a chronic CO2 retainer worsens hypercapnia, so the target is deliberately **modest** and the ABG is repeated after 20–30 minutes if saturation stays below 90% or hypercapnia is a concern."}, {"id": "38", "group": 38, "slide": 106, "section": "Wheezing", "topic": "COPD exacerbation", "skill": "Pharmacology", "stem": "Which clinical features justify antibiotics in a moderately ill patient with a COPD exacerbation?", "options": [{"letter": "A", "text": "Increased dyspnea"}, {"letter": "B", "text": "Increased sputum volume"}, {"letter": "C", "text": "Wheezing on auscultation"}, {"letter": "D", "text": "Increased sputum purulence"}], "answer": "ABD", "explanation": "COPD antibiotics for increased **sputum**, purulence, and dyspnea: azithromycin (or beta-lactam, doxycycline, Bactrim) if uncomplicated; fluoroquinolone with risk factors (recent hospitalization/antibiotics, comorbidity, frequent exacerbations); cover Pseudomonas if recent admission/antibiotics, prior Pseudomonas culture, or bronchiectasis.", "objective": "", "hint": "The lecture's rule is antibiotics for the moderately or severely ill patient with evidence of **infection**, judged by changes in what the patient is producing and how hard they are breathing; wheezing is the exacerbation itself, present with or without infection."}, {"id": "39", "group": 39, "slide": 110, "section": "Wheezing", "topic": "Asthma/COPD discharge", "skill": "Counseling & prevention", "stem": "A COPD patient has improved after ED treatment and is going home. Which discharge item does the lecture single out to confirm before the patient leaves?", "options": [{"letter": "A", "text": "Antibiotics are prescribed regardless of sputum change"}, {"letter": "B", "text": "Pulmonary function tests are ordered for next week"}, {"letter": "C", "text": "A repeat chest X-ray has been scheduled in 2 weeks"}, {"letter": "D", "text": "The patient can demonstrate correct inhaler technique"}], "answer": "D", "explanation": "COPD discharge: home O2 if needed, bronchodilators, short oral steroid course, antibiotics if indicated, follow-up within **1 week**, and ensure the patient knows how to use the inhaler. Asthma: SABA plus oral steroids, continue ICS, written action plan, follow-up in 1–4 weeks.", "objective": "", "hint": "The bundle is home O2 if needed, adequate bronchodilators, a short oral steroid course, antibiotics only when indicated, and PCP or pulmonology follow-up within a week — plus one **hands-on** check that the medications will actually reach the lungs."}, {"id": "40", "group": 40, "slide": 115, "section": "Review & Disposition", "topic": "Disposition rules", "skill": "Management", "stem": "Which of the following diagnoses is admitted according to the lecture's discharge-versus-admit summary regardless of how well the patient appears?", "options": [{"letter": "A", "text": "Influenza"}, {"letter": "B", "text": "Croup"}, {"letter": "C", "text": "Acute bronchitis"}, {"letter": "D", "text": "Epiglottitis"}], "answer": "D", "explanation": "The admit list: PE Category C–E, high CURB-65/PSI pneumonia, any infection or COPD/asthma with unstable VS, new O2 demand, accessory muscle use, or persistent wheezing/stridor, large/recurrent/secondary/tension PTX, worsening bronchiectasis, ARDS, and **epiglottitis**. Disposition is a safety decision, not a bed decision.", "objective": "", "hint": "Infections like bronchitis, croup, influenza, pertussis, and bronchiolitis go home when vitals, saturation, and work of breathing are stable. The admit-always list is reserved for conditions in which the **airway** or oxygenation can fail abruptly."}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  const LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const normAns = a => (Array.isArray(a) ? a.join('') : String(a == null ? '' : a))
+    .toUpperCase().replace(/[^A-Z]/g, '').split('')
+    .filter((v, i, z) => z.indexOf(v) === i).sort().join('');
+  questions.forEach(q => { const n = normAns(q.answer); q.multi = q.multi === true || n.length > 1; q.answer = n; });
+  const picks = {};          // question id -> letters picked but not yet submitted (multi only)
+  const second = {};         // question id -> second-attempt answer (NOT scored)
+  const flagged = {};        // question id -> true, set by the student at any point
+  function shuffleOptions(item) {
+    if (!item || !item.options || item.options.length < 2) return;
+    const keys = new Set(String(item.answer).split('').map(l => (item.options.find(o => o.letter === l) || {}).text));
+    const texts = item.options.map(o => o.text);
+    for (let i = texts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [texts[i], texts[j]] = [texts[j], texts[i]]; }
+    item.options = texts.map((t, i) => ({ letter: LET[i], text: t }));
+    item.answer = item.options.filter(o => keys.has(o.text)).map(o => o.letter).join('');
+  }
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter (FIRST attempt — this is what is scored)
+  const tutor = {};          // question id -> tutor session (see startTutor)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);
+  let page = 0;
+  let lastGrade = null;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const optText = (item, letters) => String(letters == null ? '' : letters).split('')
+    .map(l => { const o = item.options.find(x => x.letter === l); return o ? o.text : ''; })
+    .filter(Boolean).join(' \u00b7 ');
+  const letters = v => String(v == null ? '' : v).split('').join(', ');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  // ================= Hint, then the same question again =================
+  // A missed question is never replaced by new questions. The student gets a hint
+  // that points hard at the answer without naming it, then the SAME question again.
+  // The FIRST attempt is what is scored; the second only decides whether the concept
+  // is recorded as relearned or still shaky.
+  function hintOf(q) {
+    const r = q.remediation || {};
+    return q.hint || r.hint || ((r.steps || [])[0] || {}).teach || '';
+  }
+  function hasTutor(q) { return !!hintOf(q); }
+
+  function startTutor(q) {
+    tutor[q.id] = { status: 'active', first: answers[q.id] };
+    delete picks[q.id];
+  }
+
+  function isRetrying(q) { const t = tutor[q.id]; return !!(t && t.status === 'active'); }
+
+  function secondAnswer(q, picked) {
+    const t = tutor[q.id];
+    if (!t || t.status !== 'active') return;
+    second[q.id] = picked;
+    t.status = picked === q.answer ? 'mastered' : 'review';
+  }
+
+  // The option already shown to be wrong is struck out on the retry. A select-all
+  // answer is a set rather than one claim, so there every option stays live.
+  function elimOf(q) { const t = tutor[q.id]; return (t && !q.multi && t.first) ? t.first : ''; }
+
+  // A question is "resolved" (lets its follow-up appear) once answered right,
+  // answered wrong with no hint to give, or the second attempt is in.
+  function resolved(q) {
+    if (answers[q.id] === undefined) return false;
+    if (answers[q.id] === q.answer || !hasTutor(q)) return true;
+    return !isRetrying(q);
+  }
+
+  function tutorStatus(q) { const t = tutor[q.id]; return t ? t.status : null; }
+
+  function hintHtml(q) {
+    return '<div class="tutor"><div class="tutor-head">Hint</div>' +
+      '<div class="tnode active hint"><span class="tlabel">Try again \u2014 same question</span>' +
+      '<div class="teach">' + fmt(hintOf(q)) + '</div></div></div>';
+  }
+
+  // Flagging: available on every question in every mode, right or wrong, answered or
+  // not. A flagged question joins the missed list and the copy-out, so a question that
+  // was guessed correctly can still be carried into the next round of study.
+  function flagHtml(q) {
+    const on = !!flagged[q.id];
+    return '<div class="flagrow"><button class="flagbtn' + (on ? ' on' : '') + '" data-flag="' +
+      esc(q.id) + '">\u2691 ' + (on ? 'Flagged' : 'Flag for review') + '</button></div>';
+  }
+
+  function bindFlags() {
+    $('main').querySelectorAll('[data-flag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-flag');
+        if (flagged[id]) delete flagged[id]; else flagged[id] = true;
+        if (mode === 'missed') {                 // toggle in place; the list is rebuilt on re-entry
+          btn.classList.toggle('on', !!flagged[id]);
+          btn.textContent = '\u2691 ' + (flagged[id] ? 'Flagged' : 'Flag for review');
+          return;
+        }
+        renderPage(true);
+      });
+    });
+  }
+
+  // Collapsed record of the retry, shown in the review screens
+  function trailHtml(q) {
+    const t = tutor[q.id];
+    if (!t) return '';
+    const sec = second[q.id];
+    let html = '<div class="tutor"><div class="tutor-head">Hint and second attempt</div>' +
+      '<div class="tnode done"><div class="teach">' + fmt(hintOf(q)) + '</div>' +
+      '<div class="firstpick">First answer: ' + esc(letters(t.first)) + '. ' + fmt(optText(q, t.first)) + '</div>';
+    if (sec === undefined) html += '<div class="nudge">Second attempt not taken.</div>';
+    else html += '<div class="feedback ' + (t.status === 'mastered' ? 'good' : 'bad') + '"><div class="verdict">' +
+      (t.status === 'mastered' ? '\u2713 Correct on the second attempt'
+        : '\u2717 Second attempt: ' + esc(letters(sec)) + '. ' + fmt(optText(q, sec))) + '</div></div>';
+    return html + '</div></div>';
+  }
+
+  // ================= Rendering =================
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen, first) {
+    const good = chosen === q.answer;
+    const keyTxt = optText(q, q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '\u2713 Correct' : '\u2717 Incorrect \u2014 correct answer' +
+      (q.multi ? 's' : '') + ': ' + esc(letters(q.answer)) + (keyTxt ? '. ' + fmt(keyTxt) : '')) + '</div>';
+    if (!good && q.multi) {
+      const got = String(chosen || '').split('').filter(Boolean);
+      const missed = String(q.answer).split('').filter(l => got.indexOf(l) === -1);
+      const extra = got.filter(l => q.answer.indexOf(l) === -1), bits = [];
+      if (missed.length) bits.push('missed ' + missed.join(', '));
+      if (extra.length) bits.push('wrongly included ' + extra.join(', '));
+      if (bits.length) html += '<div class="obj" style="font-style:normal">You ' + esc(bits.join(' and ')) + '.</div>';
+    }
+    if (first !== undefined && first !== chosen) {
+      html += '<div class="firstpick">First attempt: ' + esc(letters(first)) + '. ' + fmt(optText(q, first)) +
+        (good ? ' \u2014 corrected after the hint.' : ' \u2014 also incorrect.') + '</div>';
+    }
+    if (q.explanation) html += '<div>' + fmt(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const first = answers[q.id];
+    const sec = second[q.id];
+    const retry = isRetrying(q) && mode === 'exam';
+    const answered = first !== undefined && !retry;
+    const chosen = sec !== undefined ? sec : first;
+    const status = tutorStatus(q);
+    const sel = answered ? String(chosen || '') : (q.multi ? (picks[q.id] || []).join('') : '');
+    const dead = retry ? elimOf(q) : '';
+
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    if (status === 'mastered') html += '<span class="badge mastered">Right on the second try</span>';
+    else if (status === 'review') html += '<span class="badge review">Missed twice</span>';
+    else if (status === 'active') html += '<span class="badge active">Second attempt</span>';
+    html += '<div class="stem">' + fmt(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+
+    if (retry) {
+      html += '<div class="feedback tutoring"><div class="verdict">\u2717 Not quite \u2014 ' +
+        esc(letters(first)) + '. ' + fmt(optText(q, first)) + '</div>' +
+        '<div>Read the hint, then answer the same question again. Your first answer is the one that is scored.</div></div>';
+      html += hintHtml(q);
+    }
+
+    if (q.multi && !answered) html += '<div class="sata-note">Select all that apply.</div>';
+    html += '<div class="opts">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      const hit = sel.indexOf(o.letter) !== -1;
+      const out = dead.indexOf(o.letter) !== -1;
+      if (answered) {
+        if (hit) cls += q.answer.indexOf(o.letter) !== -1 ? ' correct' : ' incorrect';
+        else if (q.answer.indexOf(o.letter) !== -1) cls += ' correct';
+        else cls += ' dim';
+      } else if (out) cls += ' incorrect elim';
+      else if (hit) cls += ' picked';
+      const mark = (q.multi ? '<span class="box' + (hit ? ' on' : '') + '">' + (hit ? '\u2713' : '') + '</span>' : '') +
+        '<span class="letter">' + esc(o.letter) + '.</span>';
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered || out || mode !== 'exam' ? ' disabled' : '') + '>' +
+        mark + '<span>' + fmt(o.text) + '</span></button>';
+    });
+    html += '</div>';
+    if (q.multi && !answered) {
+      const n = (picks[q.id] || []).length;
+      html += '<div class="sata-bar"><button class="opt-submit" data-submit="' + esc(q.id) + '"' +
+        (n ? '' : ' disabled') + '>Submit answer</button><span class="sata-count">' +
+        (n ? n + ' selected' : 'Choose one or more') + '</span></div>';
+    }
+    if (answered) html += feedbackHtml(q, chosen, sec !== undefined ? first : undefined);
+    html += flagHtml(q);
+    if (mode !== 'exam' && tutor[q.id]) {
+      html += '<details class="trail"><summary>Hint and second attempt</summary>' + trailHtml(q) + '</details>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: a follow-up appears only once the question before it is
+    // resolved — answered correctly, or its guided review has finished.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && resolved(group[shown - 1])) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      const blocked = group[shown - 1];
+      const inTutor = answers[blocked.id] !== undefined && !resolved(blocked);
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') + ' in this case — ' +
+        (inTutor ? 'take the second attempt above to continue' : 'answer above to continue') + '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Option clicks: first attempt, then the second attempt on the same question
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      const commit = picked => {
+        const q = byId[qid];
+        if (answers[qid] === undefined) {
+          answers[qid] = picked;
+          if (picked !== q.answer && hasTutor(q)) startTutor(q);
+        } else if (isRetrying(q)) secondAnswer(q, picked);
+        renderPage(true);
+      };
+      card.querySelectorAll(':scope > .opts > .opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || btn.disabled) return;
+          const q = byId[qid];
+          if (answers[qid] !== undefined && !isRetrying(q)) return;
+          const letter = btn.getAttribute('data-letter');
+          if (q.multi) {                       // toggle; nothing is committed until Submit
+            const cur = picks[qid] || (picks[qid] = []);
+            const at = cur.indexOf(letter);
+            if (at === -1) cur.push(letter); else cur.splice(at, 1);
+            return renderPage(true);
+          }
+          commit(letter);
+        });
+      });
+      const sub = card.querySelector(':scope > .sata-bar > .opt-submit');
+      if (sub) sub.addEventListener('click', () => {
+        if (mode !== 'exam') return;
+        const cur = picks[qid] || [];
+        if (cur.length) commit(cur.slice().sort().join(''));
+      });
+    });
+    bindFlags();
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) {
+      window.scrollTo(0, savedY);
+      // Bring the newest tutor question / unlocked follow-up into view if it landed below the fold
+      const target = $('main').querySelector('.tnode.active') || $('main').querySelector('.qcard > .feedback');
+      if (target) {
+        const r = target.getBoundingClientRect();
+        const navH = $('navbar').offsetHeight || 0;
+        if (r.bottom > window.innerHeight - navH) {
+          window.scrollBy({ top: Math.min(r.top - 80, r.bottom - (window.innerHeight - navH) + 16), behavior: 'smooth' });
+        }
+      }
+    } else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  // ================= Grading =================
+  // Two lenses for the results page:
+  //   topic — WHAT you were tested on (e.g. "Paget's disease of bone"). Falls back to `section`.
+  //   skill — WHAT KIND of thinking (Identification, Disease process, Diagnostics & imaging,
+  //           Management, Complications…). Optional; the skill card is hidden when no question has one.
+  const topicOf = q => q.topic || q.section || 'All questions';
+  const skillOf = q => q.skill || null;
+
+  function tally(list, keyFn) {
+    const m = {};
+    list.forEach(q => {
+      const k = keyFn(q); if (!k) return;
+      if (!m[k]) m[k] = { name: k, correct: 0, total: 0, mastered: 0, review: 0, missed: 0 };
+      const e = m[k];
+      e.total++;
+      if (answers[q.id] === q.answer) { e.correct++; return; }
+      if (answers[q.id] === undefined) return;
+      const st = tutor[q.id] ? tutor[q.id].status : null;
+      if (st === 'mastered') e.mastered++; else if (st === 'review') e.review++; else e.missed++;
+    });
+    return Object.keys(m).map(k => { const e = m[k]; e.pct = e.total ? e.correct / e.total : 0; return e; })
+      .sort((a, b) => a.pct - b.pct || b.total - a.total);        // weakest first
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    graded.forEach(q => { if (answers[q.id] === q.answer) correct++; });
+    const ts = { started: 0, mastered: 0, review: 0, active: 0, tq: 0, tqRight: 0 };
+    Object.keys(tutor).forEach(id => {
+      const t = tutor[id];
+      ts.started++; ts[t.status]++;
+      if (second[id] !== undefined) { ts.tq++; if (t.status === 'mastered') ts.tqRight++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial,
+             topics: tally(graded, topicOf), skills: tally(graded, skillOf), ts };
+  }
+
+  function missedQuestions() {                 // wrong on the first attempt, or flagged
+    return questions.filter(q => flagged[q.id] ||
+      (answers[q.id] !== undefined && answers[q.id] !== q.answer));
+  }
+
+  // Lowest-scoring entries (ties included) — only meaningful when there's something to compare
+  function weakest(entries) {
+    if (entries.length < 2) return [];
+    const lo = entries[0].pct, hi = entries[entries.length - 1].pct;
+    if (lo === hi) return [];                                       // all equal: nothing stands out
+    return entries.filter(e => e.pct === lo);
+  }
+
+  function barsHtml(entries) {
+    const weakSet = weakest(entries).map(e => e.name);
+    return entries.map(e => {
+      const p = Math.round(e.pct * 100);
+      const cls = p >= 80 ? 'hi' : (weakSet.indexOf(e.name) !== -1 ? 'lo' : '');
+      const meta = [];
+      if (e.review) meta.push(e.review + ' still shaky');
+      if (e.missed) meta.push(e.missed + ' missed');
+      if (e.mastered) meta.push(e.mastered + ' right on the second try');
+      return '<div class="bar-row"><div class="bar-head"><span class="nm">' + esc(e.name) +
+        (weakSet.indexOf(e.name) !== -1 ? '<span class="sec-tag weak">WEAKEST</span>' : '') +
+        '</span><span class="pc"><b>' + p + '%</b> · ' + e.correct + '/' + e.total + '</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + cls + '" style="width:' + Math.max(p, 2) + '%"></div></div>' +
+        (meta.length ? '<div class="bar-meta">' + meta.join(' · ') + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+    const hasSkills = r.skills.length > 0;
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + ' · first attempts</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.ts.started) html += '<div class="score-note">' + r.ts.mastered + ' of ' + r.ts.started +
+      ' missed question' + (r.ts.started === 1 ? '' : 's') + ' answered right on the second attempt</div>';
+    else if (r.partial) html += '<div class="score-note">Unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    // ---- What to work on ----
+    const wTopic = weakest(r.topics), wSkill = weakest(r.skills);
+    const missed = missedQuestions();
+    html += '<div class="card"><h2>What to work on</h2><div class="sub">Ranked from the questions you missed on the first try, plus anything you flagged</div>';
+    if (!missed.length) {
+      html += '<div class="focus-box ok"><div class="v">Nothing missed or flagged — every question right on the first try.</div></div>';
+    } else {
+      html += '<div class="focus-grid">';
+      if (wTopic.length) html += '<div class="focus-box"><div class="k">Weakest topic</div><div class="v">' +
+        wTopic.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wTopic.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      if (wSkill.length) html += '<div class="focus-box"><div class="k">Weakest skill</div><div class="v">' +
+        wSkill.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wSkill.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      html += '</div>';
+      // One line per missed concept: flagged first, then plain misses, then ones already relearned
+      const rank = { review: 0, active: 0, missed: 1, flagged: 2, mastered: 3 };
+      const items = missed.map(q => {
+        const wrong = answers[q.id] !== undefined && answers[q.id] !== q.answer;
+        let st = wrong ? (tutor[q.id] ? tutor[q.id].status : 'missed') : 'flagged';
+        if (st === 'active') st = 'review';
+        return { q, st: st, flag: !!flagged[q.id] };
+      }).sort((a, b) => rank[a.st] - rank[b.st]);
+      const label = { review: 'Still shaky', missed: 'Missed', flagged: 'Flagged', mastered: 'Relearned' };
+      html += '<ul class="todo">' + items.map(it => {
+        const sk = skillOf(it.q);
+        return '<li><span class="dot ' + it.st + '"></span><span class="what"><b>' + esc(topicOf(it.q)) + '</b>' +
+          (sk ? ' — ' + esc(sk) : '') + ' <span style="color:var(--ink-soft)">(Q' + esc(it.q.id) + ')</span></span>' +
+          '<span class="tag ' + it.st + '">' + (it.flag && it.st !== 'flagged' ? '⚑ ' : '') +
+          label[it.st] + '</span></li>';
+      }).join('') + '</ul>';
+    }
+    html += '</div>';
+
+    // ---- By topic / by skill ----
+    html += '<div class="card"><h2>By topic</h2><div class="sub">First-attempt score for each disease or concept</div>' + barsHtml(r.topics) + '</div>';
+    if (hasSkills) html += '<div class="card"><h2>By skill</h2><div class="sub">Which kind of question trips you up, across all topics</div>' + barsHtml(r.skills) + '</div>';
+
+    if (r.ts.started) {
+      html += '<div class="card"><h2>Second attempts</h2><div class="sub" style="margin-bottom:12px">How the hint-and-retry went</div><div class="tutor-stats">' +
+        '<div class="tstat t"><b>' + r.ts.started + '</b>missed on the first try</div>' +
+        '<div class="tstat m"><b>' + r.ts.mastered + '</b>right after the hint</div>' +
+        '<div class="tstat r"><b>' + (r.ts.review + r.ts.active) + '</b>still shaky</div>' +
+        '<div class="tstat"><b>' + r.ts.tqRight + '/' + r.ts.tq + '</b>second attempts right</div>' +
+        '</div></div>';
+    }
+
+    html += '<div class="results-actions">';
+    if (missed.length) html += '<button class="btn primary" id="btn-review-missed">Review missed &amp; flagged (' + missed.length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed &amp; flagged</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + fmt(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed & flagged (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed or flagged question' + (missed.length === 1 ? '' : 's');
+    bindFlags();
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  const plain = s => String(s == null ? '' : s).replace(/\*\*(.+?)\*\*/g, '$1');
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id + ' — ' + topicOf(q) + (skillOf(q) ? ' / ' + skillOf(q) : '')];
+      if (group[0].id !== q.id) lines.push('Case: ' + plain(group[0].stem));
+      lines.push(plain(q.stem));
+      q.options.forEach(o => lines.push(o.letter + '. ' + plain(o.text)));
+      if (flagged[q.id]) lines.push(answers[q.id] === q.answer
+        ? 'FLAGGED by me — answered correctly but not understood' : 'FLAGGED by me');
+      lines.push(answers[q.id] === undefined ? 'Not answered'
+        : 'My answer (first attempt, scored): ' + letters(answers[q.id]));
+      lines.push('Correct answer: ' + letters(q.answer) + '. ' + plain(optText(q, q.answer)));
+      if (q.explanation) lines.push('Rationale: ' + plain(q.explanation));
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      const t = tutor[q.id];
+      if (t) {
+        lines.push('Hint shown: ' + plain(hintOf(q)));
+        lines.push('Second attempt: ' + { mastered: 'CORRECT after the hint', review: 'still wrong \u2014 needs review',
+          active: 'not taken' }[t.status]);
+        if (second[q.id] !== undefined && t.status !== 'mastered')
+          lines.push('  picked ' + letters(second[q.id]) + '. ' + plain(optText(q, second[q.id])));
+      }
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed & flagged questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed & flagged'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => !resolved(q))) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(second).forEach(k => delete second[k]);
+    Object.keys(picks).forEach(k => delete picks[k]);
+    Object.keys(flagged).forEach(k => delete flagged[k]);
+    Object.keys(tutor).forEach(k => delete tutor[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

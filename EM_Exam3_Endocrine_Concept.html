@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  /* LQ-PATCH: two-across option grid, select-all-that-apply, hint + second attempt */
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .opts .opt { margin-bottom: 0; height: 100%; }
+  .opts .opt:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  @media (max-width: 560px) { .opts { grid-template-columns: 1fr; } }
+  .group.c3 .opts, .group.c4 .opts { gap: 5px; margin-bottom: 5px; }
+  .group.c2 .opts { gap: 6px; margin-bottom: 6px; }
+  .opt.picked { border-color: var(--accent); background: var(--accent-soft); }
+  .opt .box { min-width: 1.25em; height: 1.25em; line-height: 1.15em; text-align: center;
+    border: 2px solid var(--border); border-radius: 4px; font-size: 0.8em; font-weight: 700;
+    color: transparent; flex: 0 0 auto; }
+  .opt .box.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .opt.correct .box.on { background: var(--green); border-color: var(--green); }
+  .opt.incorrect .box.on { background: var(--red); border-color: var(--red); }
+  .sata-note { font-size: 0.85em; font-weight: 700; color: var(--accent); margin: -6px 0 10px; }
+  .sata-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .opt-submit { font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 8px;
+    padding: 8px 18px; background: var(--accent); color: #fff; }
+  .opt-submit:disabled { opacity: 0.45; cursor: default; }
+  .sata-count { font-size: 0.85em; color: var(--ink-soft); }
+  .tnode.hint { margin-bottom: 14px; }
+  .tnode .teach:last-child { margin-bottom: 0; }
+  .firstpick { font-size: 0.88em; color: var(--ink-soft); margin: 2px 0 8px; }
+  .flagrow { margin-top: 12px; }
+  .flagbtn { font: inherit; font-size: 0.82em; font-weight: 600; cursor: pointer; background: transparent;
+    border: 1.5px dashed var(--border); border-radius: 8px; padding: 4px 11px; color: var(--ink-soft); }
+  .flagbtn:hover { border-color: var(--amber); color: var(--amber); }
+  .flagbtn.on { background: var(--amber-bg); border-style: solid; border-color: var(--amber); color: var(--amber); }
+  .todo .dot.flagged { background: var(--accent); }
+  .todo .tag.flagged { color: var(--accent); }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- Adaptive tutor ---------- */
+  :root { --tutor: #5b3fa6; --tutor-bg: #f5f2fc; --tutor-line: #ddd3f3; }
+  .feedback.tutoring { background: var(--amber-bg); border-left: 4px solid var(--amber); margin-bottom: 22px; }
+  .feedback.tutoring .verdict { color: var(--amber); }
+  /* Guided review: a quiet rail instead of a filled box, so nested cards don't stack up visually */
+  .tutor { border-left: 3px solid var(--tutor-line); padding: 2px 0 2px 16px; margin: 0 0 6px 4px; }
+  .tutor-head { font-weight: 700; color: var(--tutor); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+  .tnode { background: var(--card); border: 1px solid var(--tutor-line); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+  .tnode.active { border-color: var(--tutor); box-shadow: 0 2px 10px rgba(91,63,166,0.10); }
+  .tnode.done { background: #fcfcfe; }
+  .tlabel { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--tutor); margin-bottom: 8px; }
+  .tlabel.cp { color: #fff; background: var(--tutor); border-radius: 6px; padding: 1px 8px; }
+  .tlabel.clar { color: var(--amber); }
+  .teach { border-left: 3px solid var(--tutor); padding: 2px 0 2px 12px; margin-bottom: 12px; font-size: 0.95em; white-space: pre-wrap; color: var(--ink); }
+  .tnode .stem { margin-bottom: 12px; font-weight: 500; }
+  .tnode .opt { padding: 8px 12px; margin-bottom: 8px; }
+  .tnode .feedback { margin-top: 10px; }
+  .tnode .nudge { margin-top: 8px; color: var(--amber); font-weight: 600; font-size: 0.9em; }
+  .opt.elim { opacity: 0.45; text-decoration: line-through; border-style: dashed; }
+  .tnote { border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 0.95em; }
+  .tnote.reveal { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .tnote.mastered { background: var(--green-bg); border-left: 4px solid var(--green); font-weight: 600; }
+  .tnote.review { background: var(--red-bg); border-left: 4px solid var(--red); font-weight: 600; }
+  .tnote.info { color: var(--ink-soft); padding: 0 2px; margin-bottom: 10px; font-style: italic; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 6px; padding: 1px 8px; margin-left: 8px; vertical-align: middle; }
+  .badge.mastered { background: var(--green-bg); color: var(--green); }
+  .badge.review { background: var(--red-bg); color: var(--red); }
+  .badge.active { background: var(--tutor-bg); color: var(--tutor); }
+  details.trail { margin-top: 12px; }
+  details.trail summary { cursor: pointer; color: var(--tutor); font-weight: 600; font-size: 0.9rem; }
+  details.trail .tutor { margin-top: 12px; }
+
+  .qcard > .feedback + .tutor { margin-top: 22px; }
+
+  /* ---------- Results: study plan ---------- */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 16px; }
+  .card h2 { font-size: 1.02rem; margin-bottom: 4px; }
+  .card .sub { font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 14px; }
+  .focus-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 640px) { .focus-grid { grid-template-columns: 1fr 1fr; } }
+  .focus-box { border-radius: 10px; padding: 12px 14px; background: var(--red-bg); border-left: 4px solid var(--red); }
+  .focus-box.ok { background: var(--green-bg); border-left-color: var(--green); }
+  .focus-box .k { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+  .focus-box .v { font-weight: 700; font-size: 1.02rem; margin-top: 2px; }
+  .focus-box .n { font-size: 0.85rem; color: var(--ink-soft); }
+  .todo { list-style: none; }
+  .todo li { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border); font-size: 0.93rem; }
+  .todo li:first-child { border-top: none; }
+  .todo .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; transform: translateY(-1px); }
+  .todo .dot.review { background: var(--red); } .todo .dot.missed { background: var(--amber); } .todo .dot.mastered { background: var(--green); }
+  .todo .what { flex: 1; }
+  .todo .what b { font-weight: 600; }
+  .todo .tag { flex: none; font-size: 0.75rem; font-weight: 700; color: var(--ink-soft); }
+  .todo .tag.review { color: var(--red); } .todo .tag.missed { color: var(--amber); } .todo .tag.mastered { color: var(--green); }
+  .bar-row { margin-bottom: 14px; }
+  .bar-row:last-child { margin-bottom: 2px; }
+  .bar-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.92rem; margin-bottom: 5px; }
+  .bar-head .nm { font-weight: 600; }
+  .bar-head .pc { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+  .bar-head .pc b { color: var(--ink); }
+  .bar-meta { font-size: 0.78rem; color: var(--ink-soft); margin-top: 3px; }
+  .tutor-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 640px) { .tutor-stats { grid-template-columns: repeat(4, 1fr); } }
+  .tstat { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; color: var(--ink-soft); }
+  .tstat b { display: block; font-size: 1.4rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tstat.m b { color: var(--green); } .tstat.r b { color: var(--red); } .tstat.t b { color: var(--tutor); }
+
+  /* LQ-BG: lecture image as the page background; cards stay opaque for legibility */
+  body {
+    background: var(--bg) url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAOAAAAEICAYAAABGTfi6AAAMVGlDQ1BJQ0MgUHJvZmlsZQAASImVVwdYU8kWnltSIbQAAlJCb4KIlABSQg8gvQg2QhIglBATgorY0EUF14KKCFZ0VUSxAyI2bKgsir0vFlSUdbFgRXmTBNDl7Xvve/N9c+e//znzz5lz5947A4BqN0ckykLVAMgW5oqjg3wZExKTGKSXgAqUgAYgADUOVyJiRUaGAVgG27+XDzcBImuv2cm0/t3+X4s6jy/hAoBEQpzCk3CzIT4EAN7CFYlzASAWQN50eq5IhjdDrCmGAUJ8SIbTFLhFhlMU+L7cJzbaD+IeAMjKHI44DQCVPsgz8rhpUEdVH2IHIU8ghFg2H6/s7BwexEshtoI+Iohl+syUn3TS/qaZMqTJ4aQNYcVc5IXsL5CIsjgz/890/O+SnSUdHMMKVuV0cXC0bM4wbz2ZOaEyrAwAigtTwiMg1oBYTcCT+8uwSbo0OE7hjzpxJX4wZ0Ab4mBJVgx7gJ/C4/iHQgzzhIr5Qj/WAL8sVRAo84GrBa0SZoWHDfQ9IMhlx0KsA3ELXxIQM8B3iHOiB2P4kCqW60AeI3PE8nigJmYozYxjKcbCHNP57AFNLDw/PTYBYirEvDxBfDjEKhALJZkxoQM+BfnpfuGDPmJptGxeZhCX8oVBvkMxiwOjB/zrsiWDecBa0wXs8AH8MDc9NliRN6yHy5HHD+eC9fGFrMFcLeNLJoQNzoXH9w9Q5AHX5AvjYhQ8bibK9Y1W9MVdRFmRA/54OD8rSMabQJwsyYsZ7FuYCxeqQh8vFeVGxirixLdncEIiFfHgTSAM+AF/wABSWFNADsgAgrbu+m54p7AEAg4QgzTAB3YDzGCPBLlFCK8xIB/8CREfSIb6+cqtfJAH+W/DWBknGOIUVzuQOmCTqWSCZxBnQ0sOyIJVCu8G/ePBU3gnGIonFHrw5R58qDs8Sg6s3AEVWa9/5gfZHwwLMmEDjHRwBIbqoCcxgOhPDCYGEq1xPdwL98DD4NUHVkecibsNxvrDn/CM0E54TLhB6CDcmSooFA+LcjzogPqBAzlL+TlnuAXUdMZ9cU+oDpVxbVwP2OFOcBwW7g1Hdobsz/EPRfvTExrQojhQUMoIig/Falj2GSo2Ks5DKrI8/pwLRVwpQ7n1G7IMU/nJIgA82IYO98QWYwex89gp7ALWhNUDBnYCa8BasWMyPLTinspX3OBo0fJ4MqHO8DXz4ynKsiZxqHHocuhT2HL5M3JlL6NfjmimWJCWnstgwb8Hn8EWcu1HMRwdHF0AkP2LFJ+6d1Hyfwyi3fqDW/AHAJ4n+vv7j/7gQk4AsN8VfhKO/OCsmPA3owRAyxGuVJyn4HDZhQC/HKrw7dMFhsAUfk3tgCNwAR7ABwSAEBABYkEimAKjT4frXAymgwIwHxSBErACrAEVYBPYCnaCPeAAqAdN4BQ4By6BK+AGuAdXSid4BXrAB/AVQRASQkPoiC5ihJgjtogjwkS8kAAkDIlGEpFkJA0RIlKkAFmAlCClSAWyBalG9iNHkFPIBaQduYM8QrqQt8gXFEOVUU3UALVAR6NMlIWGorHoZDQNnYbmowvRZWg5WoXuRuvQU+gl9Abagb5CezGAKWHamDFmhzExPywCS8JSMTE2ByvGyrAqrBZrhM/5GtaBdWOfcSJOxxm4HVytwXgczsWn4XPwpXgFvhOvw8/g1/BHeA/+nUAj6BNsCe4ENmECIY0wnVBEKCNsJxwmnIXvTSfhA5FI1CZaEl3he5dIzCDOIi4lbiDuJZ4kthOfEHtJJJIuyZbkSYogcUi5pCLSOtJu0gnSVVIn6RNZiWxEdiQHkpPIQnIhuYy8i3ycfJX8nPyVokYxp7hTIig8ykzKcso2SiPlMqWT8pWqTrWkelJjqRnU+dRyai31LPU+9Z2SkpKJkptSlJJAaZ5SudI+pRalR0qflTWUbZT9lCcpS5WXKe9QPql8R/kdjUazoPnQkmi5tGW0atpp2kPaJxW6ir0KW4WnMlelUqVO5arKa1WKqrkqS3WKar5qmepB1cuq3WoUNQs1PzWO2hy1SrUjarfUetXp6mPUI9Sz1Zeq71K/oP5Cg6RhoRGgwdNYqLFV47TGEzpGN6X70bn0BfRt9LP0Tk2ipqUmWzNDs0Rzj2abZo+WhpaTVrzWDK1KrWNaHdqYtoU2WztLe7n2Ae2b2l9GGIxgjeCPWDKidsTVER91Rur46PB1inX26tzQ+aLL0A3QzdRdqVuv+0AP17PRi9KbrrdR76xe90jNkR4juSOLRx4YeVcf1bfRj9afpb9Vv1W/18DQIMhAZLDO4LRBt6G2oY9hhuFqw+OGXUZ0Iy8jgdFqoxNGLxlaDBYji1HOOMPoMdY3DjaWGm8xbjP+amJpEmdSaLLX5IEp1ZRpmmq62rTZtMfMyGy8WYFZjdldc4o50zzdfK35efOPFpYWCRaLLOotXljqWLIt8y1rLO9b0ay8raZZVVldtyZaM60zrTdYX7FBbZxt0m0qbS7borYutgLbDbbtowij3EYJR1WNumWnbMeyy7OrsXtkr20fZl9oX2//erTZ6KTRK0efH/3dwdkhy2Gbw70xGmNCxhSOaRzz1tHGketY6Xh9LG1s4Ni5YxvGvnGydeI7bXS67Ux3Hu+8yLnZ+ZuLq4vYpdaly9XMNdl1vestpiYzkrmU2eJGcPN1m+vW5PbZ3cU91/2A+18edh6ZHrs8XoyzHMcft23cE08TT47nFs8OL4ZXstdmrw5vY2+Od5X3Yx9TH57Pdp/nLGtWBms367Wvg6/Y97DvRz93v9l+J/0x/yD/Yv+2AI2AuICKgIeBJoFpgTWBPUHOQbOCTgYTgkODVwbfYhuwuexqdk+Ia8jskDOhyqExoRWhj8NswsRhjePR8SHjV42/H24eLgyvjwAR7IhVEQ8iLSOnRR6NIkZFRlVGPYseE10QfT6GHjM1ZlfMh1jf2OWx9+Ks4qRxzfGq8ZPiq+M/JvgnlCZ0TBg9YfaES4l6iYLEhiRSUnzS9qTeiQET10zsnOQ8qWjSzcmWk2dMvjBFb0rWlGNTVadyph5MJiQnJO9K7uNEcKo4vSnslPUpPVw/7lruK54PbzWvi+/JL+U/T/VMLU19keaZtiqtK907vSy9W+AnqBC8yQjO2JTxMTMic0dmf1ZC1t5scnZy9hGhhjBTeCbHMGdGTrvIVlQk6pjmPm3NtB5xqHi7BJFMljTkasJNf6vUSvqL9FGeV15l3qfp8dMPzlCfIZzROtNm5pKZz/MD83+bhc/izmouMC6YX/BoNmv2ljnInJQ5zXNN5y6c2zkvaN7O+dT5mfN/L3QoLC18vyBhQeNCg4XzFj75JeiXmiKVInHRrUUeizYtxhcLFrctGbtk3ZLvxbziiyUOJWUlfUu5Sy/+OubX8l/7l6Uua1vusnzjCuIK4YqbK71X7ixVL80vfbJq/Kq61YzVxavfr5m65kKZU9mmtdS10rUd5WHlDevM1q1Y11eRXnGj0rdy73r99UvWf9zA23B1o8/G2k0Gm0o2fdks2Hx7S9CWuiqLqrKtxK15W59ti992/jfmb9Xb9baXbP+2Q7ijY2f0zjPVrtXVu/R3La9Ba6Q1Xbsn7b6yx39PQ61d7Za92ntL9oF90n0v9yfvv3kg9EDzQebB2kPmh9Yfph8urkPqZtb11KfXdzQkNrQfCTnS3OjRePio/dEdTcZNlce0ji0/Tj2+8Hj/ifwTvSdFJ7tPpZ160jy1+d7pCaevn4k603Y29GzLucBzp8+zzp9o8WxpuuB+4chF5sX6Sy6X6lqdWw//7vz74TaXtrrLrpcbrrhdaWwf1378qvfVU9f8r527zr5+6Ub4jfabcTdv35p0q+M27/aLO1l33tzNu/v13rz7hPvFD9QelD3Uf1j1h/UfeztcOo498n/U+jjm8b0n3Cevnkqe9nUufEZ7Vvbc6Hn1C8cXTV2BXVdeTnzZ+Ur06mt30Z/qf65/bfX60F8+f7X2TOjpfCN+0/926TvddzveO71v7o3sffgh+8PXj8WfdD/t/Mz8fP5LwpfnX6f3kfrKv1l/a/we+v1+f3Z/v4gj5si3AhisaGoqAG93AEBLBIB+Be4fJirOivKCKM63cgT+E1acJ+UF7lxq4Z4+qhvubm4BsG8bABZQX3USAJE0AGLdADp27FAdPNfJz6CyQoRng81x31KyU8A/FMX59Ke4h7dApuoEhrf/AgHyhZJAiZVgAAAABGNJQ1AMDQABbgPj7wAAAIplWElmTU0AKgAAAAgABAEaAAUAAAABAAAAPgEbAAUAAAABAAAARgEoAAMAAAABAAIAAIdpAAQAAAABAAAATgAAAAAAAACQAAAAAQAAAJAAAAABAAOShgAHAAAAEgAAAHigAgAEAAAAAQAAAOCgAwAEAAAAAQAAAQgAAAAAQVNDSUkAAABTY3JlZW5zaG90Nd9J0wAAAAlwSFlzAAAWJQAAFiUBSVIk8AAAAdZpVFh0WE1MOmNvbS5hZG9iZS54bXAAAAAAADx4OnhtcG1ldGEgeG1sbnM6eD0iYWRvYmU6bnM6bWV0YS8iIHg6eG1wdGs9IlhNUCBDb3JlIDYuMC4wIj4KICAgPHJkZjpSREYgeG1sbnM6cmRmPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5LzAyLzIyLXJkZi1zeW50YXgtbnMjIj4KICAgICAgPHJkZjpEZXNjcmlwdGlvbiByZGY6YWJvdXQ9IiIKICAgICAgICAgICAgeG1sbnM6ZXhpZj0iaHR0cDovL25zLmFkb2JlLmNvbS9leGlmLzEuMC8iPgogICAgICAgICA8ZXhpZjpQaXhlbFlEaW1lbnNpb24+MjY0PC9leGlmOlBpeGVsWURpbWVuc2lvbj4KICAgICAgICAgPGV4aWY6UGl4ZWxYRGltZW5zaW9uPjIyNDwvZXhpZjpQaXhlbFhEaW1lbnNpb24+CiAgICAgICAgIDxleGlmOlVzZXJDb21tZW50PlNjcmVlbnNob3Q8L2V4aWY6VXNlckNvbW1lbnQ+CiAgICAgIDwvcmRmOkRlc2NyaXB0aW9uPgogICA8L3JkZjpSREY+CjwveDp4bXBtZXRhPgpDlL19AAAAHGlET1QAAAACAAAAAAAAAIQAAAAoAAAAhAAAAIQAABAMziJCWQAAD9hJREFUeAHsnU2OJbcRhHsESNpMay0vDMNH0UYYH0G+hw3YS/sOXnjnWxje+FCajX4gu6Pt6InJJlnJKvIV6008oJEsMvmTwfya7/+9+c/T7cG3oQr889//enj3zbeHxvzpp5929//xxx8f3r9//wCL7eUWv3nzpmvML7744uHt27cPsL19MxP94S9/evj9736Vcb1bnzcGcPzergDg999//wCIf/nll5cAeyCC7+eff24AX9SbUzCAE3RdBUCegAzRAFKJcXbvvQuuwABSiYH2TACREDj5cAKOAPDx8fH5JOyBNyvlPdwFJYCIeY9GBjCbLR1+ZwMYHwNy6T0JAl/cBTWAVK9sSwCyLqO3ASzreqjWAObku6cTkLARPijAupYaBrClzs42A5gT7h4A1EgVPtQbQFXnhmUDmBP7ngCM8EEBA5jLg+FeKwOIpNBk0bImDMp+DJhPDdWRvVRP1kXru6BRkQHXKwKIZGBCMFloNWT6wPp1QFWmXW5p2eppAFvq7GwzgDnh7v0uKFTgP7SaIgawpsyB+rMB5OuAsPqfmcnAOloNlT4+AVWV7XJJS/aiprxWawBVjUHlFQDU94IiLE0CJguthk0/A6iqbJdLWmov6Ekfaox2A6gqDSqfCSBC4Avx8QRkeEwEWtbDMjkMoKqyXS5pWetFjdFuAGsqHahfCUCGwQShRb2W6cfkMIBUpN+WdI2jvOj85OyPI0V1Dl6vAuDPP//8Ahm2OW51vEbYL4nhZ0EPZUFJWx3wRecnRwOoygworwggwsJW63ZrmWG/JIYBpCSHbNSY+nJQ3wWlEgPtKgDiMaDemAzRqg8TBNavA6oyc8oGcIKuZwIIuAAengXlkzCEKoLHa5WAvgZQVZlXNoATtF0BQH4ivhQewaNVHwOoaswvG8AJGq8EICAjVAyV4NGyHpa+PgFVlXllAzhB27MB5OuAsHojXASPtuRjAFWVeWUDOEHblQBUyD777LPnaFlHqxIQUgOoqswrG8AJ2q4AYPxOGADFP4JHqxLcE4CMjzFpnNkyx4D/kXFq8xnAmjIH6g1gTry9n4bIQKE+XE0vQCPG4Nw1awBryhyoXwFAvhmb3wuK5OMfQisll4YM36t/IFdj7IWvplFrHMzXald9WTaAVGKgHQEgnkDp3UyEgCTA6398GYIAoo2PAVGu3Zi0mHsVAHVNtXXvqee47Kt6x7aSD+to2UfHYVvNGsCaMgfqzwQQywa8BBBJwcQwgB9vKnVhLcGJ9WyHpY/Wscx+LR/60hpAKjHQjgBQ30bGjcUStzYXvnoC4pr9DeDrTaY2qq3WxR5b+kf/rWsDuKXQjvbRAGIJTIqtBIBfCUD02+ob51nhLijj5jZkYqBv1nIOHZt1cQz1iW17rg3gHtU2+swAcGPKl+YSgGzU5KklmPqeDWBtjRoH1zvDluYfPbcBnLBzqwNYSqwoAxJtVQCx1tEgxPh5HbUaPa8BpNID7aoA9oRIAM/+fcAIAGMYDQLHVatzz5rPAKrig8r3ACCkWOUHOhUErGsWDBhbbzrvrDkNoCo+qDwSQCRBz+bDPz4Jo2FlxqPPigD2aKFx7ylDB95mzWsAqfBAOwrAPQmAPvw0BEDUMbS8FS4SbjUAZ0FQ00L1mjW3Aaypf6B+BIC1jxJtLWsLQE0qjlVKLgP4P3WoV0kj6nfEGsAj6lX6rgqgvi1Nl15KLgOoCuVeh90DqwH8WOchVysCiORggpSCjBAawA8qqW5RJ3rRp9ZOv2gNYFRkwPUtAYwbj+vaY8DaCVgKGW9bW+UxYGl9t6qjvpn5euHDmAYwo2ynz2gAWxurCQI/A9i5WQ131bbh9tzU2qNWXwPYUmdn2wgA8Qxm69ZKjtIJCH/+ZZLFJ+CHx32tfUBbRs/aGAawpsyBegOYE2/vJ+Jzo4/xav2jwwxH4Hvu/zTBh1cbx6z5kx9lJIDYnp5Nhj9PQNi4va3x1Bdz4jHg4+Pjs+1ZQzYBrgBgNhb4RW1VTx1HtfQJqMoMKo8CUDdQN621TPRpAdjqizbOGQFkv+w66N+y9wgg4qVG1DJqwPZn3ycnn4BRoYPXowDEMrA9umFbS4N/C0Ddbh1X6zEH2vQE5Lzah3V77b0CuKWHaugTcEutHe0jAeydvgVgCTKOX2pTADVp2OeovScAo34tbVRLA9hSamebAcwJNwpAJL8mdW728V5ZCHWtBnD8PjysDqAmQC18+FzhhfiY9JnYajGPqI/rKY2pazSAJYUO1hnAnIAjTsCY8JrcuVWM94prKs3AdRrAkjoH61YDEJuNpGBicPNbYcKHjwHx1RSZPq3xSm23ALAVM9u4thkxcmxYnY9zGUBVaFB5JQA1JL4XlJuvbbEMn3sGUGHQ2DPaqH9PmXPqHAawR8Gk7yoA6gdysfmlBIghMTlgz/5Spri22jXjqrWjnnGhvOWvvvCfeTOAE9RdEUCESQhrCab1KF8FQMa2tZWIaQs+jKE6bI15tN0AHlWw0P9sAGvfCcPkyyTYigBy/ZQ8E0fsw74tmxm31b+nzQD2qJX0XRXA5PKf3a4AIBa6BYsB7Nn1O/FdFcCYrK3kXA3A2lpjTDGFav2in15vjam+R8s+AY8qWOhvAAuiFKqyL0PUIMqAUutbWM5HVZmxP+qw88IA7hSu1e0qAMYYNFmRgKs8CaPr0jVnIan117FK5ez4pb7ZOgOYVarD76oAIkQm6z0BGLeOMcb6eG0AoyIXub4qgJqYqwCoaypt/yhIdJ5RY5bWG+t8AkZFBlyfDWD8PCATilZD1MRDPa/xnTBn3QXlGnSdrXIprpb/Sm0GcMJuXAXAUqKz7iwAOX/vtlwVQgPYu9MJ/xUA1N+IZ3LSMoRSsrPuagAyphgj61e1BnDCzlwVQMIHSQzghMQoDGkAC6IcrVoBwPfv3z//TJlCpaeD1iPeeA3fMz4NEdexdy801r1j3KKfAZyg8uoAxiSP15DEAE5IjMKQBrAgytGq1QDU06AEW6nuLAChfWk9R/eE/VUL1p1pDeAE9VcFsJbYpfp7BRDbvRKEBvATADATYoTwDADjGjLr7vEheDoP63rGGelrAEeq+f+xVjsBMyFqUsL/1s+Cxvkza+7xUdDiXNrWM+YIXwM4QsUwxtkA1j6QG5b5chkTEg2fCoBnwgedDSBUGHxbAUB9GaIEGEKu1aNtBQAJR22dbMd6e2463t4xeuZr+RrAljo7284EEEvme0H5pUyacBpSrR5Jib9bvhe0tBbCUWpjHPThdcbqeHv6Z+bI+rz52z/+7h9nyaqV9Pvtr3/z8O6bb5PeZTfAs/emAOKrCJlwMdlYr/PQB5YA4gX5GTf9QG5rLaU2rofr5XXWcsy9/TnP0XEMIJUcaFcFECFqwjF5NHS2w64OINeq6+8pI/4RY3DOPWMZQKo30M4EkNC0NpsnIGzrBCyFzHFhbwHgd+++Li1js47r3HS8kQP3BdP1rM0ATtig2QBubfC9A7gV/4QtTQ2550Q1gClp+5xmAri1EiQBX4YAiJn/zOrD8fVZ0LMeA3It0RJAXTfrom/rGv339GuN2dtmAHsVS/ifDaCegNkk02RGiCMBjGNjfCT+1pMw8CvdCE1t3FKfUh37c7ySz+w6AzhB4dUARIgxyZh8tfBHAog5dD6uRQHkOtSPdWrZF3UlX23XfquWDeCEnVkRQITJ5CwlbpRhNIBxfFyXAER9bX1cP3x4i74lH/quaA3ghF1ZFcCeUJHI/EDuLR4D6toiVGjbAgt9tnx0jlXKBnDCTtwbgHg5YkZy107ACVvy0ZAEfEZMH02UuDCACZF6XQxgTrEzACR8WKEBzO3T5bxWAfCHH3746PEUE06TsCYuHgPyLugVT8BMjFEPXtc0mVHvE3CCqgYwJ+rME9AA5vbgLr1WABDfCxpfiO8Rmyfg27dvn0/CGaeDAXy6G+xPQ/SkZc7XAOZ0MoAGMJcpnV4zAMzcpeIy8divdALqKabjaT3HQN2XX375cNUTkHGsbn0CTtih1QFU+Bh+hBDXfBIGNraz3xE78wQ8sq5b9jWAE9S+IoBRBgL41VdfXeIxIP+p9PyjQJ8e/6jRiGsDOELFMIYBDIJULkecgASPU/QAxb49fTjPKGsARykp46wG4J7/9EhK3PVc/QQkRJS/Byb27enDeUZZAzhKSRlnRQCxvJ5EuwKABEikT8eofXt00blGlA3gCBXDGGcDiNf/9FlQJlsp0dgWQnhO5KudgKX4Yly81rh7+rH/KGsARykp48wAUIZvFpFY8QO57MBEY/JFSz9Y+F4BQF3zVpnxRj/qEutvcW0AJ6i8IoAxyZiM0VKOewOQcTI+2qgL629lDeAEpVcEEGEy2WIy8poWvnwr2uPj4yVehsCar3gzgBN27WoAQgLCR2sAJyRGYUgDWBDlaNXqADI+wkbLeljeBfUJqKqMLxvA8Zo+XAVAhE74aCmHAaQSc60BnKDvlQBE+BE+1BFAvxkbasy7GcAJ2q4AIF4H5K8jMUQ+CcNrtRFCA6jqzCsbwAnaXhFAyKAQGsAJiVEY0gAWRDladVUAETchNIBHsyDX3wDmdOryWgFA/EJu6SspWndDEaQB7Nrqw84G8LCErwdYGcDXq/3wAj3aDGBJoXl1BnCCtlcDEBLwZDSAExKiMaQBbIizt2lVABWuTGx4MzZfiKc/QeX1ETviA7lH5l+hrwGcsAsrAFh6GYIAIuQMSCUAs30zshrAp33w1xJmUqXP5woAZkACgHghHt+OprcMvOpfK48AUP+pYJ5Ra6uteXS9ARyt6NN4KwBYeha0N1lLAI5McAPoE3ACfusAGN8JEwFsBQ/QCCCsgodx9Lo1TqttC8Ct9Y5YQ2t9t2jzCThB5bNPQP5G/EwAIdtRAAygT8AJ+J1/AhJAvBDPG08TWtarVaBQbp2A6Kf+Ok62vAdAzDnqBM6uc6afT8AJ6p59Ata+E6YFH2UgVCsCyLVxrfdgDeCEXbwXAPG7gHwdUJN/1AnUcwLq/BO27LQhDeAE6a8MIOXgCVgCkD5H7RaAR8e/Qn8DOGGXDGBOVAPoJ2FymdLpZQBzgimA+vj0Xu9ullTxCVhS5WCdAcwJaAB9AuYypdNrNQD1dMmGMvsxINb0x7/++eG7d1+/WpJPwFeSuKJHAQO4rVYNwE8JPqjku6DbudLtsQqA+KlqPf16kpsnoL8VrXv7uzoYwC65cs4rAKi/jsRVG0AqsY41gBP2wgC+FrV0EuuTMK97fBo1BnDCPhvA16IqgGjFaWwA/RjwdaYMqFkZwOzdUPjxrWiw2X4l+Urwwc8AGsBSvhyuWxVA/OJR9jYLQAXZABrAbD52+a0AYOkT8QhCAWgFNRLA2jwG0ADWcuNQ/dkA8vOAsz6Qe0gc6dwLYLwrK0Ol/7FonxXK/wUAAP//+omXpQAAGQhJREFU7Z07j1xJcoW7OZwhMOD4kiFIgvRH5AgrS5aM1f+QAMncNeTKkrHe/rF5OePPEAPMi1SfIr/m4dnIvHmrblXdamYBxciIOOdEZtwbXd3VD97/35//9OZuPjbtwN//zd/e/e6f/vkkzV9++eUo/ps3b+7E/eGHHw5WPg9fE2vZ+/v7u88+++zu5cuXByt/68d//OG/7v79X/56WLa3/3Psb3hjJwDv5wCe0L0GdQ5gozER3mIAb3XwaMUcQDqxoZ0DONbMUwfw1odPXZoDOHavrELNARxrV2sAe59quvIcQO/GXD92YA7gYyu6i2oAR4dPwnMAu+39eJNbDSA345obTZxbfBOGs47eNfSkxSM/qnct3PwU9AydnwM41lR/BWwNUqXkw9XiOabS2EtsDuAZrsQWA/jzzz8/7mzNzaQb8hZfAXXY1jA9NuJhkb2oOIlxfmtd6bSwVfyYmtKZA1h188TYHMCxBvorIIzeIFQ3eeIrDNotmxot3FL8mNpzAJe6ekR+DuBY06oBFLMaiOrmHsX1dlNp9PC9XLXHHl65OYBLHToiv8UA6tNIbo41F1acW/0U9IhWP/boGO4IJ3vPNUlu4jLf8ucAtjpzQnwO4FjzWq+AY+y3qNZArNFoYauh6tWr8C1t4nMA6cSGdqsBPGZL8xXwmK61Oa2h6g0iai0uedk5gN6NjdZzAMcaeeor4MgQjO2kRvUGaKR2j0/FOYB0YkM7B3CsmXsZwJFBWTpRNZAjunMAlzp7RH4O4FjTTh1AValu/LHq71Ejg/Ie3V75XkY15wC2+3l05toDqG/iv3r16k729evXh3NwQ2Crw+UNtLffB6z2PBrzsyWn15PE4qfeMRrSmgNIRze0exhA/UKuBtBvlGfPni2eErxuqKc0gDo4Z8smHDM8qXWMhvYxBzCvxgb+HgeQGwTLMbmRFGetnPyPYQCzH/TlUnYO4Bk6vYcB5FNQHyqOyk1X5Rzz1AaQs+3JzgE8w9W49gBWPwmTw5aveN4GYZV/8eLFrv4mjO/xqaznAJ7hSu5xAHXMHMLq6GA0gHoF/OKLL3bzR5mq/d56bA7gGa7grQ4gw6eWzAE8w41RSM4BLJpyamivA8i3JEbO9zEPoH8gyl6pL1s+5gBu2c13WnscQN1UvRsr2/AxD6B60erVHMC8U3boX3sA/RvxfiP5eqlttzKAeaYtByS11bMt9Q968w/zLt2K6/NzAMd6do4fRdt6QHwIt9aeAzh2n6xG3eIA5s0l/xa+D+gDcrihN/4abfXFX0mYXwOubNgI/NYGMIdPZ5wDOHKlT8fMATy9h3+hcAsDWA2dH+RWBtD3fIvrOYBnuGp7H8Cl4VNLGEB9I/7TTz/d/M0H1djia0Dp3PJjDuAZrt61B7D3o2j6mmlpAJXXU4M3B/AMN4hJzgG0Zmy13OMA6mz5hkV1XobzYxrA7As9qPqzdWwO4NYdfdDbywDm7wOOHJWb72MZwGsOn67HHMCRu3Il5toDyDfif/rppw9e9RiukeMIewvfhhg5SwvD8K3pS0vr2PgcwGM71+HNAew0x1LXfhNmDqBdjKe03MsA6pXQfwC795G+yj31V8A93HPzFfAMV2FPA6iP8ksf6avhU1vmAJ7h5gjJOYDRkC3cvQ1g70yt4VNc34Z4+fLl/IXcXgNPzM0BPLGBFf1WBrA1fDrTHMDqym4fmwO4fU+v/m0I3gVd+jbEHMD3F1+fpvf68R657WoO4Lb9PKjNV8Cxpl77XVB2ufQ1Mrhz2DmAZ+jqLQzg0kd7PgX9WH4Ubb4CnmEQriW59wFcGj717WMbwGvdK/MV8Ayd3/MAjgzfHMAz3BQNyTmAjcacEt7bAI4MHRj/emj+NsQpd8EYdw7gWJ9WofY0gCMbZ/iEnQM40rHtMHMAt+vlo9K1B7D6fcDHzcXCh89TivONeNkWzjlr13t5F3TtvrfEzwHcspvvtG5lAHtDNQfwDDdGITkHsGjKqaE5gGMdnK+A8/cBx+6UlahbGUAdq/UqqPjz58/nn6RYee3Xwucr4NqODeC3GkB/Q2Sg7AEizi39KNrvf/dXh323PhCMnvtWcXMAz3DlthhADZE/Rm9QBrD6L6orjSpG3Uv8OtIcwD//6Q0Nn3abDtzSAPqJcxjPOYD6QPGff/zvOwZQ+8j6vrenup6vgGe4src6gGqFD8ElB9DrnuGS7FZyDuAZLs2WA7j2xlz7KWge3+udcwBVV++C8grodXNPT9mfA3iGq7vFAOqb6cc8LjGAqqHHqUMzvw3x0MP535Mdc5v3OXsdwJGh0VBpwGRbr4BzAN9ff3r1PrJuNQdwXb+G0HseQB1g5JWrNYAM36hOr2G3+Aro5/ez9XqaHMfOAfQubrTe+wDqmH4TVMe+1ABWtT+m2P0f/vd/5rchNr7iv//Xf7v7x7/7h5NUz/E1YG6oN4SXGMDcz579fBXLvVa97HHA3z+A5gBmN3fgzwHcwUWwLYyMCUMFrcVx3BxAurUzu9cB3FmbLrad1jD5BnywPN5bzwHsdeeKuTmAV2x+UXoOYNGUpxy69ADqBvOP4Fq3vg3xlPveOtscwFZnnmj8kgPoNxdDOAfwwxvLe/Rh5r1H795HllfzU9DlHl0FcckB1AH9BtONdOwAps5Vmnemojqb+uJnVCmPab3mMQdwTbcuiL3mAOqYz549W/0paN6Y0ll7Q4pzCw/OyvnwtXdiI+eYAzjSpStgLjGAOpZuFr95OKriL168WPW/I6XOmhuRurdkdV4/Y/ojZ5kDONKlK2C2GMAt/otq/Wl6vRlz6o12hRbeRMk5gDu9THsdQH+V86HcaRt3v605gDu9RHMAd3phNt7WHMCNG7qV3BzArTq5b505gDu9PnMAd3phNt7WHMCNG7qV3BzArTq5b537hz9/9/jbEHyBPb+43u6iXbqnqqc/acifJXz9+vXjYdZcV2H17me+C8p5JLpG73ETc/FBBx4HcDb2g75s5tDXS92sOYDyj9nDHMDNboGu0GEAuUCO1AVQ/FI3jtd+Smt6e6k+qt6lXgF1nVrnmvfO2F3cHECnt5rsmLmuO3DNATznN+L9tHl/cGZhMue8uX7oj74G9IZVTZlNrLoyFqO3l+qh6vEKeI4B5DycvnUu4Vo5uNO+G0Aakc0lPhtJJ9ZbenqpHqrepQbwUmda3/XbYZRvwuT2Z6OzI+M+AyjGJfo4B3D82uwBuemnoLr4l7jJ9tC40T34AIpz7v7MARy9MvvAbTaAfqOd+ybbR+vGduF9EePcvZkDOHZd9oJ6/BR0iw35zXbuG22L/V5C49I9YQC///77w9eCx9bX9Tv3N+K1t4/9PpkDeIkpvGANBlA/CXPud0FPHZ45gPEu6LnvEz4an3rhzr3PW9ZnAF+9enV4BeRH0Xo957r4uYX3V8DMud9bo92r3+M/9dymr4BLzZoXY6lDp+dzAOn5knLiWgO4ZpBS0/ewRsd5T209B/CJXVEGkB/GZghaNzz5bEMOYIufvMqvapyiV9W41dgcwFu9co19twZQ8Lzpq8FAlgF8+fLlX/xNGDDTnt6B+4cv1N+o2b2LcXqZj1vhkv1lAPka0K+rD6DHq6sj7PPnz+8+//zzg3VuhR+JUXNJK/PwqhqJrTDE0FnDgZsWrYy3fK/p3PuHC/X4+4AtMnEnEkO4yoG5dcsZ15yDfiSX+BqtNVjp//rrr3c//vjjwXo99uKxnrb+Nugnn3xy+BuhjkPHY711VW+tRk+/yqV+tYeKtzZW6Wbtnub9d999d3gFFKgS65F7uWO1xOMA2F4d5ag1il/Su3Se/S/VBbd0Tr3z+dtvv93xDii68NAh3rNwwODLrtERv8Kjh75bchVPOPLOYZ25lgb4NTa10s/aLW3x7r/99tvhV0AJZbGeeCtHHC3fcMY8J1764NE81qJb6ZFbo40OXPyeRg+TOXR7eplLjcyP+Kq7VLtXhxwWLezIHsAcw4Eryx48pnVPt8VpxVM7/ftvvvlmeADXFBnBgvEDK4aP9U1XMXQct3aNbqVFbo0mOnDxexotTBVHN/VaceEqneQv+dLv1YDfqkUcKzx6WDRG7DEcr92q0dLtcXu5Zh0N4DFE52izbJg41gsTA+u5XIPBZr7nU8cx0qnijmmtT9lDi1vtJWPup0761d4dI62eXsXvxVy7hfN6jsm9KDei5xrHcsRr7Sv3kH6Pu5RTvnrcf/3118OvgAhUB9Bm9SSHhSNLrDqY47QGg818z6cOGNfIHJiWdW4LU8Wp0+ODgd/yUyN9+GkTx9eEGU/eqL+kk+dBV/Eqt6QH3+1aTlUXvUorYy1+K452yw4N4Ij4yEbRSWxzc/bK2sJUceool7U8V3E9llzPLa2p09MAg1bLl0ZPB35lnbeHAeSM2KU9V3mP+fkUx6/0M4YPB930ifcsWo6pYp5XnSc9gFUjl5qSDXJ/zZo61R7QAbPkHy7Uw8U69iG+alGvt6c1NZZ0qOeaxLCe03pJ0/EVlljqpy8dYnDQTp/4kkUPXPrE3R4G0Au2SMQd60K5Bp/xtf5IPWG8Hhxi+KpNbHQfzh3hLOm7XmLd97U4zhvZhzDScJ5rKu85+UsP4Zc0Mo9mxt3PfaSPRmWXsNTBouF+aqQPZ8S67gi+fBd0rUhVaAsN6R7TDDjsAV96xLQefTh/ibOk71qJxcdSSxznEe/Z1KiwazQdm9rkMu41M4cPF+ucKub5kTV1sM4hlnXSd87IGt0R7GEAKThKHMFVGMWoNbI5YXr4qobwcKq8112Lc25rvVSzxVMcLhasn4lYYoi7TQzndUwV87zWjknNxLZ8eFjXdf1evKVdxb2O8i3f4+wDW+n2YuKhh+3hlTtqAEVcKlDlia05YA8rPTQPh3k3fHA8p7w/wBBbg4XTsz29Fg8OFpz2uma/yXcd1rKpOZJraTu3WsPDUhvrHGJYz42uqQM+fcWJYamHhTtinYMetscv34RxsRZ5RHwEk/ritOp73LVZk5fVk3jWAEe8hSMvmxzPsQbjer4Gt2ThoDeKBwcfH+t6rLFgZDMmPcXQxTpndO3crJMavbzvJ3mV73U9TxxLTaxjq7V4wvJER5a1eKxT9/6rr756yL39ViBJLAXTd0EwaOBXHHKJreLwweKD7dkKW8WkgX5PL3OVVhWT9hr91MB3HWLsCX1sxvFl4aatcvBauhkH37LUJN/jZy657icW/TUWDSz62EoLLDn94Dp45Xgqn1jFwB41gJVgxiigYvlIrOeVcy5Yjzm+Wic2feeg77Gldeql73zpj9ZIHXzXIEYN1/a18unDxQrDOq1yeqSGx6rcgRT/oB3hUtv1wSff/dE9oFVZNLDCqIbXSZ5jlasGUHHhEuu6hwEU0B8OUNz9FIOXceeAwSaWeGXB9vSSl9j0E1/51K1yqZe+c1Infcf2dMD1+MKQx8KTRR9LDh9LvGXRxrZwHm9pr9GQnnTQEnct3/fEOnXQx4Jzm3VzAIUFg3U+61UD2BPK3JrNs5nKotvTS15i00985VO3yqVe+s6pdKqYOD0dNFvcKp9Y9LFwZD3ma8dojSY28y2/pTmq43zW4o7yW/uqNNAXx9eukXWPGUBpD30K6oW3WLN5LJrVYcFUuSqGFjYx6aMPXraKeT410ndsS6sVd25P13Fao4fNvPxRvQpHTPq9GlXdKuZ65Inhu61yvhfya/YGFks9tPBlM5ac3gC6Tq7vv/zyy8cfxqYINsFb+Wwei25VF0zm0kfDbWLSFxZ9eOkTd5s66Tu2p9fLodHTBiPrWr52zKiWOInFl3ZL32strV0PLDF8bCvuewGzZm9gsb166INJztEDqHdBEcVmMeJb2dy861K7wpBzfGud2PThUQdLvGdTK/2KW+lXsYpb6Y9yKz2PVTpejzVW+IojzYzD8Xqj6+SmX9VbE/N99PZd1a3q+AB6PrW9rtZDXwMm6VS/tSk/bGI8t1Q/sek7nzpYz7XWqZd+xav0q1jFrfRHuZUesZ4GNdOK0+JlHC711trkp5/1pJ+x9Ks9JIY62BFODqDvJfVd7zCAS4V6eRdbs+5u6uGLUz0cs7SHzKff2hs1sC2cx1M7fceyrvSrGHi30tcz8ek7R2vfV4WtYmg419fKt3gZTx7aWMcvYcVxjNbwZd1HXxaMx3KdGOpgEy8/Ob0BrPBolj8JQ5IivY2APcaiX3GpCQa/hyXXw4LBoo8l3rOVfhVzjdRP37G5ljb6yUvfuXCIJTZ9cLLJdb/Fy7hzXFvrNdjkum7qJHYp39uL11nSXRrAqo5izQHMjVebIZbY3GzPr7jo9njkKqzHtK5qwPecr8lX1vU934pXulXMtXwtXbSd52vHs4aDn/j0wckm13PVuqXV0kl8C5e1xBvFipt1Ug/fcehjwbh1vOLC8pSf+Vas/BpQ4OrhG/K1sKf8trVvNnWrfRBrYYljXR8uNnPpg3OLrsdYZw49LLjKgkkN+cTAYNFxHyy2wijmHDDY5BKvbE9H+EoLTpWraigGp5VXPPWco1z64hDDooEVJh9giQvbwwuXHMUOr4BVQsnqQREsGAZQfubAbGl7NZTLfO+MnvN1b7+pDzbj0hvVBJca8omBwVLXfcdrTQ4LR7aKUctxrXXFr7BrNCu+Yq1aiqOPRQOOxx3vuhXWeWg6h5hwLSwY9PFly09BKyCkLIIvjvOIwzsUe9hk71HxiVV6LS1hl/DoooGfVvmWVivuHOmhmbXwU6fno4VFw33xeXreMcRPscfocTbsSH3qYJ2TsdRN37lai7+kIVzqVBww5PDF14P4W+/tv+W7oBVQ8BT0mDjO62Hflq7/RQN++jXrw6i+IF56oAsOP63y7AWs21aOuH9mIB76PQ24YNyHjwXjvvA8ycvmXjx3zNprjvI5C/sb1RAuselrD+izn/SJu82+VJyMZW3lwZDDpxZx968ygLkx31BuklyLQ96tsEv4rIOfNnXdZ13VIsbFRReOW7DEej46aeHKis/T4+LAA+f5ag0e63sjVvFaMfblOi0sceqM9BIO+ljibpWTNk9yFYcYewGLJY+/ZNFZNYASzULy8wAUr7CVBviWDvnUI+5WmBEcDYCLn5a8bE83c/h+JrR7mvAcQ234WMV9DUca6GCFa2HhVRYOVhjXrDi9GHtDo4clR21ZX5OvrOv72rGKo4mu8hWemONcq+IllnrOO/wsKOIk8FOAPBacfGEdT07W13Bb1jVYY+GgJ9/18cG5TY30hfWYr11Ha6+fuZF8aruer9EW3jm+BpPWdbSGI+u55KUPz+POz7znnJPrUZx4WaMV8xrOadVS3HHOH127tmv5uqUl7kkDKGE2wKcHXuxQ4N0AgvN8b60D8BTOD4SW6wtDXGt/OJd4xtIXroop3qqjHA8wWOKya3XV2xbHdVtr9oBG+i1eFYfrudT1XGtd6QiLVouX8Ra+FRe/VTu1R3y0qJe2pSHe4akfxkakBR6J5wBSQFxft7S0cd+HH8TXjnHtrAEn67XiFa7CZv3kuZ97Ilfpkkt9YXmCuZTNvWxZt6Xd643qK+/cFr4Vl4bz5VePY/gVp4pRX7b8GrDa0FKsNYAUE9/XruebBEMsrfPQhINNDD5a+D0rbOKX9Cu9fEc2NStOxqq9JGZr/5izrtlDT7/VI+Jw8au6vRz8iqdYjwsnNUY4cLHSKL8PCGCN9QFkc4cCD0V4EMeXzY07RjnyWDjg0qJNHB+e+7211wZXaZJr2RxA4TiL9FgnX3HqgSGGn5xTfK/FOvVaceFyT47NnPDK61nlKr3EreFKzx++N4+zzlrE07rOEges4xQ72wBSEJubb/mO12bZcFrxDwd4OEQ+XCNzo77XhnOMbjWA6GE5W/per4WB07PopIZzwHjM1+SxnuvpgnOMNNDxOFgsOSzxnh3BUrulM6IB17VaPMfAw242gCquJ8WwKuRrCle2wvHKyuGwrguvVb+qtRSTltfyektc8toXeyNW2azjvvjuw69i5NKyhxaHfPLcFwYcVnk0sc7xteddy+MtfAvjeNZLWN87nMou6cBxvRbHMfBkD3049j/odCGts3iraPLkgz1s6OFC6yE9nvhutYantT9accewbmG9NtiWbWkozjP741qZS9+xrEcwYNlfi0MevGwrVsVTN33pZYzPDDJeYSuMcFs98kyn1Ku46GN935u+Arqw1lXBxOALy1MxHYQnvlutW/qtuDj5aGG9dnLSb2kozrO6MOhkLn1w2KU8OCz76/HAJCf9xJF3bV9XeTRkE7vko7eVZS+VXu6lwlSx5FED65zNBtBFtc5NeL7aiPL6qEhOfJ7KoYdVTA/wb73xf5OXvtfuqSbPscr18o7VmrOlTZxjyXkd+B4D17KJbfkZdz3qYsm5P8KveMRk0ZNW6pFzfK6Tkz74Ea3EOgddLFi3h/+cxUmePGXd02xtSHH/1AQNWV/nvlp6iXM/Oel7Tef5OjmeYy3MCE74PCM+Wm4zRw2PE3Neta5wvViVky61sV6L2BK34nhMa9dKPXLJcT856Tt2RA88WCy6WHBu/x9K0a8mJ0jvvAAAAABJRU5ErkJggg==") center / cover no-repeat fixed;
+  }
+  @media (max-width: 560px) { body { background-attachment: scroll; } }
+  header, .qcard, .card { background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, topic?, skill?, image?,
+//    hint?: string                       // shown after a wrong first answer, then the SAME
+//                                        // question is asked again; the first attempt is scored }] }
+// Questions without `remediation` behave exactly like the classic exam (answer revealed immediately).
+// **double asterisks** in any text render as bold.
+const EXAM_DATA = {"title": "Endocrine Emergencies — Lecture Quiz (Adaptive)", "questions": [{"id": "1", "group": 1, "slide": 9, "section": "Pituitary Emergencies", "topic": "SIADH", "skill": "Identification", "stem": "A patient with small cell lung cancer on carbamazepine has sodium 118, no edema, and concentrated urine. What is the most likely diagnosis?", "options": [{"letter": "A", "text": "Adrenal insufficiency"}, {"letter": "B", "text": "Diabetes insipidus"}, {"letter": "C", "text": "Heart failure hyponatremia"}, {"letter": "D", "text": "SIADH"}], "answer": "D", "explanation": "**SIADH** is the most common cause of euvolemic hypotonic hyponatremia — \"soaked inside, dry outside\"; small cell lung cancer and carbamazepine are classic causes of ectopic or excess ADH.", "objective": "", "hint": "Low sodium with a **euvolemic**, edema-free exam and inappropriately concentrated urine points to excess ADH rather than fluid overload or a salt-wasting gland; the cancer and the drug are both classic triggers."}, {"id": "2", "group": 2, "slide": 9, "section": "Pituitary Emergencies", "topic": "SIADH", "skill": "Diagnostics & imaging", "stem": "Which laboratory and exam findings support a diagnosis of SIADH in a hyponatremic patient?", "options": [{"letter": "A", "text": "Dilute urine with low specific gravity"}, {"letter": "B", "text": "Urine specific gravity above 1.015"}, {"letter": "C", "text": "Euvolemic exam without edema"}, {"letter": "D", "text": "Serum osmolality above 295"}, {"letter": "E", "text": "Peripheral edema"}, {"letter": "F", "text": "Serum osmolality below 275"}], "answer": "BCF", "explanation": "SIADH = hyponatremia + **serum osm <275** + inappropriately concentrated urine (SG >1.015, high urine osm and Na) in a euvolemic patient; exclude hypothyroidism, adrenal insufficiency, and diuretics.", "objective": "", "hint": "The body is holding on to **free water**, so the serum is dilute while the kidney keeps making concentrated urine; retained water spreads evenly through compartments, so there is no intravascular overload on exam."}, {"id": "3", "group": 3, "slide": 11, "section": "Pituitary Emergencies", "topic": "SIADH", "skill": "Management", "stem": "A patient with SIADH and a sodium of 112 begins seizing in the emergency department. What is the appropriate immediate treatment?", "options": [{"letter": "A", "text": "Hypertonic 3% saline bolus"}, {"letter": "B", "text": "Strict fluid restriction"}, {"letter": "C", "text": "Isotonic normal saline bolus"}, {"letter": "D", "text": "Oral tolvaptan"}], "answer": "A", "explanation": "Severe symptomatic hyponatremia gets **3% hypertonic saline** 100 mL over 10 minutes, repeatable up to three times; otherwise fluid restrict <1 L/day and raise Na no more than 8–10 mEq/L per 24 h to avoid osmotic demyelination.", "objective": "", "hint": "Fluid restriction is the default for stable patients, but a **seizing** patient needs the sodium raised within minutes; isotonic fluid can actually worsen the sodium in this disease, and vaptans are not emergency drugs."}, {"id": "4", "group": 4, "slide": 12, "section": "Pituitary Emergencies", "topic": "Diabetes insipidus", "skill": "Diagnostics & imaging", "stem": "Which laboratory pattern confirms diabetes insipidus in a patient with polyuria and polydipsia?", "options": [{"letter": "A", "text": "Dilute urine with hyperglycemia"}, {"letter": "B", "text": "Dilute urine with concentrated serum"}, {"letter": "C", "text": "Concentrated urine with hypernatremia"}, {"letter": "D", "text": "Concentrated urine with dilute serum"}], "answer": "B", "explanation": "DI = **urine osm <250** with serum osm >295 and urine output >3 L/day; it mimics diabetes mellitus but glucose is normal. Hypernatremia develops when intake cannot keep up with losses.", "objective": "", "hint": "ADH is absent or ignored, so the kidney cannot **reclaim water**; think about where the water ends up and where the solute is left behind, and remember glucose must be normal for this diagnosis."}, {"id": "5", "group": 5, "slide": 13, "section": "Pituitary Emergencies", "topic": "Diabetes insipidus", "skill": "Diagnostics & imaging", "stem": "During a water deprivation test, urine osmolality rises sharply after desmopressin is given. What does this indicate?", "options": [{"letter": "A", "text": "SIADH"}, {"letter": "B", "text": "Central diabetes insipidus"}, {"letter": "C", "text": "Primary polydipsia"}, {"letter": "D", "text": "Nephrogenic diabetes insipidus"}], "answer": "B", "explanation": "A rise after desmopressin means the kidneys still respond — **central DI** (pituitary not releasing ADH), treated with desmopressin; no rise = nephrogenic DI (lithium is the classic cause), which desmopressin will not fix.", "objective": "", "hint": "Desmopressin is synthetic ADH; a kidney that responds to it was never the problem, so the defect must sit **upstream** at the gland that failed to release the hormone. Lithium-type disease shows no response."}, {"id": "6", "group": 6, "slide": 20, "section": "Thyroid Emergencies", "topic": "Hyperthyroidism", "skill": "Identification", "stem": "A patient has palpitations, weight loss despite increased appetite, exophthalmos, and waxy lesions on the shins. What is the most likely cause?", "options": [{"letter": "A", "text": "Amiodarone toxicity"}, {"letter": "B", "text": "Graves disease"}, {"letter": "C", "text": "Subacute thyroiditis"}, {"letter": "D", "text": "Toxic thyroid nodule"}], "answer": "B", "explanation": "**Graves disease** (antibodies to the TSH receptor) is the most common cause of hyperthyroidism; exophthalmos and pretibial myxedema are Graves-specific. Labs: TSH low, T3/T4 high.", "objective": "", "hint": "Eye and skin findings are **autoimmune** signatures — antibodies stimulating the TSH receptor also act on orbital and pretibial tissue; a nodule or a drug effect raises hormone without those extrathyroidal signs."}, {"id": "7", "group": 7, "slide": 21, "section": "Thyroid Emergencies", "topic": "Hyperthyroidism", "skill": "Pharmacology", "stem": "In which patients is propranolol for hyperthyroid symptom control contraindicated?", "options": [{"letter": "A", "text": "Diabetics prone to hypoglycemia"}, {"letter": "B", "text": "Second- or third-degree heart block"}, {"letter": "C", "text": "Fine resting tremor"}, {"letter": "D", "text": "Essential hypertension"}, {"letter": "E", "text": "Asthma or COPD"}, {"letter": "F", "text": "Atrial fibrillation with rapid rate"}], "answer": "ABE", "explanation": "Propranolol is contraindicated in **asthma/COPD**, bradycardia or high-grade heart block, severe PAD/Raynaud, and hypoglycemia-prone diabetics (it masks the warning symptoms).", "objective": "", "hint": "Nonselective beta-blockade constricts **airways**, slows conduction further, and hides the adrenergic warning signs of a low glucose; the remaining options are things beta-blockade treats rather than worsens."}, {"id": "8", "group": 8, "slide": 21, "section": "Thyroid Emergencies", "topic": "Hyperthyroidism", "skill": "Pharmacology", "stem": "Why is methimazole preferred over propylthiouracil for routine hyperthyroidism outside of thyroid storm and early pregnancy?", "options": [{"letter": "A", "text": "PTU carries a boxed hepatotoxicity warning"}, {"letter": "B", "text": "PTU is ineffective in Graves disease"}, {"letter": "C", "text": "PTU causes irreversible hypothyroidism"}, {"letter": "D", "text": "PTU does not block hormone synthesis"}], "answer": "A", "explanation": "**PTU** has a black-box warning for hepatotoxicity; it is favored only in thyroid storm (it also blocks T4-to-T3 conversion) and in the first trimester of pregnancy.", "objective": "", "hint": "Both thionamides block new hormone synthesis; the difference is **organ toxicity**, which is why PTU is reserved for storm, first-trimester pregnancy, or methimazole intolerance."}, {"id": "9", "group": 9, "slide": 22, "section": "Thyroid Emergencies", "topic": "Thyroid storm", "skill": "Identification", "stem": "A thyrotoxic patient has a temperature of 105°F, heart rate 150, and agitation after missing methimazole. What is the diagnosis?", "options": [{"letter": "A", "text": "Uncomplicated thyrotoxicosis"}, {"letter": "B", "text": "Serotonin syndrome"}, {"letter": "C", "text": "Sepsis with tachycardia"}, {"letter": "D", "text": "Thyroid storm"}], "answer": "D", "explanation": "**Thyroid storm** is a clinical diagnosis (Burch-Wartofsky ≥45 highly suggestive, no lab cutoff) — hyperthermia 104–106°F, tachycardia out of proportion to fever, altered mentation, plus a precipitant such as medication withdrawal.", "objective": "", "hint": "Hyperthermia, a heart rate **out of proportion** to the fever, and altered mentation in a patient with a precipitant make up the classic triad of decompensated thyrotoxicosis; score it with the Burch-Wartofsky scale, since no lab cutoff defines it."}, {"id": "10", "group": 10, "slide": 24, "section": "Thyroid Emergencies", "topic": "Thyroid storm", "skill": "Management", "stem": "Which medication is given first in thyroid storm to control the adrenergic hyperactivity driving the tachycardia?", "options": [{"letter": "A", "text": "Propylthiouracil"}, {"letter": "B", "text": "Hydrocortisone"}, {"letter": "C", "text": "Potassium iodide"}, {"letter": "D", "text": "Propranolol"}], "answer": "D", "explanation": "**Propranolol** (or esmolol) is step one; then a thionamide, iodine at least 1 hour later, and hydrocortisone. Also treat the precipitant, cool, give fluids and benzodiazepines.", "objective": "", "hint": "The sequence is block the **receptor**, block synthesis, block release, block conversion; the drug that addresses the heart rate and tremor directly comes before anything acting on the gland."}, {"id": "11", "group": 11, "slide": 24, "section": "Thyroid Emergencies", "topic": "Thyroid storm", "skill": "Management", "stem": "Why must potassium iodide be given at least one hour after the thionamide in thyroid storm?", "options": [{"letter": "A", "text": "Iodine inactivates the thionamide"}, {"letter": "B", "text": "Iodine requires beta-blockade first"}, {"letter": "C", "text": "Iodine would fuel new hormone synthesis"}, {"letter": "D", "text": "Iodine causes severe hypotension"}], "answer": "C", "explanation": "Iodine before the thionamide gives the gland **substrate** for new synthesis — the classic exam trap; thionamide first, Lugol's solution at least 1 hour later. Use lithium instead in iodine- or amiodarone-induced storm.", "objective": "", "hint": "Iodine blocks **release** of preformed hormone, but it is also the raw material the gland uses; the thionamide must already be in place before the raw material arrives."}, {"id": "12", "group": 12, "slide": 24, "section": "Thyroid Emergencies", "topic": "Thyroid storm", "skill": "Pharmacology", "stem": "Which antipyretic should be used for hyperthermia in thyroid storm, and why?", "options": [{"letter": "A", "text": "Aspirin, because it also prevents thrombosis"}, {"letter": "B", "text": "Acetaminophen, because NSAIDs displace thyroid hormone from binding protein"}, {"letter": "C", "text": "Ibuprofen, because it lowers fever fastest"}, {"letter": "D", "text": "No antipyretic, because cooling blankets suffice"}], "answer": "B", "explanation": "Use **acetaminophen** plus cooling blankets and ice packs; aspirin and NSAIDs free thyroid hormone from thyroxine-binding globulin and worsen the storm.", "objective": "", "hint": "Salicylates and NSAIDs knock thyroid hormone off **TBG**, raising the free fraction and worsening the storm; the safe choice works centrally without touching protein binding."}, {"id": "13", "group": 13, "slide": 27, "section": "Thyroid Emergencies", "topic": "Myxedema coma", "skill": "Identification", "stem": "An elderly woman nonadherent to levothyroxine arrives in winter with HR 40, BP 70/35, temperature 94°F, confusion, and an Osborn wave. What is the diagnosis?", "options": [{"letter": "A", "text": "Myxedema coma"}, {"letter": "B", "text": "Uncomplicated hypothyroidism"}, {"letter": "C", "text": "Adrenal crisis"}, {"letter": "D", "text": "Septic shock"}], "answer": "A", "explanation": "**Myxedema coma** = hypothyroidism + altered mental status + hypothermia <95.9°F + a precipitating stressor; the Osborn J wave signals hypothermia. Mortality 30–60%; admit to ICU.", "objective": "", "hint": "Known hypothyroidism plus a stressor, **cold and slow** vitals, and altered mentation define the decompensated form; the J wave on the ECG confirms the hypothermia that drives its mortality."}, {"id": "14", "group": 14, "slide": 29, "section": "Thyroid Emergencies", "topic": "Myxedema coma", "skill": "Diagnostics & imaging", "stem": "Which laboratory abnormalities are expected in a patient with myxedema coma?", "options": [{"letter": "A", "text": "Hypercapnia on blood gas"}, {"letter": "B", "text": "Hyperkalemia"}, {"letter": "C", "text": "Hyperglycemia"}, {"letter": "D", "text": "Anion-gap metabolic acidosis"}, {"letter": "E", "text": "Hypoglycemia"}, {"letter": "F", "text": "Hyponatremia"}], "answer": "AEF", "explanation": "Myxedema coma shows **TSH high, T3/T4 low**, low sodium, low glucose, and a high PaCO₂ (respiratory acidosis from hypoventilation); also check cortisol for concomitant adrenal insufficiency.", "objective": "", "hint": "Everything is **hypo-** in this disease — ventilation, thermia, natremia, glycemia; think of which direction each value moves when metabolism and breathing slow down, and which abnormalities belong to a different crisis."}, {"id": "15", "group": 15, "slide": 29, "section": "Thyroid Emergencies", "topic": "Myxedema coma", "skill": "Management", "stem": "Why is hydrocortisone given with or before intravenous levothyroxine in myxedema coma?", "options": [{"letter": "A", "text": "Steroids prevent levothyroxine allergy"}, {"letter": "B", "text": "Steroids speed conversion of T4 to T3"}, {"letter": "C", "text": "Steroids reverse the hypothermia directly"}, {"letter": "D", "text": "Thyroid hormone alone can precipitate adrenal crisis"}], "answer": "D", "explanation": "**Hydrocortisone** 100 mg IV q8h covers concomitant adrenal insufficiency — thyroxine alone can precipitate adrenal crisis. Also: ventilate, passive rewarming only, cautious fluids, dextrose, empiric antibiotics.", "objective": "", "hint": "Restoring metabolism raises the body's demand for **cortisol**; if a second gland is also failing, replacing thyroid hormone first unmasks that deficiency. Steroids continue until it is ruled out."}, {"id": "16", "group": 16, "slide": 32, "section": "Parathyroid Emergencies", "topic": "Hyperparathyroidism", "skill": "Diagnostics & imaging", "stem": "A patient with kidney stones and confusion has elevated PTH, calcium 15, and low phosphate. Which process best explains these labs?", "options": [{"letter": "A", "text": "Secondary hyperparathyroidism from CKD"}, {"letter": "B", "text": "Primary hyperparathyroidism from adenoma"}, {"letter": "C", "text": "Ectopic ACTH from lung cancer"}, {"letter": "D", "text": "Hypoparathyroidism after thyroidectomy"}], "answer": "B", "explanation": "**Primary hyperparathyroidism** (adenoma or hyperplasia): PTH high, calcium high, phosphate low. Secondary (CKD): calcium low, phosphate high. ECG shows a short QTc.", "objective": "", "hint": "Primary versus secondary disease is a **phosphate** question — autonomous PTH drives calcium up and dumps phosphate, while kidney failure forces PTH up in response to calcium that is already low."}, {"id": "17", "group": 17, "slide": 32, "section": "Parathyroid Emergencies", "topic": "Hyperparathyroidism", "skill": "Management", "stem": "Which interventions are appropriate for a calcium of 15 mg/dL with a shortened QTc?", "options": [{"letter": "A", "text": "Thiazide diuretic"}, {"letter": "B", "text": "Calcitonin"}, {"letter": "C", "text": "IV calcium gluconate"}, {"letter": "D", "text": "Bisphosphonate"}, {"letter": "E", "text": "IV normal saline"}, {"letter": "F", "text": "Fluid restriction"}], "answer": "BDE", "explanation": "Calcium >14: **IV fluids** (normal saline), calcitonin (fast, short-lived), bisphosphonate (slower, durable); dialysis if anuric or Ca >18. Admit to telemetry with ECG changes; Ca <12 can go home.", "objective": "", "hint": "Severe hypercalcemia is treated by restoring volume to promote **calciuresis**, then a fast short-acting hormone and a slow durable bone agent; anything that retains or adds calcium is wrong, and dialysis is reserved for anuria or very high levels."}, {"id": "18", "group": 18, "slide": 33, "section": "Parathyroid Emergencies", "topic": "Hypoparathyroidism", "skill": "Identification", "stem": "One day after thyroidectomy a patient has perioral tingling, carpal spasm with a blood pressure cuff, and QTc 510. What is the cause?", "options": [{"letter": "A", "text": "Hypokalemia from vomiting"}, {"letter": "B", "text": "Hypocalcemia from hypoparathyroidism"}, {"letter": "C", "text": "Hypercalcemia from gland manipulation"}, {"letter": "D", "text": "Hypoglycemia from fasting"}], "answer": "B", "explanation": "Post-thyroidectomy **hypoparathyroidism** → PTH low, calcium low, QT prolongation (torsades risk). Trousseau sign is the sensitive one (94%); Chvostek is specific but misses most (26%). Correct calcium for albumin.", "objective": "", "hint": "Removing or devascularizing the glands behind the thyroid drops the hormone that keeps **calcium** up; the cuff-induced spasm is Trousseau sign, and a prolonged QT points the same direction."}, {"id": "19", "group": 19, "slide": 34, "section": "Parathyroid Emergencies", "topic": "Hypoparathyroidism", "skill": "Management", "stem": "A symptomatic hypocalcemic patient with tetany fails to improve after IV calcium gluconate. Which electrolyte must be checked and replaced?", "options": [{"letter": "A", "text": "Magnesium"}, {"letter": "B", "text": "Phosphate"}, {"letter": "C", "text": "Potassium"}, {"letter": "D", "text": "Sodium"}], "answer": "A", "explanation": "Replete **magnesium** — hypocalcemia will not correct otherwise. IV calcium gluconate for symptomatic or QT-prolonged patients; oral calcium plus calcitriol for mild disease.", "objective": "", "hint": "Hypocalcemia will not correct while a second **divalent cation** is depleted, because PTH release and action both depend on it; this is the standard add-on check in the hypocalcemia workup."}, {"id": "20", "group": 20, "slide": 42, "section": "Adrenal Emergencies", "topic": "Adrenal insufficiency", "skill": "Disease process", "stem": "A patient with adrenal insufficiency has hyperpigmentation and hyperkalemia. Why do these findings point to primary rather than secondary disease?", "options": [{"letter": "A", "text": "Cortisol is normal and ACTH is high"}, {"letter": "B", "text": "ACTH is high and aldosterone is lost"}, {"letter": "C", "text": "ACTH is low and aldosterone is normal"}, {"letter": "D", "text": "Cortisol is high and aldosterone is lost"}], "answer": "B", "explanation": "Primary AI (Addison): **ACTH high** (hyperpigmentation via MSH), aldosterone low (Na low, K high). Secondary: ACTH low, cortisol low only, K normal, no hyperpigmentation; MCC is chronic steroids stopped abruptly.", "objective": "", "hint": "Ask what the **pituitary** is doing and whether the salt hormone is still made; a destroyed gland leaves the pituitary and MSH unopposed and removes RAAS-driven potassium excretion, while a pituitary problem spares the zona glomerulosa."}, {"id": "21", "group": 21, "slide": 42, "section": "Adrenal Emergencies", "topic": "Adrenal insufficiency", "skill": "Diagnostics & imaging", "stem": "What result on a cosyntropin stimulation test confirms adrenal insufficiency?", "options": [{"letter": "A", "text": "Aldosterone rises sharply"}, {"letter": "B", "text": "Cortisol fails to double from baseline"}, {"letter": "C", "text": "ACTH fails to rise"}, {"letter": "D", "text": "Cortisol doubles from baseline"}], "answer": "B", "explanation": "After cosyntropin, cortisol should **double**; failure to rise = adrenal insufficiency. Draw the baseline cortisol around 8 am, its diurnal peak.", "objective": "", "hint": "Cosyntropin is synthetic **ACTH**; a healthy gland answers the signal with a brisk rise, so the diagnosis rests on the gland not responding."}, {"id": "22", "group": 22, "slide": 44, "section": "Adrenal Emergencies", "topic": "Adrenal crisis", "skill": "Identification", "stem": "A steroid-dependent patient who stopped prednisone has vomiting, abdominal pain, and hypotension unresponsive to 3 L of saline and pressors. What is the diagnosis?", "options": [{"letter": "A", "text": "Septic shock"}, {"letter": "B", "text": "Diabetic ketoacidosis"}, {"letter": "C", "text": "Adrenal crisis"}, {"letter": "D", "text": "Gastroenteritis with dehydration"}], "answer": "C", "explanation": "**Addisonian crisis**: distributive shock refractory to fluids and pressors + fever, N/V, abdominal pain, AMS; stopping glucocorticoids is the most common trigger. Expect Na low, K high, glucose low.", "objective": "", "hint": "Shock that ignores fluids and vasopressors is the signature — catecholamines cannot act on the heart and arterioles without **cortisol**; the GI prodrome and the medication history name the missing hormone."}, {"id": "23", "group": 23, "slide": 46, "section": "Adrenal Emergencies", "topic": "Adrenal crisis", "skill": "Diagnostics & imaging", "stem": "Which laboratory findings are expected in acute adrenal crisis?", "options": [{"letter": "A", "text": "Hyperkalemia"}, {"letter": "B", "text": "Hypoglycemia"}, {"letter": "C", "text": "Hypernatremia"}, {"letter": "D", "text": "Hyponatremia"}, {"letter": "E", "text": "Hypokalemia"}, {"letter": "F", "text": "Non-anion-gap metabolic acidosis"}], "answer": "ABDF", "explanation": "Adrenal crisis labs: **Na low, K high, glucose low**, non-anion-gap metabolic acidosis, hypercalcemia, eosinophilia; cortisol low with ACTH high in primary disease.", "objective": "", "hint": "Lose aldosterone and sodium leaves while potassium stays; lose cortisol and **gluconeogenesis** stops; the acidosis has no gap, which separates it from DKA in a hypotensive, low-glucose patient."}, {"id": "24", "group": 24, "slide": 47, "section": "Adrenal Emergencies", "topic": "Adrenal crisis", "skill": "Management", "stem": "In suspected adrenal crisis, when should high-dose hydrocortisone be given relative to confirmatory cortisol testing?", "options": [{"letter": "A", "text": "After the cosyntropin test is complete"}, {"letter": "B", "text": "Only after CT confirms adrenal disease"}, {"letter": "C", "text": "Immediately, without waiting for results"}, {"letter": "D", "text": "After the cortisol level returns low"}], "answer": "C", "explanation": "**Hydrocortisone** 100 mg IV bolus then 200 mg over 24 h — steroids first, labs second; hydrocortisone rather than dexamethasone because it has mineralocorticoid activity. Add D5NS, fix K and glucose, treat the trigger, ICU.", "objective": "", "hint": "This is a **clinical** diagnosis in which delay kills; draw the cortisol if it will not slow treatment, but the drug of choice has both glucocorticoid and mineralocorticoid activity and goes in with D5NS."}, {"id": "25", "group": 25, "slide": 47, "section": "Adrenal Emergencies", "topic": "Adrenal insufficiency", "skill": "Counseling & prevention", "stem": "What discharge instruction is most important for a patient with adrenal insufficiency or long-term glucocorticoid use?", "options": [{"letter": "A", "text": "Hold steroids during any fever or vomiting"}, {"letter": "B", "text": "Never stop steroids abruptly and stress-dose when ill"}, {"letter": "C", "text": "Take steroids only on symptomatic days"}, {"letter": "D", "text": "Stop steroids once blood pressure normalizes"}], "answer": "B", "explanation": "**Never stop glucocorticoids abruptly** (including Cushing patients being weaned); double or triple the dose for fever, vomiting, surgery, or trauma; medical alert ID and an IM hydrocortisone kit. Return for vomiting, syncope, abdominal pain, salt craving.", "objective": "", "hint": "Nearly every crisis in this lecture is precipitated by a **missed medication**; illness raises cortisol demand rather than lowering it, and the patient who cannot keep pills down must come in for the IV form."}, {"id": "26", "group": 26, "slide": 49, "section": "Adrenal Emergencies", "topic": "Cushing syndrome", "skill": "Management", "stem": "A patient on chronic prednisone for rheumatoid arthritis has moon face, striae, hypertension, and glucose 350. What is the appropriate ED approach?", "options": [{"letter": "A", "text": "Stop the prednisone and admit for monitoring"}, {"letter": "B", "text": "Treat the hyperglycemia and discharge; continue steroids"}, {"letter": "C", "text": "Order dexamethasone suppression testing in the ED"}, {"letter": "D", "text": "Start hydrocortisone for adrenal suppression"}], "answer": "B", "explanation": "**Cushing syndrome** (MCC chronic exogenous steroids) → treat the complication (hyperglycemia, HTN, infection, DVT) and discharge with endocrine follow-up; never stop steroids abruptly. Cushing disease = pituitary ACTH tumor; ectopic ACTH = small cell lung cancer.", "objective": "", "hint": "Hypercortisolism from **exogenous** steroids is rarely an emergency — manage the complication in front of you, and remember that abruptly removing the steroid turns this patient into the adrenal crisis patient."}, {"id": "27", "group": 27, "slide": 52, "section": "Diabetic Emergencies", "topic": "Hypoglycemia", "skill": "Disease process", "stem": "A diabetic on metoprolol is confused and sweaty with no tremor or palpitations. Why might hypoglycemia present this way?", "options": [{"letter": "A", "text": "Metoprolol causes neuroglycopenia directly"}, {"letter": "B", "text": "Beta-blockers raise the glucose threshold for symptoms"}, {"letter": "C", "text": "Beta-blockers mask adrenergic warning symptoms"}, {"letter": "D", "text": "Metoprolol blocks sweat gland function"}], "answer": "C", "explanation": "**Beta-blockers** mask the adrenergic symptoms of hypoglycemia; sweating may be the only clue. Levels: L1 glucose 54–70, L2 <54, L3 = altered mental or physical status at any glucose.", "objective": "", "hint": "Tremor, palpitations, and anxiety are **sympathetic** responses to a falling glucose; a drug that blunts those leaves diaphoresis as the only clue, so check a glucose on every altered patient."}, {"id": "28", "group": 28, "slide": 54, "section": "Diabetic Emergencies", "topic": "Hypoglycemia", "skill": "Management", "stem": "An unconscious hypoglycemic patient has no IV access. What is the appropriate treatment, and when does it fail?", "options": [{"letter": "A", "text": "Glucagon IM; fails in glycogen-depleted alcoholics"}, {"letter": "B", "text": "Oral glucose gel; fails if the patient vomits"}, {"letter": "C", "text": "Octreotide SC; fails without insulin on board"}, {"letter": "D", "text": "D50 IV push; fails in renal failure"}], "answer": "A", "explanation": "**Glucagon IM** when there is no IV; it fails in the glycogen-depleted (alcoholic, starved) patient — get access and give D50 50 mL IV. Give thiamine with dextrose in alcoholics.", "objective": "", "hint": "Without a line, the only route left is one that **mobilizes stored glucose** from the liver — which means a starved or alcoholic patient has nothing to release and needs IV dextrose instead."}, {"id": "29", "group": 29, "slide": 54, "section": "Diabetic Emergencies", "topic": "Hypoglycemia", "skill": "Pharmacology", "stem": "A patient on glipizide has recurrent hypoglycemia despite D50. Which adjunct treats it, and what is the disposition?", "options": [{"letter": "A", "text": "Glucagon; discharge after feeding"}, {"letter": "B", "text": "Hydrocortisone; admit to ICU"}, {"letter": "C", "text": "Octreotide; admit for observation"}, {"letter": "D", "text": "Dextrose infusion; discharge with glucose tabs"}], "answer": "C", "explanation": "**Octreotide** (somatostatin analogue) suppresses insulin release in sulfonylurea-induced hypoglycemia; admit and observe at least 24 h. Only reversible, stable hypoglycemia (missed meal on short-acting insulin) goes home.", "objective": "", "hint": "Sulfonylureas keep squeezing **insulin** out of the pancreas for many hours, so correction alone does not last; the adjunct is a somatostatin analogue that shuts that release off, and these patients are never sent home early."}, {"id": "30", "group": 30, "slide": 55, "section": "Diabetic Emergencies", "topic": "Hyperglycemia", "skill": "Disease process", "stem": "Which precipitants belong to the Five I's that explain a hyperglycemic ED presentation?", "options": [{"letter": "A", "text": "Infarction"}, {"letter": "B", "text": "Isotonic fluid overload"}, {"letter": "C", "text": "Iatrogenic steroid use"}, {"letter": "D", "text": "Infection"}, {"letter": "E", "text": "Insomnia"}, {"letter": "F", "text": "Insulin nonadherence"}], "answer": "ACDF", "explanation": "Five I's: **Infection, Infarction, Insulin lack, Initial (new-onset), Iatrogenic** (steroids, thiazides, sympathomimetics) — plus Infant (pregnancy) and Intoxication. Simple hyperglycemia without acidosis or hyperosmolarity needs no insulin drip.", "objective": "", "hint": "Every hyperglycemic vignette hides a **trigger** — a stressor raising counter-regulatory hormones, a missing drug, a new diagnosis, or a drug that raises glucose; sepsis is the one to hunt first."}, {"id": "31", "group": 31, "slide": 59, "section": "Diabetic Emergencies", "topic": "DKA", "skill": "Diagnostics & imaging", "stem": "A T1DM patient has glucose 450, HCO₃ 14, anion gap 20, ketones 4+, and pH 7.39. Why is this still DKA?", "options": [{"letter": "A", "text": "Ketones without acidosis is starvation"}, {"letter": "B", "text": "The gap reflects lactic acidosis only"}, {"letter": "C", "text": "Respiratory compensation has normalized the pH"}, {"letter": "D", "text": "The pH excludes DKA; this is HHS"}], "answer": "C", "explanation": "DKA = glucose ≥200 + pH <7.3 + **HCO₃ <18** + ketones (BHB ≥3), anion gap >12 — but marked respiratory compensation (Kussmaul, PCO₂ 24) can leave a near-normal pH. A VBG is adequate.", "objective": "", "hint": "Kussmaul breathing blows off CO₂ hard enough to pull a **ketoacidosis** pH back toward normal; read the bicarbonate, the gap, and the ketones rather than the pH alone."}, {"id": "32", "group": 32, "slide": 59, "section": "Diabetic Emergencies", "topic": "DKA", "skill": "Disease process", "stem": "A pregnant diabetic on an SGLT2 inhibitor has pH 7.2, large ketones, and glucose 180. What explains the near-normal glucose?", "options": [{"letter": "A", "text": "Starvation ketosis without acidosis"}, {"letter": "B", "text": "Euglycemic DKA from SGLT2 inhibition"}, {"letter": "C", "text": "Alcoholic ketoacidosis"}, {"letter": "D", "text": "Early HHS before glucose rises"}], "answer": "B", "explanation": "**Euglycemic DKA**: SGLT2 inhibitors, pregnancy, recent insulin, starvation, liver failure. Treat as DKA but start dextrose-containing fluids with the insulin from the outset; hold the SGLT2 inhibitor.", "objective": "", "hint": "The drug dumps glucose in the **urine** while insulin deficiency still drives ketone production, so the acidosis arrives without the hyperglycemia; pregnancy and recent insulin do the same."}, {"id": "33", "group": 33, "slide": 60, "section": "Diabetic Emergencies", "topic": "DKA", "skill": "Management", "stem": "A DKA patient's first potassium is 3.1 mEq/L after fluids have started. What must happen before insulin is begun?", "options": [{"letter": "A", "text": "Start insulin and add potassium to the fluids"}, {"letter": "B", "text": "Hold insulin and give IV potassium until above 3.5"}, {"letter": "C", "text": "Give bicarbonate to shift potassium out of cells"}, {"letter": "D", "text": "Start insulin at half dose with cardiac monitoring"}], "answer": "B", "explanation": "K <3.5 → **hold insulin**, replace potassium until >3.5. K 3.5–5.0 → add 20–40 mEq/L KCl and start insulin. K >5 → no potassium, start insulin once urine output is adequate. Fluids 20–30 mL/kg always come first.", "objective": "", "hint": "Insulin pushes potassium **into cells** via Na/K-ATPase, and total-body potassium is already depleted; hypokalemia is the most lethal derangement during treatment, so the drip waits for the number."}, {"id": "34", "group": 34, "slide": 61, "section": "Diabetic Emergencies", "topic": "DKA", "skill": "Management", "stem": "During DKA treatment glucose falls to 220 mg/dL but the anion gap is still 18. What is the correct next step?", "options": [{"letter": "A", "text": "Add dextrose to fluids and continue insulin"}, {"letter": "B", "text": "Stop the insulin infusion"}, {"letter": "C", "text": "Give bicarbonate to close the gap"}, {"letter": "D", "text": "Switch to subcutaneous insulin now"}], "answer": "A", "explanation": "At glucose <250 switch to **D5NS** and continue insulin until the anion gap closes (HCO₃ >18, pH >7.3). Stopping insulin when glucose normalizes is the classic error; bicarbonate only if pH <6.9–7.0 with hemodynamic compromise.", "objective": "", "hint": "Insulin is what shuts off **ketosis**, not just what lowers glucose; the endpoint is a closed gap, so you protect against hypoglycemia while the drip keeps running."}, {"id": "35", "group": 35, "slide": 62, "section": "Diabetic Emergencies", "topic": "DKA", "skill": "Complications", "stem": "Which complications arise from the treatment of DKA rather than from the disease itself?", "options": [{"letter": "A", "text": "Hypernatremia"}, {"letter": "B", "text": "Hypokalemia"}, {"letter": "C", "text": "Cerebral edema"}, {"letter": "D", "text": "Hyperkalemia"}, {"letter": "E", "text": "Hypoglycemia"}, {"letter": "F", "text": "Hypophosphatemia"}], "answer": "BCEF", "explanation": "Therapy complications: **hypokalemia** (most lethal — U waves, torsades, VT/VF), hypoglycemia, cerebral edema (young T1DM, rapid osmolar shifts), hypophosphatemia, fluid overload, hyperchloremic acidosis from NS.", "objective": "", "hint": "Insulin and fluids shift **electrolytes and water** rapidly — potassium and phosphate move into cells, glucose can overshoot downward, and rapid osmolar change swells the brain, especially in young type 1 patients."}, {"id": "36", "group": 36, "slide": 63, "section": "Diabetic Emergencies", "topic": "HHS", "skill": "Identification", "stem": "A nursing-home T2DM patient on glyburide and a new thiazide has 2 days of confusion, glucose 820, HCO₃ 22, and BUN 62. What is the diagnosis?", "options": [{"letter": "A", "text": "Simple hyperglycemia"}, {"letter": "B", "text": "Diabetic ketoacidosis"}, {"letter": "C", "text": "Sulfonylurea toxicity"}, {"letter": "D", "text": "Hyperosmolar hyperglycemic state"}], "answer": "D", "explanation": "**HHS** = glucose ≥600 + effective osm >300 (total >320) + pH ≥7.3 + HCO₃ ≥15 + minimal ketones; T2DM, days to weeks, 8–12 L deficit. Admit to ICU; stop the thiazide, hold the glyburide.", "objective": "", "hint": "Days of osmotic diuresis in an older type 2 patient with poor water access produce profound dehydration and altered mentation with **no acidosis**; the normal bicarbonate and the glucose over 600 settle it."}, {"id": "37", "group": 37, "slide": 64, "section": "Diabetic Emergencies", "topic": "HHS", "skill": "Complications", "stem": "Why must fluid resuscitation and osmolality correction be slower in HHS than in DKA?", "options": [{"letter": "A", "text": "Rapid correction causes hyperkalemic arrest"}, {"letter": "B", "text": "Rapid fluids precipitate ketoacidosis"}, {"letter": "C", "text": "Rapid correction causes cerebral edema or osmotic demyelination"}, {"letter": "D", "text": "HHS patients have a smaller fluid deficit"}], "answer": "C", "explanation": "HHS: replace about 50% of the deficit over 12–24 h; **Na fall ≤10 mEq/L/day**, osmolality fall 3–8 mOsm/kg/h; potassium before insulin at 0.05–0.1 U/kg/h. Over-rapid correction → cerebral edema or osmotic demyelination.", "objective": "", "hint": "The brain has adapted to a very high **osmolality** over days; dropping it faster than a few mOsm per hour, or sodium more than 10 per day, shifts water into neurons. HHS is a fluids disease with a larger deficit."}, {"id": "38", "group": 38, "slide": 67, "section": "Diabetic Emergencies", "topic": "Patient education", "skill": "Counseling & prevention", "stem": "Which sick-day rule should a diabetic hear before discharge to prevent a return visit with DKA?", "options": [{"letter": "A", "text": "Stop fluids to limit vomiting"}, {"letter": "B", "text": "Never stop basal insulin when ill or not eating"}, {"letter": "C", "text": "Check glucose only once daily when sick"}, {"letter": "D", "text": "Hold all insulin until able to eat normally"}], "answer": "B", "explanation": "**Never stop basal insulin** when sick; check glucose and ketones q4h, keep drinking, call early; hold SGLT2 inhibitors when ill or NPO. The lecture's closing line: crises are largely preventable.", "objective": "", "hint": "Illness raises insulin requirement even when intake falls; stopping the **long-acting** dose because the patient is not eating is exactly how the ketoacidosis starts. Check glucose and ketones often and call early."}, {"id": "39", "group": 39, "slide": 68, "section": "Diabetic Emergencies", "topic": "AKA", "skill": "Identification", "stem": "A chronic alcoholic with 2 days of vomiting after a binge has Kussmaul breathing, anion gap 24, glucose 85, and ethanol level zero. What is the diagnosis?", "options": [{"letter": "A", "text": "Hyperosmolar hyperglycemic state"}, {"letter": "B", "text": "Alcoholic ketoacidosis"}, {"letter": "C", "text": "Diabetic ketoacidosis"}, {"letter": "D", "text": "Methanol poisoning"}], "answer": "B", "explanation": "**AKA**: anion-gap ketoacidosis with normal or low glucose after a binge followed by vomiting and starvation. Order serum BHB (the urine nitroprusside dip misses it) and an osmolar gap to exclude toxic alcohols.", "objective": "", "hint": "Starvation and alcohol metabolism drive ketone production while blocking gluconeogenesis, so the gap acidosis arrives with a **normal glucose**; a toxic alcohol would add an osmolar gap. The urine dipstick can miss the ketones."}, {"id": "40", "group": 40, "slide": 69, "section": "Diabetic Emergencies", "topic": "AKA", "skill": "Management", "stem": "What is the treatment for alcoholic ketoacidosis, and which agent is deliberately withheld?", "options": [{"letter": "A", "text": "Bicarbonate and normal saline; no thiamine"}, {"letter": "B", "text": "Insulin infusion with potassium; no dextrose"}, {"letter": "C", "text": "Dextrose-saline with thiamine first; no insulin"}, {"letter": "D", "text": "Normal saline alone; no dextrose"}], "answer": "C", "explanation": "**D5NS plus thiamine** (thiamine before or with dextrose to prevent Wernicke encephalopathy), replete K, Mg, phosphate; insulin is NOT indicated. Resolves within 12–24 h; admit or observe until the gap closes.", "objective": "", "hint": "The patient is not insulin-deficient and glucose is not high, so the fix is to feed the pancreas **sugar** so its own insulin halts ketogenesis — and an alcoholic who gets sugar must be protected from Wernicke encephalopathy first."}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  const LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const normAns = a => (Array.isArray(a) ? a.join('') : String(a == null ? '' : a))
+    .toUpperCase().replace(/[^A-Z]/g, '').split('')
+    .filter((v, i, z) => z.indexOf(v) === i).sort().join('');
+  questions.forEach(q => { const n = normAns(q.answer); q.multi = q.multi === true || n.length > 1; q.answer = n; });
+  const picks = {};          // question id -> letters picked but not yet submitted (multi only)
+  const second = {};         // question id -> second-attempt answer (NOT scored)
+  const flagged = {};        // question id -> true, set by the student at any point
+  function shuffleOptions(item) {
+    if (!item || !item.options || item.options.length < 2) return;
+    const keys = new Set(String(item.answer).split('').map(l => (item.options.find(o => o.letter === l) || {}).text));
+    const texts = item.options.map(o => o.text);
+    for (let i = texts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [texts[i], texts[j]] = [texts[j], texts[i]]; }
+    item.options = texts.map((t, i) => ({ letter: LET[i], text: t }));
+    item.answer = item.options.filter(o => keys.has(o.text)).map(o => o.letter).join('');
+  }
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter (FIRST attempt — this is what is scored)
+  const tutor = {};          // question id -> tutor session (see startTutor)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);
+  let page = 0;
+  let lastGrade = null;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const optText = (item, letters) => String(letters == null ? '' : letters).split('')
+    .map(l => { const o = item.options.find(x => x.letter === l); return o ? o.text : ''; })
+    .filter(Boolean).join(' \u00b7 ');
+  const letters = v => String(v == null ? '' : v).split('').join(', ');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  // ================= Hint, then the same question again =================
+  // A missed question is never replaced by new questions. The student gets a hint
+  // that points hard at the answer without naming it, then the SAME question again.
+  // The FIRST attempt is what is scored; the second only decides whether the concept
+  // is recorded as relearned or still shaky.
+  function hintOf(q) {
+    const r = q.remediation || {};
+    return q.hint || r.hint || ((r.steps || [])[0] || {}).teach || '';
+  }
+  function hasTutor(q) { return !!hintOf(q); }
+
+  function startTutor(q) {
+    tutor[q.id] = { status: 'active', first: answers[q.id] };
+    delete picks[q.id];
+  }
+
+  function isRetrying(q) { const t = tutor[q.id]; return !!(t && t.status === 'active'); }
+
+  function secondAnswer(q, picked) {
+    const t = tutor[q.id];
+    if (!t || t.status !== 'active') return;
+    second[q.id] = picked;
+    t.status = picked === q.answer ? 'mastered' : 'review';
+  }
+
+  // The option already shown to be wrong is struck out on the retry. A select-all
+  // answer is a set rather than one claim, so there every option stays live.
+  function elimOf(q) { const t = tutor[q.id]; return (t && !q.multi && t.first) ? t.first : ''; }
+
+  // A question is "resolved" (lets its follow-up appear) once answered right,
+  // answered wrong with no hint to give, or the second attempt is in.
+  function resolved(q) {
+    if (answers[q.id] === undefined) return false;
+    if (answers[q.id] === q.answer || !hasTutor(q)) return true;
+    return !isRetrying(q);
+  }
+
+  function tutorStatus(q) { const t = tutor[q.id]; return t ? t.status : null; }
+
+  function hintHtml(q) {
+    return '<div class="tutor"><div class="tutor-head">Hint</div>' +
+      '<div class="tnode active hint"><span class="tlabel">Try again \u2014 same question</span>' +
+      '<div class="teach">' + fmt(hintOf(q)) + '</div></div></div>';
+  }
+
+  // Flagging: available on every question in every mode, right or wrong, answered or
+  // not. A flagged question joins the missed list and the copy-out, so a question that
+  // was guessed correctly can still be carried into the next round of study.
+  function flagHtml(q) {
+    const on = !!flagged[q.id];
+    return '<div class="flagrow"><button class="flagbtn' + (on ? ' on' : '') + '" data-flag="' +
+      esc(q.id) + '">\u2691 ' + (on ? 'Flagged' : 'Flag for review') + '</button></div>';
+  }
+
+  function bindFlags() {
+    $('main').querySelectorAll('[data-flag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-flag');
+        if (flagged[id]) delete flagged[id]; else flagged[id] = true;
+        if (mode === 'missed') {                 // toggle in place; the list is rebuilt on re-entry
+          btn.classList.toggle('on', !!flagged[id]);
+          btn.textContent = '\u2691 ' + (flagged[id] ? 'Flagged' : 'Flag for review');
+          return;
+        }
+        renderPage(true);
+      });
+    });
+  }
+
+  // Collapsed record of the retry, shown in the review screens
+  function trailHtml(q) {
+    const t = tutor[q.id];
+    if (!t) return '';
+    const sec = second[q.id];
+    let html = '<div class="tutor"><div class="tutor-head">Hint and second attempt</div>' +
+      '<div class="tnode done"><div class="teach">' + fmt(hintOf(q)) + '</div>' +
+      '<div class="firstpick">First answer: ' + esc(letters(t.first)) + '. ' + fmt(optText(q, t.first)) + '</div>';
+    if (sec === undefined) html += '<div class="nudge">Second attempt not taken.</div>';
+    else html += '<div class="feedback ' + (t.status === 'mastered' ? 'good' : 'bad') + '"><div class="verdict">' +
+      (t.status === 'mastered' ? '\u2713 Correct on the second attempt'
+        : '\u2717 Second attempt: ' + esc(letters(sec)) + '. ' + fmt(optText(q, sec))) + '</div></div>';
+    return html + '</div></div>';
+  }
+
+  // ================= Rendering =================
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen, first) {
+    const good = chosen === q.answer;
+    const keyTxt = optText(q, q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '\u2713 Correct' : '\u2717 Incorrect \u2014 correct answer' +
+      (q.multi ? 's' : '') + ': ' + esc(letters(q.answer)) + (keyTxt ? '. ' + fmt(keyTxt) : '')) + '</div>';
+    if (!good && q.multi) {
+      const got = String(chosen || '').split('').filter(Boolean);
+      const missed = String(q.answer).split('').filter(l => got.indexOf(l) === -1);
+      const extra = got.filter(l => q.answer.indexOf(l) === -1), bits = [];
+      if (missed.length) bits.push('missed ' + missed.join(', '));
+      if (extra.length) bits.push('wrongly included ' + extra.join(', '));
+      if (bits.length) html += '<div class="obj" style="font-style:normal">You ' + esc(bits.join(' and ')) + '.</div>';
+    }
+    if (first !== undefined && first !== chosen) {
+      html += '<div class="firstpick">First attempt: ' + esc(letters(first)) + '. ' + fmt(optText(q, first)) +
+        (good ? ' \u2014 corrected after the hint.' : ' \u2014 also incorrect.') + '</div>';
+    }
+    if (q.explanation) html += '<div>' + fmt(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const first = answers[q.id];
+    const sec = second[q.id];
+    const retry = isRetrying(q) && mode === 'exam';
+    const answered = first !== undefined && !retry;
+    const chosen = sec !== undefined ? sec : first;
+    const status = tutorStatus(q);
+    const sel = answered ? String(chosen || '') : (q.multi ? (picks[q.id] || []).join('') : '');
+    const dead = retry ? elimOf(q) : '';
+
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    if (status === 'mastered') html += '<span class="badge mastered">Right on the second try</span>';
+    else if (status === 'review') html += '<span class="badge review">Missed twice</span>';
+    else if (status === 'active') html += '<span class="badge active">Second attempt</span>';
+    html += '<div class="stem">' + fmt(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+
+    if (retry) {
+      html += '<div class="feedback tutoring"><div class="verdict">\u2717 Not quite \u2014 ' +
+        esc(letters(first)) + '. ' + fmt(optText(q, first)) + '</div>' +
+        '<div>Read the hint, then answer the same question again. Your first answer is the one that is scored.</div></div>';
+      html += hintHtml(q);
+    }
+
+    if (q.multi && !answered) html += '<div class="sata-note">Select all that apply.</div>';
+    html += '<div class="opts">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      const hit = sel.indexOf(o.letter) !== -1;
+      const out = dead.indexOf(o.letter) !== -1;
+      if (answered) {
+        if (hit) cls += q.answer.indexOf(o.letter) !== -1 ? ' correct' : ' incorrect';
+        else if (q.answer.indexOf(o.letter) !== -1) cls += ' correct';
+        else cls += ' dim';
+      } else if (out) cls += ' incorrect elim';
+      else if (hit) cls += ' picked';
+      const mark = (q.multi ? '<span class="box' + (hit ? ' on' : '') + '">' + (hit ? '\u2713' : '') + '</span>' : '') +
+        '<span class="letter">' + esc(o.letter) + '.</span>';
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered || out || mode !== 'exam' ? ' disabled' : '') + '>' +
+        mark + '<span>' + fmt(o.text) + '</span></button>';
+    });
+    html += '</div>';
+    if (q.multi && !answered) {
+      const n = (picks[q.id] || []).length;
+      html += '<div class="sata-bar"><button class="opt-submit" data-submit="' + esc(q.id) + '"' +
+        (n ? '' : ' disabled') + '>Submit answer</button><span class="sata-count">' +
+        (n ? n + ' selected' : 'Choose one or more') + '</span></div>';
+    }
+    if (answered) html += feedbackHtml(q, chosen, sec !== undefined ? first : undefined);
+    html += flagHtml(q);
+    if (mode !== 'exam' && tutor[q.id]) {
+      html += '<details class="trail"><summary>Hint and second attempt</summary>' + trailHtml(q) + '</details>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: a follow-up appears only once the question before it is
+    // resolved — answered correctly, or its guided review has finished.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && resolved(group[shown - 1])) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      const blocked = group[shown - 1];
+      const inTutor = answers[blocked.id] !== undefined && !resolved(blocked);
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') + ' in this case — ' +
+        (inTutor ? 'take the second attempt above to continue' : 'answer above to continue') + '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Option clicks: first attempt, then the second attempt on the same question
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      const commit = picked => {
+        const q = byId[qid];
+        if (answers[qid] === undefined) {
+          answers[qid] = picked;
+          if (picked !== q.answer && hasTutor(q)) startTutor(q);
+        } else if (isRetrying(q)) secondAnswer(q, picked);
+        renderPage(true);
+      };
+      card.querySelectorAll(':scope > .opts > .opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || btn.disabled) return;
+          const q = byId[qid];
+          if (answers[qid] !== undefined && !isRetrying(q)) return;
+          const letter = btn.getAttribute('data-letter');
+          if (q.multi) {                       // toggle; nothing is committed until Submit
+            const cur = picks[qid] || (picks[qid] = []);
+            const at = cur.indexOf(letter);
+            if (at === -1) cur.push(letter); else cur.splice(at, 1);
+            return renderPage(true);
+          }
+          commit(letter);
+        });
+      });
+      const sub = card.querySelector(':scope > .sata-bar > .opt-submit');
+      if (sub) sub.addEventListener('click', () => {
+        if (mode !== 'exam') return;
+        const cur = picks[qid] || [];
+        if (cur.length) commit(cur.slice().sort().join(''));
+      });
+    });
+    bindFlags();
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) {
+      window.scrollTo(0, savedY);
+      // Bring the newest tutor question / unlocked follow-up into view if it landed below the fold
+      const target = $('main').querySelector('.tnode.active') || $('main').querySelector('.qcard > .feedback');
+      if (target) {
+        const r = target.getBoundingClientRect();
+        const navH = $('navbar').offsetHeight || 0;
+        if (r.bottom > window.innerHeight - navH) {
+          window.scrollBy({ top: Math.min(r.top - 80, r.bottom - (window.innerHeight - navH) + 16), behavior: 'smooth' });
+        }
+      }
+    } else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  // ================= Grading =================
+  // Two lenses for the results page:
+  //   topic — WHAT you were tested on (e.g. "Paget's disease of bone"). Falls back to `section`.
+  //   skill — WHAT KIND of thinking (Identification, Disease process, Diagnostics & imaging,
+  //           Management, Complications…). Optional; the skill card is hidden when no question has one.
+  const topicOf = q => q.topic || q.section || 'All questions';
+  const skillOf = q => q.skill || null;
+
+  function tally(list, keyFn) {
+    const m = {};
+    list.forEach(q => {
+      const k = keyFn(q); if (!k) return;
+      if (!m[k]) m[k] = { name: k, correct: 0, total: 0, mastered: 0, review: 0, missed: 0 };
+      const e = m[k];
+      e.total++;
+      if (answers[q.id] === q.answer) { e.correct++; return; }
+      if (answers[q.id] === undefined) return;
+      const st = tutor[q.id] ? tutor[q.id].status : null;
+      if (st === 'mastered') e.mastered++; else if (st === 'review') e.review++; else e.missed++;
+    });
+    return Object.keys(m).map(k => { const e = m[k]; e.pct = e.total ? e.correct / e.total : 0; return e; })
+      .sort((a, b) => a.pct - b.pct || b.total - a.total);        // weakest first
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    graded.forEach(q => { if (answers[q.id] === q.answer) correct++; });
+    const ts = { started: 0, mastered: 0, review: 0, active: 0, tq: 0, tqRight: 0 };
+    Object.keys(tutor).forEach(id => {
+      const t = tutor[id];
+      ts.started++; ts[t.status]++;
+      if (second[id] !== undefined) { ts.tq++; if (t.status === 'mastered') ts.tqRight++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial,
+             topics: tally(graded, topicOf), skills: tally(graded, skillOf), ts };
+  }
+
+  function missedQuestions() {                 // wrong on the first attempt, or flagged
+    return questions.filter(q => flagged[q.id] ||
+      (answers[q.id] !== undefined && answers[q.id] !== q.answer));
+  }
+
+  // Lowest-scoring entries (ties included) — only meaningful when there's something to compare
+  function weakest(entries) {
+    if (entries.length < 2) return [];
+    const lo = entries[0].pct, hi = entries[entries.length - 1].pct;
+    if (lo === hi) return [];                                       // all equal: nothing stands out
+    return entries.filter(e => e.pct === lo);
+  }
+
+  function barsHtml(entries) {
+    const weakSet = weakest(entries).map(e => e.name);
+    return entries.map(e => {
+      const p = Math.round(e.pct * 100);
+      const cls = p >= 80 ? 'hi' : (weakSet.indexOf(e.name) !== -1 ? 'lo' : '');
+      const meta = [];
+      if (e.review) meta.push(e.review + ' still shaky');
+      if (e.missed) meta.push(e.missed + ' missed');
+      if (e.mastered) meta.push(e.mastered + ' right on the second try');
+      return '<div class="bar-row"><div class="bar-head"><span class="nm">' + esc(e.name) +
+        (weakSet.indexOf(e.name) !== -1 ? '<span class="sec-tag weak">WEAKEST</span>' : '') +
+        '</span><span class="pc"><b>' + p + '%</b> · ' + e.correct + '/' + e.total + '</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + cls + '" style="width:' + Math.max(p, 2) + '%"></div></div>' +
+        (meta.length ? '<div class="bar-meta">' + meta.join(' · ') + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+    const hasSkills = r.skills.length > 0;
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + ' · first attempts</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.ts.started) html += '<div class="score-note">' + r.ts.mastered + ' of ' + r.ts.started +
+      ' missed question' + (r.ts.started === 1 ? '' : 's') + ' answered right on the second attempt</div>';
+    else if (r.partial) html += '<div class="score-note">Unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    // ---- What to work on ----
+    const wTopic = weakest(r.topics), wSkill = weakest(r.skills);
+    const missed = missedQuestions();
+    html += '<div class="card"><h2>What to work on</h2><div class="sub">Ranked from the questions you missed on the first try, plus anything you flagged</div>';
+    if (!missed.length) {
+      html += '<div class="focus-box ok"><div class="v">Nothing missed or flagged — every question right on the first try.</div></div>';
+    } else {
+      html += '<div class="focus-grid">';
+      if (wTopic.length) html += '<div class="focus-box"><div class="k">Weakest topic</div><div class="v">' +
+        wTopic.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wTopic.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      if (wSkill.length) html += '<div class="focus-box"><div class="k">Weakest skill</div><div class="v">' +
+        wSkill.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wSkill.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      html += '</div>';
+      // One line per missed concept: flagged first, then plain misses, then ones already relearned
+      const rank = { review: 0, active: 0, missed: 1, flagged: 2, mastered: 3 };
+      const items = missed.map(q => {
+        const wrong = answers[q.id] !== undefined && answers[q.id] !== q.answer;
+        let st = wrong ? (tutor[q.id] ? tutor[q.id].status : 'missed') : 'flagged';
+        if (st === 'active') st = 'review';
+        return { q, st: st, flag: !!flagged[q.id] };
+      }).sort((a, b) => rank[a.st] - rank[b.st]);
+      const label = { review: 'Still shaky', missed: 'Missed', flagged: 'Flagged', mastered: 'Relearned' };
+      html += '<ul class="todo">' + items.map(it => {
+        const sk = skillOf(it.q);
+        return '<li><span class="dot ' + it.st + '"></span><span class="what"><b>' + esc(topicOf(it.q)) + '</b>' +
+          (sk ? ' — ' + esc(sk) : '') + ' <span style="color:var(--ink-soft)">(Q' + esc(it.q.id) + ')</span></span>' +
+          '<span class="tag ' + it.st + '">' + (it.flag && it.st !== 'flagged' ? '⚑ ' : '') +
+          label[it.st] + '</span></li>';
+      }).join('') + '</ul>';
+    }
+    html += '</div>';
+
+    // ---- By topic / by skill ----
+    html += '<div class="card"><h2>By topic</h2><div class="sub">First-attempt score for each disease or concept</div>' + barsHtml(r.topics) + '</div>';
+    if (hasSkills) html += '<div class="card"><h2>By skill</h2><div class="sub">Which kind of question trips you up, across all topics</div>' + barsHtml(r.skills) + '</div>';
+
+    if (r.ts.started) {
+      html += '<div class="card"><h2>Second attempts</h2><div class="sub" style="margin-bottom:12px">How the hint-and-retry went</div><div class="tutor-stats">' +
+        '<div class="tstat t"><b>' + r.ts.started + '</b>missed on the first try</div>' +
+        '<div class="tstat m"><b>' + r.ts.mastered + '</b>right after the hint</div>' +
+        '<div class="tstat r"><b>' + (r.ts.review + r.ts.active) + '</b>still shaky</div>' +
+        '<div class="tstat"><b>' + r.ts.tqRight + '/' + r.ts.tq + '</b>second attempts right</div>' +
+        '</div></div>';
+    }
+
+    html += '<div class="results-actions">';
+    if (missed.length) html += '<button class="btn primary" id="btn-review-missed">Review missed &amp; flagged (' + missed.length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed &amp; flagged</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + fmt(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed & flagged (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed or flagged question' + (missed.length === 1 ? '' : 's');
+    bindFlags();
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  const plain = s => String(s == null ? '' : s).replace(/\*\*(.+?)\*\*/g, '$1');
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id + ' — ' + topicOf(q) + (skillOf(q) ? ' / ' + skillOf(q) : '')];
+      if (group[0].id !== q.id) lines.push('Case: ' + plain(group[0].stem));
+      lines.push(plain(q.stem));
+      q.options.forEach(o => lines.push(o.letter + '. ' + plain(o.text)));
+      if (flagged[q.id]) lines.push(answers[q.id] === q.answer
+        ? 'FLAGGED by me — answered correctly but not understood' : 'FLAGGED by me');
+      lines.push(answers[q.id] === undefined ? 'Not answered'
+        : 'My answer (first attempt, scored): ' + letters(answers[q.id]));
+      lines.push('Correct answer: ' + letters(q.answer) + '. ' + plain(optText(q, q.answer)));
+      if (q.explanation) lines.push('Rationale: ' + plain(q.explanation));
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      const t = tutor[q.id];
+      if (t) {
+        lines.push('Hint shown: ' + plain(hintOf(q)));
+        lines.push('Second attempt: ' + { mastered: 'CORRECT after the hint', review: 'still wrong \u2014 needs review',
+          active: 'not taken' }[t.status]);
+        if (second[q.id] !== undefined && t.status !== 'mastered')
+          lines.push('  picked ' + letters(second[q.id]) + '. ' + plain(optText(q, second[q.id])));
+      }
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed & flagged questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed & flagged'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => !resolved(q))) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(second).forEach(k => delete second[k]);
+    Object.keys(picks).forEach(k => delete picks[k]);
+    Object.keys(flagged).forEach(k => delete flagged[k]);
+    Object.keys(tutor).forEach(k => delete tutor[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

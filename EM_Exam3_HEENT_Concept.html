@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  /* LQ-PATCH: two-across option grid, select-all-that-apply, hint + second attempt */
+  .opts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .opts .opt { margin-bottom: 0; height: 100%; }
+  .opts .opt:last-child:nth-child(odd) { grid-column: 1 / -1; }
+  @media (max-width: 560px) { .opts { grid-template-columns: 1fr; } }
+  .group.c3 .opts, .group.c4 .opts { gap: 5px; margin-bottom: 5px; }
+  .group.c2 .opts { gap: 6px; margin-bottom: 6px; }
+  .opt.picked { border-color: var(--accent); background: var(--accent-soft); }
+  .opt .box { min-width: 1.25em; height: 1.25em; line-height: 1.15em; text-align: center;
+    border: 2px solid var(--border); border-radius: 4px; font-size: 0.8em; font-weight: 700;
+    color: transparent; flex: 0 0 auto; }
+  .opt .box.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .opt.correct .box.on { background: var(--green); border-color: var(--green); }
+  .opt.incorrect .box.on { background: var(--red); border-color: var(--red); }
+  .sata-note { font-size: 0.85em; font-weight: 700; color: var(--accent); margin: -6px 0 10px; }
+  .sata-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .opt-submit { font: inherit; font-weight: 700; cursor: pointer; border: 0; border-radius: 8px;
+    padding: 8px 18px; background: var(--accent); color: #fff; }
+  .opt-submit:disabled { opacity: 0.45; cursor: default; }
+  .sata-count { font-size: 0.85em; color: var(--ink-soft); }
+  .tnode.hint { margin-bottom: 14px; }
+  .tnode .teach:last-child { margin-bottom: 0; }
+  .firstpick { font-size: 0.88em; color: var(--ink-soft); margin: 2px 0 8px; }
+  .flagrow { margin-top: 12px; }
+  .flagbtn { font: inherit; font-size: 0.82em; font-weight: 600; cursor: pointer; background: transparent;
+    border: 1.5px dashed var(--border); border-radius: 8px; padding: 4px 11px; color: var(--ink-soft); }
+  .flagbtn:hover { border-color: var(--amber); color: var(--amber); }
+  .flagbtn.on { background: var(--amber-bg); border-style: solid; border-color: var(--amber); color: var(--amber); }
+  .todo .dot.flagged { background: var(--accent); }
+  .todo .tag.flagged { color: var(--accent); }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  /* ---------- Adaptive tutor ---------- */
+  :root { --tutor: #5b3fa6; --tutor-bg: #f5f2fc; --tutor-line: #ddd3f3; }
+  .feedback.tutoring { background: var(--amber-bg); border-left: 4px solid var(--amber); margin-bottom: 22px; }
+  .feedback.tutoring .verdict { color: var(--amber); }
+  /* Guided review: a quiet rail instead of a filled box, so nested cards don't stack up visually */
+  .tutor { border-left: 3px solid var(--tutor-line); padding: 2px 0 2px 16px; margin: 0 0 6px 4px; }
+  .tutor-head { font-weight: 700; color: var(--tutor); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
+  .tnode { background: var(--card); border: 1px solid var(--tutor-line); border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; }
+  .tnode.active { border-color: var(--tutor); box-shadow: 0 2px 10px rgba(91,63,166,0.10); }
+  .tnode.done { background: #fcfcfe; }
+  .tlabel { display: inline-block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--tutor); margin-bottom: 8px; }
+  .tlabel.cp { color: #fff; background: var(--tutor); border-radius: 6px; padding: 1px 8px; }
+  .tlabel.clar { color: var(--amber); }
+  .teach { border-left: 3px solid var(--tutor); padding: 2px 0 2px 12px; margin-bottom: 12px; font-size: 0.95em; white-space: pre-wrap; color: var(--ink); }
+  .tnode .stem { margin-bottom: 12px; font-weight: 500; }
+  .tnode .opt { padding: 8px 12px; margin-bottom: 8px; }
+  .tnode .feedback { margin-top: 10px; }
+  .tnode .nudge { margin-top: 8px; color: var(--amber); font-weight: 600; font-size: 0.9em; }
+  .opt.elim { opacity: 0.45; text-decoration: line-through; border-style: dashed; }
+  .tnote { border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 0.95em; }
+  .tnote.reveal { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .tnote.mastered { background: var(--green-bg); border-left: 4px solid var(--green); font-weight: 600; }
+  .tnote.review { background: var(--red-bg); border-left: 4px solid var(--red); font-weight: 600; }
+  .tnote.info { color: var(--ink-soft); padding: 0 2px; margin-bottom: 10px; font-style: italic; }
+  .badge { display: inline-block; font-size: 0.72rem; font-weight: 700; border-radius: 6px; padding: 1px 8px; margin-left: 8px; vertical-align: middle; }
+  .badge.mastered { background: var(--green-bg); color: var(--green); }
+  .badge.review { background: var(--red-bg); color: var(--red); }
+  .badge.active { background: var(--tutor-bg); color: var(--tutor); }
+  details.trail { margin-top: 12px; }
+  details.trail summary { cursor: pointer; color: var(--tutor); font-weight: 600; font-size: 0.9rem; }
+  details.trail .tutor { margin-top: 12px; }
+
+  .qcard > .feedback + .tutor { margin-top: 22px; }
+
+  /* ---------- Results: study plan ---------- */
+  .card { background: var(--card); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; margin-bottom: 16px; }
+  .card h2 { font-size: 1.02rem; margin-bottom: 4px; }
+  .card .sub { font-size: 0.85rem; color: var(--ink-soft); margin-bottom: 14px; }
+  .focus-grid { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 14px; }
+  @media (min-width: 640px) { .focus-grid { grid-template-columns: 1fr 1fr; } }
+  .focus-box { border-radius: 10px; padding: 12px 14px; background: var(--red-bg); border-left: 4px solid var(--red); }
+  .focus-box.ok { background: var(--green-bg); border-left-color: var(--green); }
+  .focus-box .k { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-soft); }
+  .focus-box .v { font-weight: 700; font-size: 1.02rem; margin-top: 2px; }
+  .focus-box .n { font-size: 0.85rem; color: var(--ink-soft); }
+  .todo { list-style: none; }
+  .todo li { display: flex; gap: 10px; align-items: baseline; padding: 9px 0; border-top: 1px solid var(--border); font-size: 0.93rem; }
+  .todo li:first-child { border-top: none; }
+  .todo .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; transform: translateY(-1px); }
+  .todo .dot.review { background: var(--red); } .todo .dot.missed { background: var(--amber); } .todo .dot.mastered { background: var(--green); }
+  .todo .what { flex: 1; }
+  .todo .what b { font-weight: 600; }
+  .todo .tag { flex: none; font-size: 0.75rem; font-weight: 700; color: var(--ink-soft); }
+  .todo .tag.review { color: var(--red); } .todo .tag.missed { color: var(--amber); } .todo .tag.mastered { color: var(--green); }
+  .bar-row { margin-bottom: 14px; }
+  .bar-row:last-child { margin-bottom: 2px; }
+  .bar-head { display: flex; justify-content: space-between; gap: 8px; font-size: 0.92rem; margin-bottom: 5px; }
+  .bar-head .nm { font-weight: 600; }
+  .bar-head .pc { font-variant-numeric: tabular-nums; color: var(--ink-soft); white-space: nowrap; }
+  .bar-head .pc b { color: var(--ink); }
+  .bar-meta { font-size: 0.78rem; color: var(--ink-soft); margin-top: 3px; }
+  .tutor-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  @media (min-width: 640px) { .tutor-stats { grid-template-columns: repeat(4, 1fr); } }
+  .tstat { background: var(--bg); border-radius: 10px; padding: 10px 12px; font-size: 0.82rem; color: var(--ink-soft); }
+  .tstat b { display: block; font-size: 1.4rem; color: var(--ink); font-variant-numeric: tabular-nums; }
+  .tstat.m b { color: var(--green); } .tstat.r b { color: var(--red); } .tstat.t b { color: var(--tutor); }
+
+  /* LQ-BG: lecture image as the page background; cards stay opaque for legibility */
+  body {
+    background: var(--bg) url("data:image/png;base64,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bnM6ZXhpZj0iaHR0cDovL25zLmFkb2JlLmNvbS9leGlmLzEuMC8iPgogICAgICAgICA8ZXhpZjpQaXhlbFlEaW1lbnNpb24+OTk4PC9leGlmOlBpeGVsWURpbWVuc2lvbj4KICAgICAgICAgPGV4aWY6UGl4ZWxYRGltZW5zaW9uPjEzNDY8L2V4aWY6UGl4ZWxYRGltZW5zaW9uPgogICAgICAgICA8ZXhpZjpVc2VyQ29tbWVudD5TY3JlZW5zaG90PC9leGlmOlVzZXJDb21tZW50PgogICAgICA8L3JkZjpEZXNjcmlwdGlvbj4KICAgPC9yZGY6UkRGPgo8L3g6eG1wbWV0YT4Ko+49HwAAABxpRE9UAAAAAgAAAAAAAAHzAAAAKAAAAfMAAAHzAAAyK5xAn5MAADH3SURBVHgB7NhBDQAgEANBUIUhNGMHEmRs5hzctK/Os/YdjgABAgQIECBAgAABAgQIECBAgAABAmGBaQgNp+s1AgQIECBAgAABAgQIECBAgAABAgS+gCFUEQgQIECAAAECBAgQIECAAAECBAgQyAsYQvMRe5AAAQIECBAgQIAAAQIECBAgQIAAAUOoDhAgQIAAAQIECBAgQIAAAQIECBAgkBcwhOYj9iABAgQIECBAgAABAgQIECBAgAABAoZQHSBAgAABAgQIECBAgAABAgQIECBAIC9gCM1H7EECBAgQIECAAAECBAgQIECAAAECBAyhOkCAAAECBAgQIECAAAECBAgQIECAQF7AEJqP2IMECBAgQIAAAQIECBAgQIAAAQIECBhCdYAAAQIECBAgQIAAAQIECBAgQIAAgbyAITQfsQcJECBAgAABAgQIECBAgAABAgQIEDCE6gABAgQIECBAgAABAgQIECBAgAABAnkBQ2g+Yg8SIECAAAECBAgQIECAAAECBAgQIGAI1QECBAgQIECAAAECBAgQIECAAAECBPIChtB8xB4kQIAAAQIECBAgQIAAAQIECBAgQMAQqgMECBAgQIAAAQIECBAgQIAAAQIECOQFDKH5iD1IgAABAgQIECBAgAABAgQIECBAgIAhVAcIECBAgAABAgQIECBAgAABAgQIEMgLGELzEXuQAAECBAgQIECAAAECBAgQIECAAAFDqA4QIECAAAECBAgQIECAAAECBAgQIJAXMITmI/YgAQIECBAgQIAAAQIECBAgQIAAAQKGUB0gQIAAAQIECBAgQIAAAQIECBAgQCAvYAjNR+xBAgQIECBAgAABAgQIECBAgAABAgQMoTpAgAABAgQIECBAgAABAgQIECBAgEBewBCaj9iDBAgQIECAAAECBAgQIECAAAECBAgYQnWAAAECBAgQIECAAAECBAgQIECAAIG8gCE0H7EHCRAgQIAAAQIECBAgQIAAAQIECBAwhOoAAQIECBAgQIAAAQIECBAgQIAAAQJ5AUNoPmIPEiBAgAABAgQIECBAgAABAgQIECBgCNUBAgQIECBAgAABAgQIECBAgAABAgTyAobQfMQeJECAAAECBAgQIECAAAECBAgQIEDAEKoDBAgQIECAAAECBAgQIECAAAECBAjkBQyh+Yg9SIAAAQIECBAgQIAAAQIECBAgQICAIVQHCBAgQIAAAQIECBAgQIAAAQIECBDICxhC8xF7kAABAgQIECBAgAABAgQIECBAgAABQ6gOECBAgAABAgQIECBAgAABAgQIECCQFzCE5iP2IAECBAgQIECAAAECBAgQIECAAAEChlAdIECAAAECBAgQIECAAAECBAgQIEAgL2AIzUfsQQIECBAgQIAAAQIECBAgQIAAAQIEDKE6QIAAAQIECBAgQIAAAQIECBAgQIBAXsAQmo/YgwQIECBAgAABAgQIECBAgAABAgQIGEJ1gAABAgQIECBAgAABAgQIECBAgACBvIAhNB+xBwkQIECAAAECBAgQIECAAAECBAgQMITqAAECBAgQIECAAAECBAgQIECAAAECeQFDaD5iDxIgQIAAAQIECBAgQIAAAQIECBAgYAjVAQIECBAgQIAAAQIECBAgQIAAAQIE8gKG0HzEHiRAgAABAgQIECBAgAABAgQIECBAwBCqAwQIECBAgAABAgQIECBAgAABAgQI5AUMofmIPUiAAAECBAgQIECAAAECBAgQIECAgCFUBwgQIECAAAECBAgQIECAAAECBAgQyAsYQvMRe5AAAQIECBAgQIAAAQIECBAgQIAAAUOoDhAgQIAAAQIECBAgQIAAAQIECBAgkBcwhOYj9iABAgQIECBAgAABAgQIECBAgAABAoZQHSBAgAABAgQIECBAgAABAgQIECBAIC9gCM1H7EECBAgQIECAAAECBAgQIECAAAECBAyhOkCAAAECBAgQIECAAAECBAgQIECAQF7AEJqP2IMECBAgQIAAAQIECBAgQIAAAQIECBhCdYAAAQIECBAgQIAAAQIECBAgQIAAgbyAITQfsQcJECBAgAABAgQIECBAgAABAgQIEDCE6gABAgQIECBAgAABAgQIECBAgAABAnkBQ2g+Yg8SIECAAAECBAgQIECAAAECBAgQIGAI1QECBAgQIECAAAECBAgQIECAAAECBPIChtB8xB4kQIAAAQIECBAgQIAAAQIECBAgQMAQqgMECBAgQIAAAQIECBAgQIAAAQIECOQFDKH5iD1IgAABAgQIECBAgAABAgQIECBAgIAhVAcIECBAgAABAgQIECBAgAABAgQIEMgLGELzEXuQAAECBAgQIECAAAECBAgQIECAAAFDqA4QIECAAAECBAgQIECAAAECBAgQIJAXMITmI/YgAQIECBAgQIAAAQIECBAgQIAAAQKGUB0gQIAAAQIECBAgQIAAAQIECBAgQCAvYAjNR+xBAgQIECBAgAABAgQIECBAgAABAgQMoTpAgAABAgQIECBAgAABAgQIECBAgEBewBCaj9iDBAgQIECAAAECBAgQIECAAAECBAgYQnWAAAECBAgQIECAAAECBAgQIECAAIG8gCE0H7EHCRAgQIAAAQIECBAgQIAAAQIECBAwhOoAAQIECBAgQIAAAQIECBAgQIAAAQJ5AUNoPmIPEiBAgAABAgQIECBAgAABAgQIECBgCNUBAgQIECBAgAABAgQIECBAgAABAgTyAobQfMQeJECAAAECBAgQIECAAAECBAgQIEDAEKoDBAgQIECAAAECBAgQIECAAAECBAjkBQyh+Yg9SIAAAQIECBAgQIAAAQIECBAgQICAIVQHCBAgQIAAAQIECBAgQIAAAQIECBDICxhC8xF7kAABAgQIECBAgAABAgQIECBAgAABQ6gOECBAgAABAgQIECBAgAABAgQIECCQFzCE5iP2IAECBAgQIECAAAECBAgQIECAAAEChlAdIECAAAECBAgQIECAAAECBAgQIEAgL2AIzUfsQQIECBAgQIAAAQIECBAgQIAAAQIEDKE6QIAAAQIECBAgQIAAAQIECBAgQIBAXsAQmo/YgwQIECBAgAABAgQIECBAgAABAgQIGEJ1gAABAgQIECBAgAABAgQIECBAgACBvIAhNB+xBwkQIECAAAECBAgQIECAAAECBAgQMITqAAECBAgQIECAAAECBAgQIECAAAECeQFDaD5iDxIgQIAAAQIECBAgQIAAAQIECBAgYAjVAQIECBAgQIAAAQIECBAgQIAAAQIE8gKG0HzEHiRAgAABAgQIECBAgAABAgQIECBAwBCqAwQIECBAgAABAgQIECBAgAABAgQI5AUMofmIPUiAAAECBAgQIECAAAECBAgQIECAgCFUBwgQIECAAAECBAgQIECAAAECBAgQyAsYQvMRe5AAAQIECBAgQIAAAQIECBAgQIAAAUOoDhAgQIAAAQIECBAgQIAAAQIECBAgkBcwhOYj9iABAgQIECBAgAABAgQIECBAgAABAoZQHSBAgAABAgQIECBAgAABAgQIECBAIC9gCM1H7EECBAgQIECAAAECBAgQIECAAAECBAyhOkCAAAECBAgQIECAAAECBAgQIECAQF7AEJqP2IMECBAgQIAAAQIECBAgQIAAAQIECBhCdYAAAQIECBAgQIAAAQIECBAgQIAAgbyAITQfsQcJECBAgAABAgQIECBAgAABAgQIEDCE6gABAgQIECBAgAABAgQIECBAgAABAnkBQ2g+Yg8SIECAAAECBAgQIECAAAECBAgQIGAI1QECBAgQIECAAAECBAgQIECAAAECBPIChtB8xB4kQIAAAQIECBAgQIAAAQIECBAgQMAQqgMECBAgQIAAAQIECBAgQIAAAQIECOQFDKH5iD1IgAABAgQIECBAgAABAgQIECBAgIAhVAcIECBAgAABAgQIECBAgAABAgQIEMgLGELzEXuQAAECBAgQIECAAAECBAgQIECAAAFDqA4QIECAAAECBAgQIECAAAECBAgQIJAXMITmI/YgAQIECBAgQIAAAQIECBAgQIAAAQKGUB0gQIAAAQIECBAgQIAAAQIECBAgQCAvYAjNR+xBAgQIECBAgAABAgQIECBAgAABAgQMoTpAgAABAgQIECBAgAABAgQIECBAgEBewBCaj9iDBAgQIECAAAECBAgQIECAAAECBAgYQnWAAAECBAgQIECAAAECBAgQIECAAIG8gCE0H7EHCRAgQIAAAQIECBAgQIAAAQIECBAwhOoAAQIECBAgQIAAAQIECBAgQIAAAQJ5AUNoPmIPEiBAgAABAgQIECBAgAABAgQIECBgCNUBAgQIECBAgAABAgQIECBAgAABAgTyAobQfMQeJECAAAECBAgQIECAAAECBAgQIEDAEKoDBAgQIECAAAECBAgQIECAAAECBAjkBQyh+Yg9SIAAAQIECBAgQIAAAQIECBAgQICAIVQHCBAgQIAAAQIECBAgQIAAAQIECBDICxhC8xF7kAABAgQIECBAgAABAgQIECBAgAABQ6gOECBAgAABAgQIECBAgAABAgQIECCQFzCE5iP2IAECBAgQIECAAAECBAgQIECAAAEChlAdIECAAAECBAgQIECAAAECBAgQIEAgL2AIzUfsQQIECBAgQIAAAQIECBAgQIAAAQIEDKE6QIAAAQIECBAgQIAAAQIECBAgQIBAXsAQmo/YgwQIECBAgAABAgQIECBAgAABAgQIGEJ1gAABAgQIECBAgAABAgQIECBAgACBvIAhNB+xBwkQIECAAAECBAgQIECAAAECBAgQMITqAAECBAgQIECAAAECBAgQIECAAAECeQFDaD5iDxIgQIAAAQIECBAgQIAAAQIECBAgYAjVAQIECBAgQIAAAQIECBAgQIAAAQIE8gKG0HzEHiRAgAABAgQIECBAgAABAgQIECBAwBCqAwQIECBAgAABAgQIECBAgAABAgQI5AUMofmIPUiAAAECBAgQIECAAAECBAgQIECAgCFUBwgQIECAAAECBAgQIECAAAECBAgQyAsYQvMRe5AAAQIECBAgQIAAAQIECBAgQIAAAUOoDhAgQIAAAQIECBAgQIAAAQIECBAgkBcwhOYj9iABAgQIECBAgAABAgQIECBAgAABAoZQHSBAgAABAgQIECBAgAABAgQIECBAIC9gCM1H7EECBAgQIECAAAECBAgQIECAAAECBAyhOkCAAAECBAgQIECAAAECBAgQIECAQF7AEJqP2IMECBAgQIAAAQIECBAgQIAAAQIECBhCdYAAAQIECBAgQIAAAQIECBAgQIAAgbyAITQfsQcJECBAgAABAgQIECBAgAABAgQIEDCE6gABAgQIECBAgAABAgQIECBAgAABAnkBQ2g+Yg8SIECAAAECBAgQIECAAAECBAgQIGAI1QECBAgQIECAAAECBAgQIECAAAECBPIChtB8xB4kQIAAAQIECBAgQIAAAQIECBAgQMAQqgMECBAgQIAAAQIECBAgQIAAAQIECOQFDKH5iD1IgAABAgQIECBAgAABAgQIECBAgIAhVAcIECBAgAABAgQIECBAgAABAgQIEMgLGELzEXuQAAECBAgQIECAAAECBAgQIECAAAFDqA4QIECAAAECBAgQIECAAAECBAgQIJAXMITmI/YgAQIECBAgQIAAAQIECBAgQIAAAQKGUB0gQIAAAQIECBAgQIAAAQIECBAgQCAvYAjNR+xBAgQIECBAgAABAgQIECBAgAABAgQMoTpAgAABAgQIECBAgAABAgQIECBAgEBewBCaj9iDBAgQIECAAAECBAgQIECAAAECBAgYQnWAAAECBAgQIECAAAECBAgQIECAAIG8gCE0H7EHCRAgQIAAAQIECBAgQIAAAQIECBAwhOoAAQIECBAgQIAAAQIECBAgQIAAAQJ5AUNoPmIPEiBAgAABAgQIECBAgAABAgQIECBgCNUBAgQIECBAgAABAgQIECBAgAABAgTyAobQfMQeJECAAAECBAgQIECAAAECBAgQIEDAEKoDBAgQIECAAAECBAgQIECAAAECBAjkBQyh+Yg9SIAAAQIECBAgQIAAAQIECBAgQICAIVQHCBAgQIAAAQIECBAgQIAAAQIECBDICxhC8xF7kAABAgQIECBAgAABAgQIECBAgAABQ6gOECBAgAABAgQIECBAgAABAgQIECCQFzCE5iP2IAECBAgQIECAAAECBAgQIECAAAEChlAdIECAAAECBAgQIECAAAECBAgQIEAgL2AIzUfsQQIECBAgQIAAAQIECBAgQIAAAQIEDKE6QIAAAQIECBAgQIAAAQIECBAgQIBAXsAQmo/YgwQIECBAgAABAgQIECBAgAABAgQIGEJ1gAABAgQIECBAgAABAgQIECBAgACBvIAhNB+xBwkQIECAAAECBAgQIECAAAECBAgQMITqAAECBAgQIECAAAECBAgQIECAAAECeQFDaD5iDxIgQIAAAQIECBAgQIAAAQIECBAgYAjVAQIECBAgQIAAAQIECBAgQIAAAQIE8gKG0HzEHiRAgAABAgQIECBAgAABAgQIECBAwBCqAwQIECBAgAABAgQIECBAgAABAgQI5AUMofmIPUiAAAECBAgQIECAAAECBAgQIECAgCFUBwgQIECAAAECBAgQIECAAAECBAgQyAsYQvMRe5AAAQIECBAgQIAAAQIECBAgQIAAAUOoDhAgQIAAAQIECBAgQIAAAQIECBAgkBcwhOYj9iABAgQIECBAgAABAgQIECBAgAABAoZQHSBAgAABAgQIECBAgAABAgQIECBAIC9gCM1H7EECBAgQIECAAAECBAgQIECAAAECBAyhOkCAAAECBAgQIECAAAECBAgQIECAQF7AEJqP2IMECBAgQIAAAQIECBAgQIAAAQIECBhCdYAAAQIECBAgQIAAAQIECBAgQIAAgbyAITQfsQcJECBAgAABAgQIECBAgAABAgQIEDCE6gABAgQIECBAgAABAgQIECBAgAABAnkBQ2g+Yg8SIECAAAECBAgQIECAAAECBAgQIGAI1QECBAgQIECAAAECBAgQIECAAAECBPIChtB8xB4kQIAAAQIECBAgQIAAAQIECBAgQMAQqgMECBAgQIAAAQIECBAgQIAAAQIECOQFDKH5iD1IgAABAgQIECBAgAABAgQIECBAgIAhVAcIECBAgAABAgQIECBAgAABAgQIEMgLGELzEXuQAAECBAgQIECAAAECBAgQIECAAAFDqA4QIECAAAECBAgQIECAAAECBAgQIJAXMITmI/YgAQIECBAgQIAAAQIECBAgQIAAAQKGUB0gQIAAAQIECBAgQIAAAQIECBAgQCAvYAjNR+xBAgQIECBAgAABAgQIECBAgAABAgQMoTpAgAABAgQIECBAgAABAgQIECBAgEBewBCaj9iDBAgQIECAAAECBAgQIECAAAECBAgYQnWAAAECBAgQIECAAAECBAgQIECAAIG8gCE0H7EHCRAgQIAAAQIECBAgQIAAAQIECBAwhOoAAQIECBAgQIAAAQIECBAgQIAAAQJ5AUNoPmIPEiBAgAABAgQIECBAgAABAgQIECBgCNUBAgQIECBAgAABAgQIECBAgAABAgTyAobQfMQeJECAAAECBAgQIECAAAECBAgQIEDAEKoDBAgQIECAAAECBAgQIECAAAECBAjkBQyh+Yg9SIAAAQIECBAgQIAAAQIECBAgQICAIVQHCBAgQIAAAQIECBAgQIAAAQIECBDICxhC8xF7kAABAgQIECBAgAABAgQIECBAgAABQ6gOECBAgAABAgQIECBAgAABAgQIECCQFzCE5iP2IAECBAgQIECAAAECBAgQIECAAAEChlAdIECAAAECBAgQIECAAAECBAgQIEAgL2AIzUfsQQIECBAgQIAAAQIECBAgQIAAAQIEDKE6QIAAAQIECBAgQIAAAQIECBAgQIBAXsAQmo/YgwQIECBAgAABAgQIECBAgAABAgQIGEJ1gAABAgQIECBAgAABAgQIECBAgACBvIAhNB+xBwkQIECAAAECBAgQIECAAAECBAgQMITqAAECBAgQIECAAAECBAgQIECAAAECeQFDaD5iDxIgQIAAAQIECBAgQIAAAQIECBAgYAjVAQIECBAgQIAAAQIECBAgQIAAAQIE8gKG0HzEHiRAgAABAgQIECBAgAABAgQIECBAwBCqAwQIECBAgAABAgQIECBAgAABAgQI5AUMofmIPUiAAAECBAgQIECAAAECBAgQIECAgCFUBwgQIECAAAECBAgQIECAAAECBAgQyAsYQvMRe5AAAQIECBAgQIAAAQIECBAgQIAAAUOoDhAgQIAAAQIECBAgQIAAAQIECBAgkBcwhOYj9iABAgQIECBAgAABAgQIECBAgAABAoZQHSBAgAABAgQIECBAgAABAgQIECBAIC9gCM1H7EECBAgQIECAAAECBAgQIECAAAECBAyhOkCAAAECBAgQIECAAAECBAgQIECAQF7AEJqP2IMECBAgQIAAAQIECBAgQIAAAQIECBhCdYAAAQIECBAgQIAAAQIECBAgQIAAgbyAITQfsQcJECBAgAABAgQIECBAgAABAgQIEDCE6gABAgQIECBAgAABAgQIECBAgAABAnkBQ2g+Yg8SIECAAAECBAgQIECAAAECBAgQIGAI1QECBAgQIECAAAECBAgQIECAAAECBPIChtB8xB4kQIAAAQIECBAgQIAAAQIECBAgQMAQqgMECBAgQIAAAQIECBAgQIAAAQIECOQFDKH5iD1IgAABAgQIECBAgAABAgQIECBAgIAhVAcIECBAgAABAgQIECBAgAABAgQIEMgLGELzEXuQAAECBAgQIECAAAECBAgQIECAAAFDqA4QIECAAAECBAgQIECAAAECBAgQIJAXMITmI/YgAQIECBAgQIAAAQIECBAgQIAAAQKGUB0gQIAAAQIECBAgQIAAAQIECBAgQCAvYAjNR+xBAgQIECBAgAABAgQIECBAgAABAgQMoTpAgAABAgQIECBAgAABAgQIECBAgEBewBCaj9iDBAgQIECAAAECBAgQIECAAAECBAgYQnWAAAECBAgQIECAAAECBAgQIECAAIG8gCE0H7EHCRAgQIAAAQIECBAgQIAAAQIECBAwhOoAAQIECBAgQIAAAQIECBAgQIAAAQJ5AUNoPmIPEiBAgAABAgQIECBAgAABAgQIECBgCNUBAgQIECBAgAABAgQIECBAgAABAgTyAobQfMQeJECAAAECBAgQIECAAAECBAgQIEDAEKoDBAgQIECAAAECBAgQIECAAAECBAjkBQyh+Yg9SIAAAQIECBAgQIAAAQIECBAgQICAIVQHCBAgQIAAAQIECBAgQIAAAQIECBDICxhC8xF7kAABAgQIECBAgAABAgQIECBAgAABQ6gOECBAgAABAgQIECBAgAABAgQIECCQFzCE5iP2IAECBAgQIECAAAECBAgQIECAAAEChlAdIECAAAECBAgQIECAAAECBAgQIEAgL2AIzUfsQQIECBAgQIAAAQIECBAgQIAAAQIEDKE6QIAAAQIECBAgQIAAAQIECBAgQIBAXsAQmo/YgwQIECBAgAABAgQIECBAgAABAgQIGEJ1gAABAgQIECBAgAABAgQIECBAgACBvIAhNB+xBwkQIECAAAECBAgQIECAAAECBAgQMITqAAECBAgQIECAAAECBAgQIECAAAECeQFDaD5iDxIgQIAAAQIECBAgQIAAAQIECBAgYAjVAQIECBAgQIAAAQIECBAgQIAAAQIE8gKG0HzEHiRAgAABAgQIECBAgAABAgQIECBAwBCqAwQIECBAgAABAgQIECBAgAABAgQI5AUMofmIPUiAAAECBAgQIECAAAECBAgQIECAgCFUBwgQIECAAAECBAgQIECAAAECBAgQyAsYQvMRe5AAAQIECBAgQIAAAQIECBAgQIAAAUOoDhAgQIAAAQIECBAgQIAAAQIECBAgkBcwhOYj9iABAgQIECBAgAABAgQIECBAgAABAoZQHSBAgAABAgQIECBAgAABAgQIECBAIC9gCM1H7EECBAgQIECAAAECBAgQIECAAAECBAyhOkCAAAECBAgQIECAAAECBAgQIECAQF7AEJqP2IMECBAgQIAAAQIECBAgQIAAAQIECBhCdYAAAQIECBAgQIAAAQIECBAgQIAAgbyAITQfsQcJECBAgAABAgQIECBAgAABAgQIEDCE6gABAgQIECBAgAABAgQIECBAgAABAnkBQ2g+Yg8SIECAAAECBAgQIECAAAECBAgQIGAI1QECBAgQIECAAAECBAgQIECAAAECBPIChtB8xB4kQIAAAQIECBAgQIAAAQIECBAgQMAQqgMECBAgQIAAAQIECBAgQIAAAQIECOQFDKH5iD1IgAABAgQIECBAgAABAgQIECBAgIAhVAcIECBAgAABAgQIECBAgAABAgQIEMgLGELzEXuQAAECBAgQIECAAAECBAgQIECAAAFDqA4QIECAAAECBAgQIECAAAECBAgQIJAXMITmI/YgAQIECBAgQIAAAQIECBAgQIAAAQKGUB0gQIAAAQIECBAgQIAAAQIECBAgQCAvYAjNR+xBAgQIECBAgAABAgQIECBAgAABAgQMoTpAgAABAgQIECBAgAABAgQIECBAgEBewBCaj9iDBAgQIECAAAECBAgQIECAAAECBAgYQnWAAAECBAgQIECAAAECBAgQIECAAIG8gCE0H7EHCRAgQIAAAQIECBAgQIAAAQIECBAwhOoAAQIECBAgQIAAAQIECBAgQIAAAQJ5AUNoPmIPEiBAgAABAgQIECBAgAABAgQIECBgCNUBAgQIECBAgAABAgQIECBAgAABAgTyAobQfMQeJECAAAECBAgQIECAAAECBAgQIEDAEKoDBAgQIECAAAECBAgQIECAAAECBAjkBQyh+Yg9SIAAAQIECBAgQIAAAQIECBAgQICAIVQHCBAgQIAAAQIECBAgQIAAAQIECBDICxhC8xF7kAABAgQIECBAgAABAgQIECBAgAABQ6gOECBAgAABAgQIECBAgAABAgQIECCQFzCE5iP2IAECBAgQIECAAAECBAgQIECAAAEChlAdIECAAAECBAgQIECAAAECBAgQIEAgL2AIzUfsQQIECBAgQIAAAQIECBAgQIAAAQIEDKE6QIAAAQIECBAgQIAAAQIECBAgQIBAXsAQmo/YgwQIECBAgAABAgQIECBAgAABAgQIGEJ1gAABAgQIECBAgAABAgQIECBAgACBvIAhNB+xBwkQIECAAAECBAgQIECAAAECBAgQMITqAAECBAgQIECAAAECBAgQIECAAAECeQFDaD5iDxIgQIAAAQIECBAgQIAAAQIECBAgYAjVAQIECBAgQIAAAQIECBAgQIAAAQIE8gKG0HzEHiRAgAABAgQIECBAgAABAgQIECBAwBCqAwQIECBAgAABAgQIECBAgAABAgQI5AUMofmIPUiAAAECBAgQIECAAAECBAgQIECAgCFUBwgQIECAAAECBAgQIECAAAECBAgQyAsYQvMRe5AAAQIECBAgQIAAAQIECBAgQIAAAUOoDhAgQIAAAQIECBAgQIAAAQIECBAgkBcwhOYj9iABAgQIECBAgAABAgQIECBAgAABAoZQHSBAgAABAgQIECBAgAABAgQIECBAIC9gCM1H7EECBAgQIECAAAECBAgQIECAAAECBAyhOkCAAAECBAgQIECAAAECBAgQIECAQF7AEJqP2IMECBAgQIAAAQIECBAgQIAAAQIECBhCdYAAAQIECBAgQIAAAQIECBAgQIAAgbyAITQfsQcJECBAgAABAgQIECBAgAABAgQIEDCE6gABAgQIECBAgAABAgQIECBAgAABAnkBQ2g+Yg8SIECAAAECBAgQIECAAAECBAgQIGAI1QECBAgQIECAAAECBAgQIECAAAECBPIChtB8xB4kQIAAAQIECBAgQIAAAQIECBAgQMAQqgMECBAgQIAAAQIECBAgQIAAAQIECOQFDKH5iD1IgAABAgQIECBAgAABAgQIECBAgIAhVAcIECBAgAABAgQIECBAgAABAgQIEMgLGELzEXuQAAECBAgQIECAAAECBAgQIECAAAFDqA4QIECAAAECBAgQIECAAAECBAgQIJAXMITmI/YgAQIECBAgQIAAAQIECBAgQIAAAQKGUB0gQIAAAQIECBAgQIAAAQIECBAgQCAvYAjNR+xBAgQIECBAgAABAgQIECBAgAABAgQMoTpAgAABAgQIECBAgAABAgQIECBAgEBewBCaj9iDBAgQIECAAAECBAgQIECAAAECBAgYQnWAAAECBAgQIECAAAECBAgQIECAAIG8gCE0H7EHCRAgQIAAAQIECBAgQIAAAQIECBAwhOoAAQIECBAgQIAAAQIECBAgQIAAAQJ5AUNoPmIPEiBAgAABAgQIECBAgAABAgQIECBgCNUBAgQIECBAgAABAgQIECBAgAABAgTyAobQfMQeJECAAAECBAgQIECAAAECBAgQIEDAEKoDBAgQIECAAAECBAgQIECAAAECBAjkBQyh+Yg9SIAAAQIECBAgQIAAAQIECBAgQICAIVQHCBAgQIAAAQIECBAgQIAAAQIECBDICxhC8xF7kAABAgQIECBAgAABAgQIECBAgAABQ6gOECBAgAABAgQIECBAgAABAgQIECCQFzCE5iP2IAECBAgQIECAAAECBAgQIECAAAEChlAdIECAAAECBAgQIECAAAECBAgQIEAgL2AIzUfsQQIECBAgQIAAAQIECBAgQIAAAQIEDKE6QIAAAQIECBAgQIAAAQIECBAgQIBAXsAQmo/YgwQIECBAgAABAgQIECBAgAABAgQIGEJ1gAABAgQIECBAgAABAgQIECBAgACBvIAhNB+xBwkQIECAAAECBAgQIECAAAECBAgQMITqAAECBAgQIECAAAECBAgQIECAAAECeQFDaD5iDxIgQIAAAQIECBAgQIAAAQIECBAgYAjVAQIECBAgQIAAAQIECBAgQIAAAQIE8gKG0HzEHiRAgAABAgQIECBAgAABAgQIECBAwBCqAwQIECBAgAABAgQIECBAgAABAgQI5AUMofmIPUiAAAECBAgQIECAAAECBAgQIECAgCFUBwgQIECAAAECBAgQIECAAAECBAgQyAsYQvMRe5AAAQIECBAgQIAAAQIECBAgQIAAAUOoDhAgQIAAAQIECBAgQIAAAQIECBAgkBcwhOYj9iABAgQIECBAgAABAgQIECBAgAABAoZQHSBAgAABAgQIECBAgAABAgQIECBAIC9gCM1H7EECBAgQIECAAAECBAgQIECAAAECBAyhOkCAAAECBAgQIECAAAECBAgQIECAQF7AEJqP2IMECBAgQIAAAQIECBAgQIAAAQIECBhCdYAAAQIECBAgQIAAAQIECBAgQIAAgbyAITQfsQcJECBAgAABAgQIECBAgAABAgQIEDCE6gABAgQIECBAgAABAgQIECBAgAABAnkBQ2g+Yg8SIECAAAECBAgQIECAAAECBAgQIGAI1QECBAgQIECAAAECBAgQIECAAAECBPIChtB8xB4kQIAAAQIECBAgQIAAAQIECBAgQMAQqgMECBAgQIAAAQIECBAgQIAAAQIECOQFDKH5iD1IgAABAgQIECBAgAABAgQIECBAgIAhVAcIECBAgAABAgQIECBAgAABAgQIEMgLGELzEXuQAAECBAgQIECAAAECBAgQIECAAAFDqA4QIECAAAECBAgQIECAAAECBAgQIJAXMITmI/YgAQIECBAgQIAAAQIECBAgQIAAAQKGUB0gQIAAAQIECBAgQIAAAQIECBAgQCAvYAjNR+xBAgQIECBAgAABAgQIECBAgAABAgQMoTpAgAABAgQIECBAgAABAgQIECBAgEBewBCaj9iDBAgQIECAAAECBAgQIECAAAECBAgYQnWAAAECBAgQIECAAAECBAgQIECAAIG8gCE0H7EHCRAgQIAAAQIECBAgQIAAAQIECBAwhOoAAQIECBAgQIAAAQIECBAgQIAAAQJ5AUNoPmIPEiBAgAABAgQIECBAgAABAgQIECBgCNUBAgQIECBAgAABAgQIECBAgAABAgTyAobQfMQeJECAAAECBAgQIECAAAECBAgQIEDAEKoDBAgQIECAAAECBAgQIECAAAECBAjkBQyh+Yg9SIAAAQIECBAgQIAAAQIECBAgQICAIVQHCBAgQIAAAQIECBAgQIAAAQIECBDICxhC8xF7kAABAgQIECBAgAABAgQIECBAgAABQ6gOECBAgAABAgQIECBAgAABAgQIECCQFzCE5iP2IAECBAgQIECAAAECBAgQIECAAAEChlAdIECAAAECBAgQIECAAAECBAgQIEAgL2AIzUfsQQIECBAgQIAAAQIECBAgQIAAAQIEDKE6QIAAAQIECBAgQIAAAQIECBAgQIBAXsAQmo/YgwQIECBAgAABAgQIECBAgAABAgQIGEJ1gAABAgQIECBAgAABAgQIECBAgACBvIAhNB+xBwkQIECAAAECBAgQIECAAAECBAgQMITqAAECBAgQIECAAAECBAgQIECAAAECeQFDaD5iDxIgQIAAAQIECBAgQIAAAQIECBAgYAjVAQIECBAgQIAAAQIECBAgQIAAAQIE8gKG0HzEHiRAgAABAgQIECBAgAABAgQIECBAwBCqAwQIECBAgAABAgQIECBAgAABAgQI5AUMofmIPUiAAAECBAgQIECAAAECBAgQIECAgCFUBwgQIECAAAECBAgQIECAAAECBAgQyAsYQvMRe5AAAQIECBAgQIAAAQIECBAgQIAAAUOoDhAgQIAAAQIECBAgQIAAAQIECBAgkBcwhOYj9iABAgQIECBAgAABAgQIECBAgAABAoZQHSBAgAABAgQIECBAgAABAgQIECBAIC9gCM1H7EECBAgQIECAAAECBAgQIECAAAECBAyhOkCAAAECBAgQIECAAAECBAgQIECAQF7AEJqP2IMECBAgQIAAAQIECBAgQIAAAQIECBhCdYAAAQIECBAgQIAAAQIECBAgQIAAgbyAITQfsQcJECBAgAABAgQIECBAgAABAgQIEDCE6gABAgQIECBAgAABAgQIECBAgAABAnkBQ2g+Yg8SIECAAAECBAgQIECAAAECBAgQIGAI1QECBAgQIECAAAECBAgQIECAAAECBPIChtB8xB4kQIAAAQIECBAgQIAAAQIECBAgQMAQqgMECBAgQIAAAQIECBAgQIAAAQIECOQFDKH5iD1IgAABAgQIECBAgAABAgQIECBAgIAhVAcIECBAgAABAgQIECBAgAABAgQIEMgLGELzEXuQAAECBAgQIECAAAECBAgQIECAAAFDqA4QIECAAAECBAgQIECAAAECBAgQIJAXMITmI/YgAQIECBAgQIAAAQIECBAgQIAAAQKGUB0gQIAAAQIECBAgQIAAAQIECBAgQCAvYAjNR+xBAgQIECBAgAABAgQIECBAgAABAgQMoTpAgAABAgQIECBAgAABAgQIECBAgEBewBCaj9iDBAgQIECAAAECBAgQIECAAAECBAgYQnWAAAECBAgQIECAAAECBAgQIECAAIG8gCE0H7EHCRAgQIAAAQIECBAgQIAAAQIECBAwhOoAAQIECBAgQIAAAQIECBAgQIAAAQJ5AUNoPmIPEiBAgAABAgQIECBAgAABAgQIECBgCNUBAgQIECBAgAABAgQIECBAgAABAgTyAobQfMQeJECAAAECBAgQIECAAAECBAgQIEDAEKoDBAgQIECAAAECBAgQIECAAAECBAjkBQyh+Yg9SIAAAQIECBAgQIAAAQIECBAgQICAIVQHCBAgQIAAAQIECBAgQIAAAQIECBDICxhC8xF7kAABAgQIECBAgAABAgQIECBAgAABQ6gOECBAgAABAgQIECBAgAABAgQIECCQFzCE5iP2IAECBAgQIECAAAECBAgQIECAAAEChlAdIECAAAECBAgQIECAAAECBAgQIEAgL2AIzUfsQQIECBAgQIAAAQIECBAgQIAAAQIEDKE6QIAAAQIECBAgQIAAAQIECBAgQIBAXsAQmo/YgwQIECBAgAABAgQIECBAgAABAgQIGEJ1gAABAgQIECBAgAABAgQIECBAgACBvIAhNB+xBwkQIECAAAECBAgQIECAAAECBAgQMITqAAECBAgQIECAAAECBAgQIECAAAECeQFDaD5iDxIgQIAAAQIECBAgQIAAAQIECBAgYAjVAQIECBAgQIAAAQIECBAgQIAAAQIE8gKG0HzEHiRAgAABAgQIECBAgAABAgQIECBAwBCqAwQIECBAgAABAgQIECBAgAABAgQI5AUMofmIPUiAAAECBAgQIECAAAECBAgQIECAgCFUBwgQIECAAAECBAgQIECAAAECBAgQyAsYQvMRe5AAAQIECBAgQIAAAQIECBAgQIAAAUOoDhAgQIAAAQIECBAgQIAAAQIECBAgkBcwhOYj9iABAgQIECBAgAABAgQIECBAgAABAoZQHSBAgAABAgQIECBAgAABAgQIECBAIC9gCM1H7EECBAgQIECAAAECBAgQIECAAAECBAyhOkCAAAECBAgQIECAAAECBAgQIECAQF7AEJqP2IMECBAgQIAAAQIECBAgQIAAAQIECBhCdYAAAQIECBAgQIAAAQIECBAgQIAAgbyAITQfsQcJECBAgAABAgQIECBAgAABAgQIEDCE6gABAgQIECBAgAABAgQIECBAgAABAnkBQ2g+Yg8SIECAAAECBAgQIECAAAECBAgQIGAI1QECBAgQIECAAAECBAgQIECAAAECBPIChtB8xB4kQIAAAQIECBAgQIAAAQIECBAgQMAQqgMECBAgQIAAAQIECBAgQIAAAQIECOQFDKH5iD1IgAABAgQIECBAgAABAgQIECBAgIAhVAcIECBAgAABAgQIECBAgAABAgQIEMgLPAAAAP//kezJzwAAOJBJREFU7d1/jN4HXQfwz3N33fXHuq4ta0vb9Y6BjCyoEESQqBD8iYsKIUQJErPQtSlsODa2rsZFzIxdNzYmGzTtShaDBA0hgGb+loAaRJGAShaGMu+6trQdbdd1/XHr/fCs/8Cy0d7uuXue7/t59a+tvef5ft+v9+ev9x9t6+HXbJwqvwgQIECAAAECBAgQIECAAAECBAgQIBAs0DKEBrcrGgECBAgQIECAAAECBAgQIECAAAEC5wQMoQ6BAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFWlPTv+JTCkiAAAECBAgQIECAAAECBAj0rMD4sRM1unF7Pb3/8Z41mMvgF627rIb2bKuB5Uvn8jG+m8CsBQyhsyb0BQQIECBAgAABAgQIECBAgEC3C4ztO1QjG++oySee6vZXbdT79V16cQ3vubUG169u1Ht72d4UMIT2Zu9SEyBAgAABAgQIECBAgACBnhM4/fCjNfruu2vqzNM9l30uArcWXlRDH72pFl11xVx8ve8k0HYBQ2jbSX0hAQIECBAgQIAAAQIECBAg0K0CJ/7pP2rfLfdXTfqbAmfVUV+r1t95XS39yR+Z1df4MIH5FDCEzqe2ZxEgQIAAAQIECBAgQIAAAQIdFzj2uX+og9s/3vH3aPILrNn2zlr+qz/d5AjevQcFDKE9WLrIBAgQIECAAAECBAgQIECg1wUO7/mzOrLnz3ud4XnlX7nxl2vVxl95Xp/1IQKdFDCEdlLfswkQIECAAAECBAgQIECAAIGOCRy4/cE6/tCXOvb8Jj542dWvq7W3XdPEV/fOBMoQ6ggIECBAgAABAgQIECBAgACBnhSYmpiofe+/v57652/0ZP6Zhr74J15e6z94XbX6+2f6UT9PoCsEDKFdUYOXIECAAAECBAgQIECAAAECBDohMHl6rEa33FVnvjnaicc35pkLXzZUQztvrr5Fg415Zy9K4JkChtBnivh/AgQIECBAgAABAgQIECBAoKcExo8er5Fr76iz+7/bU7kvNOyCdS+o4QdurYEVyy70I36OQFcKGEK7shYvRYAAAQIECBAgQIAAAQIECMynwNhjh86NoZNPPDWfj+36Z/VdevG5EXTw8tVd/65ekMD5BAyh5xPy5wQIECBAgAABAgQIECBAgEBPCJz+xqM18p4PVo2d7Ym85w05uKCGP/L+WvTyK877o36AQBMEDKFNaMk7EiBAgAABAgQIECBAgAABAvMicOIfv177tn60anJqXp7XtQ/pa9X6He+upT/1iq59RS9GYKYChtCZivl5AgQIECBAgAABAgQIECBAIFrg2Ge+WAd3/HF0xvOFW7P1N2r5W15/vh/z5wQaJWAIbVRdXpYAAQIECBAgQIAAAQIECBCYD4HDuz5bRx58aD4e1XXPWHnN1bVq85u77r28EIHZChhCZyvo8wQIECBAgAABAgQIECBAgECkwIHbH6zjD30pMttzhVp29etq7W3XPNcf+30CjRYwhDa6Pi9PgAABAgQIECBAgAABAgQIzJXA1MREPXbTh+vklx+eq0d01fcuee1Vdfnd761Wf39XvZeXIdAuAUNouyR9DwECBAgQIECAAAECBAgQIBAnMHHqTO3dcledeWRvXLbvDbTwyg21YefN1b944ff+tv8mECVgCI2qUxgCBAgQIECAAAECBAgQIECg3QJnjxyvkY3ba/w7R9r91V3xfQMvXFnDe7bVgpXLuuJ9vASBuRIwhM6VrO8lQIAAAQIECBAgQIAAAQIEYgTGRg/WyKY7avL4yZhM/xekb9mSGt59aw0OrYnKJQyBZxMwhD6bit8jQIAA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AgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECBgCHUDBAgQIECAAAECBAgQIECAAAECBAjECxhC4ysWkAABAgQIECBAgAABAgQIECBAgAABQ6gbIECAAAECBAgQIECAAAECBAgQIEAgXsAQGl+xgAQIECBAgAABAgQIECBAgAABAgQIGELdAAECBAgQIECAAAECBAgQIECAAAEC8QKG0PiKBSRAgAABAgQIECBAgAABAgQIECBAwBDqBggQIECAAAECBAgQIECAAAECBAgQiBcwhMZXLCABAgQIECBAgAABAgQIECBAgAABAoZQN0CAAAECBAgQIECAAAECBAgQIECAQLyAITS+YgEJECBAgAABAgQIECBAgAABAgQIEDCEugECBAgQIECAAAECBAgQIECAAAECBOIFDKHxFQtIgAABAgQIECBAgAABAgQIECBAgIAh1A0QIECAAAECBAgQIECAAAECBAgQIBAvYAiNr1hAAgQIECBAgAABAgQIECBAgAABAgQMoW6AAAECBAgQIECAAAECBAgQIECAAIF4AUNofMUCEiBAgAABAgQIECBAgAABAgQIECDwv7yTAnpG837VAAAAAElFTkSuQmCC") center / cover no-repeat fixed;
+  }
+  @media (max-width: 560px) { body { background-attachment: scroll; } }
+  header, .qcard, .card { background: rgba(255, 255, 255, 0.94); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, topic?, skill?, image?,
+//    hint?: string                       // shown after a wrong first answer, then the SAME
+//                                        // question is asked again; the first attempt is scored }] }
+// Questions without `remediation` behave exactly like the classic exam (answer revealed immediately).
+// **double asterisks** in any text render as bold.
+const EXAM_DATA = {"title": "HEENT Emergencies — Lecture Quiz (Adaptive)", "questions": [{"id": "1", "group": 1, "slide": 5, "section": "CC: Red Eye", "topic": "Conjunctivitis", "skill": "Identification", "stem": "Which findings in a red eye indicate that the problem is not simple conjunctivitis?", "options": [{"letter": "A", "text": "Reduced visual acuity"}, {"letter": "B", "text": "Marked photophobia"}, {"letter": "C", "text": "Ciliary flush at the limbus"}, {"letter": "D", "text": "Diffuse conjunctival injection"}, {"letter": "E", "text": "Fixed or non-reactive pupil"}, {"letter": "F", "text": "Watery discharge with sick contacts"}], "answer": "ABCE", "explanation": "Conjunctivitis is a **diagnosis of exclusion** with normal acuity, pupils, IOP, and fluorescein. A fixed pupil, ciliary flush, opacified cornea, reduced acuity, photophobia, proptosis, or real pain means glaucoma, keratitis, uveitis, or orbital cellulitis until proven otherwise.", "objective": "", "hint": "Conjunctivitis is a **diagnosis of exclusion** that spares the cornea, pupil, acuity, and pressure. Any finding that implicates those deeper structures, or genuine pain, means look harder for something else."}, {"id": "2", "group": 2, "slide": 6, "section": "CC: Red Eye", "topic": "Acute angle-closure glaucoma", "skill": "Diagnostics & imaging", "stem": "A patient with monocular eye pain, headache, vomiting, and halos has a mid-dilated non-reactive pupil and a steamy cornea. Which test confirms the diagnosis in the ED?", "options": [{"letter": "A", "text": "CT orbit with IV contrast"}, {"letter": "B", "text": "Fluorescein showing a dendritic ulcer"}, {"letter": "C", "text": "Slit lamp showing cell and flare"}, {"letter": "D", "text": "Tonometry showing IOP above 40 mmHg"}], "answer": "D", "explanation": "Acute angle-closure glaucoma is a **bedside diagnosis by tonometry**: IOP is usually above 40 (normal 10–20), often with a rock-hard globe and a shallow chamber on the oblique flashlight test. Precipitants include anticholinergics, sulfa drugs, topiramate, and dim light in a hyperopic woman over 60.", "objective": "", "hint": "This is a **bedside** diagnosis — no labs or imaging are needed. The disease is defined by one measurable number, and the normal range for that number is 10 to 20."}, {"id": "3", "group": 3, "slide": 6, "section": "CC: Red Eye", "topic": "Acute angle-closure glaucoma", "skill": "Pharmacology", "stem": "Which agents belong in the initial all-at-once ED treatment of acute angle-closure glaucoma?", "options": [{"letter": "A", "text": "Topical latanoprost"}, {"letter": "B", "text": "Topical homatropine"}, {"letter": "C", "text": "Oral or IV acetazolamide"}, {"letter": "D", "text": "Topical apraclonidine"}, {"letter": "E", "text": "Topical timolol"}, {"letter": "F", "text": "Topical prednisolone acetate"}], "answer": "ACDE", "explanation": "The cocktail is **timolol + apraclonidine + latanoprost + acetazolamide 500 mg**, then recheck IOP hourly, keep the patient supine in a bright room (miosis opens the angle), and call ophthalmology for laser iridotomy. Pilocarpine is added once IOP falls below 40 and mannitol if refractory; a cycloplegic like homatropine dilates the pupil and worsens the block.", "objective": "", "hint": "Every first-line agent **lowers pressure** by cutting aqueous production or increasing outflow. Anything that dilates the pupil pushes the iris into the angle and makes things worse, and steroids have no role here."}, {"id": "4", "group": 4, "slide": 8, "section": "CC: Red Eye", "topic": "Tonometry", "skill": "Diagnostics & imaging", "stem": "In which situation must intraocular pressure measurement be withheld during an eye examination?", "options": [{"letter": "A", "text": "Suspected globe rupture after trauma"}, {"letter": "B", "text": "Suspected acute angle-closure glaucoma"}, {"letter": "C", "text": "Hyphema with the globe intact"}, {"letter": "D", "text": "Herpes zoster ophthalmicus"}], "answer": "A", "explanation": "Never perform tonometry or press on the eye in **trauma / suspected globe rupture** — pressure can extrude intraocular contents (the lecturer's one-word answer is trauma). IOP is indicated in glaucoma, hyphema once rupture is excluded, uveitis, HZO, and CRAO; defer it in active keratitis to avoid spreading infection.", "objective": "", "hint": "Tonometry presses on the eye. Picture what happens when you press on a globe whose **wall is open** — the lecturer's one-word answer is the mechanism of injury, not a disease."}, {"id": "5", "group": 5, "slide": 9, "section": "CC: Red Eye", "topic": "Corneal abrasion", "skill": "Diagnostics & imaging", "stem": "Fluorescein shows multiple vertical linear streaks on the cornea of a patient with foreign body sensation. What should you do next?", "options": [{"letter": "A", "text": "Evert the upper eyelid to look for a retained foreign body"}, {"letter": "B", "text": "Start topical steroids for traumatic iritis"}, {"letter": "C", "text": "Prescribe erythromycin ointment and discharge"}, {"letter": "D", "text": "Order CT of the orbits for intraocular metal"}], "answer": "A", "explanation": "Multiple linear defects are the **ice-rink sign** of a foreign body under the upper lid scratching the cornea with each blink — evert the lid and remove it. A single linear or geographic defect is a simple abrasion.", "objective": "", "hint": "Parallel scratches are made by something that drags across the cornea with **every blink**. Find the culprit where the lid folds over, not inside the globe."}, {"id": "6", "group": 6, "slide": 9, "section": "CC: Red Eye", "topic": "Corneal abrasion", "skill": "Pharmacology", "stem": "A contact-lens wearer has a simple corneal abrasion. Which topical antibiotic is appropriate, and why?", "options": [{"letter": "A", "text": "Erythromycin ointment, because it lasts longer on the cornea"}, {"letter": "B", "text": "Polymyxin B/trimethoprim, for staphylococcal coverage"}, {"letter": "C", "text": "Ciprofloxacin or ofloxacin drops, for Pseudomonas coverage"}, {"letter": "D", "text": "Prednisolone acetate, to limit inflammatory scarring"}], "answer": "C", "explanation": "Contact-lens wearers get a **fluoroquinolone (cipro/ofloxacin) for Pseudomonas**; non-wearers get erythromycin ointment. No contacts until healed, no patching, take-home anesthetic only per the ACEP 24-hour rule for simple abrasions, and recheck in 24–48 hours.", "objective": "", "hint": "Contact lenses change the **organism** you fear, not the injury. Ointment is the comfortable default only when that organism is not in play, and steroids are never the answer on a fresh epithelial defect."}, {"id": "7", "group": 7, "slide": 11, "section": "CC: Red Eye", "topic": "Orbital cellulitis", "skill": "Identification", "stem": "Which findings distinguish orbital (postseptal) cellulitis from periorbital (preseptal) cellulitis?", "options": [{"letter": "A", "text": "Proptosis"}, {"letter": "B", "text": "Eyelid erythema and warmth"}, {"letter": "C", "text": "Pain with eye movement"}, {"letter": "D", "text": "Recent insect bite to the lid"}, {"letter": "E", "text": "Decreased visual acuity"}, {"letter": "F", "text": "Limited extraocular movements"}], "answer": "ACEF", "explanation": "Orbital cellulitis shows **pain with EOM, limited EOM, proptosis, chemosis, and decreased acuity** (plus nerve palsies if the cavernous sinus is involved). Periorbital cellulitis has lid swelling and erythema with normal vision, pupils, and eye movement.", "objective": "", "hint": "The orbital septum is the dividing line. Findings that live **behind the septum** — the globe, its muscles, and the optic nerve — define the dangerous diagnosis; skin findings alone belong to the benign one."}, {"id": "8", "group": 8, "slide": 11, "section": "CC: Red Eye", "topic": "Orbital cellulitis", "skill": "Management", "stem": "A febrile child with proptosis and painful eye movements after sinusitis is diagnosed with orbital cellulitis. What is the correct ED plan?", "options": [{"letter": "A", "text": "MRI orbit, topical antibiotics, and discharge home"}, {"letter": "B", "text": "Clinical diagnosis, oral Keflex, and recheck in 24–48 hours"}, {"letter": "C", "text": "CT orbit with IV contrast, IV Unasyn, and admission"}, {"letter": "D", "text": "Oral Augmentin with same-week ophthalmology follow-up"}], "answer": "C", "explanation": "Orbital cellulitis gets **CT orbit with IV contrast, IV Unasyn, emergent ophthalmology, and admission**; if septic, vancomycin + metronidazole + ceftriaxone. In diabetics or the immunocompromised consider mucor/aspergillus and amphotericin. Oral Keflex or Augmentin with a 24–48 hour recheck is the periorbital plan.", "objective": "", "hint": "Postseptal infection sits next to the cavernous sinus and the brain. The plan must **image** the orbit and deliver antibiotics by the route that matches an admit-level diagnosis."}, {"id": "9", "group": 9, "slide": 12, "section": "CC: Red Eye", "topic": "Conjunctivitis", "skill": "Management", "stem": "A 3-day-old newborn develops copious purulent conjunctivitis. What is the appropriate disposition?", "options": [{"letter": "A", "text": "Discharge home with oral erythromycin"}, {"letter": "B", "text": "Discharge with artificial tears and contact precautions"}, {"letter": "C", "text": "Admit with a sepsis work-up and ceftriaxone"}, {"letter": "D", "text": "Discharge with erythromycin ointment and recheck in 48 hours"}], "answer": "C", "explanation": "Ophthalmia neonatorum on **day 2–4 of life is gonorrhea** — admit, sepsis work-up, IM/IV ceftriaxone, ophthalmology. Day 5–14 is chlamydia, which carries pneumonia risk and is treated with oral erythromycin at home.", "objective": "", "hint": "The **day of life** names the organism. Infection that appears in the first few days is the one that threatens the cornea and can disseminate; the later-appearing one is managed as an outpatient because of its pneumonia risk."}, {"id": "10", "group": 10, "slide": 14, "section": "CC: Red Eye", "topic": "Hyphema", "skill": "Management", "stem": "Which measures belong in the ED management of a traumatic hyphema once globe rupture has been excluded?", "options": [{"letter": "A", "text": "Elevate the head of the bed"}, {"letter": "B", "text": "Stop anticoagulants, aspirin, and NSAIDs"}, {"letter": "C", "text": "Apply a firm pressure patch"}, {"letter": "D", "text": "Give antiemetics to prevent vomiting"}, {"letter": "E", "text": "Place a rigid eye shield"}, {"letter": "F", "text": "Give acetazolamide to every patient"}], "answer": "ABDE", "explanation": "Hyphema: **HOB up, rigid shield, antiemetics, stop anticoagulants/NSAIDs**, check IOP, sickle screen in at-risk patients, and ophthalmology. Avoid acetazolamide in sickle cell; the re-bleed window is day 3–5; admit if large, sickle cell, or raised IOP.", "objective": "", "hint": "Every correct measure either lets blood **settle** inferiorly, keeps pressure from spiking, or stops the next bleed. Avoid anything that presses on the globe, and remember sickle cell patients cannot take one of the usual pressure-lowering drugs."}, {"id": "11", "group": 11, "slide": 15, "section": "CC: Red Eye", "topic": "Herpes zoster ophthalmicus", "skill": "Identification", "stem": "A patient with a painful vesicular rash on the forehead also has vesicles on the tip of the nose. Why does this finding change management?", "options": [{"letter": "A", "text": "It signals nasociliary involvement, so ocular involvement is likely"}, {"letter": "B", "text": "It means the rash has crossed the midline and is disseminated"}, {"letter": "C", "text": "It confirms the rash is HSV rather than zoster"}, {"letter": "D", "text": "It indicates bacterial superinfection requiring IV antibiotics"}], "answer": "A", "explanation": "Nose-tip vesicles are the **Hutchinson sign** of nasociliary nerve involvement in herpes zoster ophthalmicus (V1), so the eye is at risk: fluorescein shows pseudodendrites, check IOP, give oral antivirals (IV if immunocompromised or ocular involvement), and consult ophthalmology.", "objective": "", "hint": "The tip of the nose and the eye share one **nerve branch**. A lesion there is a map of where the virus has traveled, not a sign of a different infection or a different organism."}, {"id": "12", "group": 12, "slide": 16, "section": "CC: Red Eye", "topic": "Keratitis", "skill": "Diagnostics & imaging", "stem": "Fluorescein staining shows a branching lesion with terminal bulbs on the cornea. What is the diagnosis, and which treatment must be avoided?", "options": [{"letter": "A", "text": "HSV keratitis; avoid topical steroids"}, {"letter": "B", "text": "Acanthamoeba keratitis; avoid contact lenses"}, {"letter": "C", "text": "UV keratitis; avoid cycloplegics"}, {"letter": "D", "text": "Corneal abrasion; avoid topical anesthetic"}], "answer": "A", "explanation": "A **dendrite is HSV keratitis** — topical antivirals (trifluridine/ganciclovir), no steroids, same-day ophthalmology. Pseudodendrite = HZO, punctate uptake = UV/welder's keratitis, ring infiltrate = Acanthamoeba in a freshwater swimmer.", "objective": "", "hint": "A **branching** tree-like pattern is a viral signature on the cornea. The drug that would feel soothing is the one that lets the virus spread across the surface."}, {"id": "13", "group": 13, "slide": 17, "section": "CC: Red Eye", "topic": "Corneal ulcer", "skill": "Management", "stem": "A contact-lens wearer has a painful red eye with a white corneal infiltrate and a layer of pus in the anterior chamber. What is the correct ED management?", "options": [{"letter": "A", "text": "Pressure patch, oral NSAIDs, and PCP follow-up"}, {"letter": "B", "text": "Topical steroid and cycloplegic with ophthalmology in 24 hours"}, {"letter": "C", "text": "Erythromycin ointment and recheck in 48 hours"}, {"letter": "D", "text": "Topical moxifloxacin, no contacts, no steroids, emergent ophthalmology"}], "answer": "D", "explanation": "A white infiltrate with **hypopyon is a corneal ulcer** — Pseudomonas in a contact-lens wearer — treated with moxifloxacin, no contacts, no steroids, no patching, and same-day ophthalmology (admit if perforation or hypopyon). Fungal ulcers follow organic trauma; a ring infiltrate suggests Acanthamoeba.", "objective": "", "hint": "A white infiltrate with layered pus is an ulcer, not an abrasion, and in a lens wearer the organism is **Pseudomonas**. Treatment needs broad anti-pseudomonal coverage and nothing that suppresses the cornea's defenses."}, {"id": "14", "group": 14, "slide": 18, "section": "CC: Red Eye", "topic": "Uveitis / iritis", "skill": "Management", "stem": "A patient with ankylosing spondylitis has a painful photophobic red eye with perilimbal injection, and slit lamp shows cell and flare. What is the treatment?", "options": [{"letter": "A", "text": "Topical moxifloxacin and no contact lenses"}, {"letter": "B", "text": "Artificial tears and cool compresses"}, {"letter": "C", "text": "Topical antivirals and oral acyclovir"}, {"letter": "D", "text": "Topical steroids plus a cycloplegic, with ophthalmology"}], "answer": "D", "explanation": "**Cell and flare** on slit lamp with ciliary flush is anterior uveitis/iritis (HLA-B27, IBD, sarcoid, trauma): topical prednisolone acetate plus a cycloplegic, ideally with ophthalmology on board, and follow-up in 24–48 hours.", "objective": "", "hint": "Cell and flare means inflammatory cells floating in the anterior chamber — an **autoimmune** process here, not an infection. Treat the inflammation and rest the painful iris muscle."}, {"id": "15", "group": 15, "slide": 20, "section": "CC: Vision Loss/Changes", "topic": "Optic neuritis", "skill": "Identification", "stem": "A 28-year-old woman has monocular vision loss with pain on eye movement, decreased red color perception, and an RAPD. What is the most likely diagnosis?", "options": [{"letter": "A", "text": "Optic neuritis"}, {"letter": "B", "text": "Giant cell arteritis"}, {"letter": "C", "text": "Central retinal artery occlusion"}, {"letter": "D", "text": "Acute angle-closure glaucoma"}], "answer": "A", "explanation": "**Pain with eye movement, RAPD, and red desaturation** in a woman aged 15–45 is optic neuritis, strongly linked to multiple sclerosis (about half develop MS by 15 years). IOP and slit lamp are normal, and the fundus is often normal because the lesion is retrobulbar.", "objective": "", "hint": "Pain that tracks **eye movement** localizes to the nerve the muscles pull on, and the demographic points to a demyelinating disease. The arterial causes are painless or occur in the elderly."}, {"id": "16", "group": 16, "slide": 20, "section": "CC: Vision Loss/Changes", "topic": "Optic neuritis", "skill": "Management", "stem": "How should optic neuritis be treated, and what imaging should be ordered?", "options": [{"letter": "A", "text": "High-dose aspirin; carotid ultrasound"}, {"letter": "B", "text": "Oral prednisone alone; CT head without contrast"}, {"letter": "C", "text": "Topical steroids; ocular ultrasound only"}, {"letter": "D", "text": "IV methylprednisolone then oral prednisone; MRI orbit with gadolinium"}], "answer": "D", "explanation": "Optic neuritis is treated with **IV methylprednisolone followed by oral prednisone** (never oral prednisone alone — it increases recurrence), with MRI orbit with gadolinium to show the enhancing nerve and demyelinating plaques. Patients are often admitted for IV steroids with neurology follow-up.", "objective": "", "hint": "Steroid route matters — starting with the **oral** form by itself raises recurrence. Imaging must show the nerve itself and look for demyelinating plaques elsewhere."}, {"id": "17", "group": 17, "slide": 22, "section": "CC: Vision Loss/Changes", "topic": "Giant cell arteritis", "skill": "Management", "stem": "A 68-year-old has a new headache, jaw claudication, scalp tenderness, and transient vision loss, with an elevated ESR. What should happen next?", "options": [{"letter": "A", "text": "Order temporal artery biopsy and start steroids once it confirms"}, {"letter": "B", "text": "Start oral NSAIDs and refer to rheumatology"}, {"letter": "C", "text": "Start high-dose prednisone immediately and arrange biopsy afterward"}, {"letter": "D", "text": "Obtain MRI orbit before any treatment"}], "answer": "C", "explanation": "Giant cell arteritis gets **prednisone 80–100 mg now** (IV methylprednisolone and admission if vision loss) — do not wait for the temporal artery biopsy, which stays positive for about two weeks. ESR/CRP support the diagnosis; add aspirin and consult ophthalmology/rheumatology.", "objective": "", "hint": "The other eye can go blind within **days**, and the gold-standard test stays positive for about two weeks after treatment starts. Nothing is gained by waiting for confirmation."}, {"id": "18", "group": 18, "slide": 24, "section": "Painless Vision Loss", "topic": "CRAO", "skill": "Diagnostics & imaging", "stem": "Which fundoscopic finding points to central retinal artery occlusion rather than central retinal vein occlusion?", "options": [{"letter": "A", "text": "Cherry-red spot with boxcarring of the arterioles"}, {"letter": "B", "text": "Diffuse hemorrhages in all four quadrants"}, {"letter": "C", "text": "Cotton-wool spots with dilated tortuous veins"}, {"letter": "D", "text": "Bilateral optic disc swelling with blurred margins"}], "answer": "A", "explanation": "CRAO is sudden, profound, painless monocular loss with a **cherry-red spot, boxcarring, and APD** — this is a stroke: emergent ophthalmology, stroke work-up, ocular massage, IOP-lowering agents, possible tPA, and admission (vision lost if ischemia exceeds 2 hours). CRVO shows blood-and-thunder hemorrhages and cotton-wool spots and is managed with outpatient laser/anti-VEGF.", "objective": "", "hint": "Blocked **outflow** makes the retina bleed everywhere; blocked inflow makes it pale, with the fovea spared because it has its own choroidal blood supply."}, {"id": "19", "group": 19, "slide": 25, "section": "Painless Vision Loss", "topic": "Amaurosis fugax", "skill": "Disease process", "stem": "A patient describes a curtain dropping over one eye that fully resolved within minutes, and the exam is now normal. What does this episode require?", "options": [{"letter": "A", "text": "A stroke/TIA work-up with carotid and embolic source evaluation"}, {"letter": "B", "text": "Reassurance and routine ophthalmology follow-up"}, {"letter": "C", "text": "High-dose steroids for presumed optic neuritis"}, {"letter": "D", "text": "Emergent laser peripheral iridotomy"}], "answer": "A", "explanation": "**Amaurosis fugax is a symptom, not a diagnosis** — usually carotid disease (also CRAO/CRVO, GCA, retinal migraine, cocaine) and typically followed by a vascular event within hours to days. It needs an ischemic stroke/TIA work-up with carotid imaging and ECG/echo, plus ESR if over 50.", "objective": "", "hint": "This is a **symptom**, not a diagnosis, and it is usually followed by a vascular event within hours to days. Handle it the way you would handle a transient neurologic deficit anywhere else in the body."}, {"id": "20", "group": 20, "slide": 26, "section": "Painless Vision Loss", "topic": "Retinal detachment", "skill": "Identification", "stem": "A patient reports new flashes, floaters, and a curtain over part of the visual field, and fundoscopy shows pigmented cells in the vitreous. What is the diagnosis and the next step?", "options": [{"letter": "A", "text": "Posterior uveitis; topical steroids and cycloplegic"}, {"letter": "B", "text": "CRVO; outpatient laser therapy"}, {"letter": "C", "text": "Vitreous hemorrhage; ophthalmology within a week"}, {"letter": "D", "text": "Retinal detachment; emergent ophthalmology for surgery"}], "answer": "D", "explanation": "Flashes, floaters, a curtain, and **tobacco dust (Shafer's sign)** mean retinal detachment; ocular ultrasound shows a tethered membrane anchored to the optic nerve. Emergent ophthalmology for surgery, NPO — a macula-on detachment has hours to save central vision.", "objective": "", "hint": "Pigment in the vitreous is **Shafer's sign**, released when the inner layer of the eye pulls away from its bed. Whether the macula is still attached sets the clock, and that clock runs in hours."}, {"id": "21", "group": 21, "slide": 28, "section": "Painless Vision Loss", "topic": "Papilledema", "skill": "Diagnostics & imaging", "stem": "On ocular ultrasound, how is the optic nerve sheath diameter measured and interpreted when screening for raised intracranial pressure?", "options": [{"letter": "A", "text": "Measured at the globe wall; less than 5 mm is abnormal"}, {"letter": "B", "text": "Measured at the optic disc; more than 0.6 mm is normal"}, {"letter": "C", "text": "Measured 3 mm behind the globe; more than 5 mm is abnormal"}, {"letter": "D", "text": "Measured 5 mm behind the globe; more than 3 mm is abnormal"}], "answer": "C", "explanation": "The **3×5 rule**: measure the optic nerve sheath 3 mm posterior to the globe; under 5 mm is normal, over 5 mm indicates raised ICP. Papilledema is bilateral disc swelling with headache, ataxia, weakness, or seizures — image (CT/MRI ± MRV) before LP and treat the underlying cause.", "objective": "", "hint": ""}, {"id": "22", "group": 22, "slide": 30, "section": "Trauma", "topic": "Blowout fracture", "skill": "Identification", "stem": "After blunt trauma to the eye, a child has diplopia on upward gaze, numbness of the cheek, and becomes bradycardic and nauseated. What is the diagnosis?", "options": [{"letter": "A", "text": "Retrobulbar hematoma with orbital compartment syndrome"}, {"letter": "B", "text": "Globe rupture with vitreous extrusion"}, {"letter": "C", "text": "Traumatic hyphema with elevated intraocular pressure"}, {"letter": "D", "text": "Inferior orbital wall fracture with inferior rectus entrapment"}], "answer": "D", "explanation": "A **blowout fracture** breaks the weak inferior or medial wall; inferior rectus entrapment causes diplopia on upgaze, infraorbital (V2) numbness, and the oculocardiac reflex in children. Get CT facial/orbit, give nose-blowing precautions and a decongestant, consult OMFS/ophthalmology — pediatric entrapment needs immediate repair, and one third have concomitant ocular trauma.", "objective": "", "hint": "The weakest orbital walls are the floor and the medial wall. A trapped muscle restricts the gaze it normally powers and, in children, triggers the **oculocardiac** reflex; the numb cheek maps to the nerve running through the floor."}, {"id": "23", "group": 23, "slide": 34, "section": "Trauma", "topic": "Globe rupture", "skill": "Management", "stem": "A patient with a teardrop pupil and a positive Seidel sign has a ruptured globe. Which actions are appropriate in the ED?", "options": [{"letter": "A", "text": "Measure intraocular pressure with a Tono-Pen"}, {"letter": "B", "text": "Elevate the head of the bed to 30 degrees"}, {"letter": "C", "text": "Give antiemetics to prevent vomiting"}, {"letter": "D", "text": "Give IV broad-spectrum antibiotics and update Tdap"}, {"letter": "E", "text": "Apply a pressure patch over the eye"}, {"letter": "F", "text": "Place a rigid eye shield"}], "answer": "BCDF", "explanation": "Globe rupture (teardrop pupil, **Seidel sign**, vitreous extrusion, APD): no manipulation, no tonometry, rigid shield (never a patch), HOB 30°, NPO, IV antibiotics, Tdap, antiemetics, CT orbit (no MRI with metal), and emergent ophthalmology for the OR.", "objective": "", "hint": "The rule is **no pressure** on the eye from any source — hands, dressings, instruments, or retching. Everything else is about protecting the open wound from infection until the OR."}, {"id": "24", "group": 24, "slide": 34, "section": "Trauma", "topic": "Chemical burn", "skill": "Management", "stem": "A worker splashes drain cleaner into both eyes. What is the first action in the ED?", "options": [{"letter": "A", "text": "Measure intraocular pressure and consult ophthalmology"}, {"letter": "B", "text": "Immediate copious irrigation until the pH is 7.0–7.4"}, {"letter": "C", "text": "Check visual acuity and perform fluorescein staining"}, {"letter": "D", "text": "Apply a topical antibiotic and a cycloplegic"}], "answer": "B", "explanation": "Chemical burns are **irrigated immediately — before acuity, before any exam** — with liters of saline via Morgan lens until pH is 7.0–7.4 and stays neutral on recheck 30 minutes later; sweep the fornices, then fluorescein, antibiotics, cycloplegic, tetanus. Alkali (lye, cement, ammonia) is worse than acid; limbal ischemia marks a severe burn needing admission.", "objective": "", "hint": "An **alkali** keeps penetrating by liquefactive necrosis for as long as it stays on the eye, so the clock, not the examination, decides the outcome. Registration and acuity can wait."}, {"id": "25", "group": 25, "slide": 38, "section": "Ears", "topic": "Otitis externa", "skill": "Pharmacology", "stem": "A swimmer has otalgia, a positive tug test, and a swollen canal that prevents visualization of the tympanic membrane. Which drops are appropriate, and why?", "options": [{"letter": "A", "text": "Acetic acid drops alone, because the infection is fungal"}, {"letter": "B", "text": "Fluoroquinolone drops, because aminoglycosides are ototoxic if the TM is perforated"}, {"letter": "C", "text": "Oral amoxicillin, because topical drops cannot penetrate edema"}, {"letter": "D", "text": "Neomycin/polymyxin drops, because they cover Pseudomonas best"}], "answer": "B", "explanation": "Otitis externa (Pseudomonas, S. aureus) is treated with 2% acetic acid/hydrocortisone or aminoglycoside drops when the TM is intact, but **fluoroquinolone (ofloxacin/cipro) drops are required if the TM is perforated or cannot be seen** because aminoglycosides are ototoxic. Add a wick if the canal is swollen shut and keep the ear dry.", "objective": "", "hint": "When you cannot confirm the drum is intact, assume whatever you instill will reach the **middle ear**. Choose the class that is safe there, and place a wick if the canal is swollen shut."}, {"id": "26", "group": 26, "slide": 38, "section": "Ears", "topic": "Acute otitis media", "skill": "Management", "stem": "A child is diagnosed with acute otitis media. Which features mean antibiotics should be started rather than watchful waiting?", "options": [{"letter": "A", "text": "Bilateral disease in a child under 2 years"}, {"letter": "B", "text": "New otorrhea"}, {"letter": "C", "text": "Unilateral disease with mild pain"}, {"letter": "D", "text": "An air-fluid level behind the TM"}, {"letter": "E", "text": "Fever above 102.2 °F"}, {"letter": "F", "text": "Otalgia lasting more than 48 hours"}], "answer": "ABEF", "explanation": "The watchful-waiting algorithm: **otorrhea, severe symptoms (otalgia over 48 hours or fever over 102.2 °F), or bilateral disease under age 2** all mean treat with high-dose amoxicillin (Augmentin if it fails, cefdinir if penicillin-allergic). Otherwise, analgesia and a safety-net prescription with recheck in 48–72 hours.", "objective": "", "hint": "The algorithm asks three questions in order — is the drum leaking, is the illness **severe** by pain duration or fever, and how many ears are involved in a child under two. A yes to any one ends the waiting."}, {"id": "27", "group": 27, "slide": 38, "section": "Ears", "topic": "Malignant otitis externa", "skill": "Identification", "stem": "An elderly diabetic has deep ear pain out of proportion, otorrhea persisting despite drops, granulation tissue on the canal floor, and a new facial droop. What is the diagnosis and disposition?", "options": [{"letter": "A", "text": "Simple otitis externa; discharge with fluoroquinolone drops"}, {"letter": "B", "text": "Ramsay Hunt syndrome; discharge with oral antivirals"}, {"letter": "C", "text": "Acute otitis media; discharge with high-dose amoxicillin"}, {"letter": "D", "text": "Malignant otitis externa; admit for IV antipseudomonal therapy"}], "answer": "D", "explanation": "**Malignant (necrotizing) otitis externa** is Pseudomonas osteomyelitis of the skull base in the elderly, diabetic, or immunocompromised: granulation tissue in the canal, pain out of proportion, CN VII palsy. CT temporal bone, ESR/CRP, IV antipseudomonal therapy (cipro or pip-tazo), ENT, and admission.", "objective": "", "hint": "Granulation tissue at the bone–cartilage junction means the infection has reached the **skull base**, and a cranial nerve palsy confirms it. Pseudomonas osteomyelitis is not an outpatient disease."}, {"id": "28", "group": 28, "slide": 40, "section": "Ears", "topic": "TM perforation", "skill": "Counseling & prevention", "stem": "A patient slapped on the ear has otorrhea, tinnitus, and a small tympanic membrane perforation with no vertigo or facial weakness. What is the correct management?", "options": [{"letter": "A", "text": "Urgent same-day ENT for surgical repair"}, {"letter": "B", "text": "Keep the ear dry, avoid Valsalva, and expect healing in 4–6 weeks with ENT follow-up"}, {"letter": "C", "text": "Oral amoxicillin and pneumatic otoscopy in 48 hours"}, {"letter": "D", "text": "Neomycin drops and daily irrigation of the canal"}], "answer": "B", "explanation": "A **simple perforation (under 25% of the drum) heals spontaneously in 4–6 weeks**: keep water out, no Valsalva or nose-blowing, ofloxacin drops only if contaminated (no aminoglycosides), tetanus, ENT follow-up. Hearing loss, vertigo, ataxia, or facial weakness make it complicated and need same-day ENT.", "objective": "", "hint": "A **simple** perforation under a quarter of the drum closes on its own; the job is to keep water and pressure off it and avoid ototoxic drops. Urgency belongs to perforations with inner-ear signs."}, {"id": "29", "group": 29, "slide": 41, "section": "Ears", "topic": "Mastoiditis", "skill": "Complications", "stem": "A child recovering from otitis media develops fever, postauricular tenderness, and an auricle displaced outward and down. What is the correct ED plan?", "options": [{"letter": "A", "text": "CT mastoid with contrast, IV vancomycin plus ceftriaxone, ENT consult, admit"}, {"letter": "B", "text": "High-dose oral amoxicillin and recheck in 48–72 hours"}, {"letter": "C", "text": "Fluoroquinolone ear drops and keep the ear dry"}, {"letter": "D", "text": "Oral Augmentin with outpatient ENT in one week"}], "answer": "A", "explanation": "**Mastoiditis** (postauricular tenderness, protruding auricle, abnormal TM after AOM) needs CT mastoid with IV contrast to look for abscess, IV vancomycin plus ceftriaxone or Unasyn (vanco + Zosyn if Pseudomonas), ENT consult, and admission. It is unlikely if the middle-ear exam is normal.", "objective": "", "hint": "Infection has left the middle ear for the **bone** behind it, next door to the sigmoid sinus and the meninges. The work-up asks whether an abscess has formed, and the antibiotics go in by IV."}, {"id": "30", "group": 30, "slide": 43, "section": "Ears", "topic": "Auricular hematoma", "skill": "Management", "stem": "A wrestler presents with a tense fluctuant swelling of the pinna that began 24 hours ago. What is the appropriate ED management?", "options": [{"letter": "A", "text": "Incision and drainage without a dressing"}, {"letter": "B", "text": "Needle aspiration followed by a pressure bolster dressing"}, {"letter": "C", "text": "Oral antibiotics alone and recheck in 48 hours"}, {"letter": "D", "text": "Ice and NSAIDs with ENT follow-up in one week"}], "answer": "B", "explanation": "Auricular hematoma: **needle aspiration if small and under 48 hours, I&D if large or 48 hours to 7 days**, then a bolster dressing to prevent re-accumulation, recheck in 24 hours. Untreated, the cartilage necroses into a cauliflower ear; bilateral hematomas in a child prompt an abuse work-up.", "objective": "", "hint": "Blood between perichondrium and cartilage starves the cartilage, and the end result is a **cauliflower** ear. Timing and size pick the drainage method, and whatever you drain must be kept from refilling."}, {"id": "31", "group": 31, "slide": 45, "section": "Nose & Oral/Throat", "topic": "Pharyngitis", "skill": "Diagnostics & imaging", "stem": "Which clinical features are Centor criteria for streptococcal pharyngitis?", "options": [{"letter": "A", "text": "Tender anterior cervical adenopathy"}, {"letter": "B", "text": "Posterior cervical adenopathy"}, {"letter": "C", "text": "Rhinorrhea and hoarseness"}, {"letter": "D", "text": "Tonsillar exudate"}, {"letter": "E", "text": "Absence of cough"}, {"letter": "F", "text": "Fever"}], "answer": "ADEF", "explanation": "**Centor: fever, tonsillar exudate, tender anterior cervical nodes, absence of cough** (McIsaac adds age), valid only in the first 3 days of symptoms. 0–1 no test; 2–3 rapid strep; 4–5 treat with penicillin VK or amoxicillin for 10 days — which prevents rheumatic fever but not post-strep glomerulonephritis.", "objective": "", "hint": "Centor rewards findings of a focal **bacterial** throat infection and penalizes the one symptom that suggests a viral URI. Posterior nodes with fatigue point to mono instead, and the score applies only within the first three days."}, {"id": "32", "group": 32, "slide": 46, "section": "Nose & Oral/Throat", "topic": "Ear and nasal foreign body", "skill": "Management", "stem": "Which statements correctly describe the removal of ear and nasal foreign bodies?", "options": [{"letter": "A", "text": "A live insect is killed with viscous lidocaine or mineral oil before removal"}, {"letter": "B", "text": "A button battery is removed emergently without applying any liquid"}, {"letter": "C", "text": "Vegetable matter is not irrigated because it swells"}, {"letter": "D", "text": "Smooth round nasal objects are best grabbed blindly with forceps"}, {"letter": "E", "text": "The mother's kiss uses positive pressure to expel a nasal foreign body"}, {"letter": "F", "text": "Most non-battery foreign bodies must be removed the same day"}], "answer": "ABCE", "explanation": "Ear FB: forceps, irrigation, suction, or glue; live insect — lidocaine or mineral oil for 15 minutes first; **never apply liquid to a button battery** — remove emergently. Nasal FB: mother's kiss, balloon catheter, forceps for anterior graspable objects, with aspiration risk if pushed posteriorly. Most other FBs can wait days for ENT; batteries, insects, and penetrating objects cannot.", "objective": "", "hint": "Ask what the object is **made of** and whether it is alive before choosing a method — liquids, pressure, and blind grabbing each have one scenario where they cause harm. Aspiration is the nasal danger."}, {"id": "33", "group": 33, "slide": 47, "section": "Nose & Oral/Throat", "topic": "Acute sinusitis", "skill": "Management", "stem": "A patient has facial pressure, nasal obstruction, and purulent drainage. Which features justify starting antibiotics for acute sinusitis?", "options": [{"letter": "A", "text": "Green or yellow discharge"}, {"letter": "B", "text": "Symptoms present for 7 days"}, {"letter": "C", "text": "Maxillary tooth pain"}, {"letter": "D", "text": "High fever with purulent nasal discharge"}, {"letter": "E", "text": "Worsening after initial improvement at days 5–7"}, {"letter": "F", "text": "Symptoms with no improvement after 10 days"}], "answer": "DEF", "explanation": "Sinusitis is viral most of the time and gets **no antibiotics almost always** — intranasal steroids 10–21 days, saline, NSAIDs. Antibiotics (amoxicillin 875 or doxycycline 100 for 5–7 days, Augmentin, Levaquin) only for no improvement after 10 days, double-sickening at 5–7 days, or high fever with purulent discharge. Discharge color does not distinguish viral from bacterial.", "objective": "", "hint": "Viral disease is the rule, and discharge **color** means nothing. Bacteria are suspected only from the time course — too long, a second decline after getting better, or too severe at the outset."}, {"id": "34", "group": 34, "slide": 50, "section": "Nose & Oral/Throat", "topic": "Epiglottitis", "skill": "Management", "stem": "An adult returns for a second visit with a rapidly worsening sore throat, drooling, and a muffled voice, but the oropharynx looks normal. What is the first priority?", "options": [{"letter": "A", "text": "Send the patient to CT neck with contrast"}, {"letter": "B", "text": "Perform a tongue-blade exam to visualize the posterior pharynx"}, {"letter": "C", "text": "Start oral amoxicillin and discharge with return precautions"}, {"letter": "D", "text": "Secure the airway in a controlled setting, avoiding supraglottic devices"}], "answer": "D", "explanation": "A second visit for worsening sore throat with a normal oropharynx is **epiglottitis — airway first**: keep calm and upright, early controlled intubation by the most experienced operator with a surgical airway ready, and no LMA because it sits on the swollen tissue. Fiberoptic laryngoscopy is the gold standard, lateral neck shows the thumbprint sign; ceftriaxone or cefotaxime plus vancomycin; ICU.", "objective": "", "hint": "A sore throat out of proportion to a normal-looking throat means the swelling is **below** what you can see. Any device that sits on that tissue, and any maneuver that agitates the patient, can close the airway."}, {"id": "35", "group": 35, "slide": 51, "section": "Nose & Oral/Throat", "topic": "Epistaxis", "skill": "Management", "stem": "An elderly anticoagulated patient has a nosebleed running down both sides of the throat that anterior pressure does not control. What is the diagnosis and disposition?", "options": [{"letter": "A", "text": "Posterior epistaxis from the sphenopalatine artery; posterior balloon and admission"}, {"letter": "B", "text": "Posterior epistaxis; bilateral silver nitrate cautery and discharge"}, {"letter": "C", "text": "Anterior epistaxis; nasal tampon and follow-up in 1–3 days"}, {"letter": "D", "text": "Anterior epistaxis from Kiesselbach's plexus; silver nitrate and discharge"}], "answer": "A", "explanation": "Bleeding into both nares and the throat that anterior pressure cannot control is **posterior epistaxis (sphenopalatine artery)** — posterior balloon or Foley, TXA, coags, ENT, and admission to a monitored bed. Anterior bleeds (Kiesselbach's) follow the ladder: pressure, irrigate, Afrin, silver nitrate (one side only), tampon/balloon, TXA, IR — discharged with antibiotics while packed and removal in 1–3 days.", "objective": "", "hint": "Bleeding that reaches **both** nares and the pharynx comes from behind the reach of a pinch. That source is rare, serious, and needs a monitored bed with ENT — and cautery is never applied to both sides of the septum."}, {"id": "36", "group": 36, "slide": 52, "section": "Nose & Oral/Throat", "topic": "Peritonsillar abscess", "skill": "Management", "stem": "A young adult has a unilateral sore throat, trismus, a hot-potato voice, and a uvula deviated away from the swollen side. What is the appropriate ED management?", "options": [{"letter": "A", "text": "Emergent intubation and ICU admission"}, {"letter": "B", "text": "Lateral neck X-ray and IV vancomycin alone"}, {"letter": "C", "text": "Oral penicillin for 10 days and discharge"}, {"letter": "D", "text": "Needle aspiration or I&D, Unasyn or Augmentin, and steroids"}], "answer": "D", "explanation": "Peritonsillar abscess (trismus, uvular deviation, hot-potato voice): **needle aspiration or I&D plus Unasyn/Augmentin or clindamycin, and dexamethasone**; abscesses under 2 cm may be treated medically alone. Intraoral ultrasound is preferred to distinguish abscess from cellulitis; discharge after drainage if tolerating PO with a 24–48 hour recheck.", "objective": "", "hint": "Pus between the tonsil and its capsule needs to come **out** — unless the collection is under 2 cm, when medical therapy alone is emerging. Antibiotics must cover a polymicrobial mix, and an anti-inflammatory dose helps the jaw open."}, {"id": "37", "group": 37, "slide": 53, "section": "Nose & Oral/Throat", "topic": "Retropharyngeal abscess", "skill": "Diagnostics & imaging", "stem": "A febrile toddler refuses to move the neck, drools, and has a bulge of the posterior pharyngeal wall. How should the lateral neck X-ray be obtained, and what confirms the diagnosis?", "options": [{"letter": "A", "text": "In neutral position while crying; MRI confirms"}, {"letter": "B", "text": "In extension on inspiration; CT neck with contrast confirms"}, {"letter": "C", "text": "In any position; fiberoptic laryngoscopy confirms"}, {"letter": "D", "text": "In flexion on expiration; ultrasound confirms"}], "answer": "B", "explanation": "Retropharyngeal abscess: lateral neck film **in extension on inspiration** (flexion, expiration, and crying falsely widen the prevertebral tissue; C2 over 7 mm, C6 over 14 mm in children) and **CT neck with contrast** to distinguish abscess from cellulitis. Airway first, Unasyn or clindamycin (add vancomycin if moderate–severe), steroids, nebulized epinephrine, PICU or OR.", "objective": "", "hint": "Flexion, expiration, and crying all make the **prevertebral** soft tissue look falsely thick on the plain film. The definitive study is the one that separates a drainable abscess from cellulitis."}, {"id": "38", "group": 38, "slide": 55, "section": "Nose & Oral/Throat", "topic": "Ludwig's angina", "skill": "Management", "stem": "A patient with a decayed molar has a woody, brawny floor of the mouth, an elevated tongue, drooling, and tripoding. What is the correct initial ED management?", "options": [{"letter": "A", "text": "CT neck with contrast before any intervention"}, {"letter": "B", "text": "Sit upright, call ENT or oral surgery, and plan an early surgical airway"}, {"letter": "C", "text": "Oral Augmentin and dental follow-up in 24–48 hours"}, {"letter": "D", "text": "Supine positioning and rapid-sequence intubation with paralytics"}], "answer": "B", "explanation": "**Ludwig's angina** is a bilateral submandibular deep-space infection from a dental source: sit the patient up, emergent ENT/oral surgery, early airway management with awake fiberoptic intubation and cricothyrotomy ready (avoid paralytics and blind supine attempts), Unasyn, clindamycin, or PCN G plus metronidazole, steroids, nebulized epinephrine, ICU/OR. Treat first; CT once the airway is secure.", "objective": "", "hint": "The tongue is being pushed up and back by a bilateral submandibular infection, so this airway is **distorted** and will not open with a blind supine attempt. Treat first; image once the airway is safe."}, {"id": "39", "group": 39, "slide": 56, "section": "Nose & Oral/Throat", "topic": "Nasal fracture", "skill": "Management", "stem": "A patient with an obvious nasal deformity after a punch has bilateral nasal obstruction and a boggy, bluish septum. What is the correct management?", "options": [{"letter": "A", "text": "Nasal X-ray, ice, and ENT follow-up in 2 weeks"}, {"letter": "B", "text": "Afrin, silver nitrate cautery, and discharge"}, {"letter": "C", "text": "Drain and pack the septal hematoma now; no imaging; ENT in 5–7 days"}, {"letter": "D", "text": "CT facial bones and immediate closed reduction"}], "answer": "C", "explanation": "An obvious nasal fracture needs no imaging; a **septal hematoma is drained and packed immediately** or the cartilage necroses into a saddle-nose deformity within days. Augmentin for open fractures, TXA for bleeding, ice, HOB up; reduction is deferred to ENT at 5–7 days once swelling resolves. Clear rhinorrhea means CSF leak.", "objective": "", "hint": "The fracture is already diagnosed by looking at it. The boggy septum is the emergency — cartilage deprived of blood dies in **days** and collapses the nose; bones are realigned only after swelling settles."}, {"id": "40", "group": 40, "slide": 55, "section": "Nose & Oral/Throat", "topic": "Tooth avulsion", "skill": "Management", "stem": "A parent calls about a permanent tooth knocked out 20 minutes ago. What advice is correct?", "options": [{"letter": "A", "text": "Handle by the crown, rinse gently, and reimplant now or transport in milk"}, {"letter": "B", "text": "Keep the tooth dry in a tissue and come in within 24 hours"}, {"letter": "C", "text": "Scrub the root clean and store the tooth in water"}, {"letter": "D", "text": "Reimplant only if it is a primary tooth"}], "answer": "A", "explanation": "Tooth avulsion: **handle by the crown only, rinse, reimplant immediately (best within 60 minutes)**; if not possible, transport in Hank's solution, then milk, then saliva — never water or dry. Then splint, penicillin VK or doxycycline, tetanus, and a dentist within 24 hours. Primary teeth are never reimplanted.", "objective": "", "hint": "Periodontal ligament cells on the **root** die after about an hour dry, so never touch or scrub them, and the best storage medium is the socket itself. Baby teeth are never put back."}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  const LET = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
+  const normAns = a => (Array.isArray(a) ? a.join('') : String(a == null ? '' : a))
+    .toUpperCase().replace(/[^A-Z]/g, '').split('')
+    .filter((v, i, z) => z.indexOf(v) === i).sort().join('');
+  questions.forEach(q => { const n = normAns(q.answer); q.multi = q.multi === true || n.length > 1; q.answer = n; });
+  const picks = {};          // question id -> letters picked but not yet submitted (multi only)
+  const second = {};         // question id -> second-attempt answer (NOT scored)
+  const flagged = {};        // question id -> true, set by the student at any point
+  function shuffleOptions(item) {
+    if (!item || !item.options || item.options.length < 2) return;
+    const keys = new Set(String(item.answer).split('').map(l => (item.options.find(o => o.letter === l) || {}).text));
+    const texts = item.options.map(o => o.text);
+    for (let i = texts.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [texts[i], texts[j]] = [texts[j], texts[i]]; }
+    item.options = texts.map((t, i) => ({ letter: LET[i], text: t }));
+    item.answer = item.options.filter(o => keys.has(o.text)).map(o => o.letter).join('');
+  }
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter (FIRST attempt — this is what is scored)
+  const tutor = {};          // question id -> tutor session (see startTutor)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);
+  let page = 0;
+  let lastGrade = null;
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+  const fmt = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  const optText = (item, letters) => String(letters == null ? '' : letters).split('')
+    .map(l => { const o = item.options.find(x => x.letter === l); return o ? o.text : ''; })
+    .filter(Boolean).join(' \u00b7 ');
+  const letters = v => String(v == null ? '' : v).split('').join(', ');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  // ================= Hint, then the same question again =================
+  // A missed question is never replaced by new questions. The student gets a hint
+  // that points hard at the answer without naming it, then the SAME question again.
+  // The FIRST attempt is what is scored; the second only decides whether the concept
+  // is recorded as relearned or still shaky.
+  function hintOf(q) {
+    const r = q.remediation || {};
+    return q.hint || r.hint || ((r.steps || [])[0] || {}).teach || '';
+  }
+  function hasTutor(q) { return !!hintOf(q); }
+
+  function startTutor(q) {
+    tutor[q.id] = { status: 'active', first: answers[q.id] };
+    delete picks[q.id];
+  }
+
+  function isRetrying(q) { const t = tutor[q.id]; return !!(t && t.status === 'active'); }
+
+  function secondAnswer(q, picked) {
+    const t = tutor[q.id];
+    if (!t || t.status !== 'active') return;
+    second[q.id] = picked;
+    t.status = picked === q.answer ? 'mastered' : 'review';
+  }
+
+  // The option already shown to be wrong is struck out on the retry. A select-all
+  // answer is a set rather than one claim, so there every option stays live.
+  function elimOf(q) { const t = tutor[q.id]; return (t && !q.multi && t.first) ? t.first : ''; }
+
+  // A question is "resolved" (lets its follow-up appear) once answered right,
+  // answered wrong with no hint to give, or the second attempt is in.
+  function resolved(q) {
+    if (answers[q.id] === undefined) return false;
+    if (answers[q.id] === q.answer || !hasTutor(q)) return true;
+    return !isRetrying(q);
+  }
+
+  function tutorStatus(q) { const t = tutor[q.id]; return t ? t.status : null; }
+
+  function hintHtml(q) {
+    return '<div class="tutor"><div class="tutor-head">Hint</div>' +
+      '<div class="tnode active hint"><span class="tlabel">Try again \u2014 same question</span>' +
+      '<div class="teach">' + fmt(hintOf(q)) + '</div></div></div>';
+  }
+
+  // Flagging: available on every question in every mode, right or wrong, answered or
+  // not. A flagged question joins the missed list and the copy-out, so a question that
+  // was guessed correctly can still be carried into the next round of study.
+  function flagHtml(q) {
+    const on = !!flagged[q.id];
+    return '<div class="flagrow"><button class="flagbtn' + (on ? ' on' : '') + '" data-flag="' +
+      esc(q.id) + '">\u2691 ' + (on ? 'Flagged' : 'Flag for review') + '</button></div>';
+  }
+
+  function bindFlags() {
+    $('main').querySelectorAll('[data-flag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-flag');
+        if (flagged[id]) delete flagged[id]; else flagged[id] = true;
+        if (mode === 'missed') {                 // toggle in place; the list is rebuilt on re-entry
+          btn.classList.toggle('on', !!flagged[id]);
+          btn.textContent = '\u2691 ' + (flagged[id] ? 'Flagged' : 'Flag for review');
+          return;
+        }
+        renderPage(true);
+      });
+    });
+  }
+
+  // Collapsed record of the retry, shown in the review screens
+  function trailHtml(q) {
+    const t = tutor[q.id];
+    if (!t) return '';
+    const sec = second[q.id];
+    let html = '<div class="tutor"><div class="tutor-head">Hint and second attempt</div>' +
+      '<div class="tnode done"><div class="teach">' + fmt(hintOf(q)) + '</div>' +
+      '<div class="firstpick">First answer: ' + esc(letters(t.first)) + '. ' + fmt(optText(q, t.first)) + '</div>';
+    if (sec === undefined) html += '<div class="nudge">Second attempt not taken.</div>';
+    else html += '<div class="feedback ' + (t.status === 'mastered' ? 'good' : 'bad') + '"><div class="verdict">' +
+      (t.status === 'mastered' ? '\u2713 Correct on the second attempt'
+        : '\u2717 Second attempt: ' + esc(letters(sec)) + '. ' + fmt(optText(q, sec))) + '</div></div>';
+    return html + '</div></div>';
+  }
+
+  // ================= Rendering =================
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen, first) {
+    const good = chosen === q.answer;
+    const keyTxt = optText(q, q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '\u2713 Correct' : '\u2717 Incorrect \u2014 correct answer' +
+      (q.multi ? 's' : '') + ': ' + esc(letters(q.answer)) + (keyTxt ? '. ' + fmt(keyTxt) : '')) + '</div>';
+    if (!good && q.multi) {
+      const got = String(chosen || '').split('').filter(Boolean);
+      const missed = String(q.answer).split('').filter(l => got.indexOf(l) === -1);
+      const extra = got.filter(l => q.answer.indexOf(l) === -1), bits = [];
+      if (missed.length) bits.push('missed ' + missed.join(', '));
+      if (extra.length) bits.push('wrongly included ' + extra.join(', '));
+      if (bits.length) html += '<div class="obj" style="font-style:normal">You ' + esc(bits.join(' and ')) + '.</div>';
+    }
+    if (first !== undefined && first !== chosen) {
+      html += '<div class="firstpick">First attempt: ' + esc(letters(first)) + '. ' + fmt(optText(q, first)) +
+        (good ? ' \u2014 corrected after the hint.' : ' \u2014 also incorrect.') + '</div>';
+    }
+    if (q.explanation) html += '<div>' + fmt(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function questionHtml(q) {
+    const first = answers[q.id];
+    const sec = second[q.id];
+    const retry = isRetrying(q) && mode === 'exam';
+    const answered = first !== undefined && !retry;
+    const chosen = sec !== undefined ? sec : first;
+    const status = tutorStatus(q);
+    const sel = answered ? String(chosen || '') : (q.multi ? (picks[q.id] || []).join('') : '');
+    const dead = retry ? elimOf(q) : '';
+
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    if (status === 'mastered') html += '<span class="badge mastered">Right on the second try</span>';
+    else if (status === 'review') html += '<span class="badge review">Missed twice</span>';
+    else if (status === 'active') html += '<span class="badge active">Second attempt</span>';
+    html += '<div class="stem">' + fmt(q.stem) + '</div>';
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+
+    if (retry) {
+      html += '<div class="feedback tutoring"><div class="verdict">\u2717 Not quite \u2014 ' +
+        esc(letters(first)) + '. ' + fmt(optText(q, first)) + '</div>' +
+        '<div>Read the hint, then answer the same question again. Your first answer is the one that is scored.</div></div>';
+      html += hintHtml(q);
+    }
+
+    if (q.multi && !answered) html += '<div class="sata-note">Select all that apply.</div>';
+    html += '<div class="opts">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      const hit = sel.indexOf(o.letter) !== -1;
+      const out = dead.indexOf(o.letter) !== -1;
+      if (answered) {
+        if (hit) cls += q.answer.indexOf(o.letter) !== -1 ? ' correct' : ' incorrect';
+        else if (q.answer.indexOf(o.letter) !== -1) cls += ' correct';
+        else cls += ' dim';
+      } else if (out) cls += ' incorrect elim';
+      else if (hit) cls += ' picked';
+      const mark = (q.multi ? '<span class="box' + (hit ? ' on' : '') + '">' + (hit ? '\u2713' : '') + '</span>' : '') +
+        '<span class="letter">' + esc(o.letter) + '.</span>';
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered || out || mode !== 'exam' ? ' disabled' : '') + '>' +
+        mark + '<span>' + fmt(o.text) + '</span></button>';
+    });
+    html += '</div>';
+    if (q.multi && !answered) {
+      const n = (picks[q.id] || []).length;
+      html += '<div class="sata-bar"><button class="opt-submit" data-submit="' + esc(q.id) + '"' +
+        (n ? '' : ' disabled') + '>Submit answer</button><span class="sata-count">' +
+        (n ? n + ' selected' : 'Choose one or more') + '</span></div>';
+    }
+    if (answered) html += feedbackHtml(q, chosen, sec !== undefined ? first : undefined);
+    html += flagHtml(q);
+    if (mode !== 'exam' && tutor[q.id]) {
+      html += '<details class="trail"><summary>Hint and second attempt</summary>' + trailHtml(q) + '</details>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: a follow-up appears only once the question before it is
+    // resolved — answered correctly, or its guided review has finished.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && resolved(group[shown - 1])) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      const blocked = group[shown - 1];
+      const inTutor = answers[blocked.id] !== undefined && !resolved(blocked);
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') + ' in this case — ' +
+        (inTutor ? 'take the second attempt above to continue' : 'answer above to continue') + '</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Option clicks: first attempt, then the second attempt on the same question
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      const commit = picked => {
+        const q = byId[qid];
+        if (answers[qid] === undefined) {
+          answers[qid] = picked;
+          if (picked !== q.answer && hasTutor(q)) startTutor(q);
+        } else if (isRetrying(q)) secondAnswer(q, picked);
+        renderPage(true);
+      };
+      card.querySelectorAll(':scope > .opts > .opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || btn.disabled) return;
+          const q = byId[qid];
+          if (answers[qid] !== undefined && !isRetrying(q)) return;
+          const letter = btn.getAttribute('data-letter');
+          if (q.multi) {                       // toggle; nothing is committed until Submit
+            const cur = picks[qid] || (picks[qid] = []);
+            const at = cur.indexOf(letter);
+            if (at === -1) cur.push(letter); else cur.splice(at, 1);
+            return renderPage(true);
+          }
+          commit(letter);
+        });
+      });
+      const sub = card.querySelector(':scope > .sata-bar > .opt-submit');
+      if (sub) sub.addEventListener('click', () => {
+        if (mode !== 'exam') return;
+        const cur = picks[qid] || [];
+        if (cur.length) commit(cur.slice().sort().join(''));
+      });
+    });
+    bindFlags();
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) {
+      window.scrollTo(0, savedY);
+      // Bring the newest tutor question / unlocked follow-up into view if it landed below the fold
+      const target = $('main').querySelector('.tnode.active') || $('main').querySelector('.qcard > .feedback');
+      if (target) {
+        const r = target.getBoundingClientRect();
+        const navH = $('navbar').offsetHeight || 0;
+        if (r.bottom > window.innerHeight - navH) {
+          window.scrollBy({ top: Math.min(r.top - 80, r.bottom - (window.innerHeight - navH) + 16), behavior: 'smooth' });
+        }
+      }
+    } else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  // ================= Grading =================
+  // Two lenses for the results page:
+  //   topic — WHAT you were tested on (e.g. "Paget's disease of bone"). Falls back to `section`.
+  //   skill — WHAT KIND of thinking (Identification, Disease process, Diagnostics & imaging,
+  //           Management, Complications…). Optional; the skill card is hidden when no question has one.
+  const topicOf = q => q.topic || q.section || 'All questions';
+  const skillOf = q => q.skill || null;
+
+  function tally(list, keyFn) {
+    const m = {};
+    list.forEach(q => {
+      const k = keyFn(q); if (!k) return;
+      if (!m[k]) m[k] = { name: k, correct: 0, total: 0, mastered: 0, review: 0, missed: 0 };
+      const e = m[k];
+      e.total++;
+      if (answers[q.id] === q.answer) { e.correct++; return; }
+      if (answers[q.id] === undefined) return;
+      const st = tutor[q.id] ? tutor[q.id].status : null;
+      if (st === 'mastered') e.mastered++; else if (st === 'review') e.review++; else e.missed++;
+    });
+    return Object.keys(m).map(k => { const e = m[k]; e.pct = e.total ? e.correct / e.total : 0; return e; })
+      .sort((a, b) => a.pct - b.pct || b.total - a.total);        // weakest first
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    graded.forEach(q => { if (answers[q.id] === q.answer) correct++; });
+    const ts = { started: 0, mastered: 0, review: 0, active: 0, tq: 0, tqRight: 0 };
+    Object.keys(tutor).forEach(id => {
+      const t = tutor[id];
+      ts.started++; ts[t.status]++;
+      if (second[id] !== undefined) { ts.tq++; if (t.status === 'mastered') ts.tqRight++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial,
+             topics: tally(graded, topicOf), skills: tally(graded, skillOf), ts };
+  }
+
+  function missedQuestions() {                 // wrong on the first attempt, or flagged
+    return questions.filter(q => flagged[q.id] ||
+      (answers[q.id] !== undefined && answers[q.id] !== q.answer));
+  }
+
+  // Lowest-scoring entries (ties included) — only meaningful when there's something to compare
+  function weakest(entries) {
+    if (entries.length < 2) return [];
+    const lo = entries[0].pct, hi = entries[entries.length - 1].pct;
+    if (lo === hi) return [];                                       // all equal: nothing stands out
+    return entries.filter(e => e.pct === lo);
+  }
+
+  function barsHtml(entries) {
+    const weakSet = weakest(entries).map(e => e.name);
+    return entries.map(e => {
+      const p = Math.round(e.pct * 100);
+      const cls = p >= 80 ? 'hi' : (weakSet.indexOf(e.name) !== -1 ? 'lo' : '');
+      const meta = [];
+      if (e.review) meta.push(e.review + ' still shaky');
+      if (e.missed) meta.push(e.missed + ' missed');
+      if (e.mastered) meta.push(e.mastered + ' right on the second try');
+      return '<div class="bar-row"><div class="bar-head"><span class="nm">' + esc(e.name) +
+        (weakSet.indexOf(e.name) !== -1 ? '<span class="sec-tag weak">WEAKEST</span>' : '') +
+        '</span><span class="pc"><b>' + p + '%</b> · ' + e.correct + '/' + e.total + '</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + cls + '" style="width:' + Math.max(p, 2) + '%"></div></div>' +
+        (meta.length ? '<div class="bar-meta">' + meta.join(' · ') + '</div>' : '') + '</div>';
+    }).join('');
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+    const hasSkills = r.skills.length > 0;
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + ' · first attempts</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.ts.started) html += '<div class="score-note">' + r.ts.mastered + ' of ' + r.ts.started +
+      ' missed question' + (r.ts.started === 1 ? '' : 's') + ' answered right on the second attempt</div>';
+    else if (r.partial) html += '<div class="score-note">Unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    // ---- What to work on ----
+    const wTopic = weakest(r.topics), wSkill = weakest(r.skills);
+    const missed = missedQuestions();
+    html += '<div class="card"><h2>What to work on</h2><div class="sub">Ranked from the questions you missed on the first try, plus anything you flagged</div>';
+    if (!missed.length) {
+      html += '<div class="focus-box ok"><div class="v">Nothing missed or flagged — every question right on the first try.</div></div>';
+    } else {
+      html += '<div class="focus-grid">';
+      if (wTopic.length) html += '<div class="focus-box"><div class="k">Weakest topic</div><div class="v">' +
+        wTopic.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wTopic.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      if (wSkill.length) html += '<div class="focus-box"><div class="k">Weakest skill</div><div class="v">' +
+        wSkill.map(e => esc(e.name)).join(', ') + '</div><div class="n">' +
+        wSkill.map(e => Math.round(e.pct * 100) + '% (' + e.correct + '/' + e.total + ')').join(', ') + '</div></div>';
+      html += '</div>';
+      // One line per missed concept: flagged first, then plain misses, then ones already relearned
+      const rank = { review: 0, active: 0, missed: 1, flagged: 2, mastered: 3 };
+      const items = missed.map(q => {
+        const wrong = answers[q.id] !== undefined && answers[q.id] !== q.answer;
+        let st = wrong ? (tutor[q.id] ? tutor[q.id].status : 'missed') : 'flagged';
+        if (st === 'active') st = 'review';
+        return { q, st: st, flag: !!flagged[q.id] };
+      }).sort((a, b) => rank[a.st] - rank[b.st]);
+      const label = { review: 'Still shaky', missed: 'Missed', flagged: 'Flagged', mastered: 'Relearned' };
+      html += '<ul class="todo">' + items.map(it => {
+        const sk = skillOf(it.q);
+        return '<li><span class="dot ' + it.st + '"></span><span class="what"><b>' + esc(topicOf(it.q)) + '</b>' +
+          (sk ? ' — ' + esc(sk) : '') + ' <span style="color:var(--ink-soft)">(Q' + esc(it.q.id) + ')</span></span>' +
+          '<span class="tag ' + it.st + '">' + (it.flag && it.st !== 'flagged' ? '⚑ ' : '') +
+          label[it.st] + '</span></li>';
+      }).join('') + '</ul>';
+    }
+    html += '</div>';
+
+    // ---- By topic / by skill ----
+    html += '<div class="card"><h2>By topic</h2><div class="sub">First-attempt score for each disease or concept</div>' + barsHtml(r.topics) + '</div>';
+    if (hasSkills) html += '<div class="card"><h2>By skill</h2><div class="sub">Which kind of question trips you up, across all topics</div>' + barsHtml(r.skills) + '</div>';
+
+    if (r.ts.started) {
+      html += '<div class="card"><h2>Second attempts</h2><div class="sub" style="margin-bottom:12px">How the hint-and-retry went</div><div class="tutor-stats">' +
+        '<div class="tstat t"><b>' + r.ts.started + '</b>missed on the first try</div>' +
+        '<div class="tstat m"><b>' + r.ts.mastered + '</b>right after the hint</div>' +
+        '<div class="tstat r"><b>' + (r.ts.review + r.ts.active) + '</b>still shaky</div>' +
+        '<div class="tstat"><b>' + r.ts.tqRight + '/' + r.ts.tq + '</b>second attempts right</div>' +
+        '</div></div>';
+    }
+
+    html += '<div class="results-actions">';
+    if (missed.length) html += '<button class="btn primary" id="btn-review-missed">Review missed &amp; flagged (' + missed.length + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed &amp; flagged</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          '<div class="stem">' + fmt(g[0].stem) + '</div></div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed & flagged (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed or flagged question' + (missed.length === 1 ? '' : 's');
+    bindFlags();
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  const plain = s => String(s == null ? '' : s).replace(/\*\*(.+?)\*\*/g, '$1');
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id + ' — ' + topicOf(q) + (skillOf(q) ? ' / ' + skillOf(q) : '')];
+      if (group[0].id !== q.id) lines.push('Case: ' + plain(group[0].stem));
+      lines.push(plain(q.stem));
+      q.options.forEach(o => lines.push(o.letter + '. ' + plain(o.text)));
+      if (flagged[q.id]) lines.push(answers[q.id] === q.answer
+        ? 'FLAGGED by me — answered correctly but not understood' : 'FLAGGED by me');
+      lines.push(answers[q.id] === undefined ? 'Not answered'
+        : 'My answer (first attempt, scored): ' + letters(answers[q.id]));
+      lines.push('Correct answer: ' + letters(q.answer) + '. ' + plain(optText(q, q.answer)));
+      if (q.explanation) lines.push('Rationale: ' + plain(q.explanation));
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      const t = tutor[q.id];
+      if (t) {
+        lines.push('Hint shown: ' + plain(hintOf(q)));
+        lines.push('Second attempt: ' + { mastered: 'CORRECT after the hint', review: 'still wrong \u2014 needs review',
+          active: 'not taken' }[t.status]);
+        if (second[q.id] !== undefined && t.status !== 'mastered')
+          lines.push('  picked ' + letters(second[q.id]) + '. ' + plain(optText(q, second[q.id])));
+      }
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed & flagged questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed & flagged'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => !resolved(q))) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(second).forEach(k => delete second[k]);
+    Object.keys(picks).forEach(k => delete picks[k]);
+    Object.keys(flagged).forEach(k => delete flagged[k]);
+    Object.keys(tutor).forEach(k => delete tutor[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
