@@ -1,0 +1,5446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  /* Lab table: vignettes with several lab values render them as a scannable
+     Test / Result / Reference Range table instead of a run-on sentence. */
+  .labs { width: 100%; border-collapse: separate; border-spacing: 0; margin: 10px 0 14px;
+    font-size: 0.95em; background: #fbfbf9; border: 1px solid #e3e1dc; border-radius: 10px; overflow: hidden; }
+  .labs th, .labs td { text-align: left; padding: 9px 14px; border-bottom: 1px solid #e3e1dc; vertical-align: top; }
+  .labs th { font-weight: 500; color: var(--ink-soft); }
+  .labs td:not(:first-child), .labs th:not(:first-child) { border-left: 1px solid #e3e1dc; }
+  .labs tr:last-child td { border-bottom: 0; }
+  .labs td.ref { color: var(--ink-soft); white-space: nowrap; }
+  .labs td.res { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .group.c3 .labs, .group.c4 .labs { font-size: 0.92em; }
+  .group.c3 .labs th, .group.c3 .labs td, .group.c4 .labs th, .group.c4 .labs td { padding: 5px 10px; }
+  @media (max-width: 520px) { .labs th, .labs td { padding: 7px 9px; } .labs td.ref, .labs td.res { white-space: normal; } }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  /* Flag for review: a bookmark the learner can toggle on any question at any time */
+  .flagrow { margin-top: 12px; }
+  .flagbtn { font: inherit; font-size: 0.82em; font-weight: 600; cursor: pointer; background: transparent;
+    border: 1.5px dashed var(--border); border-radius: 8px; padding: 4px 11px; color: var(--ink-soft); }
+  .flagbtn:hover { border-color: var(--amber); color: var(--amber); }
+  .flagbtn.on { background: var(--amber-bg); border-style: solid; border-color: var(--amber); color: var(--amber); }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {
+ "title": "EM Exam 3 — Keywords, Associations & Patterns",
+ "questions": [
+  {
+   "id": "1",
+   "group": 1,
+   "section": "ACLS",
+   "objective": "ACLS · cardiac arrest rhythms",
+   "stem": "Pulseless patient, monitor shows ventricular fibrillation → First intervention:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Defibrillation"
+    },
+    {
+     "letter": "B",
+     "text": "Amiodarone"
+    },
+    {
+     "letter": "C",
+     "text": "Synchronized cardioversion"
+    },
+    {
+     "letter": "D",
+     "text": "Epinephrine"
+    }
+   ],
+   "answer": "A",
+   "explanation": "VF/pulseless VT are the shockable rhythms — electricity before drugs."
+  },
+  {
+   "id": "1a",
+   "group": 1,
+   "section": "ACLS",
+   "objective": "ACLS · cardiac arrest rhythms",
+   "stem": "VF persists after the 2nd shock → Drug given now:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Epinephrine"
+    },
+    {
+     "letter": "B",
+     "text": "Magnesium"
+    },
+    {
+     "letter": "C",
+     "text": "Amiodarone"
+    },
+    {
+     "letter": "D",
+     "text": "Lidocaine"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Epinephrine enters after shock #2 and repeats q3–5 min; amiodarone waits for shock #3."
+  },
+  {
+   "id": "1b",
+   "group": 1,
+   "section": "ACLS",
+   "objective": "ACLS · cardiac arrest rhythms",
+   "stem": "VF persists after the 3rd shock → Drug added:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Adenosine"
+    },
+    {
+     "letter": "B",
+     "text": "Amiodarone"
+    },
+    {
+     "letter": "C",
+     "text": "Atropine"
+    },
+    {
+     "letter": "D",
+     "text": "Vasopressin"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Amiodarone 300 mg then 150 mg (lidocaine is the alternative)."
+  },
+  {
+   "id": "1c",
+   "group": 1,
+   "section": "ACLS",
+   "objective": "ACLS · cardiac arrest rhythms",
+   "stem": "A shock has just been delivered → Next action:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Pulse check"
+    },
+    {
+     "letter": "B",
+     "text": "Resume CPR immediately"
+    },
+    {
+     "letter": "C",
+     "text": "Give epinephrine"
+    },
+    {
+     "letter": "D",
+     "text": "Rhythm check"
+    }
+   ],
+   "answer": "B",
+   "explanation": "No pulse check after a shock — straight back to compressions for 2 minutes."
+  },
+  {
+   "id": "1d",
+   "group": 1,
+   "section": "ACLS",
+   "objective": "ACLS · cardiac arrest rhythms",
+   "stem": "Organized rhythm on the monitor, no pulse → Classification:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Fine VF"
+    },
+    {
+     "letter": "B",
+     "text": "Torsades"
+    },
+    {
+     "letter": "C",
+     "text": "PEA — non-shockable"
+    },
+    {
+     "letter": "D",
+     "text": "Shockable"
+    }
+   ],
+   "answer": "C",
+   "explanation": "PEA is diagnosed by the pulse check, not the strip. Never shock PEA/asystole."
+  },
+  {
+   "id": "1e",
+   "group": 1,
+   "section": "ACLS",
+   "objective": "ACLS · cardiac arrest rhythms",
+   "stem": "Asystole on the monitor → First drug:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Vasopressin"
+    },
+    {
+     "letter": "B",
+     "text": "Atropine"
+    },
+    {
+     "letter": "C",
+     "text": "Epinephrine"
+    },
+    {
+     "letter": "D",
+     "text": "Amiodarone"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Non-shockable arrest: CPR + epinephrine ASAP + hunt the Hs & Ts."
+  },
+  {
+   "id": "1f",
+   "group": 1,
+   "section": "ACLS",
+   "objective": "ACLS · cardiac arrest rhythms",
+   "stem": "Flat line before you call it asystole → Must confirm:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Capnography"
+    },
+    {
+     "letter": "B",
+     "text": "Doppler pulse"
+    },
+    {
+     "letter": "C",
+     "text": "Leads and gain, second lead"
+    },
+    {
+     "letter": "D",
+     "text": "POCUS"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Fine VF can masquerade as asystole — check leads/gain before declining to shock."
+  },
+  {
+   "id": "2",
+   "group": 2,
+   "section": "ACLS",
+   "objective": "ACLS · CPR and post-ROSC",
+   "stem": "Sudden rise in end-tidal CO₂ during CPR → Indicates:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "ROSC"
+    },
+    {
+     "letter": "B",
+     "text": "Hyperventilation"
+    },
+    {
+     "letter": "C",
+     "text": "Esophageal intubation"
+    },
+    {
+     "letter": "D",
+     "text": "Tension pneumothorax"
+    }
+   ],
+   "answer": "A",
+   "explanation": "EtCO₂ jump = circulation restored; do the pulse check at the 2-min mark."
+  },
+  {
+   "id": "2a",
+   "group": 2,
+   "section": "ACLS",
+   "objective": "ACLS · CPR and post-ROSC",
+   "stem": "Patient with ROSC → Disposition:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "ICU"
+    },
+    {
+     "letter": "B",
+     "text": "Telemetry floor"
+    },
+    {
+     "letter": "C",
+     "text": "Home after 6 h"
+    },
+    {
+     "letter": "D",
+     "text": "Observation unit"
+    }
+   ],
+   "answer": "A",
+   "explanation": "No ROSC patient goes to the floor or home."
+  },
+  {
+   "id": "2b",
+   "group": 2,
+   "section": "ACLS",
+   "objective": "ACLS · CPR and post-ROSC",
+   "stem": "Post-ROSC 12-lead shows STEMI → Next:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Cath lab"
+    },
+    {
+     "letter": "B",
+     "text": "Thrombolysis only"
+    },
+    {
+     "letter": "C",
+     "text": "Echo first"
+    },
+    {
+     "letter": "D",
+     "text": "Observe 24 h"
+    }
+   ],
+   "answer": "A",
+   "explanation": "12-lead on every ROSC; STEMI → cath lab."
+  },
+  {
+   "id": "2c",
+   "group": 2,
+   "section": "ACLS",
+   "objective": "ACLS · CPR and post-ROSC",
+   "stem": "Opioid overdose in cardiac arrest → First priority:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Intubation"
+    },
+    {
+     "letter": "B",
+     "text": "Flumazenil"
+    },
+    {
+     "letter": "C",
+     "text": "Naloxone"
+    },
+    {
+     "letter": "D",
+     "text": "CPR"
+    }
+   ],
+   "answer": "D",
+   "explanation": "2025 update: do not delay CPR to give naloxone."
+  },
+  {
+   "id": "3",
+   "group": 3,
+   "section": "ACLS",
+   "objective": "ACLS · Hs and Ts",
+   "stem": "Narrow-complex PEA → Think first of:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Metabolic Hs"
+    },
+    {
+     "letter": "B",
+     "text": "Hypothermia"
+    },
+    {
+     "letter": "C",
+     "text": "Mechanical Ts (tamponade, tension PTX, PE)"
+    },
+    {
+     "letter": "D",
+     "text": "Hyperkalemia"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Narrow PEA → Ts (mechanical); wide PEA → Hs (metabolic)."
+  },
+  {
+   "id": "3a",
+   "group": 3,
+   "section": "ACLS",
+   "objective": "ACLS · Hs and Ts",
+   "stem": "Wide-complex PEA → Think first of:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hyperkalemia / acidosis / sodium-channel toxin"
+    },
+    {
+     "letter": "B",
+     "text": "Tamponade"
+    },
+    {
+     "letter": "C",
+     "text": "Pulmonary embolism"
+    },
+    {
+     "letter": "D",
+     "text": "Tension pneumothorax"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Wide PEA → Hs: hyperkalemia, hydrogen ion, and Na-channel blockers (TCA)."
+  },
+  {
+   "id": "3b",
+   "group": 3,
+   "section": "ACLS",
+   "objective": "ACLS · Hs and Ts",
+   "stem": "Arrest strip: peaked T waves → wide QRS → sine wave → First drug:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Sodium bicarbonate"
+    },
+    {
+     "letter": "B",
+     "text": "Insulin + glucose"
+    },
+    {
+     "letter": "C",
+     "text": "Calcium"
+    },
+    {
+     "letter": "D",
+     "text": "Dialysis"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Hyperkalemia: calcium stabilizes the membrane first, then shift (insulin/glucose, bicarb), then remove."
+  },
+  {
+   "id": "4",
+   "group": 4,
+   "section": "ACLS",
+   "objective": "ACLS · bradycardia and blocks",
+   "stem": "Symptomatic bradycardia with a pulse → First drug:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Dopamine"
+    },
+    {
+     "letter": "B",
+     "text": "Epinephrine"
+    },
+    {
+     "letter": "C",
+     "text": "Atropine"
+    },
+    {
+     "letter": "D",
+     "text": "Isoproterenol"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Atropine first; pads on at the same time."
+  },
+  {
+   "id": "4a",
+   "group": 4,
+   "section": "ACLS",
+   "objective": "ACLS · bradycardia and blocks",
+   "stem": "Atropine fails in unstable bradycardia → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "More atropine and wait"
+    },
+    {
+     "letter": "B",
+     "text": "Adenosine"
+    },
+    {
+     "letter": "C",
+     "text": "Amiodarone"
+    },
+    {
+     "letter": "D",
+     "text": "Transcutaneous pacing"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Atropine → pacing → epinephrine/dopamine drip → transvenous pacing."
+  },
+  {
+   "id": "4b",
+   "group": 4,
+   "section": "ACLS",
+   "objective": "ACLS · bradycardia and blocks",
+   "stem": "Symptomatic Mobitz II or 3rd-degree block → Expect atropine to:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Be unreliable — go to pacing early"
+    },
+    {
+     "letter": "B",
+     "text": "Convert to sinus"
+    },
+    {
+     "letter": "C",
+     "text": "Cause VF"
+    },
+    {
+     "letter": "D",
+     "text": "Work reliably"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Infranodal blocks skip to pacing."
+  },
+  {
+   "id": "4c",
+   "group": 4,
+   "section": "ACLS",
+   "objective": "ACLS · bradycardia and blocks",
+   "stem": "Strip: PR lengthens beat to beat, then a QRS drops → Rhythm:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "3rd-degree block"
+    },
+    {
+     "letter": "B",
+     "text": "Mobitz II"
+    },
+    {
+     "letter": "C",
+     "text": "Mobitz I"
+    },
+    {
+     "letter": "D",
+     "text": "1st-degree block"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Wenckebach — observe, review AV-nodal drugs."
+  },
+  {
+   "id": "4d",
+   "group": 4,
+   "section": "ACLS",
+   "objective": "ACLS · bradycardia and blocks",
+   "stem": "Strip: P waves and QRS complexes march independently → Rhythm:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "3rd-degree AV block"
+    },
+    {
+     "letter": "B",
+     "text": "Sinus arrhythmia"
+    },
+    {
+     "letter": "C",
+     "text": "Mobitz I"
+    },
+    {
+     "letter": "D",
+     "text": "Atrial fibrillation"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Complete heart block → pacing, ICU/CCU."
+  },
+  {
+   "id": "5",
+   "group": 5,
+   "section": "ACLS",
+   "objective": "ACLS · tachycardia with a pulse",
+   "stem": "Tachycardia + hypotension, AMS, ischemic chest pain, or acute HF → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Synchronized cardioversion"
+    },
+    {
+     "letter": "B",
+     "text": "Diltiazem"
+    },
+    {
+     "letter": "C",
+     "text": "Adenosine"
+    },
+    {
+     "letter": "D",
+     "text": "Amiodarone"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Unstable = electricity (sedate if time)."
+  },
+  {
+   "id": "5a",
+   "group": 5,
+   "section": "ACLS",
+   "objective": "ACLS · tachycardia with a pulse",
+   "stem": "Polymorphic VT / torsades, unstable → Shock type:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Unsynchronized (defibrillate)"
+    },
+    {
+     "letter": "B",
+     "text": "Pacing"
+    },
+    {
+     "letter": "C",
+     "text": "Synchronized"
+    },
+    {
+     "letter": "D",
+     "text": "No shock — magnesium only"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Never synchronize to VF or polymorphic VT."
+  },
+  {
+   "id": "5b",
+   "group": 5,
+   "section": "ACLS",
+   "objective": "ACLS · tachycardia with a pulse",
+   "stem": "Torsades de pointes → Drug:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Amiodarone"
+    },
+    {
+     "letter": "B",
+     "text": "Adenosine"
+    },
+    {
+     "letter": "C",
+     "text": "Magnesium"
+    },
+    {
+     "letter": "D",
+     "text": "Procainamide"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Magnesium + defibrillate; stop QT-prolonging drugs; avoid amiodarone/procainamide/sotalol."
+  },
+  {
+   "id": "5c",
+   "group": 5,
+   "section": "ACLS",
+   "objective": "ACLS · tachycardia with a pulse",
+   "stem": "Stable narrow regular SVT after vagal maneuvers fail → Drug:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Amiodarone"
+    },
+    {
+     "letter": "B",
+     "text": "Diltiazem"
+    },
+    {
+     "letter": "C",
+     "text": "Metoprolol"
+    },
+    {
+     "letter": "D",
+     "text": "Adenosine"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Rapid push + flush; then BB/CCB if it fails."
+  },
+  {
+   "id": "5d",
+   "group": 5,
+   "section": "ACLS",
+   "objective": "ACLS · tachycardia with a pulse",
+   "stem": "Stable irregularly irregular narrow tachycardia → Drug:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Magnesium"
+    },
+    {
+     "letter": "B",
+     "text": "Adenosine"
+    },
+    {
+     "letter": "C",
+     "text": "Diltiazem or metoprolol"
+    },
+    {
+     "letter": "D",
+     "text": "Procainamide"
+    }
+   ],
+   "answer": "C",
+   "explanation": "AF/flutter = rate control; adenosine needs a regular rhythm."
+  },
+  {
+   "id": "5e",
+   "group": 5,
+   "section": "ACLS",
+   "objective": "ACLS · tachycardia with a pulse",
+   "stem": "Stable monomorphic wide-complex tachycardia → Drug:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Adenosine"
+    },
+    {
+     "letter": "B",
+     "text": "Amiodarone"
+    },
+    {
+     "letter": "C",
+     "text": "Diltiazem"
+    },
+    {
+     "letter": "D",
+     "text": "Digoxin"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Amiodarone (or procainamide/sotalol) + expert consult; pads on — VT is rarely stable."
+  },
+  {
+   "id": "5f",
+   "group": 5,
+   "section": "ACLS",
+   "objective": "ACLS · tachycardia with a pulse",
+   "stem": "Wide, irregular tachycardia (pre-excited AF) → Avoid:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Procainamide"
+    },
+    {
+     "letter": "B",
+     "text": "AV-nodal blockers (adenosine, BB, CCB)"
+    },
+    {
+     "letter": "C",
+     "text": "Magnesium"
+    },
+    {
+     "letter": "D",
+     "text": "Cardioversion"
+    }
+   ],
+   "answer": "B",
+   "explanation": "AV-nodal blockade in WPW drives conduction down the pathway → VF. Procainamide is the drug."
+  },
+  {
+   "id": "5g",
+   "group": 5,
+   "section": "ACLS",
+   "objective": "ACLS · tachycardia with a pulse",
+   "stem": "Sinus tachycardia → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Treat the cause"
+    },
+    {
+     "letter": "B",
+     "text": "Adenosine"
+    },
+    {
+     "letter": "C",
+     "text": "Cardioversion"
+    },
+    {
+     "letter": "D",
+     "text": "Metoprolol"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Sinus tach is a response — fever, pain, hypovolemia, PE, thyrotoxicosis, stimulants."
+  },
+  {
+   "id": "6",
+   "group": 6,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · ACS recognition and reperfusion",
+   "stem": "ST elevation in II, III, aVF → Culprit artery:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Left main"
+    },
+    {
+     "letter": "B",
+     "text": "Left circumflex"
+    },
+    {
+     "letter": "C",
+     "text": "LAD"
+    },
+    {
+     "letter": "D",
+     "text": "RCA"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Inferior = RCA; anterior V2–V4 = LAD; lateral I/aVL/V5–6 = LCx."
+  },
+  {
+   "id": "6a",
+   "group": 6,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · ACS recognition and reperfusion",
+   "stem": "STEMI on the ECG, first troponin normal → Action:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Activate the cath lab now"
+    },
+    {
+     "letter": "B",
+     "text": "Echo first"
+    },
+    {
+     "letter": "C",
+     "text": "Wait for the repeat troponin"
+    },
+    {
+     "letter": "D",
+     "text": "Calculate HEART"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Never wait for troponin to activate the cath lab; HEART is skipped once STEMI criteria are met."
+  },
+  {
+   "id": "6b",
+   "group": 6,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · ACS recognition and reperfusion",
+   "stem": "Troponin elevated without a STEMI pattern → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "NSTEMI"
+    },
+    {
+     "letter": "B",
+     "text": "STEMI"
+    },
+    {
+     "letter": "C",
+     "text": "Pericarditis"
+    },
+    {
+     "letter": "D",
+     "text": "Unstable angina"
+    }
+   ],
+   "answer": "A",
+   "explanation": "NSTEMI → admit."
+  },
+  {
+   "id": "6c",
+   "group": 6,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · ACS recognition and reperfusion",
+   "stem": "Rest / new-onset / crescendo pain, troponin normal → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Unstable angina"
+    },
+    {
+     "letter": "B",
+     "text": "Stable angina"
+    },
+    {
+     "letter": "C",
+     "text": "Prinzmetal angina"
+    },
+    {
+     "letter": "D",
+     "text": "NSTEMI"
+    }
+   ],
+   "answer": "A",
+   "explanation": "UA = ACS without troponin rise → HEART score decides disposition."
+  },
+  {
+   "id": "6d",
+   "group": 6,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · ACS recognition and reperfusion",
+   "stem": "Suspected ACS → First drug:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Aspirin, chewed"
+    },
+    {
+     "letter": "B",
+     "text": "Oxygen"
+    },
+    {
+     "letter": "C",
+     "text": "Nitroglycerin"
+    },
+    {
+     "letter": "D",
+     "text": "Morphine"
+    }
+   ],
+   "answer": "A",
+   "explanation": "MONA is obsolete — only the aspirin is mandatory; O₂ only if hypoxic."
+  },
+  {
+   "id": "6e",
+   "group": 6,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · ACS recognition and reperfusion",
+   "stem": "STEMI, PCI cannot be reached in time, symptoms <12 h → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Transfer regardless"
+    },
+    {
+     "letter": "B",
+     "text": "Medical management"
+    },
+    {
+     "letter": "C",
+     "text": "Fibrinolysis"
+    },
+    {
+     "letter": "D",
+     "text": "Heparin alone"
+    }
+   ],
+   "answer": "C",
+   "explanation": "PCI <90 min (<120 with transfer); otherwise lytic, goal <30 min."
+  },
+  {
+   "id": "6f",
+   "group": 6,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · ACS recognition and reperfusion",
+   "stem": "Inferior MI + hypotension + clear lungs → Suspect:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Tamponade"
+    },
+    {
+     "letter": "B",
+     "text": "Pulmonary embolism"
+    },
+    {
+     "letter": "C",
+     "text": "Cardiogenic shock"
+    },
+    {
+     "letter": "D",
+     "text": "RV infarction"
+    }
+   ],
+   "answer": "D",
+   "explanation": "STE III > II and STE V1 = RV involvement."
+  },
+  {
+   "id": "6g",
+   "group": 6,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · ACS recognition and reperfusion",
+   "stem": "RV infarction → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Nitroglycerin"
+    },
+    {
+     "letter": "B",
+     "text": "IV fluids, no nitrates"
+    },
+    {
+     "letter": "C",
+     "text": "Diuretics"
+    },
+    {
+     "letter": "D",
+     "text": "Dobutamine first"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Preload-dependent — fluids; nitro drops the pressure."
+  },
+  {
+   "id": "6h",
+   "group": 6,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · ACS recognition and reperfusion",
+   "stem": "Nitroglycerin contraindicated → Trigger:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hypertension"
+    },
+    {
+     "letter": "B",
+     "text": "Diabetes"
+    },
+    {
+     "letter": "C",
+     "text": "Anterior MI"
+    },
+    {
+     "letter": "D",
+     "text": "PDE-5 inhibitor within 24 h"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Also RV infarct, severe aortic stenosis, hypotension/cardiogenic shock."
+  },
+  {
+   "id": "6i",
+   "group": 6,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · ACS recognition and reperfusion",
+   "stem": "Young smoker, transient ST elevation that resolves with nitro, troponin negative → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Pericarditis"
+    },
+    {
+     "letter": "B",
+     "text": "Takotsubo"
+    },
+    {
+     "letter": "C",
+     "text": "STEMI"
+    },
+    {
+     "letter": "D",
+     "text": "Prinzmetal (vasospastic) angina"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Vasospasm → CCB first line; never β-blockers (unopposed α spasm)."
+  },
+  {
+   "id": "7",
+   "group": 7,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · chest-pain mimics",
+   "stem": "Positional pleuritic pain, diffuse ST elevation + PR depression → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "NSAID + colchicine"
+    },
+    {
+     "letter": "B",
+     "text": "Heparin"
+    },
+    {
+     "letter": "C",
+     "text": "Steroids"
+    },
+    {
+     "letter": "D",
+     "text": "Cath lab"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Pericarditis — no reciprocal changes, troponin negative; watch for tamponade."
+  },
+  {
+   "id": "7a",
+   "group": 7,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · chest-pain mimics",
+   "stem": "STEMI vs pericarditis → Finding that favors STEMI:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Pleuritic pain"
+    },
+    {
+     "letter": "B",
+     "text": "PR depression"
+    },
+    {
+     "letter": "C",
+     "text": "Reciprocal ST depression"
+    },
+    {
+     "letter": "D",
+     "text": "Diffuse concave STE"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Reciprocal depression (outside V1/aVR) is never pericarditis."
+  },
+  {
+   "id": "7b",
+   "group": 7,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · chest-pain mimics",
+   "stem": "Hypotension + JVD + muffled heart sounds → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Massive PE"
+    },
+    {
+     "letter": "B",
+     "text": "Tension pneumothorax"
+    },
+    {
+     "letter": "C",
+     "text": "Cardiac tamponade"
+    },
+    {
+     "letter": "D",
+     "text": "RV infarction"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Beck's triad (only a third have all three) — POCUS is the test."
+  },
+  {
+   "id": "7c",
+   "group": 7,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · chest-pain mimics",
+   "stem": "Tamponade confirmed on POCUS → Definitive treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Nitroglycerin"
+    },
+    {
+     "letter": "B",
+     "text": "Pericardiocentesis"
+    },
+    {
+     "letter": "C",
+     "text": "Diuretics"
+    },
+    {
+     "letter": "D",
+     "text": "IV fluids"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Fluids/pressors only bridge to drainage."
+  },
+  {
+   "id": "7d",
+   "group": 7,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · chest-pain mimics",
+   "stem": "Abrupt tearing chest pain to the back, pulse deficit → Test:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "D-dimer"
+    },
+    {
+     "letter": "B",
+     "text": "Echo"
+    },
+    {
+     "letter": "C",
+     "text": "CTA chest"
+    },
+    {
+     "letter": "D",
+     "text": "CXR only"
+    }
+   ],
+   "answer": "C",
+   "explanation": "ADD-RS ≥2 → CTA (study of choice)."
+  },
+  {
+   "id": "7e",
+   "group": 7,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · chest-pain mimics",
+   "stem": "Aortic dissection → First drug:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Morphine"
+    },
+    {
+     "letter": "B",
+     "text": "Nicardipine"
+    },
+    {
+     "letter": "C",
+     "text": "Esmolol (β-blocker)"
+    },
+    {
+     "letter": "D",
+     "text": "Nitroprusside"
+    }
+   ],
+   "answer": "C",
+   "explanation": "HR control BEFORE the vasodilator — vasodilator alone → reflex tachycardia → more shear."
+  },
+  {
+   "id": "7f",
+   "group": 7,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · chest-pain mimics",
+   "stem": "Ascending (Type A) dissection → Disposition:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Outpatient CTA"
+    },
+    {
+     "letter": "B",
+     "text": "Observation"
+    },
+    {
+     "letter": "C",
+     "text": "Emergent surgery"
+    },
+    {
+     "letter": "D",
+     "text": "Medical management in ICU"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Type A → OR; Type B → medical."
+  },
+  {
+   "id": "7g",
+   "group": 7,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · chest-pain mimics",
+   "stem": "Viral illness + chest pain + new HF + troponin rise, worse after fluids → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "NSTEMI"
+    },
+    {
+     "letter": "B",
+     "text": "Pericarditis"
+    },
+    {
+     "letter": "C",
+     "text": "Sepsis"
+    },
+    {
+     "letter": "D",
+     "text": "Myocarditis"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Tachycardia out of proportion, worse with fluids → admit as cardiac."
+  },
+  {
+   "id": "7h",
+   "group": 7,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · chest-pain mimics",
+   "stem": "Fever + new murmur → First order:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Echo"
+    },
+    {
+     "letter": "B",
+     "text": "CT chest"
+    },
+    {
+     "letter": "C",
+     "text": "Blood cultures ×3 before antibiotics"
+    },
+    {
+     "letter": "D",
+     "text": "ESR"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Endocarditis: cultures first, then IV antibiotics, echo for vegetations."
+  },
+  {
+   "id": "8",
+   "group": 8,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · heart failure and blood pressure",
+   "stem": "Pulmonary edema + severe hypertension → First-line:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Morphine"
+    },
+    {
+     "letter": "B",
+     "text": "BiPAP + nitroglycerin"
+    },
+    {
+     "letter": "C",
+     "text": "IV furosemide alone"
+    },
+    {
+     "letter": "D",
+     "text": "Dobutamine"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Wet + hypertensive → BiPAP + nitrates, then IV diuretic."
+  },
+  {
+   "id": "8a",
+   "group": 8,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · heart failure and blood pressure",
+   "stem": "Cold extremities, hypotension, pulmonary edema → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Inotrope ± norepinephrine"
+    },
+    {
+     "letter": "B",
+     "text": "Diuretic first"
+    },
+    {
+     "letter": "C",
+     "text": "Nitroglycerin"
+    },
+    {
+     "letter": "D",
+     "text": "IV fluid bolus"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Cardiogenic shock: dobutamine/milrinone ± norepinephrine; no reflex fluids, no nitro."
+  },
+  {
+   "id": "8b",
+   "group": 8,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · heart failure and blood pressure",
+   "stem": "BP 220/120, asymptomatic, no end-organ injury → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "IV nicardipine"
+    },
+    {
+     "letter": "B",
+     "text": "Oral therapy + outpatient follow-up"
+    },
+    {
+     "letter": "C",
+     "text": "Nitroprusside"
+    },
+    {
+     "letter": "D",
+     "text": "Admit for monitoring"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Asymptomatic markedly elevated BP → rest, UPT, home to PCP; aggressive IV lowering harms."
+  },
+  {
+   "id": "8c",
+   "group": 8,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · heart failure and blood pressure",
+   "stem": "BP 210/125 + pulmonary edema → Classification:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hypertensive urgency"
+    },
+    {
+     "letter": "B",
+     "text": "Asymptomatic elevated BP"
+    },
+    {
+     "letter": "C",
+     "text": "White-coat hypertension"
+    },
+    {
+     "letter": "D",
+     "text": "Hypertensive emergency"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Emergency = acute target-organ injury, not the number → nicardipine drip, ICU."
+  },
+  {
+   "id": "8d",
+   "group": 8,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · heart failure and blood pressure",
+   "stem": "Hypertensive emergency → First-hour BP goal:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Reduce ≤25%"
+    },
+    {
+     "letter": "B",
+     "text": "Normalize"
+    },
+    {
+     "letter": "C",
+     "text": "Reduce 50%"
+    },
+    {
+     "letter": "D",
+     "text": "No change"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Never over-correct (exceptions: dissection fast, stroke permissive)."
+  },
+  {
+   "id": "9",
+   "group": 9,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · risk scores, limb, murmurs",
+   "stem": "HEART score 0–3 with negative serial troponins → Disposition:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Observe 48 h"
+    },
+    {
+     "letter": "B",
+     "text": "Cath lab"
+    },
+    {
+     "letter": "C",
+     "text": "Admit"
+    },
+    {
+     "letter": "D",
+     "text": "Discharge with outpatient stress test"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Low risk; 4–6 observe/admit; ≥7 admit with early invasive strategy."
+  },
+  {
+   "id": "9a",
+   "group": 9,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · risk scores, limb, murmurs",
+   "stem": "Pain, pallor, pulselessness, paresthesia, paralysis, poikilothermia → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "tPA"
+    },
+    {
+     "letter": "B",
+     "text": "IV heparin + emergent vascular surgery"
+    },
+    {
+     "letter": "C",
+     "text": "Aspirin"
+    },
+    {
+     "letter": "D",
+     "text": "Warfarin"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Acute limb ischemia — heparin now, vascular surgery now."
+  },
+  {
+   "id": "9b",
+   "group": 9,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · risk scores, limb, murmurs",
+   "stem": "Systolic murmur radiating to the carotids + exertional syncope → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Aortic stenosis"
+    },
+    {
+     "letter": "B",
+     "text": "Mitral stenosis"
+    },
+    {
+     "letter": "C",
+     "text": "Mitral regurgitation"
+    },
+    {
+     "letter": "D",
+     "text": "HOCM"
+    }
+   ],
+   "answer": "A",
+   "explanation": "AS triad: syncope, angina, dyspnea — another reason nitroglycerin is dangerous."
+  },
+  {
+   "id": "9c",
+   "group": 9,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · risk scores, limb, murmurs",
+   "stem": "Murmur that gets louder with Valsalva / standing → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Mitral regurgitation"
+    },
+    {
+     "letter": "B",
+     "text": "Aortic stenosis"
+    },
+    {
+     "letter": "C",
+     "text": "Aortic regurgitation"
+    },
+    {
+     "letter": "D",
+     "text": "HOCM"
+    }
+   ],
+   "answer": "D",
+   "explanation": "HOCM — avoid exertion, echo."
+  },
+  {
+   "id": "9d",
+   "group": 9,
+   "section": "EM Cardiology",
+   "objective": "EM Cardiology · risk scores, limb, murmurs",
+   "stem": "New holosystolic murmur to the axilla after MI + pulmonary edema → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Pericarditis"
+    },
+    {
+     "letter": "B",
+     "text": "Papillary muscle rupture"
+    },
+    {
+     "letter": "C",
+     "text": "VSD"
+    },
+    {
+     "letter": "D",
+     "text": "Tamponade"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Acute MR → emergent surgery."
+  },
+  {
+   "id": "10",
+   "group": 10,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pulmonary embolism",
+   "stem": "Unexplained dyspnea + tachycardia + hypoxia, CXR normal → Next:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Antibiotics"
+    },
+    {
+     "letter": "B",
+     "text": "Risk-stratify for PE (PERC → Wells)"
+    },
+    {
+     "letter": "C",
+     "text": "Repeat CXR"
+    },
+    {
+     "letter": "D",
+     "text": "Reassure"
+    }
+   ],
+   "answer": "B",
+   "explanation": "A normal CXR with SOB is the cue to think PE, not to stop."
+  },
+  {
+   "id": "10a",
+   "group": 10,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pulmonary embolism",
+   "stem": "Low pre-test probability and all PERC criteria negative → Next:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "CTA"
+    },
+    {
+     "letter": "B",
+     "text": "D-dimer"
+    },
+    {
+     "letter": "C",
+     "text": "No further testing"
+    },
+    {
+     "letter": "D",
+     "text": "V/Q scan"
+    }
+   ],
+   "answer": "C",
+   "explanation": "PERC-negative in a low-risk patient rules PE out."
+  },
+  {
+   "id": "10b",
+   "group": 10,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pulmonary embolism",
+   "stem": "Wells ≤4 → Next:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "CTA"
+    },
+    {
+     "letter": "B",
+     "text": "V/Q scan"
+    },
+    {
+     "letter": "C",
+     "text": "Anticoagulate empirically"
+    },
+    {
+     "letter": "D",
+     "text": "D-dimer"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Positive D-dimer → imaging."
+  },
+  {
+   "id": "10c",
+   "group": 10,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pulmonary embolism",
+   "stem": "Wells >4 or high clinical suspicion → Next:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "CTA directly"
+    },
+    {
+     "letter": "B",
+     "text": "D-dimer"
+    },
+    {
+     "letter": "C",
+     "text": "Leg ultrasound"
+    },
+    {
+     "letter": "D",
+     "text": "Troponin"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Never D-dimer the high-risk patient."
+  },
+  {
+   "id": "10d",
+   "group": 10,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pulmonary embolism",
+   "stem": "PE suspected, contrast contraindicated or pregnant → Test:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "V/Q scan"
+    },
+    {
+     "letter": "B",
+     "text": "Repeat D-dimer"
+    },
+    {
+     "letter": "C",
+     "text": "CTA"
+    },
+    {
+     "letter": "D",
+     "text": "MRI"
+    }
+   ],
+   "answer": "A",
+   "explanation": "V/Q when contrast is out; pregnancy → YEARS / leg US first if leg signs."
+  },
+  {
+   "id": "10e",
+   "group": 10,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pulmonary embolism",
+   "stem": "PE with persistent hypotension → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "DOAC"
+    },
+    {
+     "letter": "B",
+     "text": "Heparin alone"
+    },
+    {
+     "letter": "C",
+     "text": "IVC filter alone"
+    },
+    {
+     "letter": "D",
+     "text": "Thrombolysis"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Category E — lyse unless absolutely contraindicated; PERT."
+  },
+  {
+   "id": "11",
+   "group": 11,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · asthma and COPD",
+   "stem": "Acute asthma exacerbation → First-line:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Theophylline"
+    },
+    {
+     "letter": "B",
+     "text": "Albuterol + ipratropium + systemic steroids"
+    },
+    {
+     "letter": "C",
+     "text": "IV magnesium"
+    },
+    {
+     "letter": "D",
+     "text": "Antibiotics"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Same backbone for COPD, with O₂ as needed."
+  },
+  {
+   "id": "11a",
+   "group": 11,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · asthma and COPD",
+   "stem": "Asthmatic with a silent chest, exhaustion, rising CO₂ → Interpretation:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Anxiety"
+    },
+    {
+     "letter": "B",
+     "text": "Impending respiratory failure"
+    },
+    {
+     "letter": "C",
+     "text": "Mild exacerbation"
+    },
+    {
+     "letter": "D",
+     "text": "Improving"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Wheeze that stops wheezing — IV magnesium, airway escalation."
+  },
+  {
+   "id": "11b",
+   "group": 11,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · asthma and COPD",
+   "stem": "Severe asthma not responding to nebs and steroids → Add:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Oral theophylline"
+    },
+    {
+     "letter": "B",
+     "text": "Antibiotics"
+    },
+    {
+     "letter": "C",
+     "text": "Leukotriene inhibitor"
+    },
+    {
+     "letter": "D",
+     "text": "IV magnesium"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Then NIPPV (rule out PTX), epinephrine/ketamine → intubate."
+  },
+  {
+   "id": "11c",
+   "group": 11,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · asthma and COPD",
+   "stem": "COPD exacerbation → Oxygen saturation target:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "88–92%"
+    },
+    {
+     "letter": "B",
+     "text": ">98%"
+    },
+    {
+     "letter": "C",
+     "text": "95–100%"
+    },
+    {
+     "letter": "D",
+     "text": "92–96%"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Never over-oxygenate COPD."
+  },
+  {
+   "id": "11d",
+   "group": 11,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · asthma and COPD",
+   "stem": "COPD with hypercapnic failure, still awake and protecting the airway → Support:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Intubate"
+    },
+    {
+     "letter": "B",
+     "text": "BiPAP"
+    },
+    {
+     "letter": "C",
+     "text": "High-flow non-rebreather"
+    },
+    {
+     "letter": "D",
+     "text": "Nebulizers only"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Intubate for NIV failure, AMS, can't clear secretions, instability."
+  },
+  {
+   "id": "11e",
+   "group": 11,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · asthma and COPD",
+   "stem": "COPD: more dyspnea + more sputum + purulent sputum → Add:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "IV magnesium"
+    },
+    {
+     "letter": "B",
+     "text": "Diuretics"
+    },
+    {
+     "letter": "C",
+     "text": "Antibiotics"
+    },
+    {
+     "letter": "D",
+     "text": "Antivirals"
+    }
+   ],
+   "answer": "C",
+   "explanation": "The antibiotic triad."
+  },
+  {
+   "id": "12",
+   "group": 12,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumothorax, hemoptysis, effusion",
+   "stem": "Hypotension + JVD + unilateral absent breath sounds → Action:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "BiPAP"
+    },
+    {
+     "letter": "B",
+     "text": "CXR"
+    },
+    {
+     "letter": "C",
+     "text": "Needle decompression now"
+    },
+    {
+     "letter": "D",
+     "text": "CT chest"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Tension PTX is clinical — needle before X-ray; tracheal deviation is late; avoid PPV."
+  },
+  {
+   "id": "12a",
+   "group": 12,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumothorax, hemoptysis, effusion",
+   "stem": "Small, asymptomatic primary spontaneous PTX → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Observe on oxygen, repeat CXR"
+    },
+    {
+     "letter": "B",
+     "text": "Surgery"
+    },
+    {
+     "letter": "C",
+     "text": "Chest tube"
+    },
+    {
+     "letter": "D",
+     "text": "Needle decompression"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Observe >3 h, repeat film, home with 2-wk recheck; no flying or diving."
+  },
+  {
+   "id": "12b",
+   "group": 12,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumothorax, hemoptysis, effusion",
+   "stem": "Pneumothorax in a patient with underlying lung disease → Disposition:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Home"
+    },
+    {
+     "letter": "B",
+     "text": "Observe 3 h then home"
+    },
+    {
+     "letter": "C",
+     "text": "Follow-up in 2 weeks"
+    },
+    {
+     "letter": "D",
+     "text": "Admit at any size"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Any secondary PTX → tube + admit."
+  },
+  {
+   "id": "12c",
+   "group": 12,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumothorax, hemoptysis, effusion",
+   "stem": "Massive hemoptysis → Positioning:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Trendelenburg"
+    },
+    {
+     "letter": "B",
+     "text": "Supine"
+    },
+    {
+     "letter": "C",
+     "text": "Bleeding side down"
+    },
+    {
+     "letter": "D",
+     "text": "Bleeding side up"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Protect the good lung; big ETT; TXA; CTA → IR embolization."
+  },
+  {
+   "id": "12d",
+   "group": 12,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumothorax, hemoptysis, effusion",
+   "stem": "Massive hemoptysis → Definitive therapy:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Antibiotics"
+    },
+    {
+     "letter": "B",
+     "text": "Nebulized TXA only"
+    },
+    {
+     "letter": "C",
+     "text": "Observation"
+    },
+    {
+     "letter": "D",
+     "text": "Bronchial artery embolization (IR)"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Airway → side down → TXA → CTA → IR."
+  },
+  {
+   "id": "12e",
+   "group": 12,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumothorax, hemoptysis, effusion",
+   "stem": "Parapneumonic effusion with pus or pH <7.10 → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Repeat thoracentesis"
+    },
+    {
+     "letter": "B",
+     "text": "Chest tube + antibiotics"
+    },
+    {
+     "letter": "C",
+     "text": "Antibiotics alone"
+    },
+    {
+     "letter": "D",
+     "text": "Diuretics"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Empyema: drain it."
+  },
+  {
+   "id": "13",
+   "group": 13,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumonia, ARDS, TB",
+   "stem": "Healthy outpatient CAP → Antibiotic:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Amoxicillin or doxycycline"
+    },
+    {
+     "letter": "B",
+     "text": "TMP-SMX"
+    },
+    {
+     "letter": "C",
+     "text": "Vancomycin"
+    },
+    {
+     "letter": "D",
+     "text": "Ceftriaxone + azithromycin"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Comorbid → Augmentin + doxy/macrolide or a respiratory FQ."
+  },
+  {
+   "id": "13a",
+   "group": 13,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumonia, ARDS, TB",
+   "stem": "Inpatient CAP → Regimen:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Doxycycline"
+    },
+    {
+     "letter": "B",
+     "text": "Amoxicillin"
+    },
+    {
+     "letter": "C",
+     "text": "Ceftriaxone + azithromycin"
+    },
+    {
+     "letter": "D",
+     "text": "Cefepime alone"
+    }
+   ],
+   "answer": "C",
+   "explanation": "β-lactam + macrolide (or FQ); add Pseudomonas/MRSA cover by risk."
+  },
+  {
+   "id": "13b",
+   "group": 13,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumonia, ARDS, TB",
+   "stem": "CURB-65 ≥3 → Disposition:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Home"
+    },
+    {
+     "letter": "B",
+     "text": "Observe"
+    },
+    {
+     "letter": "C",
+     "text": "PCP in a week"
+    },
+    {
+     "letter": "D",
+     "text": "Admit (4–5 → ICU)"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Confusion, BUN, RR, BP, age ≥65; 0–1 home, 2 observe/admit."
+  },
+  {
+   "id": "13c",
+   "group": 13,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumonia, ARDS, TB",
+   "stem": "HIV with CD4 <200, bilateral ground-glass opacities → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "TMP-SMX ± steroids"
+    },
+    {
+     "letter": "B",
+     "text": "Ceftriaxone"
+    },
+    {
+     "letter": "C",
+     "text": "Azithromycin"
+    },
+    {
+     "letter": "D",
+     "text": "Amphotericin"
+    }
+   ],
+   "answer": "A",
+   "explanation": "PJP — steroids if moderate–severe."
+  },
+  {
+   "id": "13d",
+   "group": 13,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumonia, ARDS, TB",
+   "stem": "Cough, weight loss, night sweats, cavitary CXR → First action:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Start RIPE in the ED"
+    },
+    {
+     "letter": "B",
+     "text": "Discharge with follow-up"
+    },
+    {
+     "letter": "C",
+     "text": "Sputum only"
+    },
+    {
+     "letter": "D",
+     "text": "Airborne isolation"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Isolate, sputum AFB, public health; RIPE is not started in the ED."
+  },
+  {
+   "id": "13e",
+   "group": 13,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumonia, ARDS, TB",
+   "stem": "Bilateral opacities + hypoxemia not explained by heart failure → Ventilator strategy:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "High tidal volume"
+    },
+    {
+     "letter": "B",
+     "text": "Low tidal volume (~6 mL/kg IBW)"
+    },
+    {
+     "letter": "C",
+     "text": "BiPAP only"
+    },
+    {
+     "letter": "D",
+     "text": "Pressure support only"
+    }
+   ],
+   "answer": "B",
+   "explanation": "ARDS — lung-protective ventilation."
+  },
+  {
+   "id": "13f",
+   "group": 13,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pneumonia, ARDS, TB",
+   "stem": "Paroxysmal cough with whoop and post-tussive emesis → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Steroids"
+    },
+    {
+     "letter": "B",
+     "text": "Azithromycin"
+    },
+    {
+     "letter": "C",
+     "text": "Amoxicillin"
+    },
+    {
+     "letter": "D",
+     "text": "Supportive only"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Pertussis — droplet precautions, PEP for contacts."
+  },
+  {
+   "id": "14",
+   "group": 14,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pediatric airway patterns",
+   "stem": "Barking cough + inspiratory stridor → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Antibiotics"
+    },
+    {
+     "letter": "B",
+     "text": "Intubation"
+    },
+    {
+     "letter": "C",
+     "text": "Dexamethasone"
+    },
+    {
+     "letter": "D",
+     "text": "Albuterol"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Croup — steroid for all."
+  },
+  {
+   "id": "14a",
+   "group": 14,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pediatric airway patterns",
+   "stem": "Croup with stridor at rest → Add:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Heliox"
+    },
+    {
+     "letter": "B",
+     "text": "Ceftriaxone"
+    },
+    {
+     "letter": "C",
+     "text": "Nebulized epinephrine"
+    },
+    {
+     "letter": "D",
+     "text": "Albuterol"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Then observe 2–3 h for rebound."
+  },
+  {
+   "id": "14b",
+   "group": 14,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pediatric airway patterns",
+   "stem": "Infant with RSV and wheeze → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Dexamethasone"
+    },
+    {
+     "letter": "B",
+     "text": "Suction, hydration, oxygen as needed"
+    },
+    {
+     "letter": "C",
+     "text": "Albuterol + steroids"
+    },
+    {
+     "letter": "D",
+     "text": "Antibiotics"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Bronchiolitis is supportive."
+  },
+  {
+   "id": "14c",
+   "group": 14,
+   "section": "Pulmonary Emergencies",
+   "objective": "Pulmonary · pediatric airway patterns",
+   "stem": "Toddler, sudden cough + unilateral wheeze, normal CXR → Next:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Antibiotics"
+    },
+    {
+     "letter": "B",
+     "text": "Albuterol"
+    },
+    {
+     "letter": "C",
+     "text": "Reassure — CXR normal"
+    },
+    {
+     "letter": "D",
+     "text": "Rigid bronchoscopy"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Normal X-ray misses most aspirated foreign bodies."
+  },
+  {
+   "id": "15",
+   "group": 15,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · DKA and HHS",
+   "stem": "Kussmaul breathing + abdominal pain + vomiting in a type 1 diabetic → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hypoglycemia"
+    },
+    {
+     "letter": "B",
+     "text": "DKA"
+    },
+    {
+     "letter": "C",
+     "text": "HHS"
+    },
+    {
+     "letter": "D",
+     "text": "Alcoholic ketoacidosis"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Glucose ≥200, ketones, anion-gap acidosis (pH <7.3, HCO₃ <18)."
+  },
+  {
+   "id": "15a",
+   "group": 15,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · DKA and HHS",
+   "stem": "DKA → First step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Potassium"
+    },
+    {
+     "letter": "B",
+     "text": "IV fluids"
+    },
+    {
+     "letter": "C",
+     "text": "Bicarbonate"
+    },
+    {
+     "letter": "D",
+     "text": "Insulin"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Fluids → potassium → insulin."
+  },
+  {
+   "id": "15b",
+   "group": 15,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · DKA and HHS",
+   "stem": "DKA with K <3.5 → Action:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Give bicarbonate"
+    },
+    {
+     "letter": "B",
+     "text": "Start insulin"
+    },
+    {
+     "letter": "C",
+     "text": "Dialysis"
+    },
+    {
+     "letter": "D",
+     "text": "Hold insulin, replace potassium first"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Insulin drives K into cells — hypokalemia is the most lethal treatment complication."
+  },
+  {
+   "id": "15c",
+   "group": 15,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · DKA and HHS",
+   "stem": "DKA: glucose drops below 250 but the gap is still open → Action:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Stop insulin"
+    },
+    {
+     "letter": "B",
+     "text": "Switch to SC insulin"
+    },
+    {
+     "letter": "C",
+     "text": "Bolus more fluids"
+    },
+    {
+     "letter": "D",
+     "text": "Add dextrose, keep the insulin running"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Normal glucose alone is not resolution."
+  },
+  {
+   "id": "15d",
+   "group": 15,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · DKA and HHS",
+   "stem": "DKA resolution → Marker:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Urine ketones negative"
+    },
+    {
+     "letter": "B",
+     "text": "Anion gap closed (HCO₃ >18, pH >7.3)"
+    },
+    {
+     "letter": "C",
+     "text": "Glucose normal"
+    },
+    {
+     "letter": "D",
+     "text": "Patient is hungry"
+    }
+   ],
+   "answer": "B",
+   "explanation": "The endpoint is the gap, not the glucose."
+  },
+  {
+   "id": "15e",
+   "group": 15,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · DKA and HHS",
+   "stem": "Young type 1 diabetic develops headache and AMS during DKA treatment → Complication:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Cerebral edema"
+    },
+    {
+     "letter": "B",
+     "text": "Hyponatremia"
+    },
+    {
+     "letter": "C",
+     "text": "Hypoglycemia"
+    },
+    {
+     "letter": "D",
+     "text": "Stroke"
+    }
+   ],
+   "answer": "A",
+   "explanation": "A treatment hazard, especially in young patients."
+  },
+  {
+   "id": "15f",
+   "group": 15,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · DKA and HHS",
+   "stem": "Glucose ≥600, profound dehydration, AMS, minimal ketones, pH ≥7.3 → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "HHS"
+    },
+    {
+     "letter": "B",
+     "text": "Alcoholic ketoacidosis"
+    },
+    {
+     "letter": "C",
+     "text": "DKA"
+    },
+    {
+     "letter": "D",
+     "text": "Diabetes insipidus"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Hyperosmolar: fluids are the disease-defining treatment; insulin slower."
+  },
+  {
+   "id": "15g",
+   "group": 15,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · DKA and HHS",
+   "stem": "Type 1 diabetic on an SGLT2 inhibitor, acidotic with near-normal glucose → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Euglycemic DKA"
+    },
+    {
+     "letter": "B",
+     "text": "HHS"
+    },
+    {
+     "letter": "C",
+     "text": "Alcoholic ketoacidosis"
+    },
+    {
+     "letter": "D",
+     "text": "Lactic acidosis"
+    }
+   ],
+   "answer": "A",
+   "explanation": "SGLT2 inhibitors and pregnancy cause DKA without marked hyperglycemia."
+  },
+  {
+   "id": "16",
+   "group": 16,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · hypoglycemia and AKA",
+   "stem": "Every altered patient → First test:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "ECG"
+    },
+    {
+     "letter": "B",
+     "text": "Ammonia"
+    },
+    {
+     "letter": "C",
+     "text": "CT head"
+    },
+    {
+     "letter": "D",
+     "text": "Fingerstick glucose"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Accu-Chek before the story."
+  },
+  {
+   "id": "16a",
+   "group": 16,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · hypoglycemia and AKA",
+   "stem": "Hypoglycemia, alert and able to swallow → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Octreotide"
+    },
+    {
+     "letter": "B",
+     "text": "Oral glucose"
+    },
+    {
+     "letter": "C",
+     "text": "IV dextrose"
+    },
+    {
+     "letter": "D",
+     "text": "IM glucagon"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Impaired → IV dextrose; no IV → IM glucagon."
+  },
+  {
+   "id": "16b",
+   "group": 16,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · hypoglycemia and AKA",
+   "stem": "Hypoglycemic, altered, no IV access → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Nasal naloxone"
+    },
+    {
+     "letter": "B",
+     "text": "Oral glucose"
+    },
+    {
+     "letter": "C",
+     "text": "IM glucagon"
+    },
+    {
+     "letter": "D",
+     "text": "Wait for IV access"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Glucagon fails in the glycogen-depleted alcoholic → get dextrose in."
+  },
+  {
+   "id": "16c",
+   "group": 16,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · hypoglycemia and AKA",
+   "stem": "Sulfonylurea-induced hypoglycemia → Adjunct and disposition:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Octreotide + admit"
+    },
+    {
+     "letter": "B",
+     "text": "Glucagon + discharge"
+    },
+    {
+     "letter": "C",
+     "text": "Dextrose + discharge"
+    },
+    {
+     "letter": "D",
+     "text": "Insulin + admit"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Recurrent hypoglycemia for ≥24 h — sulfonylurea/long-acting insulin get admitted."
+  },
+  {
+   "id": "16d",
+   "group": 16,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · hypoglycemia and AKA",
+   "stem": "Alcohol binge, then starvation/vomiting; anion-gap ketosis with normal or low glucose → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Fomepizole"
+    },
+    {
+     "letter": "B",
+     "text": "Insulin drip"
+    },
+    {
+     "letter": "C",
+     "text": "Thiamine + dextrose-containing fluids"
+    },
+    {
+     "letter": "D",
+     "text": "Bicarbonate"
+    }
+   ],
+   "answer": "C",
+   "explanation": "AKA — thiamine before/with dextrose, no insulin; replace K/Mg/phos."
+  },
+  {
+   "id": "17",
+   "group": 17,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · thyroid and adrenal crises",
+   "stem": "Fever + tachycardia out of proportion + AMS, hyperthyroid history → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Serotonin syndrome"
+    },
+    {
+     "letter": "B",
+     "text": "NMS"
+    },
+    {
+     "letter": "C",
+     "text": "Thyroid storm"
+    },
+    {
+     "letter": "D",
+     "text": "Sepsis"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Clinical diagnosis — treat on vitals; ICU."
+  },
+  {
+   "id": "17a",
+   "group": 17,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · thyroid and adrenal crises",
+   "stem": "Thyroid storm → First drug:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hydrocortisone"
+    },
+    {
+     "letter": "B",
+     "text": "Iodine"
+    },
+    {
+     "letter": "C",
+     "text": "Propranolol / esmolol"
+    },
+    {
+     "letter": "D",
+     "text": "PTU"
+    }
+   ],
+   "answer": "C",
+   "explanation": "β-blocker → thionamide → iodine → hydrocortisone."
+  },
+  {
+   "id": "17b",
+   "group": 17,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · thyroid and adrenal crises",
+   "stem": "Thyroid storm → Iodine timing:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Never"
+    },
+    {
+     "letter": "B",
+     "text": "Before the thionamide"
+    },
+    {
+     "letter": "C",
+     "text": "≥1 h after the thionamide"
+    },
+    {
+     "letter": "D",
+     "text": "With the thionamide"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Iodine before PTU fuels hormone synthesis."
+  },
+  {
+   "id": "17c",
+   "group": 17,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · thyroid and adrenal crises",
+   "stem": "Fever in thyroid storm → Avoid:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Acetaminophen"
+    },
+    {
+     "letter": "B",
+     "text": "Cooling blanket"
+    },
+    {
+     "letter": "C",
+     "text": "IV fluids"
+    },
+    {
+     "letter": "D",
+     "text": "Aspirin / NSAIDs"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Salicylates displace T4 from TBG."
+  },
+  {
+   "id": "17d",
+   "group": 17,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · thyroid and adrenal crises",
+   "stem": "Hypothermia + bradycardia + hypoventilation + AMS in an elderly patient → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Myxedema coma"
+    },
+    {
+     "letter": "B",
+     "text": "Environmental hypothermia"
+    },
+    {
+     "letter": "C",
+     "text": "Adrenal crisis"
+    },
+    {
+     "letter": "D",
+     "text": "Sepsis"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Cold and slow — nonadherent to levothyroxine, winter."
+  },
+  {
+   "id": "17e",
+   "group": 17,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · thyroid and adrenal crises",
+   "stem": "Myxedema coma → Given before or with IV levothyroxine:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hydrocortisone"
+    },
+    {
+     "letter": "B",
+     "text": "Warming blanket"
+    },
+    {
+     "letter": "C",
+     "text": "Antibiotics"
+    },
+    {
+     "letter": "D",
+     "text": "Dextrose"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Thyroid hormone first can precipitate adrenal crisis."
+  },
+  {
+   "id": "17f",
+   "group": 17,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · thyroid and adrenal crises",
+   "stem": "Myxedema coma rewarming → Method:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Rapid warm IV fluids"
+    },
+    {
+     "letter": "B",
+     "text": "Active external warming"
+    },
+    {
+     "letter": "C",
+     "text": "Passive rewarming"
+    },
+    {
+     "letter": "D",
+     "text": "Forced-air warmer"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Active rewarming → vasodilation → collapse."
+  },
+  {
+   "id": "17g",
+   "group": 17,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · thyroid and adrenal crises",
+   "stem": "Shock refractory to fluids and pressors + low Na, low glucose, high K → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Adrenal crisis"
+    },
+    {
+     "letter": "B",
+     "text": "Septic shock"
+    },
+    {
+     "letter": "C",
+     "text": "Myxedema coma"
+    },
+    {
+     "letter": "D",
+     "text": "DKA"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Think missed/stopped steroids or acute illness."
+  },
+  {
+   "id": "17h",
+   "group": 17,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · thyroid and adrenal crises",
+   "stem": "Suspected adrenal crisis → Action:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Fludrocortisone"
+    },
+    {
+     "letter": "B",
+     "text": "Dexamethasone"
+    },
+    {
+     "letter": "C",
+     "text": "Draw cortisol and wait"
+    },
+    {
+     "letter": "D",
+     "text": "Hydrocortisone IV immediately"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Treat first, labs second; hydrocortisone has mineralocorticoid activity."
+  },
+  {
+   "id": "17i",
+   "group": 17,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · thyroid and adrenal crises",
+   "stem": "Patient on chronic prednisone becomes acutely ill → Teaching:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Halve the dose"
+    },
+    {
+     "letter": "B",
+     "text": "Stop the steroid"
+    },
+    {
+     "letter": "C",
+     "text": "Stress-dose (double/triple) the steroid"
+    },
+    {
+     "letter": "D",
+     "text": "No change"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Stopped or unincreased steroids precipitate crisis."
+  },
+  {
+   "id": "18",
+   "group": 18,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · sodium and calcium",
+   "stem": "Polyuria + dilute urine + hypernatremia → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "HHS"
+    },
+    {
+     "letter": "B",
+     "text": "SIADH"
+    },
+    {
+     "letter": "C",
+     "text": "Diabetes insipidus"
+    },
+    {
+     "letter": "D",
+     "text": "Psychogenic polydipsia"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Replace water; central DI responds to desmopressin."
+  },
+  {
+   "id": "18a",
+   "group": 18,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · sodium and calcium",
+   "stem": "Euvolemic hyponatremia + concentrated urine, no edema → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "SIADH"
+    },
+    {
+     "letter": "B",
+     "text": "Heart failure"
+    },
+    {
+     "letter": "C",
+     "text": "Cirrhosis"
+    },
+    {
+     "letter": "D",
+     "text": "Diabetes insipidus"
+    }
+   ],
+   "answer": "A",
+   "explanation": "SCLC, carbamazepine, SSRI, MDMA; edema points to CHF/cirrhosis instead."
+  },
+  {
+   "id": "18b",
+   "group": 18,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · sodium and calcium",
+   "stem": "Mild SIADH → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Fluid restriction"
+    },
+    {
+     "letter": "B",
+     "text": "Loop diuretic"
+    },
+    {
+     "letter": "C",
+     "text": "Normal saline"
+    },
+    {
+     "letter": "D",
+     "text": "3% saline"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Normal saline worsens SIADH."
+  },
+  {
+   "id": "18c",
+   "group": 18,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · sodium and calcium",
+   "stem": "Hyponatremia with seizures → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Desmopressin"
+    },
+    {
+     "letter": "B",
+     "text": "3% hypertonic saline"
+    },
+    {
+     "letter": "C",
+     "text": "Normal saline bolus"
+    },
+    {
+     "letter": "D",
+     "text": "Fluid restriction"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Correct slowly overall — osmotic demyelination."
+  },
+  {
+   "id": "18d",
+   "group": 18,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · sodium and calcium",
+   "stem": "Dehydration + AMS + short QT → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hypercalcemia"
+    },
+    {
+     "letter": "B",
+     "text": "Hyperkalemia"
+    },
+    {
+     "letter": "C",
+     "text": "Hypocalcemia"
+    },
+    {
+     "letter": "D",
+     "text": "Hypomagnesemia"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Hypercalcemic crisis → IV saline + calcitonin + bisphosphonate."
+  },
+  {
+   "id": "18e",
+   "group": 18,
+   "section": "Endocrine Emergencies",
+   "objective": "Endocrine · sodium and calcium",
+   "stem": "Tetany, Trousseau/Chvostek signs, long QT → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "IV calcium gluconate + check magnesium"
+    },
+    {
+     "letter": "B",
+     "text": "Bisphosphonate"
+    },
+    {
+     "letter": "C",
+     "text": "Calcitonin"
+    },
+    {
+     "letter": "D",
+     "text": "IV saline"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Replace Mg too or the calcium won't hold."
+  },
+  {
+   "id": "19",
+   "group": 19,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · eye exam and injury",
+   "stem": "Chemical exposure to the eye → First action:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Fluorescein"
+    },
+    {
+     "letter": "B",
+     "text": "Visual acuity"
+    },
+    {
+     "letter": "C",
+     "text": "Irrigate immediately"
+    },
+    {
+     "letter": "D",
+     "text": "Tonometry"
+    }
+   ],
+   "answer": "C",
+   "explanation": "The one exception to acuity-first."
+  },
+  {
+   "id": "19a",
+   "group": 19,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · eye exam and injury",
+   "stem": "Teardrop pupil / positive Seidel sign → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hyphema"
+    },
+    {
+     "letter": "B",
+     "text": "Iritis"
+    },
+    {
+     "letter": "C",
+     "text": "Globe rupture"
+    },
+    {
+     "letter": "D",
+     "text": "Corneal abrasion"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Rigid shield, no pressure, no tonometry, IV antibiotics, emergent ophthalmology."
+  },
+  {
+   "id": "19b",
+   "group": 19,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · eye exam and injury",
+   "stem": "Suspected globe rupture → Avoid:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "IV antibiotics"
+    },
+    {
+     "letter": "B",
+     "text": "Tonometry / any pressure on the eye"
+    },
+    {
+     "letter": "C",
+     "text": "Rigid shield"
+    },
+    {
+     "letter": "D",
+     "text": "Ophthalmology consult"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Also no eye patch — shield only."
+  },
+  {
+   "id": "19c",
+   "group": 19,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · eye exam and injury",
+   "stem": "Fluorescein uptake in a contact-lens wearer → Antibiotic:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Steroid drops"
+    },
+    {
+     "letter": "B",
+     "text": "Polymyxin B"
+    },
+    {
+     "letter": "C",
+     "text": "Antipseudomonal fluoroquinolone drops"
+    },
+    {
+     "letter": "D",
+     "text": "Erythromycin ointment"
+    }
+   ],
+   "answer": "C",
+   "explanation": "No contacts → erythromycin; contacts → cipro/ofloxacin."
+  },
+  {
+   "id": "19d",
+   "group": 19,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · eye exam and injury",
+   "stem": "Dendritic corneal lesion with terminal bulbs → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Herpes zoster ophthalmicus"
+    },
+    {
+     "letter": "B",
+     "text": "Abrasion"
+    },
+    {
+     "letter": "C",
+     "text": "HSV keratitis"
+    },
+    {
+     "letter": "D",
+     "text": "Bacterial ulcer"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Topical antiviral; never steroids."
+  },
+  {
+   "id": "19e",
+   "group": 19,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · eye exam and injury",
+   "stem": "Corneal ulcer or HSV dendrite → Avoid:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Cycloplegic"
+    },
+    {
+     "letter": "B",
+     "text": "Antivirals"
+    },
+    {
+     "letter": "C",
+     "text": "Topical steroids"
+    },
+    {
+     "letter": "D",
+     "text": "Urgent ophthalmology"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Steroids with an ulcer or dendrite = perforation/spread."
+  },
+  {
+   "id": "19f",
+   "group": 19,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · eye exam and injury",
+   "stem": "Tense proptotic orbit after trauma with falling vision → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Rigid shield"
+    },
+    {
+     "letter": "B",
+     "text": "CT, then consult"
+    },
+    {
+     "letter": "C",
+     "text": "IV steroids"
+    },
+    {
+     "letter": "D",
+     "text": "Lateral canthotomy now"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Retrobulbar hematoma is an orbital compartment syndrome — don't wait for CT."
+  },
+  {
+   "id": "20",
+   "group": 20,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · painful vision emergencies",
+   "stem": "Painful red eye, halos, nausea/vomiting, fixed mid-dilated pupil → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Keratitis"
+    },
+    {
+     "letter": "B",
+     "text": "Uveitis"
+    },
+    {
+     "letter": "C",
+     "text": "Conjunctivitis"
+    },
+    {
+     "letter": "D",
+     "text": "Acute angle-closure glaucoma"
+    }
+   ],
+   "answer": "D",
+   "explanation": "IOP often >40 — bedside tonometry makes the diagnosis."
+  },
+  {
+   "id": "20a",
+   "group": 20,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · painful vision emergencies",
+   "stem": "Angle-closure glaucoma → Initial treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Laser iridotomy in the ED"
+    },
+    {
+     "letter": "B",
+     "text": "Mannitol first"
+    },
+    {
+     "letter": "C",
+     "text": "Pressure-lowering drops + acetazolamide"
+    },
+    {
+     "letter": "D",
+     "text": "Pilocarpine first"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Cocktail first; pilocarpine only once IOP falls; iridotomy is definitive."
+  },
+  {
+   "id": "20b",
+   "group": 20,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · painful vision emergencies",
+   "stem": "Painful restricted EOM + proptosis + fever → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Conjunctivitis"
+    },
+    {
+     "letter": "B",
+     "text": "Orbital cellulitis"
+    },
+    {
+     "letter": "C",
+     "text": "Preseptal cellulitis"
+    },
+    {
+     "letter": "D",
+     "text": "Dacryocystitis"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Contrast CT, IV antibiotics, admit; preseptal has normal vision/EOM."
+  },
+  {
+   "id": "20c",
+   "group": 20,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · painful vision emergencies",
+   "stem": "Pain with eye movement + reduced red perception + RAPD → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "CRAO"
+    },
+    {
+     "letter": "B",
+     "text": "Giant cell arteritis"
+    },
+    {
+     "letter": "C",
+     "text": "Papilledema"
+    },
+    {
+     "letter": "D",
+     "text": "Optic neuritis"
+    }
+   ],
+   "answer": "D",
+   "explanation": "MRI; MS association; IV methylprednisolone — never PO prednisone alone."
+  },
+  {
+   "id": "20d",
+   "group": 20,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · painful vision emergencies",
+   "stem": "Age >50, headache, jaw claudication, vision change → Action:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Start high-dose steroids now"
+    },
+    {
+     "letter": "B",
+     "text": "Temporal artery biopsy first"
+    },
+    {
+     "letter": "C",
+     "text": "MRI"
+    },
+    {
+     "letter": "D",
+     "text": "ESR, then decide"
+    }
+   ],
+   "answer": "A",
+   "explanation": "GCA — steroids immediately; biopsy stays positive afterward."
+  },
+  {
+   "id": "21",
+   "group": 21,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · painless vision loss",
+   "stem": "Sudden painless monocular vision loss + cherry-red spot → Pathway:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Retinal detachment — ophtho"
+    },
+    {
+     "letter": "B",
+     "text": "CRAO — emergency stroke pathway"
+    },
+    {
+     "letter": "C",
+     "text": "Optic neuritis — MRI"
+    },
+    {
+     "letter": "D",
+     "text": "CRVO — ophthalmology"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Vision is lost after ~2 h of ischemia; amaurosis fugax precedes a vascular event."
+  },
+  {
+   "id": "21a",
+   "group": 21,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · painless vision loss",
+   "stem": "Blood-and-thunder fundus → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "CRAO"
+    },
+    {
+     "letter": "B",
+     "text": "Retinal detachment"
+    },
+    {
+     "letter": "C",
+     "text": "Vitreous hemorrhage"
+    },
+    {
+     "letter": "D",
+     "text": "CRVO"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Blurry rather than complete loss → ophthalmology."
+  },
+  {
+   "id": "21b",
+   "group": 21,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · painless vision loss",
+   "stem": "Flashes, floaters, then a curtain → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "CRAO"
+    },
+    {
+     "letter": "B",
+     "text": "Migraine aura"
+    },
+    {
+     "letter": "C",
+     "text": "Retinal detachment"
+    },
+    {
+     "letter": "D",
+     "text": "CRVO"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Emergent ophthalmology — macula-on is hours."
+  },
+  {
+   "id": "22",
+   "group": 22,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · threatened airway and deep neck infection",
+   "stem": "Drooling, tripod, muffled voice, normal oropharynx on a 2nd visit → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Epiglottitis"
+    },
+    {
+     "letter": "B",
+     "text": "Strep pharyngitis"
+    },
+    {
+     "letter": "C",
+     "text": "Peritonsillar abscess"
+    },
+    {
+     "letter": "D",
+     "text": "Retropharyngeal abscess"
+    }
+   ],
+   "answer": "A",
+   "explanation": "The normal oropharynx is the clue, not reassurance."
+  },
+  {
+   "id": "22a",
+   "group": 22,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · threatened airway and deep neck infection",
+   "stem": "Epiglottitis → Avoid:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Nebulized epinephrine"
+    },
+    {
+     "letter": "B",
+     "text": "Ceftriaxone"
+    },
+    {
+     "letter": "C",
+     "text": "Tongue blade / provoking throat exam"
+    },
+    {
+     "letter": "D",
+     "text": "Upright positioning"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Controlled airway first; never send the unstable airway to CT."
+  },
+  {
+   "id": "22b",
+   "group": 22,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · threatened airway and deep neck infection",
+   "stem": "Trismus, hot-potato voice, uvula deviated → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Epiglottitis"
+    },
+    {
+     "letter": "B",
+     "text": "Peritonsillar abscess"
+    },
+    {
+     "letter": "C",
+     "text": "Ludwig angina"
+    },
+    {
+     "letter": "D",
+     "text": "Retropharyngeal abscess"
+    }
+   ],
+   "answer": "B",
+   "explanation": "PTA → drainage + antibiotics."
+  },
+  {
+   "id": "22c",
+   "group": 22,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · threatened airway and deep neck infection",
+   "stem": "Peritonsillar abscess → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Drainage + antibiotics"
+    },
+    {
+     "letter": "B",
+     "text": "Steroids only"
+    },
+    {
+     "letter": "C",
+     "text": "Antibiotics only"
+    },
+    {
+     "letter": "D",
+     "text": "Tonsillectomy"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Aspiration/I&D + Unasyn; dexamethasone for pain/trismus."
+  },
+  {
+   "id": "22d",
+   "group": 22,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · threatened airway and deep neck infection",
+   "stem": "Child with torticollis, drooling, won't move the neck → Test:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "MRI"
+    },
+    {
+     "letter": "B",
+     "text": "Oropharyngeal exam"
+    },
+    {
+     "letter": "C",
+     "text": "Contrast CT neck"
+    },
+    {
+     "letter": "D",
+     "text": "Lateral neck X-ray only"
+    }
+   ],
+   "answer": "C",
+   "explanation": "RPA — airway assessment, contrast CT, IV antibiotics, PICU/OR."
+  },
+  {
+   "id": "22e",
+   "group": 22,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · threatened airway and deep neck infection",
+   "stem": "Dental infection + woody floor of mouth + tongue elevation → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Ludwig angina"
+    },
+    {
+     "letter": "B",
+     "text": "Lemierre syndrome"
+    },
+    {
+     "letter": "C",
+     "text": "Peritonsillar abscess"
+    },
+    {
+     "letter": "D",
+     "text": "Retropharyngeal abscess"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Early airway plan, IV antibiotics, surgery/ICU; treat before imaging."
+  },
+  {
+   "id": "22f",
+   "group": 22,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · threatened airway and deep neck infection",
+   "stem": "Sore throat a week ago, now neck pain + septic pulmonary emboli → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Lemierre syndrome"
+    },
+    {
+     "letter": "B",
+     "text": "Endocarditis"
+    },
+    {
+     "letter": "C",
+     "text": "Peritonsillar abscess"
+    },
+    {
+     "letter": "D",
+     "text": "Mononucleosis"
+    }
+   ],
+   "answer": "A",
+   "explanation": "IJ thrombophlebitis, Fusobacterium → contrast CT neck, IV β-lactam/β-lactamase inhibitor."
+  },
+  {
+   "id": "22g",
+   "group": 22,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · threatened airway and deep neck infection",
+   "stem": "Tongue swelling without hives on an ACE inhibitor → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "IM epinephrine"
+    },
+    {
+     "letter": "B",
+     "text": "Antihistamines"
+    },
+    {
+     "letter": "C",
+     "text": "Stop drug, early airway, icatibant/FFP"
+    },
+    {
+     "letter": "D",
+     "text": "Steroids"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Bradykinin-mediated — epinephrine and antihistamines don't work."
+  },
+  {
+   "id": "23",
+   "group": 23,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · ear, nose and dental must-not-miss",
+   "stem": "Diabetic with severe ear pain and granulation tissue in the canal → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Malignant otitis externa"
+    },
+    {
+     "letter": "B",
+     "text": "Otitis externa"
+    },
+    {
+     "letter": "C",
+     "text": "Mastoiditis"
+    },
+    {
+     "letter": "D",
+     "text": "Acute otitis media"
+    }
+   ],
+   "answer": "A",
+   "explanation": "IV antipseudomonal therapy, admit; CN VII palsy = spread."
+  },
+  {
+   "id": "23a",
+   "group": 23,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · ear, nose and dental must-not-miss",
+   "stem": "Child with AOM, ear pushed forward, postauricular tenderness → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "CT, IV antibiotics, admit"
+    },
+    {
+     "letter": "B",
+     "text": "Oral amoxicillin, home"
+    },
+    {
+     "letter": "C",
+     "text": "Antibiotic drops"
+    },
+    {
+     "letter": "D",
+     "text": "Watchful waiting"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Mastoiditis — always admit."
+  },
+  {
+   "id": "23b",
+   "group": 23,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · ear, nose and dental must-not-miss",
+   "stem": "Epistaxis → First step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Cautery"
+    },
+    {
+     "letter": "B",
+     "text": "ENT consult"
+    },
+    {
+     "letter": "C",
+     "text": "Direct pressure + oxymetazoline"
+    },
+    {
+     "letter": "D",
+     "text": "Packing"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Pressure → vasoconstrictor → cautery (one side only) → packing."
+  },
+  {
+   "id": "23c",
+   "group": 23,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · ear, nose and dental must-not-miss",
+   "stem": "Bleeding from both nares and down the throat, elderly and anticoagulated, pressure fails → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Posterior balloon, ENT, admit"
+    },
+    {
+     "letter": "B",
+     "text": "Anterior pack, home"
+    },
+    {
+     "letter": "C",
+     "text": "Silver nitrate"
+    },
+    {
+     "letter": "D",
+     "text": "Observe"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Posterior bleed = admit monitored."
+  },
+  {
+   "id": "23d",
+   "group": 23,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · ear, nose and dental must-not-miss",
+   "stem": "Button battery in the ear or nose → Rule:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Irrigate it out"
+    },
+    {
+     "letter": "B",
+     "text": "Observe"
+    },
+    {
+     "letter": "C",
+     "text": "Mineral oil drops"
+    },
+    {
+     "letter": "D",
+     "text": "Urgent removal, no liquid/irrigation"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Liquid drives the current injury."
+  },
+  {
+   "id": "23e",
+   "group": 23,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · ear, nose and dental must-not-miss",
+   "stem": "Avulsed permanent tooth → Transport medium:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Alcohol"
+    },
+    {
+     "letter": "B",
+     "text": "Milk or HBSS (or reimplant now)"
+    },
+    {
+     "letter": "C",
+     "text": "Dry gauze"
+    },
+    {
+     "letter": "D",
+     "text": "Tap water"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Reimplant promptly — never water, never dry."
+  },
+  {
+   "id": "23f",
+   "group": 23,
+   "section": "HEENT Emergencies",
+   "objective": "HEENT · ear, nose and dental must-not-miss",
+   "stem": "Avulsed primary (baby) tooth → Action:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Store in milk"
+    },
+    {
+     "letter": "B",
+     "text": "Reimplant"
+    },
+    {
+     "letter": "C",
+     "text": "Never reimplant"
+    },
+    {
+     "letter": "D",
+     "text": "Splint it"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Reimplanting damages the permanent tooth bud."
+  },
+  {
+   "id": "24",
+   "group": 24,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · first steps and decontamination",
+   "stem": "Every intentional ingestion → Levels to send:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Lithium + digoxin"
+    },
+    {
+     "letter": "B",
+     "text": "Opioid screen only"
+    },
+    {
+     "letter": "C",
+     "text": "Acetaminophen + salicylate (+ ethanol)"
+    },
+    {
+     "letter": "D",
+     "text": "TCA + benzodiazepine"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Plus glucose, ECG (QRS/QTc), electrolytes, renal function, blood gas; call Poison Control."
+  },
+  {
+   "id": "24a",
+   "group": 24,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · first steps and decontamination",
+   "stem": "Negative urine drug screen → Interpretation:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Does not exclude poisoning"
+    },
+    {
+     "letter": "B",
+     "text": "Rules out opioids"
+    },
+    {
+     "letter": "C",
+     "text": "Rules out TCAs"
+    },
+    {
+     "letter": "D",
+     "text": "Excludes poisoning"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Treat the toxidrome, not the tox screen — UDS misses fentanyl."
+  },
+  {
+   "id": "24b",
+   "group": 24,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · first steps and decontamination",
+   "stem": "Drowsy patient after an ingestion → Activated charcoal?",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Yes, with ipecac"
+    },
+    {
+     "letter": "B",
+     "text": "No — unprotected airway"
+    },
+    {
+     "letter": "C",
+     "text": "Yes, after lavage"
+    },
+    {
+     "letter": "D",
+     "text": "Yes"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Charcoal only early and only with a protected airway; never ipecac."
+  },
+  {
+   "id": "24c",
+   "group": 24,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · first steps and decontamination",
+   "stem": "Drain-cleaner ingestion → Avoid:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Airway assessment"
+    },
+    {
+     "letter": "B",
+     "text": "Charcoal, lavage, or neutralization"
+    },
+    {
+     "letter": "C",
+     "text": "NPO"
+    },
+    {
+     "letter": "D",
+     "text": "Endoscopy"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Corrosives: nothing in the stomach; early airway; endoscopy 12–24 h."
+  },
+  {
+   "id": "24d",
+   "group": 24,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · first steps and decontamination",
+   "stem": "Corrosive ingestion with no oral burns → Interpretation:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Safe to discharge"
+    },
+    {
+     "letter": "B",
+     "text": "Esophageal injury still possible"
+    },
+    {
+     "letter": "C",
+     "text": "No endoscopy needed"
+    },
+    {
+     "letter": "D",
+     "text": "No esophageal injury"
+    }
+   ],
+   "answer": "B",
+   "explanation": "A third with significant esophageal injury have a clean mouth."
+  },
+  {
+   "id": "25",
+   "group": 25,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxidromes",
+   "stem": "Pinpoint pupils + respiratory depression → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Atropine"
+    },
+    {
+     "letter": "B",
+     "text": "Flumazenil"
+    },
+    {
+     "letter": "C",
+     "text": "Ventilation + naloxone"
+    },
+    {
+     "letter": "D",
+     "text": "Physostigmine"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Naloxone low and slow — titrate to respiratory effort; repeat/infuse if recurrent."
+  },
+  {
+   "id": "25a",
+   "group": 25,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxidromes",
+   "stem": "Wet secretions, diarrhea, miosis, bronchorrhea, bradycardia → Toxidrome:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Anticholinergic"
+    },
+    {
+     "letter": "B",
+     "text": "Sympathomimetic"
+    },
+    {
+     "letter": "C",
+     "text": "Cholinergic (organophosphate)"
+    },
+    {
+     "letter": "D",
+     "text": "Opioid"
+    }
+   ],
+   "answer": "C",
+   "explanation": "DUMBBELS — decontaminate (PPE first) + atropine + pralidoxime."
+  },
+  {
+   "id": "25b",
+   "group": 25,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxidromes",
+   "stem": "Hot, dry, flushed, dilated pupils, delirium, urinary retention → Toxidrome:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Sympathomimetic"
+    },
+    {
+     "letter": "B",
+     "text": "Cholinergic"
+    },
+    {
+     "letter": "C",
+     "text": "Serotonin syndrome"
+    },
+    {
+     "letter": "D",
+     "text": "Anticholinergic"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Antihistamines, TCAs, antipsychotics."
+  },
+  {
+   "id": "25c",
+   "group": 25,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxidromes",
+   "stem": "Hot, agitated, dilated pupils, SWEATY → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Atropine"
+    },
+    {
+     "letter": "B",
+     "text": "Naloxone"
+    },
+    {
+     "letter": "C",
+     "text": "Physostigmine"
+    },
+    {
+     "letter": "D",
+     "text": "Benzodiazepines + cooling"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Sympathomimetic — wet skin is the splitter from anticholinergic."
+  },
+  {
+   "id": "25d",
+   "group": 25,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxidromes",
+   "stem": "Cocaine-associated chest pain / hypertension → Avoid:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Nitroglycerin"
+    },
+    {
+     "letter": "B",
+     "text": "Aspirin"
+    },
+    {
+     "letter": "C",
+     "text": "β-blockers"
+    },
+    {
+     "letter": "D",
+     "text": "Benzodiazepines"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Unopposed α stimulation."
+  },
+  {
+   "id": "25e",
+   "group": 25,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxidromes",
+   "stem": "Clonus + hyperreflexia + hyperthermia within 24 h of an SSRI change → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Stop agents, benzodiazepines ± cyproheptadine"
+    },
+    {
+     "letter": "B",
+     "text": "Physostigmine"
+    },
+    {
+     "letter": "C",
+     "text": "Dantrolene"
+    },
+    {
+     "letter": "D",
+     "text": "Haloperidol"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Serotonin syndrome."
+  },
+  {
+   "id": "25f",
+   "group": 25,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxidromes",
+   "stem": "Lead-pipe rigidity + hyperthermia days after haloperidol → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Neuroleptic malignant syndrome"
+    },
+    {
+     "letter": "B",
+     "text": "Serotonin syndrome"
+    },
+    {
+     "letter": "C",
+     "text": "Malignant hyperthermia"
+    },
+    {
+     "letter": "D",
+     "text": "Anticholinergic toxicity"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Stop the drug, cooling, benzodiazepines, dantrolene/bromocriptine."
+  },
+  {
+   "id": "26",
+   "group": 26,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · antidotes",
+   "stem": "Acetaminophen overdose → Antidote:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Flumazenil"
+    },
+    {
+     "letter": "B",
+     "text": "N-acetylcysteine"
+    },
+    {
+     "letter": "C",
+     "text": "Vitamin K"
+    },
+    {
+     "letter": "D",
+     "text": "Fomepizole"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Timed ≥4-h level on the Rumack-Matthew nomogram; treat if above the line or time unknown."
+  },
+  {
+   "id": "26a",
+   "group": 26,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · antidotes",
+   "stem": "Wide QRS + hypotension + 'tachy-sleepy', terminal R in aVR → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Procainamide"
+    },
+    {
+     "letter": "B",
+     "text": "Physostigmine"
+    },
+    {
+     "letter": "C",
+     "text": "Flumazenil"
+    },
+    {
+     "letter": "D",
+     "text": "Sodium bicarbonate"
+    }
+   ],
+   "answer": "D",
+   "explanation": "TCA — bicarb boluses, benzodiazepines, norepinephrine; no physostigmine, no class IA/IC."
+  },
+  {
+   "id": "26b",
+   "group": 26,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · antidotes",
+   "stem": "Tinnitus + hyperventilation + respiratory alkalosis/metabolic acidosis → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "100% oxygen"
+    },
+    {
+     "letter": "B",
+     "text": "Sodium bicarbonate ± dialysis"
+    },
+    {
+     "letter": "C",
+     "text": "Naloxone"
+    },
+    {
+     "letter": "D",
+     "text": "Fomepizole"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Salicylate — alkalinize; dialysis for AMS, pulmonary edema, renal failure, very high level."
+  },
+  {
+   "id": "26c",
+   "group": 26,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · antidotes",
+   "stem": "Bradycardia + hypotension + hypoglycemia → Overdose:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Clonidine"
+    },
+    {
+     "letter": "B",
+     "text": "Calcium-channel blocker"
+    },
+    {
+     "letter": "C",
+     "text": "Digoxin"
+    },
+    {
+     "letter": "D",
+     "text": "β-blocker"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Hypoglycemia = BB; hyperglycemia = CCB."
+  },
+  {
+   "id": "26d",
+   "group": 26,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · antidotes",
+   "stem": "Bradycardia + hypotension + hyperglycemia → Overdose:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Digoxin"
+    },
+    {
+     "letter": "B",
+     "text": "β-blocker"
+    },
+    {
+     "letter": "C",
+     "text": "Calcium-channel blocker"
+    },
+    {
+     "letter": "D",
+     "text": "Opioid"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Glucose tells you which."
+  },
+  {
+   "id": "26e",
+   "group": 26,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · antidotes",
+   "stem": "β-blocker overdose → Antidote:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Atropine only"
+    },
+    {
+     "letter": "B",
+     "text": "Calcium"
+    },
+    {
+     "letter": "C",
+     "text": "Glucagon"
+    },
+    {
+     "letter": "D",
+     "text": "Digoxin Fab"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Then high-dose insulin + dextrose, pressors; avoid liberal fluids."
+  },
+  {
+   "id": "26f",
+   "group": 26,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · antidotes",
+   "stem": "Calcium-channel blocker overdose → First antidote:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Calcium"
+    },
+    {
+     "letter": "B",
+     "text": "Naloxone"
+    },
+    {
+     "letter": "C",
+     "text": "Glucagon"
+    },
+    {
+     "letter": "D",
+     "text": "Bicarbonate"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Calcium → high-dose insulin/pressors; ECMO as rescue."
+  },
+  {
+   "id": "26g",
+   "group": 26,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · antidotes",
+   "stem": "Yellow-green halos + bradyarrhythmia + hyperkalemia → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Digoxin immune Fab"
+    },
+    {
+     "letter": "B",
+     "text": "Calcium"
+    },
+    {
+     "letter": "C",
+     "text": "Bicarbonate"
+    },
+    {
+     "letter": "D",
+     "text": "Dialysis"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Digoxin — scooped ST, bidirectional VT."
+  },
+  {
+   "id": "26h",
+   "group": 26,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · antidotes",
+   "stem": "Digoxin toxicity → Avoid:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Calcium"
+    },
+    {
+     "letter": "B",
+     "text": "Digoxin Fab"
+    },
+    {
+     "letter": "C",
+     "text": "Atropine"
+    },
+    {
+     "letter": "D",
+     "text": "Magnesium"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Calcium in digoxin toxicity ('stone heart')."
+  },
+  {
+   "id": "26i",
+   "group": 26,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · antidotes",
+   "stem": "Physostigmine → Avoid when:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Pure anticholinergic delirium"
+    },
+    {
+     "letter": "B",
+     "text": "Wide QRS / suspected TCA"
+    },
+    {
+     "letter": "C",
+     "text": "Antihistamine overdose"
+    },
+    {
+     "letter": "D",
+     "text": "Agitation"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Physostigmine only for pure anticholinergic toxicity."
+  },
+  {
+   "id": "26j",
+   "group": 26,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · antidotes",
+   "stem": "Benzodiazepine overdose in a chronic user → Flumazenil:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Avoid — seizures/withdrawal"
+    },
+    {
+     "letter": "B",
+     "text": "Give"
+    },
+    {
+     "letter": "C",
+     "text": "Give with naloxone"
+    },
+    {
+     "letter": "D",
+     "text": "Give half dose"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Reserve for procedural-sedation reversal."
+  },
+  {
+   "id": "27",
+   "group": 27,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxic alcohols and gases",
+   "stem": "'Drunk' with an ethanol level of zero and a raised osmolar gap → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Sepsis"
+    },
+    {
+     "letter": "B",
+     "text": "Hypoglycemia"
+    },
+    {
+     "letter": "C",
+     "text": "Toxic alcohol ingestion"
+    },
+    {
+     "letter": "D",
+     "text": "Opioid overdose"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Osm gap early (parent alcohol) → anion gap late (metabolite)."
+  },
+  {
+   "id": "27a",
+   "group": 27,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxic alcohols and gases",
+   "stem": "Visual loss ('snowstorm') + anion-gap acidosis → Antidote:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Fomepizole ± dialysis"
+    },
+    {
+     "letter": "B",
+     "text": "N-acetylcysteine"
+    },
+    {
+     "letter": "C",
+     "text": "Vitamin K"
+    },
+    {
+     "letter": "D",
+     "text": "Naloxone"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Methanol — start fomepizole before confirmation if the story fits."
+  },
+  {
+   "id": "27b",
+   "group": 27,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxic alcohols and gases",
+   "stem": "Oxalate crystals + renal failure after antifreeze → Toxin:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Ethylene glycol"
+    },
+    {
+     "letter": "B",
+     "text": "Isopropanol"
+    },
+    {
+     "letter": "C",
+     "text": "Methanol"
+    },
+    {
+     "letter": "D",
+     "text": "Lithium"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Also fomepizole ± dialysis."
+  },
+  {
+   "id": "27c",
+   "group": 27,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxic alcohols and gases",
+   "stem": "Ketosis without acidosis, fruity breath, 'drunk' → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Insulin"
+    },
+    {
+     "letter": "B",
+     "text": "Bicarbonate + dialysis"
+    },
+    {
+     "letter": "C",
+     "text": "Fomepizole"
+    },
+    {
+     "letter": "D",
+     "text": "Supportive care — no fomepizole"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Isopropanol → acetone, not an acid."
+  },
+  {
+   "id": "27d",
+   "group": 27,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxic alcohols and gases",
+   "stem": "Whole family ill in winter, headache/N/V, pulse oximetry normal → Test:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Co-oximetry"
+    },
+    {
+     "letter": "B",
+     "text": "Standard pulse oximetry"
+    },
+    {
+     "letter": "C",
+     "text": "Lactate only"
+    },
+    {
+     "letter": "D",
+     "text": "Arterial blood gas"
+    }
+   ],
+   "answer": "A",
+   "explanation": "CO reads normal on pulse-ox → co-oximetry → 100% O₂ ± hyperbaric."
+  },
+  {
+   "id": "27e",
+   "group": 27,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxic alcohols and gases",
+   "stem": "Carbon monoxide poisoning → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hydroxocobalamin"
+    },
+    {
+     "letter": "B",
+     "text": "100% oxygen ± hyperbaric"
+    },
+    {
+     "letter": "C",
+     "text": "Sodium nitrite"
+    },
+    {
+     "letter": "D",
+     "text": "Room air observation"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Hyperbaric for LOC, neuro signs, ischemia, pregnancy, very high COHb."
+  },
+  {
+   "id": "27f",
+   "group": 27,
+   "section": "Toxic Ingestion",
+   "objective": "Tox · toxic alcohols and gases",
+   "stem": "Smoke exposure + severe lactic acidosis + normal SaO₂ → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "100% oxygen only"
+    },
+    {
+     "letter": "B",
+     "text": "Nitrite with concurrent CO"
+    },
+    {
+     "letter": "C",
+     "text": "Hydroxocobalamin"
+    },
+    {
+     "letter": "D",
+     "text": "Dialysis"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Cyanide — no nitrite when CO is also present."
+  }
+ ]
+};
+
+// ---- Per-attempt shuffle -------------------------------------------------------
+// Reshuffles on every page load: answer options are randomized within each
+// question, and the pages are put in a random order. Questions inside a group
+// keep their built order.
+(function shuffleExam() {
+  function shuffled(arr) {
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  var NUMERIC = /^\s*[<>≥≤~]?\s*\d/;
+  function isNumericSet(opts) {
+    return opts.length > 1 && opts.every(function (o) { return NUMERIC.test(o.text); });
+  }
+  var LETTERS = "ABCDEFGH";
+  EXAM_DATA.questions.forEach(function (q) {
+    if (!q.options || q.options.length < 2) return;
+    if (isNumericSet(q.options)) return;
+    var correctText = (q.options.find(function (o) { return o.letter === q.answer; }) || {}).text;
+    var order = shuffled(q.options);
+    q.options = order.map(function (o, i) { return { letter: LETTERS[i], text: o.text }; });
+    var match = q.options.find(function (o) { return o.text === correctText; });
+    if (match) q.answer = match.letter;
+  });
+  var order = [], bucket = {};
+  EXAM_DATA.questions.forEach(function (q) {
+    if (!bucket[q.group]) { bucket[q.group] = []; order.push(q.group); }
+    bucket[q.group].push(q);
+  });
+  var out = [];
+  shuffled(order).forEach(function (g) { out = out.concat(bucket[g]); });
+  EXAM_DATA.questions = out;
+})();
+// -------------------------------------------------------------------------------
+
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  const flagged = {};        // question id -> true, set by the learner at any point (never affects score)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  // Lab values as a table. q.labs is [{test, result, range}]. If the stem contains
+  // the marker [[LABS]] the table goes there (so the vignette can continue after
+  // the labs); otherwise it follows the stem.
+  function labsHtml(q) {
+    if (!q.labs || !q.labs.length) return '';
+    const hasRange = q.labs.some(l => l.range);
+    let html = '<table class="labs"><thead><tr><th>Test</th><th>Result</th>' +
+      (hasRange ? '<th>Reference Range</th>' : '') + '</tr></thead><tbody>';
+    q.labs.forEach(l => {
+      html += '<tr><td>' + esc(l.test) + '</td><td class="res">' + esc(l.result) + '</td>' +
+        (hasRange ? '<td class="ref">' + (l.range ? '(' + esc(String(l.range).replace(/^\(|\)$/g, '')) + ')' : '') + '</td>' : '') + '</tr>';
+    });
+    return html + '</tbody></table>';
+  }
+
+  function stemHtml(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    const table = labsHtml(q);
+    if (table && stem.indexOf('[[LABS]]') !== -1) {
+      const parts = stem.split('[[LABS]]');
+      return '<div class="stem">' + esc(parts[0].replace(/\s+$/, '')) + '</div>' + table +
+        (parts[1] && parts[1].trim() ? '<div class="stem">' + esc(parts[1].replace(/^\s+/, '')) + '</div>' : '');
+    }
+    return '<div class="stem">' + esc(stem.replace('[[LABS]]', '')) + '</div>' + table;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += stemHtml(q);
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += flagHtml(q);
+    html += '</div>';
+    return html;
+  }
+
+  // Flagging: available on every question in every mode, right or wrong, answered or
+  // not. A flagged question joins the missed list and the copy-out, so a question that
+  // was guessed correctly (or not understood) can still be carried into the next round
+  // of study. Flagging never changes the score — it is a bookmark, not a second answer.
+  function flagHtml(q) {
+    const on = !!flagged[q.id];
+    return '<div class="flagrow"><button class="flagbtn' + (on ? ' on' : '') + '" data-flag="' +
+      esc(q.id) + '">⚑ ' + (on ? 'Flagged' : 'Flag for review') + '</button></div>';
+  }
+
+  function bindFlags() {
+    $('main').querySelectorAll('[data-flag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-flag');
+        if (flagged[id]) delete flagged[id]; else flagged[id] = true;
+        if (mode === 'missed') {                 // toggle in place; the list is rebuilt on re-entry
+          btn.classList.toggle('on', !!flagged[id]);
+          btn.textContent = '⚑ ' + (flagged[id] ? 'Flagged' : 'Flag for review');
+          return;
+        }
+        renderPage(true);
+      });
+    });
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+    bindFlags();
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {                 // answered wrong, or flagged by the learner
+    return questions.filter(q => flagged[q.id] ||
+      (answers[q.id] !== undefined && answers[q.id] !== q.answer));
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed &amp; flagged (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed &amp; flagged</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          stemHtml(g[0]) + '</div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed & flagged (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed or flagged question' + (missed.length === 1 ? '' : 's');
+    bindFlags();
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  // Plain-text stem with the lab table flattened to one line per lab
+  function stemText(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    if (!q.labs || !q.labs.length) return stem.replace('[[LABS]]', '').trim();
+    const rows = q.labs.map(l => '  ' + l.test + ': ' + l.result + (l.range ? ' (ref ' + String(l.range).replace(/^\(|\)$/g, '') + ')' : '')).join('\n');
+    const i = stem.indexOf('[[LABS]]');
+    const before = i === -1 ? stem : stem.slice(0, i);
+    const hasHeader = /\b(labs|laboratory (studies|results|values))\s*:?\s*$/i.test(before);   // stem already says "Labs:"
+    const block = (hasHeader ? '' : 'Labs:\n') + rows;
+    return (i !== -1 ? before.replace(/\s+$/, '') + '\n' + block + '\n' + stem.slice(i + 8).replace(/^\s+/, '') : stem + '\n' + block).trim();
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + stemText(group[0]));
+      lines.push(stemText(q));
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      if (flagged[q.id]) lines.push(answers[q.id] === q.answer
+        ? 'FLAGGED by me — answered correctly but not understood' : 'FLAGGED by me');
+      lines.push(answers[q.id] === undefined ? 'Not answered' : 'My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed & flagged questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed & flagged'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(flagged).forEach(k => delete flagged[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
