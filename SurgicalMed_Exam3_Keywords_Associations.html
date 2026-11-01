@@ -1,0 +1,5235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  /* Lab table: vignettes with several lab values render them as a scannable
+     Test / Result / Reference Range table instead of a run-on sentence. */
+  .labs { width: 100%; border-collapse: separate; border-spacing: 0; margin: 10px 0 14px;
+    font-size: 0.95em; background: #fbfbf9; border: 1px solid #e3e1dc; border-radius: 10px; overflow: hidden; }
+  .labs th, .labs td { text-align: left; padding: 9px 14px; border-bottom: 1px solid #e3e1dc; vertical-align: top; }
+  .labs th { font-weight: 500; color: var(--ink-soft); }
+  .labs td:not(:first-child), .labs th:not(:first-child) { border-left: 1px solid #e3e1dc; }
+  .labs tr:last-child td { border-bottom: 0; }
+  .labs td.ref { color: var(--ink-soft); white-space: nowrap; }
+  .labs td.res { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .group.c3 .labs, .group.c4 .labs { font-size: 0.92em; }
+  .group.c3 .labs th, .group.c3 .labs td, .group.c4 .labs th, .group.c4 .labs td { padding: 5px 10px; }
+  @media (max-width: 520px) { .labs th, .labs td { padding: 7px 9px; } .labs td.ref, .labs td.res { white-space: normal; } }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  /* Flag for review: a bookmark the learner can toggle on any question at any time */
+  .flagrow { margin-top: 12px; }
+  .flagbtn { font: inherit; font-size: 0.82em; font-weight: 600; cursor: pointer; background: transparent;
+    border: 1.5px dashed var(--border); border-radius: 8px; padding: 4px 11px; color: var(--ink-soft); }
+  .flagbtn:hover { border-color: var(--amber); color: var(--amber); }
+  .flagbtn.on { background: var(--amber-bg); border-style: solid; border-color: var(--amber); color: var(--amber); }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {
+ "title": "Surgical Med Exam 3 — Keywords, Associations & Rules",
+ "questions": [
+  {
+   "id": "1",
+   "group": 1,
+   "stem": "MVC at 50 mph with a fatality at the scene → Activation level:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Level 2 activation"
+    },
+    {
+     "letter": "B",
+     "text": "Level 3 activation"
+    },
+    {
+     "letter": "C",
+     "text": "Level 1 activation"
+    },
+    {
+     "letter": "D",
+     "text": "Trauma consult only"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Level 1 = >45 mph, fatality at scene, fall >30 ft, SBP <90, GCS <10, penetrating core/head. Level 2 uses >35 mph and >15 ft.",
+   "objective": "Trauma · activation levels",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "1a",
+   "group": 1,
+   "stem": "Unsure whether to call a Level 1 or Level 2 activation → Rule:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Activate low"
+    },
+    {
+     "letter": "B",
+     "text": "Wait for the primary survey"
+    },
+    {
+     "letter": "C",
+     "text": "Defer to the EMS triage level"
+    },
+    {
+     "letter": "D",
+     "text": "Activate high"
+    }
+   ],
+   "answer": "D",
+   "explanation": "It is much easier to downgrade than to upgrade an activation — when in doubt, activate high.",
+   "objective": "Trauma · activation levels",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "2",
+   "group": 2,
+   "stem": "24-hour IN-HOUSE general surgery + teaching and research program → Center level:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Level II"
+    },
+    {
+     "letter": "B",
+     "text": "Level I"
+    },
+    {
+     "letter": "C",
+     "text": "Level III"
+    },
+    {
+     "letter": "D",
+     "text": "Level IV"
+    }
+   ],
+   "answer": "B",
+   "explanation": "In-house surgeon = I · immediately available surgeon = II · EM physician on site with surgeon promptly available = III.",
+   "objective": "Trauma · trauma center levels",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "2a",
+   "group": 2,
+   "stem": "24-hour EM physicians on site; general surgeon and anesthesia promptly available → Center level:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Level I"
+    },
+    {
+     "letter": "B",
+     "text": "Level III"
+    },
+    {
+     "letter": "C",
+     "text": "Level II"
+    },
+    {
+     "letter": "D",
+     "text": "Level IV"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Level III also provides back-up care for rural/community hospitals and has transfer agreements to Level I/II.",
+   "objective": "Trauma · trauma center levels",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "2b",
+   "group": 2,
+   "stem": "Patient at a Level II center needs microvascular replantation → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Transfer to a Level III"
+    },
+    {
+     "letter": "B",
+     "text": "Replant at the Level II"
+    },
+    {
+     "letter": "C",
+     "text": "Delay until stable for OR"
+    },
+    {
+     "letter": "D",
+     "text": "Transfer to a Level I"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Level II refers cardiac surgery, hemodialysis, and microvascular surgery to Level I.",
+   "objective": "Trauma · trauma center levels",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "3",
+   "group": 3,
+   "stem": "Stands at the foot of the bed, directs the resuscitation, performs no procedures → Role:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Airway physician"
+    },
+    {
+     "letter": "B",
+     "text": "Doc Right"
+    },
+    {
+     "letter": "C",
+     "text": "Team Leader"
+    },
+    {
+     "letter": "D",
+     "text": "Doc Left"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Team Leader/Trauma Captain directs and decides; the airway physician is at the head of the bed.",
+   "objective": "Trauma · trauma-bay roles and ATLS",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "4",
+   "group": 4,
+   "stem": "First priority of the primary survey:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Two large-bore 16 G IVs"
+    },
+    {
+     "letter": "B",
+     "text": "GCS and pupil exam"
+    },
+    {
+     "letter": "C",
+     "text": "Tamponade of external bleeding"
+    },
+    {
+     "letter": "D",
+     "text": "Airway with C-spine control"
+    }
+   ],
+   "answer": "D",
+   "explanation": "ABCDE in order, fixing each problem as you find it — airway is assessed while protecting the cervical spine.",
+   "objective": "Trauma · primary vs. secondary vs. tertiary survey",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "4a",
+   "group": 4,
+   "stem": "Still hypotensive after two crystalloid boluses → Third bolus:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Another normal saline bolus"
+    },
+    {
+     "letter": "B",
+     "text": "O-negative packed RBCs"
+    },
+    {
+     "letter": "C",
+     "text": "Lactated Ringer 2 L"
+    },
+    {
+     "letter": "D",
+     "text": "Colloid bolus"
+    }
+   ],
+   "answer": "B",
+   "explanation": "If a third bolus is needed, make it packed RBCs (O-neg, type-specific, or cross-matched) and arrange early surgery.",
+   "objective": "Trauma · primary vs. secondary vs. tertiary survey",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "4b",
+   "group": 4,
+   "stem": "Inpatient floor, patient always stable, catches small missed fractures and abrasions → Survey:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Secondary survey"
+    },
+    {
+     "letter": "B",
+     "text": "Primary survey"
+    },
+    {
+     "letter": "C",
+     "text": "Adjuncts to the primary"
+    },
+    {
+     "letter": "D",
+     "text": "Tertiary survey"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Primary = find & fix life threats · secondary = find everything else · tertiary = find what was missed and start disposition planning.",
+   "objective": "Trauma · primary vs. secondary vs. tertiary survey",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "5",
+   "group": 5,
+   "stem": "Hypotensive after blunt trauma, absent breath sounds, tracheal deviation → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Needle decompression"
+    },
+    {
+     "letter": "B",
+     "text": "Portable chest x-ray"
+    },
+    {
+     "letter": "C",
+     "text": "Chest CT with contrast"
+    },
+    {
+     "letter": "D",
+     "text": "Pericardiocentesis"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Tension PTX is found and treated on the primary survey — needle/finger decompression before any imaging.",
+   "objective": "Trauma · immediate life threats",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "5a",
+   "group": 5,
+   "stem": "Massive hemothorax on the primary survey → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Needle decompression"
+    },
+    {
+     "letter": "B",
+     "text": "Pericardiocentesis"
+    },
+    {
+     "letter": "C",
+     "text": "Chest tube"
+    },
+    {
+     "letter": "D",
+     "text": "Serial chest x-rays"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Massive HTX → chest tube; tension PTX → needle; tamponade → pericardiocentesis.",
+   "objective": "Trauma · immediate life threats",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "5b",
+   "group": 5,
+   "stem": "Pulseless after blunt trauma, signs of life documented en route → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Exploratory laparotomy"
+    },
+    {
+     "letter": "B",
+     "text": "Pericardiocentesis"
+    },
+    {
+     "letter": "C",
+     "text": "Resuscitative thoracotomy"
+    },
+    {
+     "letter": "D",
+     "text": "Bilateral chest tubes"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Allows tamponade relief, hemorrhage control, open cardiac massage, aortic cross-clamping, air-embolism control — always followed by definitive surgery.",
+   "objective": "Trauma · immediate life threats",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "6",
+   "group": 6,
+   "stem": "≥3 adjacent ribs each fractured in ≥2 places → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Flail chest"
+    },
+    {
+     "letter": "B",
+     "text": "Pulmonary contusion"
+    },
+    {
+     "letter": "C",
+     "text": "Simple rib fractures"
+    },
+    {
+     "letter": "D",
+     "text": "Tracheobronchial injury"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Flail segment moves IN on inspiration, OUT on expiration — a clinical bedside diagnosis; don't wait for imaging.",
+   "objective": "Trauma · chest trauma",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "6a",
+   "group": 6,
+   "stem": "Pulmonary contusion → Avoid:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Incentive spirometry"
+    },
+    {
+     "letter": "B",
+     "text": "Opioid analgesia"
+    },
+    {
+     "letter": "C",
+     "text": "Supplemental oxygen"
+    },
+    {
+     "letter": "D",
+     "text": "Excessive IV fluids"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Hypoxia with patchy infiltrate/white-out that worsens over the first 6 h; pain control, respiratory support, euvolemia.",
+   "objective": "Trauma · chest trauma",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "6b",
+   "group": 6,
+   "stem": "Rapid deceleration + widened mediastinum + left apical pleural cap → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Tension pneumothorax"
+    },
+    {
+     "letter": "B",
+     "text": "Blunt aortic injury"
+    },
+    {
+     "letter": "C",
+     "text": "Cardiac tamponade"
+    },
+    {
+     "letter": "D",
+     "text": "Tracheobronchial injury"
+    }
+   ],
+   "answer": "B",
+   "explanation": "MC site = isthmus just distal to the left subclavian; stable → CTA chest, beta-blocker to HR ≤100 and SBP ≤100 → TEVAR.",
+   "objective": "Trauma · chest trauma",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "7",
+   "group": 7,
+   "stem": "Hit in the temple, brief LOC, talking normally, then rapid decline → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Subdural hematoma"
+    },
+    {
+     "letter": "B",
+     "text": "Epidural hematoma"
+    },
+    {
+     "letter": "C",
+     "text": "Diffuse axonal injury"
+    },
+    {
+     "letter": "D",
+     "text": "Concussion"
+    }
+   ],
+   "answer": "B",
+   "explanation": "EDH = middle meningeal artery, lucid interval, age 20–30, biconvex and stops at sutures. SDH = bridging veins, crescent, crosses sutures.",
+   "objective": "Trauma · head injury",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "7a",
+   "group": 7,
+   "stem": "Elderly on an anticoagulant, minor fall; crescent bleed crossing suture lines → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Epidural hematoma"
+    },
+    {
+     "letter": "B",
+     "text": "Cerebral contusion"
+    },
+    {
+     "letter": "C",
+     "text": "Depressed skull fracture"
+    },
+    {
+     "letter": "D",
+     "text": "Subdural hematoma"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Torn bridging veins with minor trauma in atrophy/anticoagulation; chronic SDH presents as gradual cognitive or personality change.",
+   "objective": "Trauma · head injury",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "7b",
+   "group": 7,
+   "stem": "SDH → Surgical thresholds:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "≥10 mm thick or ≥5 mm shift"
+    },
+    {
+     "letter": "B",
+     "text": "≥5 mm thick or ≥10 mm shift"
+    },
+    {
+     "letter": "C",
+     "text": "≥2 mm thick or any shift"
+    },
+    {
+     "letter": "D",
+     "text": "≥20 mm thick only"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Operate if symptomatic, ≥10 mm thick, or ≥5 mm midline shift; small/asymptomatic → conservative.",
+   "objective": "Trauma · head injury",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "7c",
+   "group": 7,
+   "stem": "GCS 7 after head trauma → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Serial neuro checks"
+    },
+    {
+     "letter": "B",
+     "text": "MRI brain"
+    },
+    {
+     "letter": "C",
+     "text": "Intubation"
+    },
+    {
+     "letter": "D",
+     "text": "Lumbar puncture"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Mild 13–15 · moderate 9–12 · severe ≤8 → often intubate for airway protection.",
+   "objective": "Trauma · head injury",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "8",
+   "group": 8,
+   "stem": "LUQ pain + referred left shoulder pain (Kehr sign) → Injured organ:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Spleen"
+    },
+    {
+     "letter": "B",
+     "text": "Liver"
+    },
+    {
+     "letter": "C",
+     "text": "Left kidney"
+    },
+    {
+     "letter": "D",
+     "text": "Pancreas"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Kehr = spleen; RUQ pain + right shoulder pain = liver. Left lower rib fx → spleen, right lower rib fx → liver.",
+   "objective": "Trauma · blunt abdominal trauma",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "8a",
+   "group": 8,
+   "stem": "Periumbilical + flank ecchymosis after blunt trauma → Source:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Splenic laceration"
+    },
+    {
+     "letter": "B",
+     "text": "Liver laceration"
+    },
+    {
+     "letter": "C",
+     "text": "Bowel perforation"
+    },
+    {
+     "letter": "D",
+     "text": "Retroperitoneal bleed"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Cullen (periumbilical) and Grey Turner (flank) signs = retroperitoneal hemorrhage; back/flank pain.",
+   "objective": "Trauma · blunt abdominal trauma",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "8b",
+   "group": 8,
+   "stem": "Hypotensive after MVC, positive FAST → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "CT A/P with IV contrast"
+    },
+    {
+     "letter": "B",
+     "text": "Exploratory laparotomy"
+    },
+    {
+     "letter": "C",
+     "text": "Serial abdominal exams"
+    },
+    {
+     "letter": "D",
+     "text": "Repeat FAST in 1 hour"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Unstable + positive FAST, peritonitis, or free air = ex-lap; don't delay the OR for diagnostics.",
+   "objective": "Trauma · blunt abdominal trauma",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "8c",
+   "group": 8,
+   "stem": "Stable after high-speed MVC, benign abdominal exam → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Discharge home"
+    },
+    {
+     "letter": "B",
+     "text": "CT A/P with IV contrast"
+    },
+    {
+     "letter": "C",
+     "text": "Exploratory laparotomy"
+    },
+    {
+     "letter": "D",
+     "text": "Serial exams without imaging"
+    }
+   ],
+   "answer": "B",
+   "explanation": "A benign exam does not exclude injury — retroperitoneal and solid-organ injuries are often silent early; stable solid-organ injury → nonoperative with serial exams/Hgb.",
+   "objective": "Trauma · blunt abdominal trauma",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "9",
+   "group": 9,
+   "stem": "Pelvic instability + hypotension → First move:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Exploratory laparotomy"
+    },
+    {
+     "letter": "B",
+     "text": "Foley catheter"
+    },
+    {
+     "letter": "C",
+     "text": "CT pelvis"
+    },
+    {
+     "letter": "D",
+     "text": "Pelvic binder"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Binder early, plus angioembolization/preperitoneal packing; avoid repeated pelvic compression. VTE prophylaxis once hemostatic.",
+   "objective": "Trauma · pelvic and extremity trauma",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "9a",
+   "group": 9,
+   "stem": "Pelvic fx + blood at the meatus + high-riding prostate → Avoid:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Blind Foley placement"
+    },
+    {
+     "letter": "B",
+     "text": "Pelvic binder"
+    },
+    {
+     "letter": "C",
+     "text": "Portable pelvic x-ray"
+    },
+    {
+     "letter": "D",
+     "text": "Large-bore IV access"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Suggests urethral injury; hematuria instead points to bladder injury.",
+   "objective": "Trauma · pelvic and extremity trauma",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "9b",
+   "group": 9,
+   "stem": "Tibiofemoral (knee) dislocation → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "MRI of the knee"
+    },
+    {
+     "letter": "B",
+     "text": "Knee immobilizer only"
+    },
+    {
+     "letter": "C",
+     "text": "ABI or CT angiogram"
+    },
+    {
+     "letter": "D",
+     "text": "Delayed arthroscopy"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Popliteal artery disruption risk — an orthopedic emergency; patellar dislocation is not the same thing.",
+   "objective": "Trauma · pelvic and extremity trauma",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "9c",
+   "group": 9,
+   "stem": "Leg pain out of proportion + paresthesia after a crush injury → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Elevation and ice"
+    },
+    {
+     "letter": "B",
+     "text": "Re-splint and recheck"
+    },
+    {
+     "letter": "C",
+     "text": "Emergent fasciotomy"
+    },
+    {
+     "letter": "D",
+     "text": "Opioids and observe"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Compartment syndrome — 6 P's: pain out of proportion, paresthesia, pallor, paralysis, pulselessness, poikilothermia.",
+   "objective": "Trauma · pelvic and extremity trauma",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "9d",
+   "group": 9,
+   "stem": "Tibial fracture with bone through the skin → Most vital step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Early IV antibiotics"
+    },
+    {
+     "letter": "B",
+     "text": "Immediate ORIF"
+    },
+    {
+     "letter": "C",
+     "text": "Wound culture first"
+    },
+    {
+     "letter": "D",
+     "text": "Delayed debridement"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Open fx (Gustilo-Anderson): early systemic antibiotics prevent osteomyelitis, plus debridement; thin anterior tibia = high open-fx risk.",
+   "objective": "Trauma · pelvic and extremity trauma",
+   "section": "Trauma Surgery"
+  },
+  {
+   "id": "10",
+   "group": 10,
+   "stem": "New left varicocele that does not decompress lying down → Suspect:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Left testicular germ cell tumor"
+    },
+    {
+     "letter": "B",
+     "text": "Left ureteral stone"
+    },
+    {
+     "letter": "C",
+     "text": "Left renal cell carcinoma"
+    },
+    {
+     "letter": "D",
+     "text": "Indirect inguinal hernia"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Left renal vein involvement by RCC blocks the gonadal vein drainage → get a CT. An idiopathic varicocele decompresses supine.",
+   "objective": "Urology · renal cell carcinoma",
+   "section": "Urology"
+  },
+  {
+   "id": "10a",
+   "group": 10,
+   "stem": "Incidental 3 cm enhancing renal mass, healthy patient → Procedure of choice:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Radical nephrectomy"
+    },
+    {
+     "letter": "B",
+     "text": "Systemic therapy"
+    },
+    {
+     "letter": "C",
+     "text": "Percutaneous biopsy only"
+    },
+    {
+     "letter": "D",
+     "text": "Partial nephrectomy"
+    }
+   ],
+   "answer": "D",
+   "explanation": "T1 (≤7 cm) → partial: equivalent cancer control with less CKD, CV events and mortality. Ablation/surveillance only if frail.",
+   "objective": "Urology · renal cell carcinoma",
+   "section": "Urology"
+  },
+  {
+   "id": "10b",
+   "group": 10,
+   "stem": "9 cm renal mass, no metastases → Procedure of choice:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Partial nephrectomy"
+    },
+    {
+     "letter": "B",
+     "text": "Radical nephrectomy"
+    },
+    {
+     "letter": "C",
+     "text": "Cryoablation"
+    },
+    {
+     "letter": "D",
+     "text": "Active surveillance"
+    }
+   ],
+   "answer": "B",
+   "explanation": ">7 cm → radical (kidney removed inside Gerota's fascia). Add IVC thrombectomy if tumor thrombus is present.",
+   "objective": "Urology · renal cell carcinoma",
+   "section": "Urology"
+  },
+  {
+   "id": "10c",
+   "group": 10,
+   "stem": "Sudden gross hematuria ~2 weeks after partial nephrectomy → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Collecting-system urine leak"
+    },
+    {
+     "letter": "B",
+     "text": "Recurrent tumor"
+    },
+    {
+     "letter": "C",
+     "text": "Hemorrhagic radiation cystitis"
+    },
+    {
+     "letter": "D",
+     "text": "Renal artery pseudoaneurysm"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Delayed sudden hematuria = pseudoaneurysm → angioembolization. A urine leak shows up as rising drain output instead.",
+   "objective": "Urology · renal cell carcinoma",
+   "section": "Urology"
+  },
+  {
+   "id": "11",
+   "group": 11,
+   "stem": "Grade Group 1, PSA 6 → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Active surveillance"
+    },
+    {
+     "letter": "B",
+     "text": "Radical prostatectomy"
+    },
+    {
+     "letter": "C",
+     "text": "Radiation + long-term ADT"
+    },
+    {
+     "letter": "D",
+     "text": "ADT + AR inhibitor"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Low risk (GG 1, PSA <10) → active surveillance, no staging. Intermediate → prostatectomy or radiation ± short ADT.",
+   "objective": "Urology · prostate adenocarcinoma",
+   "section": "Urology"
+  },
+  {
+   "id": "11a",
+   "group": 11,
+   "stem": "Grade Group 5, PSA 28 → Staging study:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "No staging needed"
+    },
+    {
+     "letter": "B",
+     "text": "Renal ultrasound"
+    },
+    {
+     "letter": "C",
+     "text": "PSMA PET"
+    },
+    {
+     "letter": "D",
+     "text": "Prostate MRI only"
+    }
+   ],
+   "answer": "C",
+   "explanation": "High risk (GG 4–5, PSA >20, or cT3) and unfavorable intermediate → PSMA PET; then radiation + long ADT or prostatectomy.",
+   "objective": "Urology · prostate adenocarcinoma",
+   "section": "Urology"
+  },
+  {
+   "id": "12",
+   "group": 12,
+   "stem": "Smoker on apixaban with painless gross hematuria → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Cystoscopy + CT urogram"
+    },
+    {
+     "letter": "B",
+     "text": "Hold apixaban, repeat UA"
+    },
+    {
+     "letter": "C",
+     "text": "Renal ultrasound only"
+    },
+    {
+     "letter": "D",
+     "text": "Reassure — anticoagulant effect"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Hematuria is cancer until proven otherwise; anticoagulation unmasks bleeding, it does not cause it.",
+   "objective": "Urology · transitional cell carcinoma of the bladder",
+   "section": "Urology"
+  },
+  {
+   "id": "12a",
+   "group": 12,
+   "stem": "High-grade non-muscle-invasive bladder cancer after TURBT → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "One dose of intravesical chemo"
+    },
+    {
+     "letter": "B",
+     "text": "Intravesical BCG × 3 years"
+    },
+    {
+     "letter": "C",
+     "text": "Immediate radical cystectomy"
+    },
+    {
+     "letter": "D",
+     "text": "Systemic cisplatin chemo"
+    }
+   ],
+   "answer": "B",
+   "explanation": "High risk → BCG for 3 years + cystoscopy every 3 mo; low risk → a single post-TURBT chemo instillation.",
+   "objective": "Urology · transitional cell carcinoma of the bladder",
+   "section": "Urology"
+  },
+  {
+   "id": "12b",
+   "group": 12,
+   "stem": "Muscle-invasive bladder cancer, cisplatin-eligible → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Radiation alone, no surgery"
+    },
+    {
+     "letter": "B",
+     "text": "Repeat TURBT alone"
+    },
+    {
+     "letter": "C",
+     "text": "Cisplatin chemo → radical cystectomy"
+    },
+    {
+     "letter": "D",
+     "text": "Intravesical BCG × 3 years, then surveillance"
+    }
+   ],
+   "answer": "C",
+   "explanation": "MIBC → cisplatin-based chemo first, then radical cystectomy + lymph nodes + diversion; bladder-sparing only in select patients.",
+   "objective": "Urology · transitional cell carcinoma of the bladder",
+   "section": "Urology"
+  },
+  {
+   "id": "12c",
+   "group": 12,
+   "stem": "Ileal conduit patient with fatigue, low HCO₃⁻, high Cl⁻ → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hyperchloremic metabolic acidosis"
+    },
+    {
+     "letter": "B",
+     "text": "Anion-gap metabolic acidosis"
+    },
+    {
+     "letter": "C",
+     "text": "Hypochloremic metabolic alkalosis"
+    },
+    {
+     "letter": "D",
+     "text": "Respiratory acidosis"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Bowel in the urinary tract → lifelong hyperchloremic metabolic acidosis, B12 deficiency, ureteral stricture.",
+   "objective": "Urology · transitional cell carcinoma of the bladder",
+   "section": "Urology"
+  },
+  {
+   "id": "13",
+   "group": 13,
+   "stem": "Tumor markers to send before orchiectomy:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "PSA, CEA, CA-125"
+    },
+    {
+     "letter": "B",
+     "text": "AFP, CEA, CA 19-9"
+    },
+    {
+     "letter": "C",
+     "text": "hCG, PSA, calcitonin"
+    },
+    {
+     "letter": "D",
+     "text": "AFP, hCG, LDH"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Draw AFP, hCG and LDH pre-op — but do not wait on the results to operate.",
+   "objective": "Urology · testicular cancer",
+   "section": "Urology"
+  },
+  {
+   "id": "13a",
+   "group": 13,
+   "stem": "Intratesticular solid mass on ultrasound → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Transscrotal orchiectomy"
+    },
+    {
+     "letter": "B",
+     "text": "Radical inguinal orchiectomy"
+    },
+    {
+     "letter": "C",
+     "text": "Scrotal needle aspiration"
+    },
+    {
+     "letter": "D",
+     "text": "Transscrotal testis-sparing excision"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Radical INGUINAL orchiectomy within days. Never go through the scrotum.",
+   "objective": "Urology · testicular cancer",
+   "section": "Urology"
+  },
+  {
+   "id": "13b",
+   "group": 13,
+   "stem": "Stage I seminoma after orchiectomy → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "BEP chemotherapy"
+    },
+    {
+     "letter": "B",
+     "text": "Surveillance"
+    },
+    {
+     "letter": "C",
+     "text": "RPLND"
+    },
+    {
+     "letter": "D",
+     "text": "Radiation to the pelvis"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Stage I → surveillance (seminoma and non-seminoma); stage III → BEP; cure >95%, so minimize treatment burden.",
+   "objective": "Urology · testicular cancer",
+   "section": "Urology"
+  },
+  {
+   "id": "13c",
+   "group": 13,
+   "stem": "Non-seminoma with residual retroperitoneal mass after chemo → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "PET, then observe"
+    },
+    {
+     "letter": "B",
+     "text": "Repeat orchiectomy"
+    },
+    {
+     "letter": "C",
+     "text": "Radiation alone"
+    },
+    {
+     "letter": "D",
+     "text": "RPLND"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Residual mass: non-seminoma → RPLND; seminoma → PET, then resect.",
+   "objective": "Urology · testicular cancer",
+   "section": "Urology"
+  },
+  {
+   "id": "13d",
+   "group": 13,
+   "stem": "RPLND → Classic complication:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Retrograde ejaculation"
+    },
+    {
+     "letter": "B",
+     "text": "Floppy iris syndrome"
+    },
+    {
+     "letter": "C",
+     "text": "Urethral erosion"
+    },
+    {
+     "letter": "D",
+     "text": "Hyperchloremic acidosis"
+    }
+   ],
+   "answer": "A",
+   "explanation": "RPLND → retrograde ejaculation (sympathetic chain), chylous ascites, ileus, vascular injury.",
+   "objective": "Urology · testicular cancer",
+   "section": "Urology"
+  },
+  {
+   "id": "14",
+   "group": 14,
+   "stem": "BPH drug that works in days on the dynamic component:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "5-alpha-reductase inhibitor (finasteride)"
+    },
+    {
+     "letter": "B",
+     "text": "Beta-3 agonist"
+    },
+    {
+     "letter": "C",
+     "text": "Alpha blocker (tamsulosin)"
+    },
+    {
+     "letter": "D",
+     "text": "PDE-5 inhibitor alone"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Alpha blocker = dynamic (smooth muscle), days; 5-ARI = static (gland size), slow, shrinks ~25%.",
+   "objective": "Urology · BPH — medical vs. surgical",
+   "section": "Urology"
+  },
+  {
+   "id": "14a",
+   "group": 14,
+   "stem": "Man on finasteride with PSA 2.5 → Interpret as:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "~1.25"
+    },
+    {
+     "letter": "B",
+     "text": "~2.5"
+    },
+    {
+     "letter": "C",
+     "text": "~10.0"
+    },
+    {
+     "letter": "D",
+     "text": "~5.0"
+    }
+   ],
+   "answer": "D",
+   "explanation": "5-ARIs halve the PSA → double it to interpret.",
+   "objective": "Urology · BPH — medical vs. surgical",
+   "section": "Urology"
+  },
+  {
+   "id": "14b",
+   "group": 14,
+   "stem": "Absolute indication for BPH surgery:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "IPSS of 15"
+    },
+    {
+     "letter": "B",
+     "text": "Gland size of 60 g"
+    },
+    {
+     "letter": "C",
+     "text": "Bladder stones"
+    },
+    {
+     "letter": "D",
+     "text": "Nocturia twice nightly"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Absolute: refractory retention, recurrent UTI, recurrent hematuria, bladder stones, renal damage, bladder decompensation.",
+   "objective": "Urology · BPH — medical vs. surgical",
+   "section": "Urology"
+  },
+  {
+   "id": "15",
+   "group": 15,
+   "stem": "Man who cannot stop his anticoagulant needs BPH surgery → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "HoLEP"
+    },
+    {
+     "letter": "B",
+     "text": "TURP"
+    },
+    {
+     "letter": "C",
+     "text": "Simple prostatectomy"
+    },
+    {
+     "letter": "D",
+     "text": "UroLift"
+    }
+   ],
+   "answer": "A",
+   "explanation": "HoLEP = any size, durable, safe on blood thinners. PAE if he is too frail for anesthesia.",
+   "objective": "Urology · BPH — choosing the procedure",
+   "section": "Urology"
+  },
+  {
+   "id": "15a",
+   "group": 15,
+   "stem": "Gland >80 g, wants the most durable fix → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "UroLift"
+    },
+    {
+     "letter": "B",
+     "text": "Simple prostatectomy"
+    },
+    {
+     "letter": "C",
+     "text": "Rezum"
+    },
+    {
+     "letter": "D",
+     "text": "GreenLight laser vaporization"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Simple prostatectomy = >80 g, most durable, most invasive.",
+   "objective": "Urology · BPH — choosing the procedure",
+   "section": "Urology"
+  },
+  {
+   "id": "15b",
+   "group": 15,
+   "stem": "Median lobe, wants to preserve ejaculation → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "UroLift"
+    },
+    {
+     "letter": "B",
+     "text": "TURP"
+    },
+    {
+     "letter": "C",
+     "text": "Rezum"
+    },
+    {
+     "letter": "D",
+     "text": "HoLEP"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Rezum (steam) treats the median lobe and spares ejaculation; UroLift is for lateral lobes.",
+   "objective": "Urology · BPH — choosing the procedure",
+   "section": "Urology"
+  },
+  {
+   "id": "16",
+   "group": 16,
+   "stem": "Stone in acidic urine that can be dissolved:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Struvite"
+    },
+    {
+     "letter": "B",
+     "text": "Uric acid"
+    },
+    {
+     "letter": "C",
+     "text": "Calcium phosphate"
+    },
+    {
+     "letter": "D",
+     "text": "Cystine"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Acidic urine → uric acid (dissolvable); alkaline urine → struvite or calcium phosphate.",
+   "objective": "Urology · stone types",
+   "section": "Urology"
+  },
+  {
+   "id": "16a",
+   "group": 16,
+   "stem": "Infection stone in alkaline urine that must be removed completely:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Uric acid"
+    },
+    {
+     "letter": "B",
+     "text": "Struvite"
+    },
+    {
+     "letter": "C",
+     "text": "Calcium oxalate"
+    },
+    {
+     "letter": "D",
+     "text": "Cystine"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Struvite = infection stone; alkaline urine; remove it all.",
+   "objective": "Urology · stone types",
+   "section": "Urology"
+  },
+  {
+   "id": "16b",
+   "group": 16,
+   "stem": "Genetic stone that resists shock waves:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Calcium oxalate"
+    },
+    {
+     "letter": "B",
+     "text": "Uric acid"
+    },
+    {
+     "letter": "C",
+     "text": "Struvite"
+    },
+    {
+     "letter": "D",
+     "text": "Cystine"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Cystine (~1%) is hard — avoid SWL.",
+   "objective": "Urology · stone types",
+   "section": "Urology"
+  },
+  {
+   "id": "17",
+   "group": 17,
+   "stem": "Suspected stone in a pregnant patient → Imaging:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Renal ultrasound"
+    },
+    {
+     "letter": "B",
+     "text": "Low-dose non-contrast CT"
+    },
+    {
+     "letter": "C",
+     "text": "IV pyelogram"
+    },
+    {
+     "letter": "D",
+     "text": "KUB x-ray"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Pregnancy test before imaging is a hard rule; if positive, ultrasound.",
+   "objective": "Urology · stone evaluation, timing & procedure",
+   "section": "Urology"
+  },
+  {
+   "id": "17a",
+   "group": 17,
+   "stem": "4 mm ureteral stone + fever 39 °C → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Ureteroscopy with laser lithotripsy"
+    },
+    {
+     "letter": "B",
+     "text": "Tamsulosin, reimage in 4 weeks"
+    },
+    {
+     "letter": "C",
+     "text": "Emergent stent or nephrostomy"
+    },
+    {
+     "letter": "D",
+     "text": "Shock-wave lithotripsy"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Infection + obstruction = the emergency: decompress first, treat the stone later — manipulating an infected stone causes sepsis.",
+   "objective": "Urology · stone evaluation, timing & procedure",
+   "section": "Urology"
+  },
+  {
+   "id": "17b",
+   "group": 17,
+   "stem": "5 cm renal stone → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Shock-wave lithotripsy"
+    },
+    {
+     "letter": "B",
+     "text": "Ureteroscopy"
+    },
+    {
+     "letter": "C",
+     "text": "Tamsulosin trial"
+    },
+    {
+     "letter": "D",
+     "text": "PCNL"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Kidney >4 cm → PCNL; ureteral or kidney <4 cm → ureteroscopy; kidney <2 cm → SWL.",
+   "objective": "Urology · stone evaluation, timing & procedure",
+   "section": "Urology"
+  },
+  {
+   "id": "17c",
+   "group": 17,
+   "stem": "Calcium oxalate stone former → Dietary calcium advice:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Strict calcium restriction"
+    },
+    {
+     "letter": "B",
+     "text": "High-dose calcium supplements"
+    },
+    {
+     "letter": "C",
+     "text": "Normal calcium intake"
+    },
+    {
+     "letter": "D",
+     "text": "Calcium-free diet"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Debunk the calcium-restriction myth: ≥2.5 L urine/day, low salt, NORMAL calcium.",
+   "objective": "Urology · stone evaluation, timing & procedure",
+   "section": "Urology"
+  },
+  {
+   "id": "18",
+   "group": 18,
+   "stem": "Demonstrable stress UI, failed pelvic floor therapy → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Bladder Botox"
+    },
+    {
+     "letter": "B",
+     "text": "Midurethral sling"
+    },
+    {
+     "letter": "C",
+     "text": "Sacral neuromodulation"
+    },
+    {
+     "letter": "D",
+     "text": "Tibial nerve stimulation"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Midurethral sling = standard of care, 85–90% success.",
+   "objective": "Urology · incontinence — stress & refractory urgency",
+   "section": "Urology"
+  },
+  {
+   "id": "18a",
+   "group": 18,
+   "stem": "Bladder Botox for refractory urgency → Counsel that the patient may need:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "A permanent stoma"
+    },
+    {
+     "letter": "B",
+     "text": "A Foley for 7–10 days"
+    },
+    {
+     "letter": "C",
+     "text": "Mesh revision"
+    },
+    {
+     "letter": "D",
+     "text": "Self-catheterization"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Botox vs. sacral neuromodulation: similar efficacy — accept possible self-cath vs. an implanted device.",
+   "objective": "Urology · incontinence — stress & refractory urgency",
+   "section": "Urology"
+  },
+  {
+   "id": "19",
+   "group": 19,
+   "stem": "Mild post-prostatectomy leak, no radiation → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Artificial urinary sphincter"
+    },
+    {
+     "letter": "B",
+     "text": "Midurethral sling"
+    },
+    {
+     "letter": "C",
+     "text": "Bladder Botox"
+    },
+    {
+     "letter": "D",
+     "text": "Male sling"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Male sling = mild, no prior radiation; AUS = moderate–severe or radiated.",
+   "objective": "Urology · incontinence — post-prostatectomy",
+   "section": "Urology"
+  },
+  {
+   "id": "19a",
+   "group": 19,
+   "stem": "Severe leak after prostatectomy + radiation → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Artificial urinary sphincter"
+    },
+    {
+     "letter": "B",
+     "text": "Male sling"
+    },
+    {
+     "letter": "C",
+     "text": "Urethral bulking agent injection"
+    },
+    {
+     "letter": "D",
+     "text": "Sacral neuromodulation"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Radiated or severe → AUS (80–90% continent).",
+   "objective": "Urology · incontinence — post-prostatectomy",
+   "section": "Urology"
+  },
+  {
+   "id": "19b",
+   "group": 19,
+   "stem": "Patient with an artificial urinary sphincter needs a Foley → First:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Use a smaller catheter"
+    },
+    {
+     "letter": "B",
+     "text": "Give antibiotics only"
+    },
+    {
+     "letter": "C",
+     "text": "Deactivate the cuff"
+    },
+    {
+     "letter": "D",
+     "text": "Place a suprapubic tube"
+    }
+   ],
+   "answer": "C",
+   "explanation": "A Foley through an activated cuff erodes the urethra.",
+   "objective": "Urology · incontinence — post-prostatectomy",
+   "section": "Urology"
+  },
+  {
+   "id": "20",
+   "group": 20,
+   "stem": "Reducible right groin bulge in a healthy 3-month-old → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Watchful waiting until age 2"
+    },
+    {
+     "letter": "B",
+     "text": "Repair only if it incarcerates"
+    },
+    {
+     "letter": "C",
+     "text": "Refer for elective repair"
+    },
+    {
+     "letter": "D",
+     "text": "Truss and recheck in 6 months"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Incarceration risk is highest in infancy, so ALL pediatric inguinal hernias are referred for repair — unlike adults, no watchful waiting.",
+   "objective": "Peds · inguinal hernia, hydrocele, umbilical hernia",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "20a",
+   "group": 20,
+   "stem": "Infant with firm groin mass + vomiting + irritability, mass won't reduce at the bedside → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Elective repair in 6 weeks"
+    },
+    {
+     "letter": "B",
+     "text": "Manual reduction under sedation"
+    },
+    {
+     "letter": "C",
+     "text": "Scrotal ultrasound and discharge"
+    },
+    {
+     "letter": "D",
+     "text": "Observation with ice packs"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Incarcerated (not strangulated) → attempt reduction, sedating if needed; if it stays irreducible it is a surgical emergency.",
+   "objective": "Peds · inguinal hernia, hydrocele, umbilical hernia",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "20b",
+   "group": 20,
+   "stem": "Strangulated pediatric inguinal hernia → Contraindicated:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Manual reduction"
+    },
+    {
+     "letter": "B",
+     "text": "NG decompression"
+    },
+    {
+     "letter": "C",
+     "text": "IV fluid resuscitation"
+    },
+    {
+     "letter": "D",
+     "text": "General anesthesia"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Strangulated = never reduce manually; go straight to the OR. Incarcerated = reduce, then repair that same admission (24 h–5 d).",
+   "objective": "Peds · inguinal hernia, hydrocele, umbilical hernia",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "20c",
+   "group": 20,
+   "stem": "Painless scrotal swelling that transilluminates and cannot be reduced → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Indirect inguinal hernia"
+    },
+    {
+     "letter": "B",
+     "text": "Incarcerated inguinal hernia"
+    },
+    {
+     "letter": "C",
+     "text": "Direct inguinal hernia"
+    },
+    {
+     "letter": "D",
+     "text": "Hydrocele"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Hydrocele = fluid in a patent processus vaginalis — transilluminates, no bowel, not reducible; a hernia reduces or contains bowel.",
+   "objective": "Peds · inguinal hernia, hydrocele, umbilical hernia",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "21",
+   "group": 21,
+   "stem": "6-week-old male, projectile NON-bilious vomiting after every feed → Test of choice:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Abdominal ultrasound"
+    },
+    {
+     "letter": "B",
+     "text": "Upper GI series"
+    },
+    {
+     "letter": "C",
+     "text": "Contrast enema"
+    },
+    {
+     "letter": "D",
+     "text": "Plain abdominal film"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Non-bilious + 2–8 wk + male = pyloric stenosis → US. Bilious vomiting moves the answer to the UGI series (malrotation).",
+   "objective": "Peds · pyloric stenosis",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "21a",
+   "group": 21,
+   "stem": "Pyloric stenosis → Classic electrolyte pattern:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hyperchloremic non-gap metabolic acidosis"
+    },
+    {
+     "letter": "B",
+     "text": "Hyperkalemic high-gap metabolic acidosis"
+    },
+    {
+     "letter": "C",
+     "text": "Hyponatremic hypokalemic respiratory alkalosis"
+    },
+    {
+     "letter": "D",
+     "text": "Hypochloremic hypokalemic metabolic alkalosis"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Repeated vomiting of gastric acid → loss of HCl → hypochloremic, hypokalemic metabolic alkalosis.",
+   "objective": "Peds · pyloric stenosis",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "21b",
+   "group": 21,
+   "stem": "Confirmed pyloric stenosis, K⁺ 2.8, HCO₃⁻ 35 → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Pyloromyotomy in the next hour"
+    },
+    {
+     "letter": "B",
+     "text": "Air enema reduction under fluoroscopy"
+    },
+    {
+     "letter": "C",
+     "text": "Correct fluids and electrolytes"
+    },
+    {
+     "letter": "D",
+     "text": "Emergency Ladd procedure"
+    }
+   ],
+   "answer": "C",
+   "explanation": "The chemistry is the emergency, not the operation — fix the alkalosis first, then pyloromyotomy (open or laparoscopic) is definitive.",
+   "objective": "Peds · pyloric stenosis",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "22",
+   "group": 22,
+   "stem": "Neonate with green (bilious) vomiting → Assume until proven otherwise:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Gastroesophageal reflux disease"
+    },
+    {
+     "letter": "B",
+     "text": "Hypertrophic pyloric stenosis"
+    },
+    {
+     "letter": "C",
+     "text": "Cow's-milk formula feeding intolerance"
+    },
+    {
+     "letter": "D",
+     "text": "Malrotation with midgut volvulus"
+    }
+   ],
+   "answer": "D",
+   "explanation": "GREEN IS BAD — bilious emesis is a surgical emergency; never call it feeding intolerance. GER and pyloric stenosis vomit non-bilious.",
+   "objective": "Peds · bilious vomiting, malrotation and the atresias",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "22a",
+   "group": 22,
+   "stem": "Upper GI series shows a corkscrew → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Pyloromyotomy"
+    },
+    {
+     "letter": "B",
+     "text": "Soave pull-through"
+    },
+    {
+     "letter": "C",
+     "text": "Ladd procedure"
+    },
+    {
+     "letter": "D",
+     "text": "Duodenoduodenostomy"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Corkscrew = malrotation/volvulus → emergency Ladd (detorsion, divide Ladd bands, widen mesentery, appendectomy).",
+   "objective": "Peds · bilious vomiting, malrotation and the atresias",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "22b",
+   "group": 22,
+   "stem": "Down syndrome newborn, polyhydramnios, bilious vomiting hours after birth → X-ray finding:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Corkscrew"
+    },
+    {
+     "letter": "B",
+     "text": "Pneumatosis intestinalis"
+    },
+    {
+     "letter": "C",
+     "text": "Coiled NG tube"
+    },
+    {
+     "letter": "D",
+     "text": "Double bubble"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Down + double bubble = duodenal atresia (failure of recanalization); surgery is semi-elective, unlike volvulus.",
+   "objective": "Peds · bilious vomiting, malrotation and the atresias",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "23",
+   "group": 23,
+   "stem": "9-month-old with colicky pain, vomiting and currant-jelly stool → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Malrotation with volvulus"
+    },
+    {
+     "letter": "B",
+     "text": "Necrotizing enterocolitis"
+    },
+    {
+     "letter": "C",
+     "text": "Appendicitis"
+    },
+    {
+     "letter": "D",
+     "text": "Intussusception"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Classic triad at 6–36 months; telescoping bowel. US shows a target sign.",
+   "objective": "Peds · intussusception and appendicitis",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "23a",
+   "group": 23,
+   "stem": "Stable toddler, ultrasound shows a target sign → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Air enema reduction"
+    },
+    {
+     "letter": "B",
+     "text": "Exploratory laparotomy"
+    },
+    {
+     "letter": "C",
+     "text": "Upper GI series"
+    },
+    {
+     "letter": "D",
+     "text": "Rectal biopsy"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Air enema is diagnostic AND therapeutic — when the test is the treatment, do it now; surgery only if it fails or there is perforation.",
+   "objective": "Peds · intussusception and appendicitis",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "23b",
+   "group": 23,
+   "stem": "Pediatric appendicitis → Commonly found at presentation:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Currant-jelly stool"
+    },
+    {
+     "letter": "B",
+     "text": "Target sign on US"
+    },
+    {
+     "letter": "C",
+     "text": "Bilious vomiting"
+    },
+    {
+     "letter": "D",
+     "text": "Perforation"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Presentation is variable and classic signs may be absent, so children are often perforated by the time they present — maintain suspicion.",
+   "objective": "Peds · intussusception and appendicitis",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "24",
+   "group": 24,
+   "stem": "Term newborn, no meconium by 48 h, distended abdomen → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Pyloric stenosis"
+    },
+    {
+     "letter": "B",
+     "text": "Duodenal atresia"
+    },
+    {
+     "letter": "C",
+     "text": "Hirschsprung disease"
+    },
+    {
+     "letter": "D",
+     "text": "Necrotizing enterocolitis"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Absent ganglion cells in the distal colon → most common cause of neonatal functional obstruction; enterocolitis risk.",
+   "objective": "Peds · Hirschsprung disease",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "24a",
+   "group": 24,
+   "stem": "Hirschsprung → Gold standard diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Contrast enema"
+    },
+    {
+     "letter": "B",
+     "text": "Rectal biopsy"
+    },
+    {
+     "letter": "C",
+     "text": "Air enema"
+    },
+    {
+     "letter": "D",
+     "text": "Abdominal CT"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Contrast enema SUGGESTS it (transition zone); rectal biopsy (absent ganglion cells) PROVES it.",
+   "objective": "Peds · Hirschsprung disease",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "24b",
+   "group": 24,
+   "stem": "Hirschsprung → Definitive operation:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Pull-through procedure"
+    },
+    {
+     "letter": "B",
+     "text": "Ladd procedure"
+    },
+    {
+     "letter": "C",
+     "text": "Pyloromyotomy"
+    },
+    {
+     "letter": "D",
+     "text": "Diverting ileostomy only"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Remove aganglionic bowel and bring healthy bowel to the anus — Soave (leaves a muscle cuff), Swenson, or laparoscopic.",
+   "objective": "Peds · Hirschsprung disease",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "25",
+   "group": 25,
+   "stem": "Newborn frothing, coughing and turning cyanotic with the first feed; NG tube won't pass → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Pyloric stenosis"
+    },
+    {
+     "letter": "B",
+     "text": "Duodenal atresia"
+    },
+    {
+     "letter": "C",
+     "text": "Diaphragmatic hernia"
+    },
+    {
+     "letter": "D",
+     "text": "Esophageal atresia"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Can't pass an NG + frothing/choking with feeds = EA; associated with a TEF in 85–90%.",
+   "objective": "Peds · esophageal atresia / TEF and imperforate anus",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "25a",
+   "group": 25,
+   "stem": "Esophageal atresia, x-ray shows coiled NG in the upper pouch AND air in the stomach → Indicates:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Isolated atresia without a fistula"
+    },
+    {
+     "letter": "B",
+     "text": "Coexisting duodenal atresia"
+    },
+    {
+     "letter": "C",
+     "text": "Distal tracheoesophageal fistula"
+    },
+    {
+     "letter": "D",
+     "text": "Malrotation with midgut volvulus"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Air can only reach the stomach through a fistula; no stomach gas suggests isolated EA.",
+   "objective": "Peds · esophageal atresia / TEF and imperforate anus",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "25b",
+   "group": 25,
+   "stem": "Newborn with no anal opening and no meconium → Screen for:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "WAGR anomalies"
+    },
+    {
+     "letter": "B",
+     "text": "Trisomy 21 features"
+    },
+    {
+     "letter": "C",
+     "text": "Turner syndrome"
+    },
+    {
+     "letter": "D",
+     "text": "VACTERL anomalies"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Imperforate anus (and TEF) belong to VACTERL; high lesion → colostomy then pull-through, low → perineal anoplasty.",
+   "objective": "Peds · esophageal atresia / TEF and imperforate anus",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "26",
+   "group": 26,
+   "stem": "Premature infant with distension and bloody stools → Plain-film finding:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Double bubble sign"
+    },
+    {
+     "letter": "B",
+     "text": "Corkscrew on UGI series"
+    },
+    {
+     "letter": "C",
+     "text": "Pneumatosis intestinalis"
+    },
+    {
+     "letter": "D",
+     "text": "Multiple air-fluid levels"
+    }
+   ],
+   "answer": "C",
+   "explanation": "NEC = prematurity + bloody stools + pneumatosis; bowel rest + antibiotics, surgery for perforation or necrosis.",
+   "objective": "Peds · NEC, CDH and abdominal wall defects",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "26a",
+   "group": 26,
+   "stem": "Respiratory distress at birth, scaphoid abdomen, bowel loops in the chest → Avoid:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Endotracheal intubation"
+    },
+    {
+     "letter": "B",
+     "text": "NG decompression"
+    },
+    {
+     "letter": "C",
+     "text": "ECMO"
+    },
+    {
+     "letter": "D",
+     "text": "Bag-mask ventilation"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Bag-mask air distends the herniated bowel; intubate, decompress, stabilize (often ECMO), then repair the CDH.",
+   "objective": "Peds · NEC, CDH and abdominal wall defects",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "26b",
+   "group": 26,
+   "stem": "Bowel herniated to the RIGHT of the umbilicus with no covering sac → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Omphalocele"
+    },
+    {
+     "letter": "B",
+     "text": "Umbilical hernia"
+    },
+    {
+     "letter": "C",
+     "text": "Gastroschisis"
+    },
+    {
+     "letter": "D",
+     "text": "Diaphragmatic hernia"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Gastroschisis = uncovered and isolated → silo with staged closure. Omphalocele = midline sac, syndromic.",
+   "objective": "Peds · NEC, CDH and abdominal wall defects",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "26c",
+   "group": 26,
+   "stem": "Midline abdominal wall defect covered by a sac containing bowel and liver → Next priority:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Urgent silo placement"
+    },
+    {
+     "letter": "B",
+     "text": "Work up associated anomalies"
+    },
+    {
+     "letter": "C",
+     "text": "Discharge with outpatient repair"
+    },
+    {
+     "letter": "D",
+     "text": "Air enema reduction"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Omphalocele is syndromic — search for associated anomalies (genetics); closure is primary vs staged per size.",
+   "objective": "Peds · NEC, CDH and abdominal wall defects",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "27",
+   "group": 27,
+   "stem": "3-year-old with abdominal mass that crosses midline and ↑ urine VMA/HVA → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Wilms tumor"
+    },
+    {
+     "letter": "B",
+     "text": "Hepatoblastoma"
+    },
+    {
+     "letter": "C",
+     "text": "Neuroblastoma"
+    },
+    {
+     "letter": "D",
+     "text": "Rhabdomyosarcoma"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Crosses midline + catecholamines + <5 y = neuroblastoma (adrenal/sympathetic chain; may cause Horner's; metastasizes widely).",
+   "objective": "Peds · neuroblastoma, Wilms and other tumors",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "27a",
+   "group": 27,
+   "stem": "4-year-old with smooth flank mass that does NOT cross midline, plus aniridia → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Wilms tumor"
+    },
+    {
+     "letter": "B",
+     "text": "Neuroblastoma"
+    },
+    {
+     "letter": "C",
+     "text": "Hepatoblastoma"
+    },
+    {
+     "letter": "D",
+     "text": "Hydronephrosis"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Wilms = renal, 2–5 y, stays on one side; aniridia points to WAGR.",
+   "objective": "Peds · neuroblastoma, Wilms and other tumors",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "27b",
+   "group": 27,
+   "stem": "Wilms tumor → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Radiation therapy alone"
+    },
+    {
+     "letter": "B",
+     "text": "Nephrectomy + chemotherapy"
+    },
+    {
+     "letter": "C",
+     "text": "Observation with serial US"
+    },
+    {
+     "letter": "D",
+     "text": "Chemotherapy without surgery"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Wilms is curable with nephrectomy + chemo and has a better prognosis than neuroblastoma. Rhabdomyosarcoma is also surgery + chemo.",
+   "objective": "Peds · neuroblastoma, Wilms and other tumors",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "28",
+   "group": 28,
+   "stem": "Painless midline neck mass at the hyoid that rises with tongue protrusion → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Thyroglossal duct cyst"
+    },
+    {
+     "letter": "B",
+     "text": "Branchial cleft cyst"
+    },
+    {
+     "letter": "C",
+     "text": "Cystic hygroma"
+    },
+    {
+     "letter": "D",
+     "text": "Reactive cervical lymph node"
+    }
+   ],
+   "answer": "A",
+   "explanation": "TGDC = most common congenital neck mass; midline and moves with swallowing/tongue protrusion.",
+   "objective": "Peds · neck masses and pilonidal disease",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "28a",
+   "group": 28,
+   "stem": "Thyroglossal duct cyst → Procedure of choice:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Simple cyst excision"
+    },
+    {
+     "letter": "B",
+     "text": "Incision and drainage"
+    },
+    {
+     "letter": "C",
+     "text": "Sistrunk procedure"
+    },
+    {
+     "letter": "D",
+     "text": "Sclerotherapy"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Sistrunk removes cyst + entire tract + central hyoid to prevent recurrence; confirm thyroid location on US first.",
+   "objective": "Peds · neck masses and pilonidal disease",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "28b",
+   "group": 28,
+   "stem": "Fluctuant lateral neck mass anterior to the SCM that does NOT move with swallowing → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Thyroglossal duct cyst"
+    },
+    {
+     "letter": "B",
+     "text": "Cystic hygroma"
+    },
+    {
+     "letter": "C",
+     "text": "Ectopic thyroid"
+    },
+    {
+     "letter": "D",
+     "text": "Branchial cleft cyst"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Branchial cleft cyst (75–95% second cleft) is lateral and fixed with swallowing; treat with excision of cyst and tract.",
+   "objective": "Peds · neck masses and pilonidal disease",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "29",
+   "group": 29,
+   "stem": "Any neonatal obstruction or atresia before the OR → Required first:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Immediate incision before any labs drawn"
+    },
+    {
+     "letter": "B",
+     "text": "NG decompression, IV fluids, electrolytes"
+    },
+    {
+     "letter": "C",
+     "text": "Trial of oral feeds to assess feeding tolerance"
+    },
+    {
+     "letter": "D",
+     "text": "Outpatient contrast imaging in a week"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Stabilize before you operate: NG decompression, IV fluids, correct electrolytes, no oral feeds.",
+   "objective": "Peds · physiology, team and family support",
+   "section": "Pediatric Surgery"
+  },
+  {
+   "id": "30",
+   "group": 30,
+   "stem": "Significant stenosis threshold for the LEFT MAIN coronary → Cutoff:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "≥70%"
+    },
+    {
+     "letter": "B",
+     "text": "≥90%"
+    },
+    {
+     "letter": "C",
+     "text": "≥50%"
+    },
+    {
+     "letter": "D",
+     "text": "≥30%"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Left main ≥50% is significant; every other coronary needs ≥70% — the two numbers get swapped in distractors.",
+   "objective": "CT Surgery · CAD diagnostic criteria",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "30a",
+   "group": 30,
+   "stem": "Significant stenosis threshold for any coronary OTHER than the left main → Cutoff:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "≥70%"
+    },
+    {
+     "letter": "B",
+     "text": "≥50%"
+    },
+    {
+     "letter": "C",
+     "text": "≥30%"
+    },
+    {
+     "letter": "D",
+     "text": "≥90%"
+    }
+   ],
+   "answer": "A",
+   "explanation": "≥70% in any coronary or ≥50% in the left main = significant CAD.",
+   "objective": "CT Surgery · CAD diagnostic criteria",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "31",
+   "group": 31,
+   "stem": "Left main stenosis of 60% on cath → Procedure of choice:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "PTCA with stent"
+    },
+    {
+     "letter": "B",
+     "text": "CABG"
+    },
+    {
+     "letter": "C",
+     "text": "Medical therapy alone"
+    },
+    {
+     "letter": "D",
+     "text": "IABP placement"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Left main >50% is a CABG indication — and a relative contraindication to PCI.",
+   "objective": "CT Surgery · PCI vs CABG selection",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "31a",
+   "group": 31,
+   "stem": "Focal single-vessel RCA lesion amenable to catheter therapy → Procedure of choice:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "CABG"
+    },
+    {
+     "letter": "B",
+     "text": "PTCA with stent"
+    },
+    {
+     "letter": "C",
+     "text": "OPCAB"
+    },
+    {
+     "letter": "D",
+     "text": "Medical therapy alone"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Focal 1–2-vessel disease = PCI; left main, 3-vessel, 2-vessel + LAD, calcified or restenosed vessels = CABG.",
+   "objective": "CT Surgery · PCI vs CABG selection",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "31b",
+   "group": 31,
+   "stem": "3-vessel CAD with EF 40% → Procedure of choice:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "PTCA with stent"
+    },
+    {
+     "letter": "B",
+     "text": "Medical therapy alone"
+    },
+    {
+     "letter": "C",
+     "text": "Repeat stress test"
+    },
+    {
+     "letter": "D",
+     "text": "CABG"
+    }
+   ],
+   "answer": "D",
+   "explanation": "3-vessel disease with EF <50% is a CABG indication; with EF >50% it also needs significant inducible ischemia.",
+   "objective": "CT Surgery · PCI vs CABG selection",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "31c",
+   "group": 31,
+   "stem": "Drug-eluting or bare-metal coronary stent placed → Required medication:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Clopidogrel (Plavix)"
+    },
+    {
+     "letter": "B",
+     "text": "Warfarin (Coumadin)"
+    },
+    {
+     "letter": "C",
+     "text": "Protamine sulfate"
+    },
+    {
+     "letter": "D",
+     "text": "Furosemide (Lasix)"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Stent → Plavix. Pump → heparin, then protamine.",
+   "objective": "CT Surgery · PCI vs CABG selection",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "32",
+   "group": 32,
+   "stem": "Neurocognitive dysfunction after cardiopulmonary bypass → Term:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Dressler syndrome"
+    },
+    {
+     "letter": "B",
+     "text": "Pump head"
+    },
+    {
+     "letter": "C",
+     "text": "Low-output syndrome"
+    },
+    {
+     "letter": "D",
+     "text": "Tet spell"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Postperfusion syndrome ('pump head') ± CVA is a CPB risk — one reason OPCAB exists.",
+   "objective": "CT Surgery · CABG and cardiopulmonary bypass",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "33",
+   "group": 33,
+   "stem": "Fever, pleuritic chest pain, ↑ESR, new pleural + pericardial effusions weeks after CABG → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Bacterial mediastinitis"
+    },
+    {
+     "letter": "B",
+     "text": "Pump head"
+    },
+    {
+     "letter": "C",
+     "text": "Postpericardiotomy syndrome"
+    },
+    {
+     "letter": "D",
+     "text": "Pulmonary embolism"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Immune (Dressler-type) pericarditis after cardiac surgery — not infection.",
+   "objective": "CT Surgery · post-op cardiac surgery complications and postpericardiotomy",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "33a",
+   "group": 33,
+   "stem": "Postpericardiotomy syndrome → First-line treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Aspirin/NSAIDs"
+    },
+    {
+     "letter": "B",
+     "text": "IV antibiotics"
+    },
+    {
+     "letter": "C",
+     "text": "Emergent resternotomy"
+    },
+    {
+     "letter": "D",
+     "text": "Heparin drip"
+    }
+   ],
+   "answer": "A",
+   "explanation": "ASA + Lasix, NSAID ×1 week, steroid taper; thoracentesis/pericardiocentesis if needed.",
+   "objective": "CT Surgery · post-op cardiac surgery complications and postpericardiotomy",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "33b",
+   "group": 33,
+   "stem": "Platelets fall ≥50% on heparin after cardiac surgery → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Dilutional thrombocytopenia"
+    },
+    {
+     "letter": "B",
+     "text": "Postpericardiotomy syndrome"
+    },
+    {
+     "letter": "C",
+     "text": "Heparin-induced thrombocytopenia"
+    },
+    {
+     "letter": "D",
+     "text": "Disseminated hemolysis"
+    }
+   ],
+   "answer": "C",
+   "explanation": "HIT = acute platelet drop ≥50% on heparin → stop heparin.",
+   "objective": "CT Surgery · post-op cardiac surgery complications and postpericardiotomy",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "34",
+   "group": 34,
+   "stem": "Valve that requires lifelong anticoagulation → Type:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Mechanical"
+    },
+    {
+     "letter": "B",
+     "text": "Porcine bioprosthetic"
+    },
+    {
+     "letter": "C",
+     "text": "Bovine pericardial"
+    },
+    {
+     "letter": "D",
+     "text": "TAVR valve"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Mechanical = lifelong warfarin, audible click, durable; tissue = no anticoagulation but wears out.",
+   "objective": "CT Surgery · mechanical vs tissue valves",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "34a",
+   "group": 34,
+   "stem": "Valve that wears out in ~10–15 years → Type:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Mechanical bileaflet"
+    },
+    {
+     "letter": "B",
+     "text": "Tilting disk"
+    },
+    {
+     "letter": "C",
+     "text": "Mechanical ball"
+    },
+    {
+     "letter": "D",
+     "text": "Tissue"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Tissue valves are less durable (structural degeneration → reoperation); mechanical valves last a lifetime.",
+   "objective": "CT Surgery · mechanical vs tissue valves",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "34b",
+   "group": 34,
+   "stem": "35-year-old who wants one operation and can take warfarin → Valve choice:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Porcine tissue"
+    },
+    {
+     "letter": "B",
+     "text": "Mechanical"
+    },
+    {
+     "letter": "C",
+     "text": "Bovine tissue"
+    },
+    {
+     "letter": "D",
+     "text": "Equine tissue"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Young / wants one operation / can anticoagulate → mechanical.",
+   "objective": "CT Surgery · mechanical vs tissue valves",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "35",
+   "group": 35,
+   "stem": "Crescendo-decrescendo systolic murmur at the 2nd ICS radiating to the neck, syncope → Lesion:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Aortic insufficiency"
+    },
+    {
+     "letter": "B",
+     "text": "Aortic stenosis"
+    },
+    {
+     "letter": "C",
+     "text": "Mitral regurgitation"
+    },
+    {
+     "letter": "D",
+     "text": "Mitral stenosis"
+    }
+   ],
+   "answer": "B",
+   "explanation": "AS radiates to the neck; MR radiates to the axilla.",
+   "objective": "CT Surgery · valve lesions and valve surgery",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "35a",
+   "group": 35,
+   "stem": "Early diastolic decrescendo murmur at the LSB, best leaning forward, wide pulse pressure → Lesion:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Aortic stenosis"
+    },
+    {
+     "letter": "B",
+     "text": "Mitral stenosis"
+    },
+    {
+     "letter": "C",
+     "text": "Tricuspid regurgitation"
+    },
+    {
+     "letter": "D",
+     "text": "Aortic insufficiency"
+    }
+   ],
+   "answer": "D",
+   "explanation": "AI = leaflets don't coapt (aortic dilatation, endocarditis); diastolic at the LSB.",
+   "objective": "CT Surgery · valve lesions and valve surgery",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "35b",
+   "group": 35,
+   "stem": "Opening snap + diastolic rumble at the apex, rheumatic history, hemoptysis → Lesion:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Mitral stenosis"
+    },
+    {
+     "letter": "B",
+     "text": "Mitral regurgitation"
+    },
+    {
+     "letter": "C",
+     "text": "Aortic insufficiency"
+    },
+    {
+     "letter": "D",
+     "text": "Aortic stenosis"
+    }
+   ],
+   "answer": "A",
+   "explanation": "MS = rheumatic, hemoptysis, diastolic apical rumble → MVR + diuretics.",
+   "objective": "CT Surgery · valve lesions and valve surgery",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "35c",
+   "group": 35,
+   "stem": "Mitral valve prolapse with a holosystolic apical murmur to the axilla → Lesion:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Mitral stenosis"
+    },
+    {
+     "letter": "B",
+     "text": "Aortic stenosis"
+    },
+    {
+     "letter": "C",
+     "text": "Mitral regurgitation"
+    },
+    {
+     "letter": "D",
+     "text": "Tricuspid regurgitation"
+    }
+   ],
+   "answer": "C",
+   "explanation": "MVP leads to MR — the most common valvular heart disease.",
+   "objective": "CT Surgery · valve lesions and valve surgery",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "35d",
+   "group": 35,
+   "stem": "Holosystolic LLSB murmur that increases with inspiration, JVD, hepatomegaly → Lesion:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Mitral regurgitation"
+    },
+    {
+     "letter": "B",
+     "text": "Aortic insufficiency"
+    },
+    {
+     "letter": "C",
+     "text": "Mitral stenosis"
+    },
+    {
+     "letter": "D",
+     "text": "Tricuspid regurgitation"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Right-sided murmurs increase with inspiration; TR is usually functional or from IVDU endocarditis.",
+   "objective": "CT Surgery · valve lesions and valve surgery",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "35e",
+   "group": 35,
+   "stem": "Elective valve replacement → Contraindication:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Age over 80"
+    },
+    {
+     "letter": "B",
+     "text": "Prior CABG"
+    },
+    {
+     "letter": "C",
+     "text": "Active infection"
+    },
+    {
+     "letter": "D",
+     "text": "Atrial fibrillation"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Active infection is the contraindication for valve and open-heart surgery.",
+   "objective": "CT Surgery · valve lesions and valve surgery",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "36",
+   "group": 36,
+   "stem": "Most common congenital heart lesion overall → Lesion:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Ventricular septal defect"
+    },
+    {
+     "letter": "B",
+     "text": "Atrial septal defect"
+    },
+    {
+     "letter": "C",
+     "text": "Tetralogy of Fallot"
+    },
+    {
+     "letter": "D",
+     "text": "Patent ductus arteriosus"
+    }
+   ],
+   "answer": "A",
+   "explanation": "VSD = 30% (acyanotic L→R); TOF is the MC cyanotic lesion.",
+   "objective": "CT Surgery · acyanotic congenital lesions",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "36a",
+   "group": 36,
+   "stem": "Continuous 'machine-like' murmur at the left infraclavicular area → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Ventricular septal defect"
+    },
+    {
+     "letter": "B",
+     "text": "Coarctation of the aorta"
+    },
+    {
+     "letter": "C",
+     "text": "Patent ductus arteriosus"
+    },
+    {
+     "letter": "D",
+     "text": "Atrial septal defect"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Machine murmur = PDA (echo); holosystolic LSB = VSD.",
+   "objective": "CT Surgery · acyanotic congenital lesions",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "36b",
+   "group": 36,
+   "stem": "PDA in a neonate → First-line medical therapy:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Indomethacin"
+    },
+    {
+     "letter": "B",
+     "text": "Prostaglandin E1"
+    },
+    {
+     "letter": "C",
+     "text": "Propranolol"
+    },
+    {
+     "letter": "D",
+     "text": "Morphine"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Indomethacin (prostaglandin inhibition) closes the duct; prostaglandin keeps it open (TGA).",
+   "objective": "CT Surgery · acyanotic congenital lesions",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "36c",
+   "group": 36,
+   "stem": "Cyanosis and clubbing of the TOES with pink fingers → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Tetralogy of Fallot"
+    },
+    {
+     "letter": "B",
+     "text": "Transposition of great vessels"
+    },
+    {
+     "letter": "C",
+     "text": "Hypoplastic left heart"
+    },
+    {
+     "letter": "D",
+     "text": "PDA with Eisenmenger"
+    }
+   ],
+   "answer": "D",
+   "explanation": "R→L flow enters the aorta distal to the left subclavian → differential cyanosis.",
+   "objective": "CT Surgery · acyanotic congenital lesions",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "37",
+   "group": 37,
+   "stem": "Boot-shaped heart on CXR → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Transposition of great vessels"
+    },
+    {
+     "letter": "B",
+     "text": "Tetralogy of Fallot"
+    },
+    {
+     "letter": "C",
+     "text": "Coarctation of the aorta"
+    },
+    {
+     "letter": "D",
+     "text": "Patent ductus arteriosus"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Boot = TOF; egg on a string = TGA; rib notching = coarctation.",
+   "objective": "CT Surgery · tetralogy of Fallot",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "37a",
+   "group": 37,
+   "stem": "Toddler with a tet spell during crying → First maneuver:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Supine with legs flat"
+    },
+    {
+     "letter": "B",
+     "text": "Knee-chest position"
+    },
+    {
+     "letter": "C",
+     "text": "Reverse Trendelenburg"
+    },
+    {
+     "letter": "D",
+     "text": "Prone positioning"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Knee-chest/squatting ↑ systemic resistance → ↓ R→L shunt; then morphine.",
+   "objective": "CT Surgery · tetralogy of Fallot",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "38",
+   "group": 38,
+   "stem": "Upper-extremity HTN, weak femoral pulses, rib notching → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Patent ductus arteriosus"
+    },
+    {
+     "letter": "B",
+     "text": "Tetralogy of Fallot"
+    },
+    {
+     "letter": "C",
+     "text": "Coarctation of the aorta"
+    },
+    {
+     "letter": "D",
+     "text": "Aortic dissection"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Coarctation: Turner (30%), bicuspid AV (50%), rib notching.",
+   "objective": "CT Surgery · coarctation, TGA, and HLHS",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "38a",
+   "group": 38,
+   "stem": "Cyanotic neonate with an egg-shaped heart on CXR → Definitive operation:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Blalock-Taussig shunt"
+    },
+    {
+     "letter": "B",
+     "text": "Arterial switch"
+    },
+    {
+     "letter": "C",
+     "text": "Norwood procedure"
+    },
+    {
+     "letter": "D",
+     "text": "Patch VSD closure"
+    }
+   ],
+   "answer": "B",
+   "explanation": "TGA → arterial switch with coronary reimplantation; LHC is the gold-standard diagnostic.",
+   "objective": "CT Surgery · coarctation, TGA, and HLHS",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "38b",
+   "group": 38,
+   "stem": "Hypoplastic left heart syndrome → Staged sequence:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Glenn → Norwood → Fontan"
+    },
+    {
+     "letter": "B",
+     "text": "Fontan → Glenn → Norwood"
+    },
+    {
+     "letter": "C",
+     "text": "Norwood → Glenn → Fontan"
+    },
+    {
+     "letter": "D",
+     "text": "Blalock-Taussig → arterial switch"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Norwood/Sano within days → Glenn/hemi-Fontan at 3–6 mo → Fontan at 1.5–5 y, or transplant.",
+   "objective": "CT Surgery · coarctation, TGA, and HLHS",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "39",
+   "group": 39,
+   "stem": "Dissection involving the ascending aorta → Stanford class:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Type A"
+    },
+    {
+     "letter": "B",
+     "text": "Type B"
+    },
+    {
+     "letter": "C",
+     "text": "DeBakey III"
+    },
+    {
+     "letter": "D",
+     "text": "Type C"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Type A = ascending ± arch/descending; Type B = descending only, distal to the left subclavian.",
+   "objective": "CT Surgery · aortic dissection and TAA",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "39a",
+   "group": 39,
+   "stem": "Acute Stanford type A dissection → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "IV esmolol alone"
+    },
+    {
+     "letter": "B",
+     "text": "Serial CT surveillance"
+    },
+    {
+     "letter": "C",
+     "text": "Emergent surgical repair"
+    },
+    {
+     "letter": "D",
+     "text": "Endovascular stent only"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Type A = OR (acute and chronic); synthetic graft ± aortic valve resuspension and coronary reimplantation.",
+   "objective": "CT Surgery · aortic dissection and TAA",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "39b",
+   "group": 39,
+   "stem": "Uncomplicated Stanford type B dissection → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Aggressive BP control"
+    },
+    {
+     "letter": "B",
+     "text": "Emergent open repair"
+    },
+    {
+     "letter": "C",
+     "text": "IABP placement"
+    },
+    {
+     "letter": "D",
+     "text": "Thrombolysis"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Type B = ICU + β-blocker unless complicated (persistent pain, uncontrolled HTN, expansion/rupture, malperfusion).",
+   "objective": "CT Surgery · aortic dissection and TAA",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "39c",
+   "group": 39,
+   "stem": "Suspected dissection in the ED → Most useful imaging for diagnosis and planning:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "MRI"
+    },
+    {
+     "letter": "B",
+     "text": "Aortography"
+    },
+    {
+     "letter": "C",
+     "text": "Exercise stress test"
+    },
+    {
+     "letter": "D",
+     "text": "CT with contrast"
+    }
+   ],
+   "answer": "D",
+   "explanation": "CT angio shows the intimal flap; MRI is most sensitive/specific but hard to do emergently; aortography is the old gold standard.",
+   "objective": "CT Surgery · aortic dissection and TAA",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "39d",
+   "group": 39,
+   "stem": "Aortic dissection → First drug:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Nicardipine"
+    },
+    {
+     "letter": "B",
+     "text": "Esmolol"
+    },
+    {
+     "letter": "C",
+     "text": "Hydralazine"
+    },
+    {
+     "letter": "D",
+     "text": "Nitroglycerin"
+    }
+   ],
+   "answer": "B",
+   "explanation": "β-blocker before vasodilator — vasodilating first causes reflex tachycardia and more shear.",
+   "objective": "CT Surgery · aortic dissection and TAA",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "39e",
+   "group": 39,
+   "stem": "Asymptomatic thoracic aortic aneurysm in Marfan syndrome → Surgical threshold:",
+   "options": [
+    {
+     "letter": "A",
+     "text": ">4 cm"
+    },
+    {
+     "letter": "B",
+     "text": ">5 cm"
+    },
+    {
+     "letter": "C",
+     "text": ">5.5 cm"
+    },
+    {
+     "letter": "D",
+     "text": ">6.5 cm"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Marfan >5 cm; everyone else >5.5 cm.",
+   "objective": "CT Surgery · aortic dissection and TAA",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "40",
+   "group": 40,
+   "stem": "IABP timing → Balloon inflates during:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Systole"
+    },
+    {
+     "letter": "B",
+     "text": "Isovolumetric contraction"
+    },
+    {
+     "letter": "C",
+     "text": "Atrial systole"
+    },
+    {
+     "letter": "D",
+     "text": "Diastole"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Inflates in diastole (↑ coronary perfusion), deflates in systole (↓ afterload).",
+   "objective": "CT Surgery · IABP, VADs, and ECMO",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "40a",
+   "group": 40,
+   "stem": "Right heart failure hours after LVAD implantation → Device:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "RVAD"
+    },
+    {
+     "letter": "B",
+     "text": "IABP"
+    },
+    {
+     "letter": "C",
+     "text": "VV ECMO"
+    },
+    {
+     "letter": "D",
+     "text": "Second LVAD"
+    }
+   ],
+   "answer": "A",
+   "explanation": "RVAD is usually short-term RV support after LVAD or other heart surgery.",
+   "objective": "CT Surgery · IABP, VADs, and ECMO",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "40b",
+   "group": 40,
+   "stem": "Severe ARDS with normal cardiac function → ECMO type:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Veno-arterial"
+    },
+    {
+     "letter": "B",
+     "text": "Central veno-arterial"
+    },
+    {
+     "letter": "C",
+     "text": "Arterio-venous"
+    },
+    {
+     "letter": "D",
+     "text": "Veno-venous"
+    }
+   ],
+   "answer": "D",
+   "explanation": "VV = lungs only; VA = heart + lungs.",
+   "objective": "CT Surgery · IABP, VADs, and ECMO",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "40c",
+   "group": 40,
+   "stem": "Refractory cardiogenic shock with hypoxemia → ECMO type:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Veno-venous"
+    },
+    {
+     "letter": "B",
+     "text": "Veno-arterial"
+    },
+    {
+     "letter": "C",
+     "text": "Arterio-venous"
+    },
+    {
+     "letter": "D",
+     "text": "Veno-portal"
+    }
+   ],
+   "answer": "B",
+   "explanation": "VA ECMO bypasses heart and lungs (femoral vein → femoral artery) — essentially portable CPB.",
+   "objective": "CT Surgery · IABP, VADs, and ECMO",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "41",
+   "group": 41,
+   "stem": "Neurogenic thoracic outlet syndrome failing PT and NSAIDs → Surgery:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Cervical laminectomy"
+    },
+    {
+     "letter": "B",
+     "text": "Scalene botulinum injection"
+    },
+    {
+     "letter": "C",
+     "text": "First-rib resection"
+    },
+    {
+     "letter": "D",
+     "text": "Carpal tunnel release"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Axillary or supraclavicular first-rib resection; neurogenic type = 95%.",
+   "objective": "CT Surgery · pleural and chest-wall procedures",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "41a",
+   "group": 41,
+   "stem": "Pleural effusion from volume overload with orthopnea → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "VATS decortication"
+    },
+    {
+     "letter": "B",
+     "text": "Thoracic duct ligation"
+    },
+    {
+     "letter": "C",
+     "text": "Thoracentesis with diuretics"
+    },
+    {
+     "letter": "D",
+     "text": "Lobectomy"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Thoracentesis + diuretics; recurrent/malignant → PleurX or pleurodesis.",
+   "objective": "CT Surgery · pleural and chest-wall procedures",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "41b",
+   "group": 41,
+   "stem": "Pus in the pleural space after pneumonia → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "IV antibiotics and drainage"
+    },
+    {
+     "letter": "B",
+     "text": "Diuretics alone"
+    },
+    {
+     "letter": "C",
+     "text": "Fat-free diet and TPN"
+    },
+    {
+     "letter": "D",
+     "text": "First-rib resection"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Empyema → IV abx, chest-tube drainage, VATS decortication, pleurodesis.",
+   "objective": "CT Surgery · pleural and chest-wall procedures",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "41c",
+   "group": 41,
+   "stem": "Recurrent spontaneous pneumothorax with persistent air leak → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Repeat needle decompression"
+    },
+    {
+     "letter": "B",
+     "text": "Thoracic duct ligation"
+    },
+    {
+     "letter": "C",
+     "text": "First-rib resection"
+    },
+    {
+     "letter": "D",
+     "text": "VATS bleb resection with pleurodesis"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Chest tube first; recurrent/persistent leak → VATS bleb resection + pleurodesis.",
+   "objective": "CT Surgery · pleural and chest-wall procedures",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "41d",
+   "group": 41,
+   "stem": "Milky white, triglyceride-rich chest-tube output after thoracic surgery → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Empyema"
+    },
+    {
+     "letter": "B",
+     "text": "Chylothorax"
+    },
+    {
+     "letter": "C",
+     "text": "Hemothorax"
+    },
+    {
+     "letter": "D",
+     "text": "Transudative effusion"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Thoracic duct leak → fat-free diet/TPN, chest tube, ligation if persistent; lymphangiogram localizes.",
+   "objective": "CT Surgery · pleural and chest-wall procedures",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "41e",
+   "group": 41,
+   "stem": "Massive hemoptysis after airway protection → First localizing step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Lobectomy"
+    },
+    {
+     "letter": "B",
+     "text": "Bronchoscopy"
+    },
+    {
+     "letter": "C",
+     "text": "Thoracentesis"
+    },
+    {
+     "letter": "D",
+     "text": "Pleurodesis"
+    }
+   ],
+   "answer": "B",
+   "explanation": "'Quantify and specify' → bronchoscopy → bronchial artery embolization → resection if refractory.",
+   "objective": "CT Surgery · pleural and chest-wall procedures",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "42",
+   "group": 42,
+   "stem": "Pleural cancer in a former shipyard worker → Exposure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Silica"
+    },
+    {
+     "letter": "B",
+     "text": "Radon"
+    },
+    {
+     "letter": "C",
+     "text": "Coal dust"
+    },
+    {
+     "letter": "D",
+     "text": "Asbestos"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Most mesothelioma is from job-related asbestos; palliative PleurX for recurrent effusion.",
+   "objective": "CT Surgery · thoracic and cardiac oncology",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "42a",
+   "group": 42,
+   "stem": "Most common lung cancer type in men and women → Histology:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Adenocarcinoma"
+    },
+    {
+     "letter": "B",
+     "text": "Squamous cell carcinoma"
+    },
+    {
+     "letter": "C",
+     "text": "Small cell carcinoma"
+    },
+    {
+     "letter": "D",
+     "text": "Large cell carcinoma"
+    }
+   ],
+   "answer": "A",
+   "explanation": "NSCLC ~85% (adenocarcinoma MC); SCLC ~15% spreads earlier but is more chemo-responsive.",
+   "objective": "CT Surgery · thoracic and cardiac oncology",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "42b",
+   "group": 42,
+   "stem": "Stage I NSCLC → Primary treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Chemotherapy alone"
+    },
+    {
+     "letter": "B",
+     "text": "Comfort care"
+    },
+    {
+     "letter": "C",
+     "text": "Surgical resection"
+    },
+    {
+     "letter": "D",
+     "text": "Pleurodesis"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Wedge/segmentectomy/lobectomy/pneumonectomy primarily for stage I–II NSCLC; SCLC is treated with chemo.",
+   "objective": "CT Surgery · thoracic and cardiac oncology",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "42c",
+   "group": 42,
+   "stem": "Left atrial mass with embolic events, fever, ↑ESR → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Rhabdomyoma"
+    },
+    {
+     "letter": "B",
+     "text": "Angiosarcoma"
+    },
+    {
+     "letter": "C",
+     "text": "Papillary fibroelastoma"
+    },
+    {
+     "letter": "D",
+     "text": "Atrial myxoma"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Myxoma = MC benign adult cardiac tumor (LA); rhabdomyoma is MC in children.",
+   "objective": "CT Surgery · thoracic and cardiac oncology",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "43",
+   "group": 43,
+   "stem": "Anterior mediastinal mass + ptosis and diplopia → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Teratoma"
+    },
+    {
+     "letter": "B",
+     "text": "Thymoma"
+    },
+    {
+     "letter": "C",
+     "text": "Neurilemoma"
+    },
+    {
+     "letter": "D",
+     "text": "Neurofibroma"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Thymoma ↔ myasthenia gravis; CT + tissue biopsy → thymectomy ± chemo/XRT.",
+   "objective": "CT Surgery · mediastinal tumors",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "43a",
+   "group": 43,
+   "stem": "Anterior mediastinal mass containing hair, teeth and bone → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Thymoma"
+    },
+    {
+     "letter": "B",
+     "text": "Schwannoma"
+    },
+    {
+     "letter": "C",
+     "text": "Teratoma"
+    },
+    {
+     "letter": "D",
+     "text": "Lymphoma"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Teratoma = >1 germ layer, congenital → complete resection.",
+   "objective": "CT Surgery · mediastinal tumors",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "43b",
+   "group": 43,
+   "stem": "Most common POSTERIOR mediastinal mass → Tumor type:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Neurogenic tumor"
+    },
+    {
+     "letter": "B",
+     "text": "Thymoma"
+    },
+    {
+     "letter": "C",
+     "text": "Germ-cell tumor"
+    },
+    {
+     "letter": "D",
+     "text": "Thyroid goiter"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Anterior = thymoma/teratoma; posterior = neurogenic.",
+   "objective": "CT Surgery · mediastinal tumors",
+   "section": "Cardiothoracic Surgery"
+  },
+  {
+   "id": "44",
+   "group": 44,
+   "stem": "Imaging modality with NO ionizing radiation →",
+   "options": [
+    {
+     "letter": "A",
+     "text": "CT"
+    },
+    {
+     "letter": "B",
+     "text": "Ultrasound"
+    },
+    {
+     "letter": "C",
+     "text": "Plain radiography"
+    },
+    {
+     "letter": "D",
+     "text": "Fluoroscopy"
+    }
+   ],
+   "answer": "B",
+   "explanation": "US uses acoustic energy, so it is the safe choice in pregnancy, children and women of childbearing age; fluoro and CT both use x-rays.",
+   "objective": "IR · imaging modalities and the IR suite",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "44a",
+   "group": 44,
+   "stem": "Real-time x-ray tracking of contrast through vessels, GI or GU tract → Modality:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "CT"
+    },
+    {
+     "letter": "B",
+     "text": "Fluoroscopy"
+    },
+    {
+     "letter": "C",
+     "text": "Ultrasound"
+    },
+    {
+     "letter": "D",
+     "text": "MRI"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Fluoroscopy = ionizing radiation with real-time visualization; it is how catheters and wires are navigated.",
+   "objective": "IR · imaging modalities and the IR suite",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "45",
+   "group": 45,
+   "stem": "ICU patient, fever, CT shows a loculated intra-abdominal collection, poor surgical candidate → Treatment of choice:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Exploratory laparotomy"
+    },
+    {
+     "letter": "B",
+     "text": "Laparoscopic washout"
+    },
+    {
+     "letter": "C",
+     "text": "Percutaneous abscess drainage"
+    },
+    {
+     "letter": "D",
+     "text": "IV antibiotics alone"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Percutaneous drainage is less invasive with lower mortality than surgical exploration and is favored in critically ill non-surgical candidates.",
+   "objective": "IR · percutaneous abscess drainage",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "45a",
+   "group": 45,
+   "stem": "Suspected abscess in an ICU patient → Pre-procedure imaging:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "HIDA scan"
+    },
+    {
+     "letter": "B",
+     "text": "CT with IV contrast"
+    },
+    {
+     "letter": "C",
+     "text": "Plain abdominal film"
+    },
+    {
+     "letter": "D",
+     "text": "Non-contrast MRI"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Contrast improves differentiation of the collection; CT shows adjacent organs so the access route can be planned.",
+   "objective": "IR · percutaneous abscess drainage",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "46",
+   "group": 46,
+   "stem": "ICU patient with fever + obstructing ureteral stone and hydronephrosis → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Medical expulsive therapy alone"
+    },
+    {
+     "letter": "B",
+     "text": "Elective ureteroscopy next week"
+    },
+    {
+     "letter": "C",
+     "text": "Emergent percutaneous nephrostomy"
+    },
+    {
+     "letter": "D",
+     "text": "Oral antibiotics and outpatient follow-up"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Fever + urologic obstruction = high urosepsis mortality; percutaneous decompression is the first-line emergent option.",
+   "objective": "IR · percutaneous nephrostomy",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "46a",
+   "group": 46,
+   "stem": "Main (relative) contraindication to nephrostomy:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Prior abdominal surgery"
+    },
+    {
+     "letter": "B",
+     "text": "Severe uncorrectable coagulopathy"
+    },
+    {
+     "letter": "C",
+     "text": "Pregnancy in the first trimester"
+    },
+    {
+     "letter": "D",
+     "text": "Iodinated contrast allergy"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Coagulopathy should be corrected beforehand; when it cannot be, PCN is relatively contraindicated.",
+   "objective": "IR · percutaneous nephrostomy",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "46b",
+   "group": 46,
+   "stem": "Upper-pole nephrostomy placed through an intercostal window → Classic complication:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hemobilia"
+    },
+    {
+     "letter": "B",
+     "text": "Neck hematoma"
+    },
+    {
+     "letter": "C",
+     "text": "Pneumothorax or hemothorax"
+    },
+    {
+     "letter": "D",
+     "text": "Colon transgression"
+    }
+   ],
+   "answer": "C",
+   "explanation": "PTX/hemothorax/empyema occur in 9–12% via an intercostal window; colon transgression is the other access injury.",
+   "objective": "IR · percutaneous nephrostomy",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "46c",
+   "group": 46,
+   "stem": "Long-term urinary drainage; patient wants off the external bag → Convert to:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Permanent external nephrostomy"
+    },
+    {
+     "letter": "B",
+     "text": "Suprapubic cystostomy catheter"
+    },
+    {
+     "letter": "C",
+     "text": "Internal double-J ureteral stent"
+    },
+    {
+     "letter": "D",
+     "text": "Ileal conduit diversion"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Prolonged internal drainage is preferred over external; PCNU can also be capped if asymptomatic.",
+   "objective": "IR · percutaneous nephrostomy",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "47",
+   "group": 47,
+   "stem": "Septic, ventilated ICU patient with RUQ pain; ultrasound equivocal → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Repeat ultrasound in 24 h"
+    },
+    {
+     "letter": "B",
+     "text": "ERCP with sphincterotomy"
+    },
+    {
+     "letter": "C",
+     "text": "Open cholecystectomy"
+    },
+    {
+     "letter": "D",
+     "text": "Percutaneous cholecystostomy"
+    }
+   ],
+   "answer": "D",
+   "explanation": "US is only ~50–60% accurate here; high clinical suspicion drives PC even with soft imaging support.",
+   "objective": "IR · percutaneous cholecystostomy",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "47a",
+   "group": 47,
+   "stem": "Healthy 45-year-old with acute calculous cholecystitis → Treatment:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Cholecystectomy"
+    },
+    {
+     "letter": "B",
+     "text": "Antibiotics alone"
+    },
+    {
+     "letter": "C",
+     "text": "Shockwave lithotripsy"
+    },
+    {
+     "letter": "D",
+     "text": "Percutaneous cholecystostomy"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Surgery stays first-line in surgical candidates (mortality <1%); PC is for patients too sick for surgery.",
+   "objective": "IR · percutaneous cholecystostomy",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "47b",
+   "group": 47,
+   "stem": "Cholecystostomy → Complication from a bile leak:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hemobilia"
+    },
+    {
+     "letter": "B",
+     "text": "Hepatic encephalopathy"
+    },
+    {
+     "letter": "C",
+     "text": "Peritonitis"
+    },
+    {
+     "letter": "D",
+     "text": "Empyema"
+    }
+   ],
+   "answer": "C",
+   "explanation": "PC complications: bleeding, sepsis, dislodgment, peritonitis, colon transgression; major <5%.",
+   "objective": "IR · percutaneous cholecystostomy",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "48",
+   "group": 48,
+   "stem": "Upper GI bleed, endoscopy fails, arteriography shows active extravasation → IR procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "TIPS placement"
+    },
+    {
+     "letter": "B",
+     "text": "Prophylactic IVC filter"
+    },
+    {
+     "letter": "C",
+     "text": "Arterial embolization"
+    },
+    {
+     "letter": "D",
+     "text": "BRTO of the varices"
+    }
+   ],
+   "answer": "C",
+   "explanation": "Arterial (non-variceal) bleed seen on arteriography → embolize; variceal bleed → TIPS or BRTO.",
+   "objective": "IR · embolization for GI bleeding",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "48a",
+   "group": 48,
+   "stem": "Cirrhotic with bleeding gastric varices → IR procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "IVC filter"
+    },
+    {
+     "letter": "B",
+     "text": "Percutaneous cholecystostomy"
+    },
+    {
+     "letter": "C",
+     "text": "Arterial coil embolization"
+    },
+    {
+     "letter": "D",
+     "text": "TIPS or BRTO"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Venous (variceal) bleeding is not embolized like an arterial bleed; it needs portal decompression (TIPS) or BRTO.",
+   "objective": "IR · embolization for GI bleeding",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "48b",
+   "group": 48,
+   "stem": "Embolic material reaches the wrong vessel → Classic complication:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Bowel ischemia"
+    },
+    {
+     "letter": "B",
+     "text": "Hepatic encephalopathy"
+    },
+    {
+     "letter": "C",
+     "text": "Caval thrombosis"
+    },
+    {
+     "letter": "D",
+     "text": "Pneumothorax"
+    }
+   ],
+   "answer": "A",
+   "explanation": "Non-target embolization damages nearby organs; other risks are vessel injury, puncture-site bleeding, contrast nephropathy/allergy, infection.",
+   "objective": "IR · embolization for GI bleeding",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "49",
+   "group": 49,
+   "stem": "TIPS stent-graft connects →",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Hepatic artery to hepatic vein"
+    },
+    {
+     "letter": "B",
+     "text": "Portal vein to hepatic vein"
+    },
+    {
+     "letter": "C",
+     "text": "Portal vein to IVC outside the liver"
+    },
+    {
+     "letter": "D",
+     "text": "Splenic vein to renal vein"
+    }
+   ],
+   "answer": "B",
+   "explanation": "An intrahepatic shunt from portal to hepatic vein, placed by jugular access, decompresses portal hypertension.",
+   "objective": "IR · TIPS",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "49a",
+   "group": 49,
+   "stem": "Esophageal varices rebleeding despite banding and octreotide → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Repeat banding indefinitely"
+    },
+    {
+     "letter": "B",
+     "text": "IVC filter"
+    },
+    {
+     "letter": "C",
+     "text": "Arterial embolization"
+    },
+    {
+     "letter": "D",
+     "text": "TIPS"
+    }
+   ],
+   "answer": "D",
+   "explanation": "TIPS is never first-line; it is second-line after medical + endoscopic therapy fails (rebleeding 30–50%).",
+   "objective": "IR · TIPS",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "49b",
+   "group": 49,
+   "stem": "Pre-TIPS test that can cancel the case:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Transthoracic echocardiogram"
+    },
+    {
+     "letter": "B",
+     "text": "Doppler US for portal vein patency"
+    },
+    {
+     "letter": "C",
+     "text": "Repeat upper endoscopy with banding"
+    },
+    {
+     "letter": "D",
+     "text": "HIDA scan of the gallbladder"
+    }
+   ],
+   "answer": "B",
+   "explanation": "An occluded portal vein makes TIPS very difficult or impossible; success >90% when the vein is patent.",
+   "objective": "IR · TIPS",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "49c",
+   "group": 49,
+   "stem": "Score used to judge TIPS candidacy:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "MELD"
+    },
+    {
+     "letter": "B",
+     "text": "Glasgow-Blatchford"
+    },
+    {
+     "letter": "C",
+     "text": "Child-Pugh"
+    },
+    {
+     "letter": "D",
+     "text": "Ranson"
+    }
+   ],
+   "answer": "A",
+   "explanation": "MELD (bilirubin, creatinine, INR ± Na) predicts post-TIPS mortality.",
+   "objective": "IR · TIPS",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "49d",
+   "group": 49,
+   "stem": "New confusion 3 days after TIPS → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Neck hematoma"
+    },
+    {
+     "letter": "B",
+     "text": "Hepatic encephalopathy"
+    },
+    {
+     "letter": "C",
+     "text": "Hemobilia"
+    },
+    {
+     "letter": "D",
+     "text": "Shunt occlusion"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Portal blood bypasses the liver = encephalopathy; a clotted shunt instead brings back bleeding or ascites.",
+   "objective": "IR · TIPS",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "49e",
+   "group": 49,
+   "stem": "Ascites returns months after TIPS → Next step:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Repeat MELD only"
+    },
+    {
+     "letter": "B",
+     "text": "Emergency laparotomy"
+    },
+    {
+     "letter": "C",
+     "text": "Large-volume paracentesis only"
+    },
+    {
+     "letter": "D",
+     "text": "Doppler US of the shunt"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Shunt dysfunction → Doppler surveillance → venography/revision, usually outpatient.",
+   "objective": "IR · TIPS",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "50",
+   "group": 50,
+   "stem": "New PE in a patient with active GI hemorrhage → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "TIPS"
+    },
+    {
+     "letter": "B",
+     "text": "Observation only"
+    },
+    {
+     "letter": "C",
+     "text": "Full-dose heparin"
+    },
+    {
+     "letter": "D",
+     "text": "IVC filter"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Contraindication to anticoagulation (GI bleed, thrombocytopenia, intracranial mets, coagulopathy) = filter.",
+   "objective": "IR · IVC filter",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "50a",
+   "group": 50,
+   "stem": "Recurrent PE despite therapeutic anticoagulation → Management:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Arterial embolization"
+    },
+    {
+     "letter": "B",
+     "text": "IVC filter"
+    },
+    {
+     "letter": "C",
+     "text": "Double the anticoagulant dose"
+    },
+    {
+     "letter": "D",
+     "text": "Stop anticoagulation"
+    }
+   ],
+   "answer": "B",
+   "explanation": "Failure of anticoagulation is one of the three therapeutic indications (can't · hurt · didn't work).",
+   "objective": "IR · IVC filter",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "50b",
+   "group": 50,
+   "stem": "Polytrauma with spinal cord injury and pelvic fractures, can't anticoagulate → Procedure:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Full-dose anticoagulation"
+    },
+    {
+     "letter": "B",
+     "text": "Compression stockings alone"
+    },
+    {
+     "letter": "C",
+     "text": "Permanent IVC filter"
+    },
+    {
+     "letter": "D",
+     "text": "Prophylactic retrievable IVC filter"
+    }
+   ],
+   "answer": "D",
+   "explanation": "Severe trauma (head, spinal cord, multiple long-bone/pelvic fx) is the prophylactic indication; retrievable filters drove its rise.",
+   "objective": "IR · IVC filter",
+   "section": "Interventional Radiology"
+  },
+  {
+   "id": "50c",
+   "group": 50,
+   "stem": "Bilateral leg swelling in a patient with an IVC filter → Diagnosis:",
+   "options": [
+    {
+     "letter": "A",
+     "text": "Caval thrombosis"
+    },
+    {
+     "letter": "B",
+     "text": "Filter migration"
+    },
+    {
+     "letter": "C",
+     "text": "Bilateral cellulitis"
+    },
+    {
+     "letter": "D",
+     "text": "IVC perforation"
+    }
+   ],
+   "answer": "A",
+   "explanation": "IVC occlusion backs up both legs; other filter complications are migration, penetration and perforation.",
+   "objective": "IR · IVC filter",
+   "section": "Interventional Radiology"
+  }
+ ]
+};
+
+// ---- Per-attempt shuffle (added for this exam) -------------------------------
+// Reshuffles on every page load: answer options are randomized within each
+// question, and the pages are put in a random order. Questions inside a stack
+// keep their built order, because each one sets up the next.
+(function shuffleExam() {
+  function shuffled(arr) {                       // Fisher-Yates, non-mutating
+    var a = arr.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  }
+  // A set of purely numeric choices (ages, cutoffs, thresholds) reads better in
+  // its natural order, so leave those alone.
+  var NUMERIC = /^\s*[<>≥≤~]?\s*\d/;
+  function isNumericSet(opts) {
+    return opts.length > 1 && opts.every(function (o) { return NUMERIC.test(o.text); });
+  }
+
+  var LETTERS = "ABCDEFGH";
+  EXAM_DATA.questions.forEach(function (q) {
+    if (!q.options || q.options.length < 2) return;
+    if (isNumericSet(q.options)) return;
+    var correctText = (q.options.find(function (o) { return o.letter === q.answer; }) || {}).text;
+    var order = shuffled(q.options);
+    q.options = order.map(function (o, i) { return { letter: LETTERS[i], text: o.text }; });
+    var match = q.options.find(function (o) { return o.text === correctText; });
+    if (match) q.answer = match.letter;          // re-point the key at its new letter
+  });
+
+  // Shuffle the pages, keeping each stack's questions together and in order.
+  var order = [], bucket = {};
+  EXAM_DATA.questions.forEach(function (q) {
+    if (!bucket[q.group]) { bucket[q.group] = []; order.push(q.group); }
+    bucket[q.group].push(q);
+  });
+  var out = [];
+  shuffled(order).forEach(function (g) { out = out.concat(bucket[g]); });
+  EXAM_DATA.questions = out;
+})();
+// -----------------------------------------------------------------------------
+
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  const flagged = {};        // question id -> true, set by the learner at any point (never affects score)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  // Lab values as a table. q.labs is [{test, result, range}]. If the stem contains
+  // the marker [[LABS]] the table goes there (so the vignette can continue after
+  // the labs); otherwise it follows the stem.
+  function labsHtml(q) {
+    if (!q.labs || !q.labs.length) return '';
+    const hasRange = q.labs.some(l => l.range);
+    let html = '<table class="labs"><thead><tr><th>Test</th><th>Result</th>' +
+      (hasRange ? '<th>Reference Range</th>' : '') + '</tr></thead><tbody>';
+    q.labs.forEach(l => {
+      html += '<tr><td>' + esc(l.test) + '</td><td class="res">' + esc(l.result) + '</td>' +
+        (hasRange ? '<td class="ref">' + (l.range ? '(' + esc(String(l.range).replace(/^\(|\)$/g, '')) + ')' : '') + '</td>' : '') + '</tr>';
+    });
+    return html + '</tbody></table>';
+  }
+
+  function stemHtml(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    const table = labsHtml(q);
+    if (table && stem.indexOf('[[LABS]]') !== -1) {
+      const parts = stem.split('[[LABS]]');
+      return '<div class="stem">' + esc(parts[0].replace(/\s+$/, '')) + '</div>' + table +
+        (parts[1] && parts[1].trim() ? '<div class="stem">' + esc(parts[1].replace(/^\s+/, '')) + '</div>' : '');
+    }
+    return '<div class="stem">' + esc(stem.replace('[[LABS]]', '')) + '</div>' + table;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += stemHtml(q);
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += flagHtml(q);
+    html += '</div>';
+    return html;
+  }
+
+  // Flagging: available on every question in every mode, right or wrong, answered or
+  // not. A flagged question joins the missed list and the copy-out, so a question that
+  // was guessed correctly (or not understood) can still be carried into the next round
+  // of study. Flagging never changes the score — it is a bookmark, not a second answer.
+  function flagHtml(q) {
+    const on = !!flagged[q.id];
+    return '<div class="flagrow"><button class="flagbtn' + (on ? ' on' : '') + '" data-flag="' +
+      esc(q.id) + '">⚑ ' + (on ? 'Flagged' : 'Flag for review') + '</button></div>';
+  }
+
+  function bindFlags() {
+    $('main').querySelectorAll('[data-flag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-flag');
+        if (flagged[id]) delete flagged[id]; else flagged[id] = true;
+        if (mode === 'missed') {                 // toggle in place; the list is rebuilt on re-entry
+          btn.classList.toggle('on', !!flagged[id]);
+          btn.textContent = '⚑ ' + (flagged[id] ? 'Flagged' : 'Flag for review');
+          return;
+        }
+        renderPage(true);
+      });
+    });
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+    bindFlags();
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {                 // answered wrong, or flagged by the learner
+    return questions.filter(q => flagged[q.id] ||
+      (answers[q.id] !== undefined && answers[q.id] !== q.answer));
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed &amp; flagged (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed &amp; flagged</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          stemHtml(g[0]) + '</div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed & flagged (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed or flagged question' + (missed.length === 1 ? '' : 's');
+    bindFlags();
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  // Plain-text stem with the lab table flattened to one line per lab
+  function stemText(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    if (!q.labs || !q.labs.length) return stem.replace('[[LABS]]', '').trim();
+    const rows = q.labs.map(l => '  ' + l.test + ': ' + l.result + (l.range ? ' (ref ' + String(l.range).replace(/^\(|\)$/g, '') + ')' : '')).join('\n');
+    const i = stem.indexOf('[[LABS]]');
+    const before = i === -1 ? stem : stem.slice(0, i);
+    const hasHeader = /\b(labs|laboratory (studies|results|values))\s*:?\s*$/i.test(before);   // stem already says "Labs:"
+    const block = (hasHeader ? '' : 'Labs:\n') + rows;
+    return (i !== -1 ? before.replace(/\s+$/, '') + '\n' + block + '\n' + stem.slice(i + 8).replace(/^\s+/, '') : stem + '\n' + block).trim();
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + stemText(group[0]));
+      lines.push(stemText(q));
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      if (flagged[q.id]) lines.push(answers[q.id] === q.answer
+        ? 'FLAGGED by me — answered correctly but not understood' : 'FLAGGED by me');
+      lines.push(answers[q.id] === undefined ? 'Not answered' : 'My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed & flagged questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed & flagged'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(flagged).forEach(k => delete flagged[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
