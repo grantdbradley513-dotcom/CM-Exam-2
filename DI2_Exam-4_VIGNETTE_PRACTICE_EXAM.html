@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  /* Lab table: vignettes with several lab values render them as a scannable
+     Test / Result / Reference Range table instead of a run-on sentence. */
+  .labs { width: 100%; border-collapse: separate; border-spacing: 0; margin: 10px 0 14px;
+    font-size: 0.95em; background: #fbfbf9; border: 1px solid #e3e1dc; border-radius: 10px; overflow: hidden; }
+  .labs th, .labs td { text-align: left; padding: 9px 14px; border-bottom: 1px solid #e3e1dc; vertical-align: top; }
+  .labs th { font-weight: 500; color: var(--ink-soft); }
+  .labs td:not(:first-child), .labs th:not(:first-child) { border-left: 1px solid #e3e1dc; }
+  .labs tr:last-child td { border-bottom: 0; }
+  .labs td.ref { color: var(--ink-soft); white-space: nowrap; }
+  .labs td.res { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .group.c3 .labs, .group.c4 .labs { font-size: 0.92em; }
+  .group.c3 .labs th, .group.c3 .labs td, .group.c4 .labs th, .group.c4 .labs td { padding: 5px 10px; }
+  @media (max-width: 520px) { .labs th, .labs td { padding: 7px 9px; } .labs td.ref, .labs td.res { white-space: normal; } }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  /* Flag for review: a bookmark the learner can toggle on any question at any time */
+  .flagrow { margin-top: 12px; }
+  .flagbtn { font: inherit; font-size: 0.82em; font-weight: 600; cursor: pointer; background: transparent;
+    border: 1.5px dashed var(--border); border-radius: 8px; padding: 4px 11px; color: var(--ink-soft); }
+  .flagbtn:hover { border-color: var(--amber); color: var(--amber); }
+  .flagbtn.on { background: var(--amber-bg); border-style: solid; border-color: var(--amber); color: var(--amber); }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "DI 2 Exam 4 — Vignette Practice Exam (Women's Health & OB)", "questions": [{"id": "1", "group": 1, "stem": "A 24-year-old woman with no prior Paps and no symptoms presents for a well-woman exam.\n\nWhich screening strategy is recommended?", "options": [{"letter": "A", "text": "Pap cytology alone every 3 years"}, {"letter": "B", "text": "Pap cytology alone every year"}, {"letter": "C", "text": "Primary high-risk HPV testing every 5 years"}, {"letter": "D", "text": "Pap plus high-risk HPV co-testing every 5 years"}, {"letter": "E", "text": "Pap cytology alone every 5 years"}], "answer": "A", "explanation": "Ages 21–29: cytology only every 3 years. Routine HPV testing waits until 30 because transient HPV is common and positive results have low predictive value in young women.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "2", "group": 2, "stem": "A 26-year-old woman notices a lump in her left breast. On exam there is a 2 cm smooth, rubbery, mobile, nontender mass in the upper outer quadrant with no skin changes, no nipple discharge, and no axillary nodes. She has no family history of breast cancer.\n\nWhat is the most appropriate first imaging study?", "options": [{"letter": "A", "text": "Diagnostic mammogram"}, {"letter": "B", "text": "Screening mammogram"}, {"letter": "C", "text": "Digital breast tomosynthesis"}, {"letter": "D", "text": "Breast ultrasound"}, {"letter": "E", "text": "Breast MRI with gadolinium"}], "answer": "D", "explanation": "Under 30 (or pregnant/lactating) → ultrasound first: dense young breast tissue limits mammography. Never assume a young patient's mass is benign without imaging.", "objective": "", "section": "Breast Disease"}, {"id": "2a", "group": 2, "stem": "Ultrasound shows an oval, circumscribed, homogeneously hypoechoic mass that is wider than tall. What is the most likely diagnosis?", "options": [{"letter": "A", "text": "Simple cyst"}, {"letter": "B", "text": "Breast abscess"}, {"letter": "C", "text": "Fibroadenoma"}, {"letter": "D", "text": "Intraductal papilloma"}, {"letter": "E", "text": "Invasive ductal carcinoma"}], "answer": "C", "explanation": "A solid, circumscribed, wider-than-tall mass in a woman under 35 is a fibroadenoma, the most common benign breast tumor. A simple cyst would be anechoic.", "objective": "", "section": "Breast Disease"}, {"id": "2b", "group": 2, "stem": "The lesion is assigned BI-RADS 3. What is the most appropriate management?", "options": [{"letter": "A", "text": "Core needle biopsy"}, {"letter": "B", "text": "Return to routine screening"}, {"letter": "C", "text": "Repeat ultrasound in 6 months"}, {"letter": "D", "text": "Breast MRI"}, {"letter": "E", "text": "Excisional biopsy"}], "answer": "C", "explanation": "BI-RADS 3 = probably benign (< 2% malignancy) → short-interval (6-month) follow-up. Growth or size > 3 cm warrants biopsy/excision to rule out phyllodes.", "objective": "", "section": "Breast Disease"}, {"id": "3", "group": 3, "stem": "A 23-year-old woman has several painless, flesh-colored, cauliflower-like growths on the vulva that appeared over the past 2 months.\n\nWhat is the most appropriate approach to diagnosis?", "options": [{"letter": "A", "text": "Serology for HPV 6 and 11"}, {"letter": "B", "text": "Biopsy of every lesion before treatment"}, {"letter": "C", "text": "HPV DNA testing of the lesion"}, {"letter": "D", "text": "Pap smear with reflex HPV genotyping"}, {"letter": "E", "text": "Clinical diagnosis; screen for other STIs"}], "answer": "E", "explanation": "Condylomata acuminata (HPV 6 and 11, ~90% of warts) are diagnosed clinically; HPV testing is not indicated. Biopsy only if indurated, ulcerated, bleeding, atypical, or treatment-refractory. Test for other STIs.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "4", "group": 4, "stem": "A 47-year-old woman with obesity, type 2 diabetes, and a history of irregular, infrequent periods has a Pap reported as atypical glandular cells (AGC).\n\nWhat is the most appropriate evaluation?", "options": [{"letter": "A", "text": "High-risk HPV test; colposcopy only if positive"}, {"letter": "B", "text": "Repeat cytology and HPV testing in 12 months"}, {"letter": "C", "text": "Colposcopy with endocervical curettage and endometrial sampling"}, {"letter": "D", "text": "Pelvic ultrasound and repeat Pap in 6 months"}, {"letter": "E", "text": "Colposcopy with endocervical curettage only"}], "answer": "C", "explanation": "AGC is never just watched: colposcopy + ECC, with endometrial sampling added when ≥ 35 or younger with risk factors (obesity, chronic anovulation, diabetes). ~30% of AGC is premalignant or malignant.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "4a", "group": 4, "stem": "Which feature of this patient most directly mandates the endometrial component of the work-up?", "options": [{"letter": "A", "text": "Diabetes mellitus"}, {"letter": "B", "text": "The AGC result itself"}, {"letter": "C", "text": "History of irregular menses"}, {"letter": "D", "text": "Obesity"}, {"letter": "E", "text": "Age 35 or older"}], "answer": "E", "explanation": "Endometrial sampling is required for all patients ≥ 35 with AGC; the other factors are the risk criteria used for younger patients.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "5", "group": 5, "stem": "A 69-year-old woman on alendronate for 2 years returns for follow-up bone density. Her original DXA was done at a hospital across town.\n\nWhich statement about follow-up testing is correct?", "options": [{"letter": "A", "text": "Any DXA machine is acceptable because T-scores are standardized"}, {"letter": "B", "text": "Raw bone mineral density (g/cm²) is comparable across machines"}, {"letter": "C", "text": "A peripheral DXA of the forearm is preferred for follow-up"}, {"letter": "D", "text": "Repeat the DXA on the same machine used for the baseline scan"}, {"letter": "E", "text": "Follow-up DXA is contraindicated while on a bisphosphonate"}], "answer": "D", "explanation": "Follow-up DXA should be on the same machine. Raw g/cm² values are not comparable between machines, and there is no consensus on the follow-up interval.", "objective": "", "section": "Bone Density Testing"}, {"id": "6", "group": 6, "stem": "A 34-year-old woman with normal prior screening and no symptoms asks about her options for cervical cancer screening.\n\nWhich of the following is NOT an acceptable USPSTF strategy for her age group?", "options": [{"letter": "A", "text": "High-risk HPV testing alone every 5 years"}, {"letter": "B", "text": "Pap cytology alone every 3 years"}, {"letter": "C", "text": "Pap cytology alone every 5 years"}, {"letter": "D", "text": "Pap plus high-risk HPV co-testing every 5 years"}, {"letter": "E", "text": "Pap and HPV co-testing on one liquid-based specimen"}], "answer": "C", "explanation": "Ages 30–65: Pap q3y, hrHPV q5y, or co-test q5y. Any 5-year interval requires an HPV component; cytology alone is always every 3 years.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "6a", "group": 6, "stem": "She received the 9-valent HPV vaccine series at age 12. How does this change her screening?", "options": [{"letter": "A", "text": "Extend the Pap interval to 5 years"}, {"letter": "B", "text": "Screening can be done every 10 years"}, {"letter": "C", "text": "Screening can stop at age 50"}, {"letter": "D", "text": "HPV testing is no longer needed"}, {"letter": "E", "text": "It does not change the schedule"}], "answer": "E", "explanation": "USPSTF recommendations apply regardless of HPV vaccination status; vaccinated women follow the same schedule.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "7", "group": 7, "stem": "A 45-year-old premenopausal woman with celiac disease has a DXA ordered because of malabsorption. Her report lists both T-scores and Z-scores.\n\nWhich score should be used to interpret her result, and why?", "options": [{"letter": "A", "text": "T-score, because it compares her to young healthy adults"}, {"letter": "B", "text": "Z-score, because it compares her to age-matched peers"}, {"letter": "C", "text": "T-score, because it is required to calculate FRAX"}, {"letter": "D", "text": "Z-score, because it is the only score comparable across machines"}, {"letter": "E", "text": "Either score, because they use different units but the same cutoff"}], "answer": "B", "explanation": "T-scores (versus young adults at peak bone mass) are used for diagnosis in peri/postmenopausal women and men ≥ 50. In a premenopausal woman the Z-score (age-matched) is the appropriate comparison.", "objective": "", "section": "Bone Density Testing"}, {"id": "8", "group": 8, "stem": "A 22-year-old G1 at 36 weeks has a vaginal–rectal culture positive for group B Streptococcus. She has no allergies and plans a vaginal delivery.\n\nWhat is the appropriate management?", "options": [{"letter": "A", "text": "Intravenous penicillin G during labor"}, {"letter": "B", "text": "No treatment; GBS colonization is normal flora"}, {"letter": "C", "text": "Cesarean delivery to avoid neonatal exposure"}, {"letter": "D", "text": "Oral amoxicillin for 10 days now"}, {"letter": "E", "text": "Intravenous penicillin now and again at delivery"}], "answer": "A", "explanation": "GBS is screened at 35–37 weeks (~25% colonized) and treated intrapartum with penicillin G, reducing early-onset neonatal sepsis from ~1/200 to ~1/4,000. Treating before labor does not clear colonization.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "8a", "group": 8, "stem": "If she instead had a scheduled cesarean delivery before labor with intact membranes, what would be recommended?", "options": [{"letter": "A", "text": "Intravenous penicillin G before the incision"}, {"letter": "B", "text": "Neonatal penicillin after delivery"}, {"letter": "C", "text": "Oral amoxicillin starting 48 hours before surgery"}, {"letter": "D", "text": "No intrapartum GBS prophylaxis"}, {"letter": "E", "text": "Vancomycin at the time of surgery"}], "answer": "D", "explanation": "GBS-positive with planned cesarean, no labor, and intact membranes → no prophylaxis, because the infant does not pass through the birth canal.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "9", "group": 9, "stem": "A 31-year-old woman reports bleeding after intercourse for 2 months. Her Pap 14 months ago was normal.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Empiric treatment for cervicitis"}, {"letter": "B", "text": "Repeat Pap in 12 months"}, {"letter": "C", "text": "High-risk HPV test alone"}, {"letter": "D", "text": "Clinical evaluation of the cervix now"}, {"letter": "E", "text": "Reassure; next Pap is due in 22 months"}], "answer": "D", "explanation": "Screening intervals apply only to asymptomatic patients. Postcoital bleeding is a symptom and requires diagnostic evaluation now, not the next scheduled screen.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "10", "group": 10, "stem": "A 30-year-old man is evaluated for infertility. He is tall with sparse body hair, gynecomastia, and small, firm testes. Semen analysis shows azoospermia on two samples.\n[[LABS]]\nWhich category of hypogonadism does this pattern represent?", "options": [{"letter": "A", "text": "Secondary (pituitary) hypogonadism"}, {"letter": "B", "text": "Hypothalamic (tertiary) hypogonadism"}, {"letter": "C", "text": "Androgen insensitivity"}, {"letter": "D", "text": "Exogenous androgen suppression"}, {"letter": "E", "text": "Primary (testicular) hypogonadism"}], "answer": "E", "explanation": "High FSH/LH with low testosterone = primary gonadal failure. Low gonadotropins with low testosterone would indicate a secondary (pituitary/hypothalamic or exogenous) cause.", "objective": "", "section": "Fertility Evaluation", "labs": [{"test": "FSH", "result": "28 IU/L", "range": "1.5–12.4"}, {"test": "LH", "result": "20 IU/L", "range": "1.7–8.6"}, {"test": "Total testosterone (8 AM)", "result": "160 ng/dL", "range": "300–1000"}, {"test": "Prolactin", "result": "9 ng/mL", "range": "< 20"}]}, {"id": "10a", "group": 10, "stem": "Which test confirms the most likely underlying diagnosis?", "options": [{"letter": "A", "text": "Karyotype"}, {"letter": "B", "text": "Pituitary MRI"}, {"letter": "C", "text": "Semen fructose level"}, {"letter": "D", "text": "Serum ferritin and transferrin saturation"}, {"letter": "E", "text": "Scrotal ultrasound"}], "answer": "A", "explanation": "Tall habitus, gynecomastia, small firm testes, and primary hypogonadism = Klinefelter syndrome (47,XXY), the most common sex-chromosome disorder and most common cause of primary hypogonadism.", "objective": "", "section": "Fertility Evaluation"}, {"id": "11", "group": 11, "stem": "A 48-year-old woman reports spontaneous bloody discharge from a single duct of the right nipple over the past month. There is no palpable mass and no skin change.\n\nWhat is the most appropriate initial evaluation?", "options": [{"letter": "A", "text": "Prolactin and TSH"}, {"letter": "B", "text": "Breast MRI alone"}, {"letter": "C", "text": "Reassurance; recheck in 6 months"}, {"letter": "D", "text": "Diagnostic mammogram with periareolar ultrasound"}, {"letter": "E", "text": "Nipple discharge cytology"}], "answer": "D", "explanation": "Spontaneous, unilateral, single-duct, bloody or serous discharge is pathologic: guaiac, then periareolar ultrasound (any age) plus diagnostic mammogram at ≥ 30. Cytology is not useful.", "objective": "", "section": "Breast Disease"}, {"id": "11a", "group": 11, "stem": "What is the most common cause of this type of discharge?", "options": [{"letter": "A", "text": "Fibrocystic change"}, {"letter": "B", "text": "Duct ectasia"}, {"letter": "C", "text": "Ductal carcinoma in situ"}, {"letter": "D", "text": "Prolactinoma"}, {"letter": "E", "text": "Intraductal papilloma"}], "answer": "E", "explanation": "Intraductal papilloma causes ~50% of pathologic discharge; duct ectasia 15–20%; DCIS/invasive cancer 10–15% — which is why cancer must still be excluded.", "objective": "", "section": "Breast Disease"}, {"id": "12", "group": 12, "stem": "A 26-year-old G1 at 10 weeks has a first-visit RPR reactive at 1:2. The confirmatory treponemal test (TP-PA) is negative. She has no symptoms, no lesions, and no history of syphilis.\n\nHow should this result be interpreted?", "options": [{"letter": "A", "text": "Laboratory error; repeat the RPR immediately"}, {"letter": "B", "text": "Biologic false-positive nontreponemal test"}, {"letter": "C", "text": "Early primary syphilis; treat with penicillin"}, {"letter": "D", "text": "Latent syphilis of unknown duration"}, {"letter": "E", "text": "Previously treated syphilis (serofast)"}], "answer": "B", "explanation": "A low-titer RPR with a negative treponemal test in pregnancy is a biologic false positive — nontreponemal tests are only ~75% specific (pregnancy, autoimmune disease, viral infections).", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "13", "group": 13, "stem": "A 29-year-old woman with infertility has had two dilation-and-curettage procedures for miscarriage. Since then her periods have become very light. HSG shows irregular, linear filling defects within the uterine cavity.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Endometrial biopsy"}, {"letter": "B", "text": "Pelvic MRI"}, {"letter": "C", "text": "Diagnostic laparoscopy"}, {"letter": "D", "text": "Repeat HSG after menses"}, {"letter": "E", "text": "Hysteroscopy"}], "answer": "E", "explanation": "Intrauterine scarring after curettage (Asherman syndrome) appears as irregular linear filling defects on HSG; hysteroscopy visualizes and can treat the adhesions.", "objective": "", "section": "Fertility Evaluation"}, {"id": "14", "group": 14, "stem": "A 70-year-old woman sustained a vertebral compression fracture last year while lifting a bag of groceries. DXA today shows a lumbar spine T-score of −2.6 and femoral neck T-score of −1.8.\n\nHow is her bone status best classified?", "options": [{"letter": "A", "text": "Normal; one site is not enough"}, {"letter": "B", "text": "Severe (established) osteoporosis"}, {"letter": "C", "text": "Osteopenia; the spine result is unreliable"}, {"letter": "D", "text": "Osteopenia with a vertebral fracture"}, {"letter": "E", "text": "Osteoporosis"}], "answer": "B", "explanation": "One site ≤ −2.5 (spine or femoral neck) is enough for osteoporosis, and osteoporosis plus a fragility fracture is severe/established osteoporosis.", "objective": "", "section": "Bone Density Testing"}, {"id": "14a", "group": 14, "stem": "What is the most appropriate treatment decision?", "options": [{"letter": "A", "text": "Repeat DXA in 1 year before treating"}, {"letter": "B", "text": "Calculate FRAX before deciding on therapy"}, {"letter": "C", "text": "Refer for kyphoplasty before medication"}, {"letter": "D", "text": "Start calcium and vitamin D alone"}, {"letter": "E", "text": "Start a bisphosphonate; FRAX is not needed"}], "answer": "E", "explanation": "A T-score ≤ −2.5 or a fragility fracture already qualifies for therapy. FRAX is reserved for the osteopenia gray zone.", "objective": "", "section": "Bone Density Testing"}, {"id": "15", "group": 15, "stem": "A 49-year-old woman's screening mammogram is reported as BI-RADS 0.\n\nWhat does this category require?", "options": [{"letter": "A", "text": "Additional imaging before a final assessment"}, {"letter": "B", "text": "Surgical consultation"}, {"letter": "C", "text": "Core needle biopsy"}, {"letter": "D", "text": "Short-interval follow-up in 6 months"}, {"letter": "E", "text": "Routine screening in 2 years"}], "answer": "A", "explanation": "BI-RADS 0 = incomplete → call back for additional views ± ultrasound. About 10% of screens are called back and ~90% of those prove benign.", "objective": "", "section": "Breast Disease"}, {"id": "16", "group": 16, "stem": "A 31-year-old man noticed a single 1.5 cm ulcer on the penile shaft 3 weeks after sex with a new partner. The ulcer is painless with a clean base and a raised, indurated border. Bilateral inguinal nodes are enlarged and nontender. An RPR is nonreactive.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Culture the ulcer for Haemophilus ducreyi"}, {"letter": "B", "text": "Obtain a treponemal test; a negative early RPR does not exclude syphilis"}, {"letter": "C", "text": "Repeat the RPR in 6 months"}, {"letter": "D", "text": "Reassure; a nonreactive RPR rules out syphilis"}, {"letter": "E", "text": "Tzanck smear of the ulcer base"}], "answer": "B", "explanation": "A painless indurated chancre with nontender nodes is primary syphilis. RPR is only ~77% sensitive in primary disease; obtain a treponemal test (or darkfield) and repeat or treat rather than dismiss.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "16a", "group": 16, "stem": "Syphilis is confirmed. What is the first-line treatment?", "options": [{"letter": "A", "text": "Azithromycin 1 g orally once"}, {"letter": "B", "text": "Ceftriaxone 500 mg intramuscularly once"}, {"letter": "C", "text": "Doxycycline 100 mg orally twice daily for 7 days"}, {"letter": "D", "text": "Acyclovir 400 mg orally three times daily for 7 days"}, {"letter": "E", "text": "Benzathine penicillin G 2.4 million units intramuscularly once"}], "answer": "E", "explanation": "Primary and secondary syphilis: single-dose benzathine penicillin G 2.4 MU IM. A transient flu-like Jarisch–Herxheimer reaction within 24 hours is managed symptomatically.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "16b", "group": 16, "stem": "How should response to treatment be monitored?", "options": [{"letter": "A", "text": "Treponemal test at 6 months; negative confirms cure"}, {"letter": "B", "text": "No follow-up is needed after penicillin"}, {"letter": "C", "text": "RPR once at 12 months"}, {"letter": "D", "text": "RPR titers at 3, 6, and 12 months using the same test and lab"}, {"letter": "E", "text": "Darkfield microscopy at 2 weeks"}], "answer": "D", "explanation": "Nontreponemal titers fall with treatment and are followed at 3, 6, 12 months; treponemal tests stay positive for life and cannot monitor response. Compare titers using the same test and laboratory.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "17", "group": 17, "stem": "A 27-year-old woman with a BMI of 33 presents with infertility. She has 4–5 periods per year, facial hair she shaves daily, acne, and darkened velvety skin on her neck.\n[[LABS]]\nWhat is the most likely diagnosis?", "options": [{"letter": "A", "text": "Primary ovarian insufficiency"}, {"letter": "B", "text": "Androgen-secreting ovarian tumor"}, {"letter": "C", "text": "Functional hypothalamic amenorrhea"}, {"letter": "D", "text": "Nonclassic congenital adrenal hyperplasia"}, {"letter": "E", "text": "Polycystic ovary syndrome"}], "answer": "E", "explanation": "Rotterdam: 2 of 3 (oligomenorrhea, hyperandrogenism, polycystic ovaries) after excluding thyroid, prolactin, and NCAH (normal 17-OHP). Mild testosterone elevation fits PCOS; > 150 ng/dL or rapid virilization suggests a tumor.", "objective": "", "section": "Fertility Evaluation", "labs": [{"test": "TSH", "result": "1.8 mIU/L", "range": "0.4–4.0"}, {"test": "Prolactin", "result": "14 ng/mL", "range": "< 25"}, {"test": "Total testosterone", "result": "78 ng/dL", "range": "< 50"}, {"test": "17-hydroxyprogesterone", "result": "normal"}, {"test": "LH / FSH", "result": "14 / 5 IU/L"}]}, {"id": "17a", "group": 17, "stem": "Is a pelvic ultrasound required before making this diagnosis?", "options": [{"letter": "A", "text": "No; an elevated AMH confirms it instead"}, {"letter": "B", "text": "No; two of the three criteria are already met"}, {"letter": "C", "text": "Yes; to exclude an ovarian tumor first"}, {"letter": "D", "text": "Yes; polycystic morphology is required"}, {"letter": "E", "text": "No; the LH:FSH ratio replaces imaging"}], "answer": "B", "explanation": "Ultrasound is not required when oligomenorrhea and hyperandrogenism are present. The LH:FSH ratio and AMH are supportive but not part of the criteria.", "objective": "", "section": "Fertility Evaluation"}, {"id": "18", "group": 18, "stem": "A 33-year-old G3P2 at 17 weeks has a quad screen reported as: AFP low, unconjugated estriol low, hCG high, inhibin A high.\n\nWhich condition does this pattern suggest?", "options": [{"letter": "A", "text": "Trisomy 18"}, {"letter": "B", "text": "Open neural tube defect"}, {"letter": "C", "text": "Incorrect dating with an earlier gestational age"}, {"letter": "D", "text": "Twin gestation"}, {"letter": "E", "text": "Trisomy 21"}], "answer": "E", "explanation": "Trisomy 21 on the quad screen: hCG and inhibin A up, AFP and estriol down ('H/I up, A/E down'). An NTD would show isolated high AFP.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "18a", "group": 18, "stem": "Which test provides a definitive diagnosis at this gestational age?", "options": [{"letter": "A", "text": "Chorionic villus sampling"}, {"letter": "B", "text": "Amniocentesis"}, {"letter": "C", "text": "Cell-free DNA"}, {"letter": "D", "text": "Repeat quad screen"}, {"letter": "E", "text": "Targeted anatomy ultrasound"}], "answer": "B", "explanation": "At 15–20 weeks amniocentesis is the diagnostic procedure (99.9% reliable, loss ~0.3%); CVS is a first-trimester test and cfDNA is still only a screen.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "19", "group": 19, "stem": "A 27-year-old woman reports a thin, gray vaginal discharge with a fishy odor that is worse after intercourse. She has no itching or pain. Vaginal pH is 5.0, a fishy odor is released when KOH is added, and saline microscopy shows epithelial cells studded with bacteria and few white cells.\n\nWhat is the diagnosis?", "options": [{"letter": "A", "text": "Chlamydial cervicitis"}, {"letter": "B", "text": "Trichomoniasis"}, {"letter": "C", "text": "Bacterial vaginosis"}, {"letter": "D", "text": "Vulvovaginal candidiasis"}, {"letter": "E", "text": "Atrophic vaginitis"}], "answer": "C", "explanation": "Amsel criteria (3 of 4): thin homogeneous discharge, pH > 4.5, positive whiff test, clue cells. Absence of PMNs argues against trichomonas or cervicitis.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "19a", "group": 19, "stem": "Her male partner asks whether he needs treatment. What should he be told?", "options": [{"letter": "A", "text": "No; but he should be tested with a urine NAAT"}, {"letter": "B", "text": "Yes; but only if he has symptoms"}, {"letter": "C", "text": "Yes; a single dose of azithromycin"}, {"letter": "D", "text": "No; partner treatment does not reduce recurrence"}, {"letter": "E", "text": "Yes; metronidazole for both partners"}], "answer": "D", "explanation": "Bacterial vaginosis is sexually associated, not sexually transmitted — partner treatment does not help. Trichomonas, by contrast, requires partner treatment.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "20", "group": 20, "stem": "A 28-year-old G1 at 16 weeks has an elevated maternal serum alpha-fetoprotein. Her dating is confirmed and she has a singleton pregnancy.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Repeat AFP in 4 weeks"}, {"letter": "B", "text": "Targeted (detailed) ultrasound"}, {"letter": "C", "text": "Chorionic villus sampling"}, {"letter": "D", "text": "Amniocentesis for karyotype"}, {"letter": "E", "text": "Cell-free DNA testing"}], "answer": "B", "explanation": "Elevated MSAFP (offered at 15–18 weeks) suggests a neural tube defect → detailed ultrasound. AFP is low, not high, in trisomies. Preconception folate prevents NTDs.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "21", "group": 21, "stem": "A 24-year-old man reports 5 days of dysuria and a scant clear urethral discharge. Urinalysis shows 15–20 WBC/hpf, but the urine culture grows no organisms.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Repeat the urine culture with a midstream specimen"}, {"letter": "B", "text": "Empiric ciprofloxacin for a urinary tract infection"}, {"letter": "C", "text": "Urine cytology"}, {"letter": "D", "text": "NAAT for gonorrhea and chlamydia on first-catch urine"}, {"letter": "E", "text": "Cystoscopy"}], "answer": "D", "explanation": "Sterile pyuria in a sexually active patient points to chlamydia or gonorrhea; NAAT on first-catch urine is the male specimen of choice.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "22", "group": 22, "stem": "A 31-year-old woman had a LEEP for CIN 3 two years ago and is now pregnant.\n\nWhich late complication of the procedure places her current pregnancy at risk?", "options": [{"letter": "A", "text": "Cervical insufficiency with preterm birth"}, {"letter": "B", "text": "Gestational trophoblastic disease"}, {"letter": "C", "text": "Rh alloimmunization"}, {"letter": "D", "text": "Uterine rupture"}, {"letter": "E", "text": "Placenta previa"}], "answer": "A", "explanation": "Late risks of LEEP or cone: cervical stenosis, cervical insufficiency (second-trimester loss), and preterm birth — the reason ASCCP avoids unnecessary excision.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "23", "group": 23, "stem": "A 27-year-old woman presents at an estimated 9 weeks of pregnancy. Her periods are irregular and she is unsure of her last menstrual period.\n\nWhat is the most accurate method to establish gestational age?", "options": [{"letter": "A", "text": "Biparietal diameter on transabdominal ultrasound"}, {"letter": "B", "text": "Date of the positive home pregnancy test"}, {"letter": "C", "text": "Serum quantitative hCG level"}, {"letter": "D", "text": "Crown–rump length on transvaginal ultrasound"}, {"letter": "E", "text": "Fundal height measurement"}], "answer": "D", "explanation": "First-trimester CRL dates a pregnancy to ± 1 week — the most accurate method. Second-trimester biometry is ± 2 weeks, and hCG should never be used for dating.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "24", "group": 24, "stem": "Which patient meets the USPSTF Grade B recommendation for routine osteoporosis screening with DXA?", "options": [{"letter": "A", "text": "A 48-year-old premenopausal woman with celiac disease"}, {"letter": "B", "text": "A 60-year-old man who smokes a pack a day"}, {"letter": "C", "text": "A 70-year-old man with no risk factors"}, {"letter": "D", "text": "A 55-year-old woman with no risk factors"}, {"letter": "E", "text": "A 66-year-old woman with no risk factors"}], "answer": "E", "explanation": "USPSTF: all women ≥ 65 (Grade B) and younger postmenopausal women with ≥ 1 risk factor. Screening men is Grade I (insufficient evidence); NOF, not USPSTF, adds men ≥ 70.", "objective": "", "section": "Bone Density Testing"}, {"id": "25", "group": 25, "stem": "A 25-year-old woman presents with a profuse yellow-green, frothy vaginal discharge and vulvar irritation. Vaginal pH is 5.5. A saline wet mount read immediately shows numerous white cells and motile flagellated organisms.\n\nWhat is the diagnosis?", "options": [{"letter": "A", "text": "Trichomoniasis"}, {"letter": "B", "text": "Desquamative inflammatory vaginitis"}, {"letter": "C", "text": "Gonococcal cervicitis"}, {"letter": "D", "text": "Vulvovaginal candidiasis"}, {"letter": "E", "text": "Bacterial vaginosis"}], "answer": "A", "explanation": "Elevated pH (5–6), frothy yellow-green discharge, many PMNs, and motile trichomonads = Trichomonas. Microscopy is only 50–70% sensitive, so NAAT is preferred when the mount is negative.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "25a", "group": 25, "stem": "What follow-up is recommended after treatment?", "options": [{"letter": "A", "text": "No follow-up; trichomoniasis does not recur"}, {"letter": "B", "text": "Test of cure in 1 week"}, {"letter": "C", "text": "Treat her partner only if he is symptomatic"}, {"letter": "D", "text": "Treat her partner and retest her in 3 months"}, {"letter": "E", "text": "Retest only if symptoms return"}], "answer": "D", "explanation": "Trichomonas is an STI: partners are treated and women are retested for reinfection at 3 months — the same 3-month interval used for gonorrhea and chlamydia.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "26", "group": 26, "stem": "A 29-year-old G2P1 at 20 weeks has a hemoglobin of 10.2 g/dL on routine labs. She feels well.\n\nHow should this result be interpreted and evaluated?", "options": [{"letter": "A", "text": "Anemia only if hemoglobin falls below 10.0 g/dL"}, {"letter": "B", "text": "Anemia; check ferritin and start oral iron if low"}, {"letter": "C", "text": "Normal for the third trimester"}, {"letter": "D", "text": "Anemia; transfuse if symptomatic"}, {"letter": "E", "text": "Physiologic; no evaluation needed"}], "answer": "B", "explanation": "Trimester cutoffs: < 11 (first), < 10.5 (second), < 11 (third) g/dL. Hgb 10.2 in the second trimester is anemia; ferritin < 30 indicates iron deficiency → oral iron on top of the prenatal vitamin.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "27", "group": 27, "stem": "A 52-year-old woman presents with a firm, irregular, fixed 3 cm mass in the right breast with overlying skin dimpling. She has no nipple discharge. Her last screening mammogram 18 months ago was normal.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Fine-needle aspiration in the office"}, {"letter": "B", "text": "Diagnostic mammogram with targeted ultrasound"}, {"letter": "C", "text": "Screening mammogram"}, {"letter": "D", "text": "Breast MRI"}, {"letter": "E", "text": "Reassurance based on the recent normal mammogram"}], "answer": "B", "explanation": "Age ≥ 30 with a palpable mass → diagnostic mammogram ± targeted ultrasound. A symptomatic patient gets a diagnostic study, never the next screen.", "objective": "", "section": "Breast Disease"}, {"id": "27a", "group": 27, "stem": "Mammography shows a spiculated mass with clustered pleomorphic microcalcifications, reported as BI-RADS 5. What is the most appropriate next step?", "options": [{"letter": "A", "text": "Surgical excision without biopsy"}, {"letter": "B", "text": "Fine-needle aspiration cytology"}, {"letter": "C", "text": "Breast MRI to confirm"}, {"letter": "D", "text": "Repeat imaging in 6 months"}, {"letter": "E", "text": "Image-guided core needle biopsy"}], "answer": "E", "explanation": "BI-RADS 4 or 5 (5 = ≥ 95% malignancy) → tissue diagnosis by image-guided core needle biopsy, which also provides receptor status. Cancer is diagnosed by tissue, not imaging.", "objective": "", "section": "Breast Disease"}, {"id": "28", "group": 28, "stem": "A 58-year-old man with no fractures, normal calcium, normal creatinine, normal TSH, and a normal vitamin D level has a lumbar spine T-score of −2.7 on DXA. He takes no glucocorticoids and drinks socially.\n\nWhich test should be added to his secondary-cause evaluation?", "options": [{"letter": "A", "text": "Serum tryptase"}, {"letter": "B", "text": "Serum protein electrophoresis"}, {"letter": "C", "text": "Serum testosterone"}, {"letter": "D", "text": "24-hour urine cortisol"}, {"letter": "E", "text": "Intact parathyroid hormone"}], "answer": "C", "explanation": "A man with low bone density and an unrevealing base panel needs a testosterone level — hypogonadism of any cause is the secondary cause to find in men.", "objective": "", "section": "Bone Density Testing"}, {"id": "29", "group": 29, "stem": "A 30-year-old G2P1 at 26 weeks undergoes routine gestational diabetes screening with a nonfasting 50-g glucose challenge. Her 1-hour value is 152 mg/dL.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Hemoglobin A1c"}, {"letter": "B", "text": "Diagnose gestational diabetes and start insulin"}, {"letter": "C", "text": "Fasting 100-g, 3-hour oral glucose tolerance test"}, {"letter": "D", "text": "Fasting plasma glucose alone"}, {"letter": "E", "text": "Repeat the 50-g challenge next week"}], "answer": "C", "explanation": "The 50-g GCT is a screen; a value ≥ 130–140 mg/dL triggers the diagnostic fasting 100-g, 3-hour OGTT.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "29a", "group": 29, "stem": "Her 3-hour OGTT results are: fasting 98, 1-hour 192, 2-hour 150, 3-hour 128 mg/dL. How should this be interpreted?", "options": [{"letter": "A", "text": "Gestational diabetes; the fasting value alone is diagnostic"}, {"letter": "B", "text": "Gestational diabetes; two values are abnormal"}, {"letter": "C", "text": "Normal; only one value is abnormal"}, {"letter": "D", "text": "Indeterminate; repeat the OGTT in 4 weeks"}, {"letter": "E", "text": "Normal; all values are within range"}], "answer": "B", "explanation": "Carpenter–Coustan thresholds: fasting 95, 1 h 180, 2 h 155, 3 h 140. Fasting 98 and 1-hour 192 exceed thresholds — ≥ 2 abnormal values = GDM.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "30", "group": 30, "stem": "A 26-year-old woman presents with 2 days of painful clustered vesicles on the labia with some that have broken into shallow ulcers. She had a similar, more severe episode with fever 1 year ago. Inguinal nodes are tender.\n\nWhich test is preferred to confirm the diagnosis?", "options": [{"letter": "A", "text": "Darkfield microscopy of vesicle fluid"}, {"letter": "B", "text": "Bacterial culture of the ulcer"}, {"letter": "C", "text": "NAAT/PCR of a swab from the base of an unroofed vesicle"}, {"letter": "D", "text": "Type-specific HSV IgG serology"}, {"letter": "E", "text": "Tzanck smear of the vesicle"}], "answer": "C", "explanation": "Active lesions should be lab-confirmed: unroof a vesicle and swab the base for NAAT (PCR), which also types HSV-1 vs HSV-2. Tzanck is neither sensitive nor type-specific; serology is for patients without lesions.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "31", "group": 31, "stem": "A 33-year-old nonpregnant woman has a Pap showing HSIL with HPV 16 positive. Using the ASCCP risk calculator, her immediate CIN 3+ risk is 70%.\n\nWhat is the preferred management?", "options": [{"letter": "A", "text": "Repeat co-testing in 6 months"}, {"letter": "B", "text": "Repeat co-testing in 12 months"}, {"letter": "C", "text": "Endometrial biopsy"}, {"letter": "D", "text": "Colposcopy with directed biopsy first"}, {"letter": "E", "text": "Expedited excisional treatment (LEEP) without prior biopsy"}], "answer": "E", "explanation": "Immediate CIN 3+ risk ≥ 60% favors expedited treatment in eligible nonpregnant patients ≥ 25; 4–24% → colposcopy; < 4% → surveillance.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "32", "group": 32, "stem": "A 35-year-old woman at 11 weeks has cell-free fetal DNA testing that returns 'high risk for trisomy 18.'\n\nHow should this result be interpreted and managed?", "options": [{"letter": "A", "text": "Order a quad screen to confirm"}, {"letter": "B", "text": "It is a false positive because cfDNA is unreliable before 12 weeks"}, {"letter": "C", "text": "Repeat the cfDNA in 2 weeks before acting"}, {"letter": "D", "text": "It is a positive screen; offer CVS or amniocentesis to confirm"}, {"letter": "E", "text": "It is diagnostic of trisomy 18; counsel accordingly"}], "answer": "D", "explanation": "cfDNA (after 10 weeks) has higher sensitivity and fewer false positives than serum screens but remains a screen — abnormal results require invasive diagnostic confirmation.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "33", "group": 33, "stem": "A 22-year-old woman with a new partner of 6 weeks reports vaginal discharge and spotting after intercourse. She is afebrile. Speculum exam shows mucopurulent discharge from the cervical os and a friable cervix. She is not pregnant and has no drug allergies.\n\nWhich test is most appropriate for the suspected diagnosis?", "options": [{"letter": "A", "text": "Gram stain of the cervical discharge"}, {"letter": "B", "text": "Serology for Chlamydia trachomatis IgM"}, {"letter": "C", "text": "NAAT on a first-catch urine specimen"}, {"letter": "D", "text": "Bacterial culture of the cervical discharge"}, {"letter": "E", "text": "NAAT for gonorrhea and chlamydia on a vaginal swab"}], "answer": "E", "explanation": "Cervicitis in a young woman with a new partner → GC/CT NAAT. The vaginal swab (self- or clinician-collected) is preferred in women; first-catch urine is the male specimen. Chlamydia cannot be Gram-stained or routinely cultured.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "33a", "group": 33, "stem": "NAAT returns positive for Chlamydia trachomatis and negative for gonorrhea. What is the recommended treatment?", "options": [{"letter": "A", "text": "Ceftriaxone 500 mg intramuscularly once"}, {"letter": "B", "text": "Metronidazole 500 mg orally twice daily for 7 days"}, {"letter": "C", "text": "Penicillin G 2.4 million units intramuscularly"}, {"letter": "D", "text": "Doxycycline 100 mg orally twice daily for 7 days"}, {"letter": "E", "text": "Azithromycin 1 g orally once"}], "answer": "D", "explanation": "Doxycycline for 7 days is first line for chlamydia in nonpregnant patients; azithromycin is the alternative and the choice in pregnancy. Partners within 60 days should be treated.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "34", "group": 34, "stem": "A 33-year-old woman who is 8 weeks pregnant notices a new 1.5 cm mobile breast mass.\n\nWhat is the most appropriate first imaging study?", "options": [{"letter": "A", "text": "Screening mammogram"}, {"letter": "B", "text": "Breast MRI with gadolinium"}, {"letter": "C", "text": "Defer imaging until after delivery"}, {"letter": "D", "text": "Diagnostic mammogram with abdominal shielding"}, {"letter": "E", "text": "Breast ultrasound"}], "answer": "E", "explanation": "Pregnant or lactating → ultrasound first (no radiation, dense tissue). Fibroadenomas may grow during pregnancy, but growth still requires evaluation.", "objective": "", "section": "Breast Disease"}, {"id": "35", "group": 35, "stem": "A 24-year-old G1P0 presents for her first prenatal visit at 10 weeks. She feels well and has no urinary symptoms.\n[[LABS]]\nWhat is the most appropriate management of the urine culture result?", "options": [{"letter": "A", "text": "Treat only if a urinalysis shows pyuria"}, {"letter": "B", "text": "Treat with an antibiotic such as cephalexin and re-culture after therapy"}, {"letter": "C", "text": "Treat with ciprofloxacin for 7 days"}, {"letter": "D", "text": "Repeat the culture at 28 weeks before treating"}, {"letter": "E", "text": "No treatment; asymptomatic bacteriuria is not treated"}], "answer": "B", "explanation": "Asymptomatic bacteriuria ≥ 100,000 CFU/mL is treated in pregnancy (~30% progress to pyelonephritis) with amoxicillin, amox-clav, or cephalexin — avoid tetracyclines and fluoroquinolones. In nonpregnant patients it is not screened or treated.", "objective": "", "section": "Routine OB Labs & Imaging", "labs": [{"test": "Blood type / Rh", "result": "O negative"}, {"test": "Antibody screen", "result": "Negative"}, {"test": "Hemoglobin", "result": "11.8 g/dL"}, {"test": "Rubella IgG", "result": "Nonimmune"}, {"test": "RPR / HIV / HBsAg / HCV Ab", "result": "All negative"}, {"test": "Urine culture", "result": "> 100,000 CFU/mL E. coli"}]}, {"id": "35a", "group": 35, "stem": "How should her Rh status be managed?", "options": [{"letter": "A", "text": "Rh immune globulin now and again at delivery regardless of infant type"}, {"letter": "B", "text": "Repeat the antibody screen monthly and treat only if it becomes positive"}, {"letter": "C", "text": "Rh immune globulin at 28 weeks and postpartum if the infant is Rh-positive"}, {"letter": "D", "text": "No intervention; her antibody screen is negative"}, {"letter": "E", "text": "Rh immune globulin only if she has vaginal bleeding"}], "answer": "C", "explanation": "Rh-negative and unsensitized → RhoGAM at 28 weeks and within 72 hours postpartum if the infant is Rh-positive; earlier with bleeding, trauma, miscarriage, ectopic, or amniocentesis/CVS.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "35b", "group": 35, "stem": "How should her rubella result be managed?", "options": [{"letter": "A", "text": "Give rubella immune globulin now"}, {"letter": "B", "text": "Give MMR vaccine now"}, {"letter": "C", "text": "Give MMR in the third trimester"}, {"letter": "D", "text": "No action; rubella immunity is not relevant"}, {"letter": "E", "text": "Give MMR vaccine after delivery"}], "answer": "E", "explanation": "MMR is a live vaccine and is contraindicated in pregnancy; vaccinate postpartum. Counsel her to avoid exposure during pregnancy because of congenital rubella syndrome.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "36", "group": 36, "stem": "A 41-year-old woman has a smooth, mobile, tender 2 cm mass that fluctuates with her menstrual cycle. Ultrasound shows a simple anechoic cyst. Aspiration yields bloody fluid, and a residual mass is palpable afterward.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Tissue biopsy of the residual mass"}, {"letter": "B", "text": "Repeat aspiration in 6 weeks"}, {"letter": "C", "text": "Start oral contraceptives to suppress cysts"}, {"letter": "D", "text": "Reassurance; recheck in 1 year"}, {"letter": "E", "text": "Send the fluid for cytology only"}], "answer": "A", "explanation": "Clear fluid with complete resolution ends the work-up. Bloody or atypical fluid, or a residual mass after aspiration, requires biopsy.", "objective": "", "section": "Breast Disease"}, {"id": "37", "group": 37, "stem": "A 29-year-old man being evaluated for infertility has a semen analysis with very low volume (0.4 mL) but normal concentration and motility in the sample obtained. He takes tamsulosin for urinary symptoms.\n\nWhat is the most likely cause of the low volume?", "options": [{"letter": "A", "text": "Hyperprolactinemia"}, {"letter": "B", "text": "Retrograde ejaculation"}, {"letter": "C", "text": "Primary hypogonadism"}, {"letter": "D", "text": "Varicocele"}, {"letter": "E", "text": "Klinefelter syndrome"}], "answer": "B", "explanation": "Low semen volume suggests retrograde ejaculation — alpha-blockers (tamsulosin, terazosin), SSRIs, risperidone, prostate surgery, and diabetic or MS neuropathy are the usual causes.", "objective": "", "section": "Fertility Evaluation"}, {"id": "38", "group": 38, "stem": "A 68-year-old woman has had negative Pap smears at ages 58, 61, and 64, with normal co-testing at 64. She has never had an abnormal result and has no history of CIN or immunosuppression.\n\nWhat is the appropriate screening recommendation?", "options": [{"letter": "A", "text": "One final HPV test, then stop if negative"}, {"letter": "B", "text": "Discontinue cervical cancer screening"}, {"letter": "C", "text": "Co-testing every 5 years indefinitely"}, {"letter": "D", "text": "Pap every 3 years until age 75"}, {"letter": "E", "text": "Annual Pap because of her age"}], "answer": "B", "explanation": "Screening stops after 65 with adequate prior negative screening (≥ 2 negative results in the past 10 years, 1 within the last 5) and no high-risk history.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "39", "group": 39, "stem": "A 50-year-old woman with silicone breast implants placed 12 years ago reports a change in the shape of her left breast and is concerned about implant rupture.\n\nWhich study best evaluates implant integrity?", "options": [{"letter": "A", "text": "CT of the chest"}, {"letter": "B", "text": "Breast MRI without contrast"}, {"letter": "C", "text": "Breast ultrasound"}, {"letter": "D", "text": "Diagnostic mammogram with implant-displaced views"}, {"letter": "E", "text": "Breast MRI with gadolinium"}], "answer": "B", "explanation": "Implant integrity is assessed with MRI without contrast; gadolinium is for cancer evaluation. Routine mammography in implant patients uses 4 implant-displaced views per breast.", "objective": "", "section": "Breast Disease"}, {"id": "40", "group": 40, "stem": "A 38-year-old woman undergoes primary high-risk HPV screening. The lab reports HPV 16 positive, and reflex cytology is negative for intraepithelial lesion or malignancy (NILM). She is not pregnant.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Loop electrosurgical excision procedure"}, {"letter": "B", "text": "Repeat HPV and Pap testing in 12 months"}, {"letter": "C", "text": "Return to routine screening in 5 years"}, {"letter": "D", "text": "Colposcopy"}, {"letter": "E", "text": "Repeat cytology alone in 6 months"}], "answer": "D", "explanation": "HPV 16 or 18 positivity goes to colposcopy even with normal cytology — these two types cause ~70% of cervical cancers.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "40a", "group": 40, "stem": "During colposcopy, what is applied to the cervix to make abnormal epithelium visible for directed biopsy?", "options": [{"letter": "A", "text": "Hydrogen peroxide, which highlights punctation"}, {"letter": "B", "text": "Lugol iodine, which turns dysplasia dark brown"}, {"letter": "C", "text": "Methylene blue, which stains glandular cells"}, {"letter": "D", "text": "10% potassium hydroxide, which lyses normal cells"}, {"letter": "E", "text": "3–5% acetic acid, which turns dysplasia acetowhite"}], "answer": "E", "explanation": "Acetic acid makes dysplastic areas acetowhite (with mosaicism or punctation); biopsies are taken near the squamocolumnar junction.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "40b", "group": 40, "stem": "Directed biopsy returns CIN 3. What is the most appropriate management?", "options": [{"letter": "A", "text": "Repeat colposcopy in 6 months"}, {"letter": "B", "text": "Hysterectomy"}, {"letter": "C", "text": "Excision with LEEP"}, {"letter": "D", "text": "Observation with HPV testing in 3 years"}, {"letter": "E", "text": "Repeat Pap in 12 months"}], "answer": "C", "explanation": "Treatment rests on histology, not cytology: CIN 2–3 is excised, and LEEP is the most common method.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "41", "group": 41, "stem": "A 27-year-old man was treated for gonococcal urethritis with ceftriaxone 500 mg IM one week ago. His discharge and dysuria have not improved, and he denies any new sexual contact.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Reassure; symptoms can persist for 2 weeks after treatment"}, {"letter": "B", "text": "Repeat the NAAT in 3 months"}, {"letter": "C", "text": "NAAT for Mycoplasma genitalium only"}, {"letter": "D", "text": "Repeat ceftriaxone at the same dose"}, {"letter": "E", "text": "Gonococcal culture with antimicrobial susceptibility testing"}], "answer": "E", "explanation": "Routine test of cure is not done for gonorrhea, but persistent symptoms call for culture (modified Thayer–Martin) with susceptibility testing to detect resistance.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "42", "group": 42, "stem": "A 29-year-old woman is scheduled for colposcopy for an abnormal Pap. Her last menstrual period was 6 weeks ago and an office pregnancy test is positive.\n\nWhich part of the colposcopy procedure must be omitted?", "options": [{"letter": "A", "text": "Application of acetic acid"}, {"letter": "B", "text": "Directed cervical biopsy"}, {"letter": "C", "text": "The entire procedure until postpartum"}, {"letter": "D", "text": "Visualization of the transformation zone"}, {"letter": "E", "text": "Endocervical curettage"}], "answer": "E", "explanation": "Colposcopy and directed biopsy can proceed in pregnancy, but ECC is contraindicated because of the risk of gestational sac trauma. Always check hCG first when pregnancy is possible.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "43", "group": 43, "stem": "A 66-year-old woman had a heel ultrasound at a health fair that reported a T-score of −2.6. She has no fractures and asks whether she should start medication.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Order quantitative CT of the spine"}, {"letter": "B", "text": "Central DXA of the hip and lumbar spine"}, {"letter": "C", "text": "Calculate FRAX using the heel result"}, {"letter": "D", "text": "Repeat the heel ultrasound in 1 year"}, {"letter": "E", "text": "Start an oral bisphosphonate based on this result"}], "answer": "B", "explanation": "Peripheral tests (heel SXA/ultrasound, forearm pDXA, phalangeal absorptiometry) are inferior and only flag risk; the diagnosis is confirmed on central DXA of the hip and spine.", "objective": "", "section": "Bone Density Testing"}, {"id": "44", "group": 44, "stem": "A 23-year-old woman has her first Pap smear, reported as ASC-US. She has no symptoms.\n\nWhat is the preferred next step?", "options": [{"letter": "A", "text": "Return to routine screening in 3 years"}, {"letter": "B", "text": "Repeat cytology in 3 months"}, {"letter": "C", "text": "Colposcopy now"}, {"letter": "D", "text": "Repeat cytology in 12 months"}, {"letter": "E", "text": "High-risk HPV test; if positive, LEEP"}], "answer": "D", "explanation": "Under age 25, ASC-US or LSIL is managed with repeat cytology at 1 year (reflex HPV is acceptable for ASC-US only). Colposcopy is reserved for ASC-H or HSIL in this age group.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "44a", "group": 44, "stem": "If her Pap had instead shown HSIL, what would be the appropriate next step?", "options": [{"letter": "A", "text": "Immediate LEEP"}, {"letter": "B", "text": "Repeat cytology in 6 months"}, {"letter": "C", "text": "Colposcopy"}, {"letter": "D", "text": "Repeat cytology in 12 months"}, {"letter": "E", "text": "High-risk HPV test"}], "answer": "C", "explanation": "ASC-H or HSIL at any age, including under 25, goes to colposcopy. Expedited treatment is reserved for eligible nonpregnant patients ≥ 25.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "45", "group": 45, "stem": "A 38-year-old woman is a confirmed BRCA1 mutation carrier with no breast symptoms.\n\nWhich screening approach is most appropriate?", "options": [{"letter": "A", "text": "Breast ultrasound every 6 months"}, {"letter": "B", "text": "Clinical breast exam every 6 months only"}, {"letter": "C", "text": "Annual breast MRI plus annual mammography"}, {"letter": "D", "text": "Mammography every 2 years starting at 40"}, {"letter": "E", "text": "Annual mammography alone starting at 50"}], "answer": "C", "explanation": "MRI supplements screening in high-risk women (> 20% lifetime risk, BRCA, chest radiation at 10–30): annual MRI and annual mammogram, often alternating every 6 months. MRI is never a general-population screen.", "objective": "", "section": "Breast Disease"}, {"id": "46", "group": 46, "stem": "A 36-year-old woman has been trying to conceive for 7 months. She was treated for pelvic inflammatory disease at age 24. Her cycles are regular (28–30 days) and a mid-luteal progesterone was 12 ng/mL. Her partner's semen analysis is normal.\n\nWhat is the most appropriate next test?", "options": [{"letter": "A", "text": "Diagnostic laparoscopy"}, {"letter": "B", "text": "Hysterosalpingography"}, {"letter": "C", "text": "Transvaginal ultrasound for antral follicle count"}, {"letter": "D", "text": "Endometrial biopsy"}, {"letter": "E", "text": "Clomiphene challenge test"}], "answer": "B", "explanation": "At ≥ 35 evaluation begins after 6 months. Ovulation is confirmed (progesterone > 3 ng/mL), so the next factor is tubal/uterine — HSG, especially with prior PID.", "objective": "", "section": "Fertility Evaluation"}, {"id": "46a", "group": 46, "stem": "The HSG shows contrast filling both tubes but no peritoneal spillage on either side. What does this indicate?", "options": [{"letter": "A", "text": "Patent fallopian tubes"}, {"letter": "B", "text": "Uterine septum"}, {"letter": "C", "text": "Endometriosis"}, {"letter": "D", "text": "Bilateral tubal obstruction"}, {"letter": "E", "text": "Asherman syndrome"}], "answer": "D", "explanation": "Free peritoneal spill means open tubes; absent spill means obstruction — the most common HSG finding, and prior PID is the classic cause.", "objective": "", "section": "Fertility Evaluation"}, {"id": "47", "group": 47, "stem": "A 19-year-old woman who has been sexually active since age 15 with multiple partners requests cervical cancer screening at a well visit. She has never been vaccinated against HPV.\n\nWhat is the most appropriate recommendation?", "options": [{"letter": "A", "text": "Pap and HPV co-testing today"}, {"letter": "B", "text": "High-risk HPV test today"}, {"letter": "C", "text": "No cervical screening now; offer the HPV vaccine"}, {"letter": "D", "text": "Pap smear today and every 3 years"}, {"letter": "E", "text": "Pap smear with reflex HPV testing today"}], "answer": "C", "explanation": "USPSTF screening starts at 21 regardless of sexual history or vaccination; HPV in teens clears in the vast majority. Offer catch-up vaccination.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "48", "group": 48, "stem": "A 38-year-old woman with regular cycles is beginning a fertility evaluation and wants to know whether her ovarian reserve is adequate.\n\nWhich test is preferred?", "options": [{"letter": "A", "text": "Day-21 estradiol"}, {"letter": "B", "text": "Serum prolactin"}, {"letter": "C", "text": "Urine LH surge kit"}, {"letter": "D", "text": "Anti-Müllerian hormone"}, {"letter": "E", "text": "Mid-luteal progesterone"}], "answer": "D", "explanation": "Women ≥ 35 add ovarian reserve testing; AMH is the preferred test and correlates with antral follicle count. Day-3 FSH is an alternative (> 20 = poor reserve).", "objective": "", "section": "Fertility Evaluation"}, {"id": "49", "group": 49, "stem": "A 29-year-old woman who is 3 weeks postpartum and breastfeeding presents with 2 days of fever to 38.9 °C and a painful, red, warm, fluctuant 4 cm mass in the right breast.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Breast MRI with contrast"}, {"letter": "B", "text": "Ultrasound-guided aspiration with culture, then antibiotics"}, {"letter": "C", "text": "Start oral antibiotics and stop breastfeeding"}, {"letter": "D", "text": "Diagnostic mammogram"}, {"letter": "E", "text": "Punch biopsy of the overlying skin"}], "answer": "B", "explanation": "A fluctuant mass with fever in a lactating woman is an abscess (S. aureus/MRSA): drain and culture before antibiotics, warm compresses, and continue nursing or pumping.", "objective": "", "section": "Breast Disease"}, {"id": "50", "group": 50, "stem": "A 68-year-old woman with polymyalgia rheumatica has been taking prednisone 15 mg daily for the past 4 months. A DXA 2 years ago showed a femoral neck T-score of −2.0 and she was told no treatment was needed. Her rheumatologist asks you to reassess. Her FRAX, recalculated with glucocorticoid use, now returns 20% for major osteoporotic fracture and 4.9% for hip fracture. She has had no fractures.\n\nWhat is the most appropriate management?", "options": [{"letter": "A", "text": "Stop the prednisone and reassess in 3 months"}, {"letter": "B", "text": "Start a bisphosphonate"}, {"letter": "C", "text": "Order a bone scan to look for occult fractures"}, {"letter": "D", "text": "Start calcitonin nasal spray"}, {"letter": "E", "text": "Continue observation; repeat DXA in 2 years"}], "answer": "B", "explanation": "Glucocorticoids (prednisone ≥ 5 mg/day for ≥ 3 months) are the most common secondary cause of osteoporosis and must trigger a FRAX recalculation. She now meets both thresholds (hip ≥ 3%, major ≥ 20%).", "objective": "", "section": "Bone Density Testing"}, {"id": "50a", "group": 50, "stem": "Which set of laboratory tests should be ordered first to look for a secondary cause of her low bone density?", "options": [{"letter": "A", "text": "1,25-dihydroxyvitamin D, urine calcium, cortisol"}, {"letter": "B", "text": "Alkaline phosphatase, phosphate, magnesium, ESR"}, {"letter": "C", "text": "Calcium, intact PTH, SPEP, testosterone"}, {"letter": "D", "text": "CBC, serum protein electrophoresis, urine light chains"}, {"letter": "E", "text": "Calcium, 25-hydroxyvitamin D, creatinine, TSH"}], "answer": "E", "explanation": "The base panel for everyone with low BMD is calcium, 25-OH vitamin D, creatinine, and TSH plus a medication and history review; PTH, SPEP, and testosterone are added only when a clue points to them.", "objective": "", "section": "Bone Density Testing"}, {"id": "51", "group": 51, "stem": "A patient treated for secondary syphilis had an RPR titer of 1:32 before treatment. Six months later the titer is 1:8.\n\nHow should this result be interpreted?", "options": [{"letter": "A", "text": "Reinfection; test partners"}, {"letter": "B", "text": "Treatment failure; retreat with penicillin"}, {"letter": "C", "text": "Adequate treatment response (fourfold decline)"}, {"letter": "D", "text": "Seroreversion; the infection is cured"}, {"letter": "E", "text": "Serofast state requiring no action"}], "answer": "C", "explanation": "1:32 → 1:8 is two dilutions = a fourfold decline, the benchmark for adequate response at 6 months. Serofast = persistent low-level reactivity; seroreversion = the test becomes negative; a new titer rise = reinfection.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "52", "group": 52, "stem": "A 55-year-old woman at average risk with no breast symptoms asks about screening.\n\nWhat does the USPSTF recommend?", "options": [{"letter": "A", "text": "Mammography every 2 years from age 50 to 74"}, {"letter": "B", "text": "Mammography plus annual MRI from age 50"}, {"letter": "C", "text": "Mammography every year from age 40 to 74"}, {"letter": "D", "text": "Mammography every year from age 45 to 54, then every 2 years"}, {"letter": "E", "text": "Mammography every 2 years from age 40 to 74"}], "answer": "E", "explanation": "USPSTF: biennial screening mammography ages 40–74; insufficient evidence at ≥ 75 and for supplemental US/MRI in dense breasts. ACS (45–54 annual) and ACOG differ.", "objective": "", "section": "Breast Disease"}, {"id": "53", "group": 53, "stem": "A 74-year-old man is found to have a femoral neck T-score of −2.6. He reports 3 months of fatigue and low back pain.\n[[LABS]]\nWhich additional test is most appropriate?", "options": [{"letter": "A", "text": "Intact parathyroid hormone"}, {"letter": "B", "text": "Morning total testosterone"}, {"letter": "C", "text": "Tissue transglutaminase IgA"}, {"letter": "D", "text": "Thyroid-stimulating hormone"}, {"letter": "E", "text": "Serum protein electrophoresis"}], "answer": "E", "explanation": "Anemia, renal dysfunction, and an elevated total protein with low bone density is the multiple myeloma pattern; SPEP is the lab to add.", "objective": "", "section": "Bone Density Testing", "labs": [{"test": "Hemoglobin", "result": "10.2 g/dL", "range": "13.5–17.5"}, {"test": "Creatinine", "result": "1.9 mg/dL", "range": "0.7–1.3"}, {"test": "Total protein", "result": "9.1 g/dL", "range": "6.0–8.3"}, {"test": "Calcium", "result": "10.3 mg/dL", "range": "8.5–10.5"}]}, {"id": "54", "group": 54, "stem": "A 25-year-old woman with a positive home pregnancy test presents with light vaginal spotting and mild right lower quadrant pain. Serum quantitative hCG is 1,100 mIU/mL; 48 hours later it is 1,250 mIU/mL. Vitals are normal.\n\nHow should the hCG trend be interpreted?", "options": [{"letter": "A", "text": "Excessive rise suggesting molar pregnancy"}, {"letter": "B", "text": "Normal rise consistent with a viable intrauterine pregnancy"}, {"letter": "C", "text": "Normal plateau expected after 9–12 weeks"}, {"letter": "D", "text": "Uninterpretable without a urine hCG"}, {"letter": "E", "text": "Abnormal rise concerning for ectopic or failing pregnancy"}], "answer": "E", "explanation": "A viable intrauterine pregnancy rises ≥ 50% over 48 hours; a slow rise (or fall) is concerning for ectopic or failing pregnancy, and a very rapid rise suggests molar disease or multiples.", "objective": "", "section": "Fertility Evaluation"}, {"id": "54a", "group": 54, "stem": "Which study is needed to determine the location of the pregnancy?", "options": [{"letter": "A", "text": "Pelvic MRI"}, {"letter": "B", "text": "Serial quantitative hCG alone"}, {"letter": "C", "text": "Transabdominal ultrasound at 12 weeks"}, {"letter": "D", "text": "Serum progesterone"}, {"letter": "E", "text": "Transvaginal ultrasound"}], "answer": "E", "explanation": "Serial hCG and TVUS are used together; hCG alone can neither locate nor date a pregnancy.", "objective": "", "section": "Fertility Evaluation"}, {"id": "55", "group": 55, "stem": "A 30-year-old woman recently finished a course of amoxicillin for sinusitis and now has intense vulvar itching with a thick, white, clumpy discharge. The vulva is erythematous and edematous. Vaginal pH is 4.2.\n\nWhich test confirms the suspected diagnosis?", "options": [{"letter": "A", "text": "Gram stain showing gram-negative diplococci"}, {"letter": "B", "text": "10% KOH preparation showing budding yeast and pseudohyphae"}, {"letter": "C", "text": "Whiff test with KOH"}, {"letter": "D", "text": "Saline wet mount showing clue cells"}, {"letter": "E", "text": "NAAT for Trichomonas vaginalis"}], "answer": "B", "explanation": "Normal pH (3.8–4.5) with pruritus and cottage-cheese discharge after antibiotics = Candida; KOH microscopy shows budding yeast or pseudohyphae. BV and trichomonas both raise pH above 4.5.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "56", "group": 56, "stem": "A 31-year-old woman who received the hepatitis B vaccine series as a child is found to be HBsAg positive at her first prenatal visit.\n\nWhat must be done for the newborn?", "options": [{"letter": "A", "text": "Oral tenofovir for the infant for 6 months"}, {"letter": "B", "text": "Hepatitis B immune globulin alone within 7 days"}, {"letter": "C", "text": "Cesarean delivery and no breastfeeding"}, {"letter": "D", "text": "Hepatitis B immune globulin and hepatitis B vaccine within 12 hours of birth"}, {"letter": "E", "text": "Hepatitis B vaccine alone at 2 months of age"}], "answer": "D", "explanation": "HBsAg is checked every pregnancy regardless of vaccination. Infant HBIG + vaccine (separate limbs) within 12 hours; ~90% of untreated infected infants develop chronic hepatitis B. Mother is referred for HBV DNA.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "57", "group": 57, "stem": "A 31-year-old woman with 18 months of infertility reports severe menstrual cramping, pain with intercourse, and regular 28-day cycles. Her HSG was normal. Transvaginal ultrasound shows a 4 cm unilocular left ovarian cyst with homogeneous low-level 'ground-glass' echoes.\n\nWhat is the most likely diagnosis?", "options": [{"letter": "A", "text": "Endometriosis with an ovarian endometrioma"}, {"letter": "B", "text": "Tubal factor infertility"}, {"letter": "C", "text": "Hemorrhagic corpus luteum cyst"}, {"letter": "D", "text": "Mature cystic teratoma"}, {"letter": "E", "text": "Polycystic ovary syndrome"}], "answer": "A", "explanation": "Dysmenorrhea, dyspareunia, and infertility with regular cycles = endometriosis; the ovary is the most common site and a ground-glass unilocular cyst is an endometrioma. A normal HSG does not exclude it.", "objective": "", "section": "Fertility Evaluation"}, {"id": "57a", "group": 57, "stem": "Which study provides the definitive diagnosis?", "options": [{"letter": "A", "text": "Transvaginal ultrasound"}, {"letter": "B", "text": "Laparoscopy with visualization and biopsy"}, {"letter": "C", "text": "Pelvic MRI"}, {"letter": "D", "text": "Hysteroscopy"}, {"letter": "E", "text": "Serum CA-125"}], "answer": "B", "explanation": "Endometriosis is definitively diagnosed by laparoscopic gross and histologic findings; ultrasound can only identify endometriomas.", "objective": "", "section": "Fertility Evaluation"}, {"id": "58", "group": 58, "stem": "A 72-year-old woman presents for a routine visit. She went through menopause at 51, has never had a fracture, does not smoke or drink, and takes no medications. Her mother broke a hip at 80. A central DXA scan is obtained as part of routine screening.\n[[LABS]]\nHow should this bone density result be classified?", "options": [{"letter": "A", "text": "Osteopenia"}, {"letter": "B", "text": "Indeterminate; repeat on a peripheral device"}, {"letter": "C", "text": "Normal bone density"}, {"letter": "D", "text": "Osteoporosis"}, {"letter": "E", "text": "Severe (established) osteoporosis"}], "answer": "A", "explanation": "Both T-scores fall between −1.0 and −2.5, which is osteopenia. Osteoporosis requires ≤ −2.5 at the hip or spine, and 'severe' adds a fragility fracture.", "objective": "", "section": "Bone Density Testing", "labs": [{"test": "Femoral neck T-score", "result": "−1.7"}, {"test": "Lumbar spine (L1–L4) T-score", "result": "−2.0"}, {"test": "Femoral neck Z-score", "result": "−0.4"}, {"test": "Lumbar spine Z-score", "result": "−0.6"}]}, {"id": "58a", "group": 58, "stem": "What is the most appropriate next step in deciding whether she needs pharmacologic therapy?", "options": [{"letter": "A", "text": "Obtain lateral spine radiographs to look for fracture"}, {"letter": "B", "text": "Start an oral bisphosphonate now"}, {"letter": "C", "text": "Order intact PTH and a 24-hour urine calcium"}, {"letter": "D", "text": "Calculate a 10-year fracture risk with FRAX"}, {"letter": "E", "text": "Repeat the DXA in 6 months on the same machine"}], "answer": "D", "explanation": "Osteopenia is the gray zone where FRAX decides treatment. A T-score ≤ −2.5 or a fragility fracture would already qualify for therapy without FRAX.", "objective": "", "section": "Bone Density Testing"}, {"id": "58b", "group": 58, "stem": "Her 10-year FRAX risk returns as 13% for major osteoporotic fracture and 2.7% for hip fracture. What should you recommend?", "options": [{"letter": "A", "text": "Begin denosumab every 6 months"}, {"letter": "B", "text": "Begin estrogen replacement for bone protection"}, {"letter": "C", "text": "No medication; calcium, vitamin D, weight-bearing exercise"}, {"letter": "D", "text": "Refer for teriparatide injections"}, {"letter": "E", "text": "Begin alendronate 70 mg weekly"}], "answer": "C", "explanation": "Treatment thresholds in osteopenia are hip ≥ 3% or major osteoporotic ≥ 20%. At 2.7% and 13% she is below both, so the answer to 'Should I take Fosamax?' is no.", "objective": "", "section": "Bone Density Testing"}, {"id": "59", "group": 59, "stem": "A 23-year-old woman at 24 weeks tests positive for Chlamydia trachomatis on NAAT. She has no drug allergies.\n\nWhat is the appropriate treatment and follow-up?", "options": [{"letter": "A", "text": "Azithromycin 1 g orally once; test of cure at 4 weeks"}, {"letter": "B", "text": "Doxycycline 100 mg twice daily for 7 days; retest at 3 months"}, {"letter": "C", "text": "Levofloxacin daily for 7 days; test of cure at 2 weeks"}, {"letter": "D", "text": "Ceftriaxone 500 mg IM once; test of cure at 4 weeks"}, {"letter": "E", "text": "Azithromycin 1 g orally once; no further testing"}], "answer": "A", "explanation": "In pregnancy chlamydia is treated with azithromycin (doxycycline is avoided for fetal teeth/bone), with a test of cure at ~4 weeks and retest for reinfection at 3 months.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "60", "group": 60, "stem": "A 36-year-old woman has had no periods for 8 months and reports hot flashes and vaginal dryness. Pregnancy test is negative. FSH is 52 IU/L and estradiol is low.\n\nWhat is the most likely diagnosis?", "options": [{"letter": "A", "text": "Hyperprolactinemia"}, {"letter": "B", "text": "Polycystic ovary syndrome"}, {"letter": "C", "text": "Functional hypothalamic amenorrhea"}, {"letter": "D", "text": "Asherman syndrome"}, {"letter": "E", "text": "Primary ovarian insufficiency"}], "answer": "E", "explanation": "High FSH with low estradiol before age 40 = primary ovarian insufficiency (primary gonadal failure pattern). Hypothalamic causes show low or inappropriately normal FSH.", "objective": "", "section": "Fertility Evaluation"}, {"id": "61", "group": 61, "stem": "A 42-year-old woman has a co-test result of high-risk HPV positive (genotype: HPV 16 and 18 negative, other high-risk types positive) with NILM cytology. She has no prior abnormal results.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Endocervical curettage"}, {"letter": "B", "text": "Repeat HPV testing and cytology in 12 months"}, {"letter": "C", "text": "Return to routine 5-year screening"}, {"letter": "D", "text": "LEEP"}, {"letter": "E", "text": "Colposcopy now"}], "answer": "B", "explanation": "Other (non-16/18) high-risk HPV with normal cytology is repeated in 12 months; an abnormal Pap with other hrHPV would go to colposcopy.", "objective": "", "section": "Cervical Cancer Screening"}, {"id": "62", "group": 62, "stem": "A 44-year-old woman has a palpable, hard, irregular mass in the left breast. Diagnostic mammogram and targeted ultrasound are both reported as negative.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Clinical breast exam in 3 months"}, {"letter": "B", "text": "Repeat mammogram in 6 months"}, {"letter": "C", "text": "Breast MRI in 1 year"}, {"letter": "D", "text": "Tissue biopsy or surgical referral"}, {"letter": "E", "text": "Reassure and return to routine screening"}], "answer": "D", "explanation": "Mammography misses 10–20% of cancers. A suspicious exam with negative imaging still requires biopsy or referral — you are never wrong to refer.", "objective": "", "section": "Breast Disease"}, {"id": "63", "group": 63, "stem": "A 32-year-old woman and her 34-year-old husband have been trying to conceive for 14 months with frequent unprotected intercourse. She has regular 28-day cycles with breast tenderness and bloating before each period. Neither has children. Both are healthy and take no medications.\n\nWhat is the most appropriate initial test for the male partner?", "options": [{"letter": "A", "text": "Semen analysis"}, {"letter": "B", "text": "FSH and LH levels"}, {"letter": "C", "text": "Scrotal ultrasound"}, {"letter": "D", "text": "Karyotype"}, {"letter": "E", "text": "Morning total testosterone"}], "answer": "A", "explanation": "Semen analysis is the cornerstone of male evaluation and is ordered at the start — ~40% of infertile couples have more than one factor, so both partners are evaluated together.", "objective": "", "section": "Fertility Evaluation"}, {"id": "63a", "group": 63, "stem": "The semen analysis shows a low sperm concentration with normal volume. What is the most appropriate next step?", "options": [{"letter": "A", "text": "Start clomiphene for the husband"}, {"letter": "B", "text": "Order a karyotype"}, {"letter": "C", "text": "Refer directly for intracytoplasmic sperm injection"}, {"letter": "D", "text": "Scrotal ultrasound for varicocele"}, {"letter": "E", "text": "Repeat the semen analysis in at least 2 weeks"}], "answer": "E", "explanation": "Semen parameters vary; an abnormal result is repeated at least 2 weeks apart (2–7 days abstinence, to the lab within 1 hour) before further work-up.", "objective": "", "section": "Fertility Evaluation"}, {"id": "63b", "group": 63, "stem": "The repeat analysis confirms a low concentration. Which test is most appropriate next?", "options": [{"letter": "A", "text": "Testicular biopsy"}, {"letter": "B", "text": "Postcoital test"}, {"letter": "C", "text": "Prostate-specific antigen"}, {"letter": "D", "text": "Morning total testosterone with FSH and LH"}, {"letter": "E", "text": "Antisperm antibodies"}], "answer": "D", "explanation": "Low count → hypogonadism work-up: 8–10 AM total testosterone with FSH/LH (± prolactin). Hypogonadism is the most common cause of male-factor infertility.", "objective": "", "section": "Fertility Evaluation"}, {"id": "64", "group": 64, "stem": "A 50-year-old woman fractures her hip after stumbling while jogging. DXA shows a hip T-score of −2.8 and spine T-score of −2.3. Serum calcium is 11.4 mg/dL (8.5–10.5) and creatinine is normal.\n\nWhich test is most likely to identify the cause of her bone loss?", "options": [{"letter": "A", "text": "Serum testosterone"}, {"letter": "B", "text": "Intact parathyroid hormone"}, {"letter": "C", "text": "25-hydroxyvitamin D"}, {"letter": "D", "text": "Serum protein electrophoresis"}, {"letter": "E", "text": "Thyroid-stimulating hormone"}], "answer": "B", "explanation": "Osteoporosis with hypercalcemia points to primary hyperparathyroidism; add intact PTH. Parathyroidectomy reverses the bone loss, and a T-score < −2.5 or fragility fracture is itself a surgical criterion.", "objective": "", "section": "Bone Density Testing"}, {"id": "65", "group": 65, "stem": "A 28-year-old man has a deep, very painful 2 cm penile ulcer with a ragged gray necrotic base and a tender, fluctuant left inguinal node. HSV PCR of the ulcer is negative and RPR and treponemal tests are negative.\n\nWhat is the most likely diagnosis?", "options": [{"letter": "A", "text": "Lymphogranuloma venereum"}, {"letter": "B", "text": "Primary syphilis"}, {"letter": "C", "text": "Condylomata lata"}, {"letter": "D", "text": "Genital herpes"}, {"letter": "E", "text": "Chancroid"}], "answer": "E", "explanation": "Chancroid (H. ducreyi): very painful, non-indurated ulcer with suppurative buboes; diagnosed clinically after excluding HSV and syphilis because culture is limited. A syphilitic chancre is painless and indurated.", "objective": "", "section": "STI & Vaginitis Testing"}, {"id": "66", "group": 66, "stem": "A 19-year-old G1 at 12 weeks has a first-trimester combined screen. Nuchal translucency is 3.6 mm, free β-hCG is elevated, and PAPP-A is low. Her calculated trisomy 21 risk is 1 in 80. She wants a definitive answer as soon as possible.\n\nWhat is the most appropriate next step?", "options": [{"letter": "A", "text": "Chorionic villus sampling"}, {"letter": "B", "text": "Amniocentesis now"}, {"letter": "C", "text": "Quad screen at 16 weeks"}, {"letter": "D", "text": "Repeat nuchal translucency in 2 weeks"}, {"letter": "E", "text": "Reassure; the screen is only slightly abnormal"}], "answer": "A", "explanation": "Increased NT (> 3 mm), increased hCG, and decreased PAPP-A is the trisomy 21 pattern; risk ≥ 1 in 250 is a positive screen. CVS (9–14 weeks) is the earliest definitive test; amniocentesis is not done until 15–20 weeks.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "66a", "group": 66, "stem": "She is Rh-negative. What must accompany the procedure?", "options": [{"letter": "A", "text": "A repeat antibody screen 1 week later"}, {"letter": "B", "text": "Kleihauer–Betke testing before the procedure"}, {"letter": "C", "text": "Rh immune globulin at 28 weeks only"}, {"letter": "D", "text": "No additional measure; the procedure is transcervical"}, {"letter": "E", "text": "Rh immune globulin at the time of the procedure"}], "answer": "E", "explanation": "Any procedure or event with fetomaternal mixing (CVS, amniocentesis, bleeding, trauma) in an Rh-negative woman → RhoGAM at that time.", "objective": "", "section": "Routine OB Labs & Imaging"}, {"id": "67", "group": 67, "stem": "A 34-year-old man presents with infertility. He has used intramuscular testosterone obtained at his gym for 2 years. Exam shows muscular build and small, soft testes. Semen analysis shows azoospermia. FSH and LH are both below the reference range; serum testosterone is high-normal.\n\nWhat is the most likely explanation?", "options": [{"letter": "A", "text": "Prolactin-secreting pituitary adenoma"}, {"letter": "B", "text": "Klinefelter syndrome"}, {"letter": "C", "text": "Kallmann syndrome"}, {"letter": "D", "text": "Bilateral testicular obstruction"}, {"letter": "E", "text": "Exogenous testosterone suppressing GnRH, LH, and spermatogenesis"}], "answer": "E", "explanation": "Exogenous testosterone suppresses GnRH/LH and intratesticular testosterone, causing azoospermia and atrophy — it acts as a male contraceptive. Recovery after stopping takes 6–12+ months.", "objective": "", "section": "Fertility Evaluation"}, {"id": "68", "group": 68, "stem": "A 35-year-old woman reports milky discharge from both nipples for 3 months. It can be expressed from multiple ducts. She takes risperidone and her periods have become irregular. Breast exam shows no mass.\n\nWhich initial laboratory evaluation is most appropriate?", "options": [{"letter": "A", "text": "hCG, prolactin, and TSH"}, {"letter": "B", "text": "Estradiol, FSH, and LH"}, {"letter": "C", "text": "Guaiac testing of the discharge"}, {"letter": "D", "text": "Nipple discharge cytology"}, {"letter": "E", "text": "Prolactin and CA 15-3"}], "answer": "A", "explanation": "Bilateral, multi-duct, milky discharge is galactorrhea: rule out pregnancy, then check prolactin and TSH and review medications (antipsychotics, metoclopramide, SSRIs, opiates). Cytology is not recommended.", "objective": "", "section": "Breast Disease"}, {"id": "68a", "group": 68, "stem": "Prolactin is markedly elevated and remains so after the risperidone is changed. What is the most appropriate next step?", "options": [{"letter": "A", "text": "Breast ultrasound"}, {"letter": "B", "text": "Ductography"}, {"letter": "C", "text": "Diagnostic mammogram"}, {"letter": "D", "text": "Pituitary MRI"}, {"letter": "E", "text": "Core needle biopsy"}], "answer": "D", "explanation": "Unexplained hyperprolactinemia → brain MRI for pituitary adenoma. Galactorrhea is not associated with breast cancer.", "objective": "", "section": "Breast Disease"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  const flagged = {};        // question id -> true, set by the learner at any point (never affects score)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  // Lab values as a table. q.labs is [{test, result, range}]. If the stem contains
+  // the marker [[LABS]] the table goes there (so the vignette can continue after
+  // the labs); otherwise it follows the stem.
+  function labsHtml(q) {
+    if (!q.labs || !q.labs.length) return '';
+    const hasRange = q.labs.some(l => l.range);
+    let html = '<table class="labs"><thead><tr><th>Test</th><th>Result</th>' +
+      (hasRange ? '<th>Reference Range</th>' : '') + '</tr></thead><tbody>';
+    q.labs.forEach(l => {
+      html += '<tr><td>' + esc(l.test) + '</td><td class="res">' + esc(l.result) + '</td>' +
+        (hasRange ? '<td class="ref">' + (l.range ? '(' + esc(String(l.range).replace(/^\(|\)$/g, '')) + ')' : '') + '</td>' : '') + '</tr>';
+    });
+    return html + '</tbody></table>';
+  }
+
+  function stemHtml(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    const table = labsHtml(q);
+    if (table && stem.indexOf('[[LABS]]') !== -1) {
+      const parts = stem.split('[[LABS]]');
+      return '<div class="stem">' + esc(parts[0].replace(/\s+$/, '')) + '</div>' + table +
+        (parts[1] && parts[1].trim() ? '<div class="stem">' + esc(parts[1].replace(/^\s+/, '')) + '</div>' : '');
+    }
+    return '<div class="stem">' + esc(stem.replace('[[LABS]]', '')) + '</div>' + table;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += stemHtml(q);
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += flagHtml(q);
+    html += '</div>';
+    return html;
+  }
+
+  // Flagging: available on every question in every mode, right or wrong, answered or
+  // not. A flagged question joins the missed list and the copy-out, so a question that
+  // was guessed correctly (or not understood) can still be carried into the next round
+  // of study. Flagging never changes the score — it is a bookmark, not a second answer.
+  function flagHtml(q) {
+    const on = !!flagged[q.id];
+    return '<div class="flagrow"><button class="flagbtn' + (on ? ' on' : '') + '" data-flag="' +
+      esc(q.id) + '">⚑ ' + (on ? 'Flagged' : 'Flag for review') + '</button></div>';
+  }
+
+  function bindFlags() {
+    $('main').querySelectorAll('[data-flag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-flag');
+        if (flagged[id]) delete flagged[id]; else flagged[id] = true;
+        if (mode === 'missed') {                 // toggle in place; the list is rebuilt on re-entry
+          btn.classList.toggle('on', !!flagged[id]);
+          btn.textContent = '⚑ ' + (flagged[id] ? 'Flagged' : 'Flag for review');
+          return;
+        }
+        renderPage(true);
+      });
+    });
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+    bindFlags();
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {                 // answered wrong, or flagged by the learner
+    return questions.filter(q => flagged[q.id] ||
+      (answers[q.id] !== undefined && answers[q.id] !== q.answer));
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed &amp; flagged (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed &amp; flagged</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          stemHtml(g[0]) + '</div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed & flagged (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed or flagged question' + (missed.length === 1 ? '' : 's');
+    bindFlags();
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  // Plain-text stem with the lab table flattened to one line per lab
+  function stemText(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    if (!q.labs || !q.labs.length) return stem.replace('[[LABS]]', '').trim();
+    const rows = q.labs.map(l => '  ' + l.test + ': ' + l.result + (l.range ? ' (ref ' + String(l.range).replace(/^\(|\)$/g, '') + ')' : '')).join('\n');
+    const i = stem.indexOf('[[LABS]]');
+    const before = i === -1 ? stem : stem.slice(0, i);
+    const hasHeader = /\b(labs|laboratory (studies|results|values))\s*:?\s*$/i.test(before);   // stem already says "Labs:"
+    const block = (hasHeader ? '' : 'Labs:\n') + rows;
+    return (i !== -1 ? before.replace(/\s+$/, '') + '\n' + block + '\n' + stem.slice(i + 8).replace(/^\s+/, '') : stem + '\n' + block).trim();
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + stemText(group[0]));
+      lines.push(stemText(q));
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      if (flagged[q.id]) lines.push(answers[q.id] === q.answer
+        ? 'FLAGGED by me — answered correctly but not understood' : 'FLAGGED by me');
+      lines.push(answers[q.id] === undefined ? 'Not answered' : 'My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed & flagged questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed & flagged'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(flagged).forEach(k => delete flagged[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
