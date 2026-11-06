@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  /* Lab table: vignettes with several lab values render them as a scannable
+     Test / Result / Reference Range table instead of a run-on sentence. */
+  .labs { width: 100%; border-collapse: separate; border-spacing: 0; margin: 10px 0 14px;
+    font-size: 0.95em; background: #fbfbf9; border: 1px solid #e3e1dc; border-radius: 10px; overflow: hidden; }
+  .labs th, .labs td { text-align: left; padding: 9px 14px; border-bottom: 1px solid #e3e1dc; vertical-align: top; }
+  .labs th { font-weight: 500; color: var(--ink-soft); }
+  .labs td:not(:first-child), .labs th:not(:first-child) { border-left: 1px solid #e3e1dc; }
+  .labs tr:last-child td { border-bottom: 0; }
+  .labs td.ref { color: var(--ink-soft); white-space: nowrap; }
+  .labs td.res { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .group.c3 .labs, .group.c4 .labs { font-size: 0.92em; }
+  .group.c3 .labs th, .group.c3 .labs td, .group.c4 .labs th, .group.c4 .labs td { padding: 5px 10px; }
+  @media (max-width: 520px) { .labs th, .labs td { padding: 7px 9px; } .labs td.ref, .labs td.res { white-space: normal; } }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  /* Flag for review: a bookmark the learner can toggle on any question at any time */
+  .flagrow { margin-top: 12px; }
+  .flagbtn { font: inherit; font-size: 0.82em; font-weight: 600; cursor: pointer; background: transparent;
+    border: 1.5px dashed var(--border); border-radius: 8px; padding: 4px 11px; color: var(--ink-soft); }
+  .flagbtn:hover { border-color: var(--amber); color: var(--amber); }
+  .flagbtn.on { background: var(--amber-bg); border-style: solid; border-color: var(--amber); color: var(--amber); }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "OB/GYN Exam 6 — Vignette Practice Exam 1", "questions": [{"id": "1", "group": 1, "stem": "A 23-year-old woman presents with 3 days of rapidly worsening, severe pain and swelling of the right labia; she can no longer sit comfortably. She is afebrile. Exam shows a 4-cm tender, fluctuant, erythematous, edematous mass at the 8 o'clock position of the posterolateral introitus with surrounding induration. What is the most appropriate initial management?", "options": [{"letter": "A", "text": "Warm sitz baths 3–4 times daily and observation"}, {"letter": "B", "text": "Excisional biopsy of the gland"}, {"letter": "C", "text": "Incision and drainage with placement of a Word catheter"}, {"letter": "D", "text": "Marsupialization in the operating room"}, {"letter": "E", "text": "Simple incision and drainage without catheter placement"}], "answer": "C", "explanation": "This is a Bartholin gland abscess (acutely painful, tender, fluctuant, erythematous). First line is I&D with a Word catheter (3 mL saline balloon left ~3 weeks so an epithelialized tract forms). I&D without a catheter has high recurrence; marsupialization is reserved for recurrence; sitz baths alone are for the painless cyst.", "objective": "Gynecologic Infections (Dickerson) — Etiology, presentation, diagnosis and management of Bartholin's gland cyst and abscess", "section": "Gynecologic Infections"}, {"id": "1A", "group": 1, "stem": "Culture of the purulent drainage grows E. coli and anaerobes; gonorrhea/chlamydia NAAT is negative. Which oral antibiotic is most appropriate?", "options": [{"letter": "A", "text": "Fluconazole 150 mg PO × 1"}, {"letter": "B", "text": "Ceftriaxone 500 mg IM × 1"}, {"letter": "C", "text": "Doxycycline 100 mg BID × 7 days"}, {"letter": "D", "text": "Amoxicillin-clavulanate 875 mg BID × 7 days"}, {"letter": "E", "text": "Metronidazole gel 0.75% intravaginally × 5 days"}], "answer": "D", "explanation": "Bartholin abscesses are usually polymicrobial (E. coli most common, plus Staph, Strep, anaerobes). Amoxicillin-clavulanate covers E. coli/GNR and anaerobes. Doxycycline/ceftriaxone are added only if CT/GC is suspected or NAAT-positive.", "objective": "Gynecologic Infections (Dickerson) — Etiology, presentation, diagnosis and management of Bartholin's gland cyst and abscess", "section": "Gynecologic Infections"}, {"id": "1B", "group": 1, "stem": "Eighteen months later she returns with her third recurrent abscess despite prior Word catheter drainage. What is the next step?", "options": [{"letter": "A", "text": "Marsupialization"}, {"letter": "B", "text": "Long-term doxycycline suppression"}, {"letter": "C", "text": "Repeat simple I&D without a catheter"}, {"letter": "D", "text": "Immediate gland excision as first choice"}, {"letter": "E", "text": "Observation with sitz baths"}], "answer": "A", "explanation": "Recurrent abscess → marsupialization (evert the cyst wall into a pouch). Gland excision is the last resort, not the next step.", "objective": "Gynecologic Infections (Dickerson) — Etiology, presentation, diagnosis and management of Bartholin's gland cyst and abscess", "section": "Gynecologic Infections"}, {"id": "2", "group": 2, "stem": "A 19-year-old woman presents for an annual exam. She has no complaints. She reports a new male partner 2 months ago and uses condoms intermittently. Pelvic exam is normal. Which screening is indicated?", "options": [{"letter": "A", "text": "Type-specific HSV serology"}, {"letter": "B", "text": "Chlamydia/gonorrhea NAAT of a vaginal swab"}, {"letter": "C", "text": "Chlamydia culture of the endocervix"}, {"letter": "D", "text": "Gram stain of endocervical secretions"}, {"letter": "E", "text": "No STI testing because she is asymptomatic"}], "answer": "B", "explanation": "USPSTF: screen all sexually active non-pregnant women <25 for chlamydia (most cases asymptomatic). NAAT of a provider- or patient-collected vaginal swab is the test; chlamydia cannot be Gram stained and is hard to culture. Asymptomatic HSV serology screening is not recommended.", "objective": "Gynecologic Infections (Dickerson) — Differentiate gonorrhea, chlamydia, syphilis and herpes simplex", "section": "Gynecologic Infections"}, {"id": "2A", "group": 2, "stem": "Her NAAT is positive for Chlamydia trachomatis and negative for N. gonorrhoeae; urine hCG is negative. She has no adherence concerns. What is the treatment of choice?", "options": [{"letter": "A", "text": "Metronidazole 500 mg PO BID × 7 days"}, {"letter": "B", "text": "Ceftriaxone 500 mg IM × 1"}, {"letter": "C", "text": "Benzathine penicillin G 2.4 million units IM × 1"}, {"letter": "D", "text": "Ciprofloxacin 500 mg PO × 1"}, {"letter": "E", "text": "Doxycycline 100 mg PO BID × 7 days"}], "answer": "E", "explanation": "First line for chlamydial cervicitis is doxycycline 100 mg BID × 7 days. Azithromycin 1 g × 1 is reserved for adherence concerns.", "objective": "Gynecologic Infections (Dickerson) — Differentiate gonorrhea, chlamydia, syphilis and herpes simplex", "section": "Gynecologic Infections"}, {"id": "2B", "group": 2, "stem": "Which counseling is most appropriate?", "options": [{"letter": "A", "text": "Abstain until she and her partner finish treatment, treat partners (EPT allowed), and retest in 3 months"}, {"letter": "B", "text": "She may resume intercourse once her own course is complete, regardless of her partner"}, {"letter": "C", "text": "No follow-up is needed because chlamydia rarely ascends"}, {"letter": "D", "text": "A test of cure NAAT should be performed 1 week after treatment"}, {"letter": "E", "text": "Her partner needs treatment only if he develops urethral symptoms"}], "answer": "A", "explanation": "Abstain until patient and partner complete treatment; treat partners (expedited partner therapy allowed); retest at 3 months. Untreated chlamydia silently ascends → PID, tubal infertility, ectopic pregnancy, chronic pelvic pain.", "objective": "Gynecologic Infections (Dickerson) — Differentiate gonorrhea, chlamydia, syphilis and herpes simplex", "section": "Gynecologic Infections"}, {"id": "3", "group": 3, "stem": "A 27-year-old woman presents with a sore on her labia for 2 weeks. It does not hurt. Exam shows a single 1-cm clean-based ulcer with a firm, indurated border and bilateral non-tender inguinal lymphadenopathy. What is the most appropriate initial diagnostic test?", "options": [{"letter": "A", "text": "Tzanck smear"}, {"letter": "B", "text": "Punch biopsy of the ulcer"}, {"letter": "C", "text": "Nontreponemal RPR/VDRL with treponemal (FTA-ABS/TPPA) confirmation"}, {"letter": "D", "text": "HSV PCR of the ulcer base"}, {"letter": "E", "text": "Gram stain of ulcer exudate"}], "answer": "C", "explanation": "Painless ulcer + non-tender nodes = chancre (primary syphilis); painful ulcer + tender nodes = HSV. Order a nontreponemal test (RPR/VDRL) confirmed by a treponemal test (FTA-ABS/TPPA), plus an HIV test. Darkfield microscopy if available.", "objective": "Gynecologic Infections (Dickerson) — Differentiate gonorrhea, chlamydia, syphilis and herpes simplex", "section": "Gynecologic Infections"}, {"id": "3A", "group": 3, "stem": "RPR is reactive (1:32) and FTA-ABS is reactive. HIV testing is negative. She has no drug allergies and no neurologic or ocular symptoms. What is the treatment?", "options": [{"letter": "A", "text": "IV aqueous penicillin G × 10–14 days"}, {"letter": "B", "text": "Benzathine penicillin G 2.4 million units IM weekly × 3 weeks"}, {"letter": "C", "text": "Doxycycline 100 mg BID × 14 days"}, {"letter": "D", "text": "Benzathine penicillin G 2.4 million units IM × 1"}, {"letter": "E", "text": "Ceftriaxone 500 mg IM × 1"}], "answer": "D", "explanation": "Primary, secondary and early latent (≤12 months) syphilis → benzathine penicillin G 2.4 MU IM once. Weekly × 3 is for late latent/unknown duration/tertiary; IV penicillin is for neurosyphilis/ocular/otic; doxycycline is only for PCN-allergic non-pregnant patients.", "objective": "Gynecologic Infections (Dickerson) — Differentiate gonorrhea, chlamydia, syphilis and herpes simplex", "section": "Gynecologic Infections"}, {"id": "3B", "group": 3, "stem": "Five hours after her injection she develops fever to 38.4 °C, myalgias and headache. She has no urticaria, wheezing or hypotension. What is the most appropriate next step?", "options": [{"letter": "A", "text": "Epinephrine IM and document a penicillin allergy"}, {"letter": "B", "text": "Antipyretics and reassurance"}, {"letter": "C", "text": "Admit for IV penicillin for presumed neurosyphilis"}, {"letter": "D", "text": "Switch to doxycycline to complete therapy"}, {"letter": "E", "text": "Lumbar puncture"}], "answer": "B", "explanation": "Jarisch-Herxheimer reaction — fever, myalgias, headache within hours of penicillin, resolving within 24 h. Treat with antipyretics; do NOT mistake it for penicillin allergy.", "objective": "Gynecologic Infections (Dickerson) — Differentiate gonorrhea, chlamydia, syphilis and herpes simplex", "section": "Gynecologic Infections"}, {"id": "3C", "group": 3, "stem": "Which finding at follow-up defines successful treatment?", "options": [{"letter": "A", "text": "Resolution of the chancre"}, {"letter": "B", "text": "Negative FTA-ABS at 3 months"}, {"letter": "C", "text": "Negative darkfield microscopy at 1 month"}, {"letter": "D", "text": "Any decline in RPR titer at 2 weeks"}, {"letter": "E", "text": "Four-fold decline in RPR/VDRL titer at 6–12 months"}], "answer": "E", "explanation": "Success = 4-fold decline in nontreponemal (RPR/VDRL) titer at 6–12 months. Treponemal tests usually stay positive for life.", "objective": "Gynecologic Infections (Dickerson) — Differentiate gonorrhea, chlamydia, syphilis and herpes simplex", "section": "Gynecologic Infections"}, {"id": "4", "group": 4, "stem": "A 29-year-old woman reports increased thin, gray-white vaginal discharge with a fishy odor that is worse after intercourse. She denies itching or burning. Exam shows a thin homogeneous gray discharge coating the vaginal walls with no vulvar inflammation and no cervical motion tenderness. Which set of bedside findings would confirm the most likely diagnosis?", "options": [{"letter": "A", "text": "pH 4.0, numerous lactobacilli, no clue cells"}, {"letter": "B", "text": "pH 5.2, positive whiff test, clue cells >20%, minimal WBCs"}, {"letter": "C", "text": "pH 4.5, many WBCs and gram-negative intracellular diplococci"}, {"letter": "D", "text": "pH 5.6, motile flagellated organisms, many WBCs"}, {"letter": "E", "text": "pH 4.2, pseudohyphae and budding yeast on KOH, few WBCs"}], "answer": "B", "explanation": "Bacterial vaginosis — Amsel criteria (3 of 4): thin homogeneous discharge, pH >4.5, positive whiff test, clue cells >20%; WBCs minimal. Normal pH + hyphae = candida; pH >4.5 + motile trichomonads + many WBCs = trich.", "objective": "Gynecologic Infections (Dickerson) — Differentiate bacterial vaginosis, Candida vaginitis and trichomoniasis", "section": "Gynecologic Infections"}, {"id": "4A", "group": 4, "stem": "Which is the most appropriate management?", "options": [{"letter": "A", "text": "Vaginal culture for Gardnerella before treatment"}, {"letter": "B", "text": "Ceftriaxone 500 mg IM for her and her partner"}, {"letter": "C", "text": "No treatment; BV is normal flora"}, {"letter": "D", "text": "Metronidazole 500 mg PO BID × 7 days"}, {"letter": "E", "text": "Fluconazole 150 mg PO × 1"}], "answer": "D", "explanation": "First line: metronidazole 500 mg PO BID × 7 d (or metronidazole gel 0.75% × 5 d or clindamycin 2% cream × 7 d). Vaginal culture has no role — Gardnerella is present in 50–60% of healthy women.", "objective": "Gynecologic Infections (Dickerson) — Differentiate bacterial vaginosis, Candida vaginitis and trichomoniasis", "section": "Gynecologic Infections"}, {"id": "4B", "group": 4, "stem": "She asks to use clindamycin 2% vaginal cream instead because she relies on latex condoms for contraception. What counseling is needed?", "options": [{"letter": "A", "text": "Clindamycin cream is ineffective for BV"}, {"letter": "B", "text": "The cream is contraindicated with any sexual activity for 30 days"}, {"letter": "C", "text": "She must also take fluconazole to prevent a yeast infection"}, {"letter": "D", "text": "Clindamycin cream is oil-based and can weaken latex condoms for about 5 days"}, {"letter": "E", "text": "Her partner must be treated before she starts the cream"}], "answer": "D", "explanation": "Clindamycin cream (and intravaginal azoles) are oil-based and weaken latex condoms/diaphragms for 5 days.", "objective": "Gynecologic Infections (Dickerson) — Differentiate bacterial vaginosis, Candida vaginitis and trichomoniasis", "section": "Gynecologic Infections"}, {"id": "5", "group": 5, "stem": "A 24-year-old woman presents with a frothy, yellow-green, malodorous discharge, vulvar soreness and post-coital spotting. Speculum exam shows punctate hemorrhages on the cervix. Vaginal pH is 5.8. Which test is the most sensitive for the suspected organism?", "options": [{"letter": "A", "text": "Nucleic acid amplification test (NAAT)"}, {"letter": "B", "text": "Pap smear"}, {"letter": "C", "text": "Gram stain"}, {"letter": "D", "text": "KOH preparation"}, {"letter": "E", "text": "Saline wet mount read within 10 minutes"}], "answer": "A", "explanation": "Strawberry cervix + frothy green discharge + pH >4.5 = trichomoniasis. NAAT (e.g., APTIMA) is most sensitive; wet mount is only 50–70% sensitive.", "objective": "Gynecologic Infections (Dickerson) — Differentiate bacterial vaginosis, Candida vaginitis and trichomoniasis", "section": "Gynecologic Infections"}, {"id": "5A", "group": 5, "stem": "The test is positive. Which treatment plan is correct?", "options": [{"letter": "A", "text": "Clindamycin 2% cream × 7 days"}, {"letter": "B", "text": "Metronidazole gel 0.75% intravaginally × 5 days; partner treatment not needed"}, {"letter": "C", "text": "Azithromycin 1 g PO × 1"}, {"letter": "D", "text": "Fluconazole 150 mg PO × 1 for her and her partner"}, {"letter": "E", "text": "Metronidazole 500 mg PO BID × 7 days, treat all partners, retest at 3 months"}], "answer": "E", "explanation": "Trichomoniasis: metronidazole 500 mg PO BID × 7 d (tinidazole 2 g × 1 alternative); treat ALL partners (men: metronidazole 2 g × 1), abstain until treated, retest at 3 months. Metronidazole GEL is NOT effective for trich.", "objective": "Gynecologic Infections (Dickerson) — Differentiate bacterial vaginosis, Candida vaginitis and trichomoniasis", "section": "Gynecologic Infections"}, {"id": "6", "group": 6, "stem": "A 21-year-old woman presents with 3 days of lower abdominal pain, dyspareunia and fever. Temp 38.2 °C, HR 96, BP 118/72. Exam shows mucopurulent cervical discharge, cervical motion tenderness and bilateral adnexal tenderness. What is the first test to order?", "options": [{"letter": "A", "text": "Transvaginal ultrasound"}, {"letter": "B", "text": "ESR and CRP"}, {"letter": "C", "text": "Pregnancy test"}, {"letter": "D", "text": "Diagnostic laparoscopy"}, {"letter": "E", "text": "CT abdomen/pelvis"}], "answer": "C", "explanation": "In PID the pregnancy test is ALWAYS first — ectopic pregnancy must be excluded. GC/CT NAAT, saline microscopy, UA, CBC and CRP/ESR follow.", "objective": "Gynecologic Infections (Dickerson) — Etiology, risk factors, presentation, diagnosis, management and complications of PID", "section": "Gynecologic Infections"}, {"id": "6A", "group": 6, "stem": "hCG is negative and saline microscopy shows many WBCs. She is nontoxic and tolerating oral intake. What is the most appropriate treatment?", "options": [{"letter": "A", "text": "Ceftriaxone 500 mg IM × 1 plus doxycycline 100 mg BID × 14 d plus metronidazole 500 mg BID × 14 d"}, {"letter": "B", "text": "Admit for IV ceftriaxone, doxycycline and metronidazole"}, {"letter": "C", "text": "Levofloxacin 500 mg daily × 14 days"}, {"letter": "D", "text": "Ceftriaxone 500 mg IM × 1 plus azithromycin 1 g PO × 1"}, {"letter": "E", "text": "Doxycycline 100 mg BID × 7 days alone"}], "answer": "A", "explanation": "Minimum criteria met (sexually active + pelvic pain + CMT/adnexal tenderness, no other cause) → treat. Outpatient regimen: ceftriaxone 500 mg IM + doxycycline 14 d + metronidazole 14 d, re-evaluate within 72 h.", "objective": "Gynecologic Infections (Dickerson) — Etiology, risk factors, presentation, diagnosis, management and complications of PID", "section": "Gynecologic Infections"}, {"id": "6B", "group": 6, "stem": "At her 72-hour recheck she is worse: temp 39.4 °C, abdominal rigidity and an exquisitely tender right adnexa. Transvaginal US shows an 8-cm complex, thick-walled right adnexal mass. What is the most appropriate management?", "options": [{"letter": "A", "text": "Admit for IV ceftriaxone, doxycycline and metronidazole with drainage of the collection"}, {"letter": "B", "text": "Immediate total abdominal hysterectomy with bilateral salpingo-oophorectomy"}, {"letter": "C", "text": "Add fluconazole and continue outpatient therapy"}, {"letter": "D", "text": "Continue the outpatient regimen and recheck in 1 week"}, {"letter": "E", "text": "Methotrexate IM"}], "answer": "A", "explanation": "Tubo-ovarian abscess → admit, IV ceftriaxone + doxycycline + metronidazole; drain if large (≥7–10 cm) or no response in 48–72 h. Failure of outpatient therapy and TOA are both inpatient indications.", "objective": "Gynecologic Infections (Dickerson) — Etiology, risk factors, presentation, diagnosis, management and complications of PID", "section": "Gynecologic Infections"}, {"id": "6C", "group": 6, "stem": "After recovery she asks about long-term effects. Which statement is correct?", "options": [{"letter": "A", "text": "A single, even subclinical, episode increases her risk of tubal infertility, ectopic pregnancy and chronic pelvic pain"}, {"letter": "B", "text": "Her risk of ectopic pregnancy is unchanged"}, {"letter": "C", "text": "Infertility occurs only after three or more episodes"}, {"letter": "D", "text": "PID never causes problems once the abscess is drained"}, {"letter": "E", "text": "Chlamydial PID is always more severe than gonococcal PID"}], "answer": "A", "explanation": "Long-term sequelae can follow even ONE or a subclinical episode: tubal infertility, ectopic pregnancy, chronic pelvic pain (adhesions). Gonococcal PID is more severe; chlamydial is more often subclinical.", "objective": "Gynecologic Infections (Dickerson) — Etiology, risk factors, presentation, diagnosis, management and complications of PID", "section": "Gynecologic Infections"}, {"id": "7", "group": 7, "stem": "A 28-year-old woman reports a year of marked irritability, hopelessness, anxiety, poor concentration, food cravings and insomnia in the week before each period. Symptoms improve within a few days of bleeding and she feels well the week after menses. She has missed work twice. Exam is normal. What is the most appropriate next step to establish the diagnosis?", "options": [{"letter": "A", "text": "Day-21 serum progesterone"}, {"letter": "B", "text": "Prospective daily symptom diary for at least 2 cycles"}, {"letter": "C", "text": "Pelvic ultrasound"}, {"letter": "D", "text": "Referral for psychiatric admission"}, {"letter": "E", "text": "Serum estradiol and FSH"}], "answer": "B", "explanation": "PMS/PMDD are diagnosed with a prospective symptom diary for ≥2 cycles; there is no lab test (TSH only if thyroid suspected).", "objective": "Menstrual Cycle Dysfunction (Adams) — Define PMS, differentiate PMS from PMDD, outline treatment", "section": "Menstrual Cycle Dysfunction"}, {"id": "7A", "group": 7, "stem": "Her diary confirms 6 luteal-phase symptoms including marked affective lability, with a symptom-free follicular phase. What is the gold-standard treatment?", "options": [{"letter": "A", "text": "NSAIDs during the luteal phase"}, {"letter": "B", "text": "Calcium carbonate alone"}, {"letter": "C", "text": "An SSRI such as fluoxetine or sertraline, continuous or luteal-phase dosing"}, {"letter": "D", "text": "Alprazolam as needed"}, {"letter": "E", "text": "Multiphasic combined oral contraceptive"}], "answer": "C", "explanation": "PMDD (≥5 of 11 symptoms with ≥1 core mood symptom, luteal-only) → SSRI is the gold standard (fluoxetine, sertraline, paroxetine), continuous or luteal-only (start day 14, stop at menses). Start at half the usual dose.", "objective": "Menstrual Cycle Dysfunction (Adams) — Define PMS, differentiate PMS from PMDD, outline treatment", "section": "Menstrual Cycle Dysfunction"}, {"id": "7B", "group": 7, "stem": "She would also like contraception. Which hormonal option is FDA-approved for PMDD?", "options": [{"letter": "A", "text": "Depot medroxyprogesterone acetate"}, {"letter": "B", "text": "Progestin-only pill"}, {"letter": "C", "text": "Triphasic norgestimate/ethinyl estradiol"}, {"letter": "D", "text": "Monophasic drospirenone/ethinyl estradiol"}, {"letter": "E", "text": "Copper IUD"}], "answer": "D", "explanation": "Drospirenone/ethinyl estradiol (Yaz) is FDA-approved for PMDD. Multiphasic OCPs can WORSEN mood — use monophasic.", "objective": "Menstrual Cycle Dysfunction (Adams) — Define PMS, differentiate PMS from PMDD, outline treatment", "section": "Menstrual Cycle Dysfunction"}, {"id": "8", "group": 8, "stem": "A 17-year-old who is not sexually active reports crampy suprapubic pain radiating to her thighs that begins with menses, peaks on days 1–2 and lasts 3 days, with nausea and loose stools. Menarche was at 13. Abdominal exam is normal. What is the most appropriate next step?", "options": [{"letter": "A", "text": "Pelvic exam with GC/CT testing before any treatment"}, {"letter": "B", "text": "Empiric NSAID therapy (e.g., naproxen) starting at onset of menses"}, {"letter": "C", "text": "Diagnostic laparoscopy"}, {"letter": "D", "text": "Transvaginal ultrasound"}, {"letter": "E", "text": "GnRH agonist trial"}], "answer": "B", "explanation": "Classic primary dysmenorrhea (prostaglandin-driven). Diagnosis of exclusion treated empirically; abdominal exam alone is acceptable in a non–sexually active adolescent with a typical history. NSAIDs are first line.", "objective": "Menstrual Cycle Dysfunction (Adams) — Distinguish primary and secondary dysmenorrhea", "section": "Menstrual Cycle Dysfunction"}, {"id": "8A", "group": 8, "stem": "After 3 cycles of appropriately dosed NSAIDs and heat, her pain is only partially relieved. What is the next step?", "options": [{"letter": "A", "text": "Monophasic combined oral contraceptive"}, {"letter": "B", "text": "Opioid analgesic for menses"}, {"letter": "C", "text": "Leuprolide"}, {"letter": "D", "text": "Hysteroscopy"}, {"letter": "E", "text": "Laparoscopy for endometriosis"}], "answer": "A", "explanation": "Second line for primary dysmenorrhea is a monophasic combined OCP (then extended-cycle COC, patch, ring, progestin options, IUD).", "objective": "Menstrual Cycle Dysfunction (Adams) — Distinguish primary and secondary dysmenorrhea", "section": "Menstrual Cycle Dysfunction"}, {"id": "9", "group": 9, "stem": "A 24-year-old woman reports 4 periods per year since menarche, worsening facial hair and acne. BMI 33, BP 132/86. Exam shows terminal hair on the chin and lower abdomen and velvety hyperpigmentation of the posterior neck. Which laboratory panel is most appropriate to confirm hyperandrogenism and exclude mimics?", "options": [{"letter": "A", "text": "Fasting insulin and C-peptide only"}, {"letter": "B", "text": "Karyotype"}, {"letter": "C", "text": "AMH and inhibin B"}, {"letter": "D", "text": "Total testosterone, TSH, prolactin, 17-hydroxyprogesterone (and hCG)"}, {"letter": "E", "text": "Serum estradiol and progesterone"}], "answer": "D", "explanation": "PCOS work-up: serum total testosterone; TSH, prolactin and 17-OHP to exclude mimics in all; hCG (± LH/FSH) if amenorrheic; TVUS; metabolic screen (lipids, OGTT or fasting glucose + A1c).", "objective": "Menstrual Cycle Dysfunction (Adams) — PCOS presentation, exam findings, diagnosis and management", "section": "Menstrual Cycle Dysfunction"}, {"id": "9A", "group": 9, "stem": "Total testosterone is elevated; TSH, prolactin and 17-OHP are normal. LH:FSH ratio is 3:1. Which statement about the diagnosis is correct?", "options": [{"letter": "A", "text": "An elevated fasting insulin is a Rotterdam criterion"}, {"letter": "B", "text": "Polycystic ovaries on ultrasound are mandatory for the diagnosis"}, {"letter": "C", "text": "An LH:FSH ratio >2:1 is required to diagnose PCOS"}, {"letter": "D", "text": "She meets Rotterdam criteria with oligo-ovulation and hyperandrogenism, even before ultrasound"}, {"letter": "E", "text": "PCOS cannot be diagnosed in an obese patient"}], "answer": "D", "explanation": "Rotterdam = 2 of 3: oligo/anovulation, clinical or biochemical hyperandrogenism, polycystic ovaries on US — after excluding other causes. LH:FSH >2:1 is characteristic but NOT a criterion; cysts are not mandatory.", "objective": "Menstrual Cycle Dysfunction (Adams) — PCOS presentation, exam findings, diagnosis and management", "section": "Menstrual Cycle Dysfunction"}, {"id": "9B", "group": 9, "stem": "She is not trying to conceive. In addition to lifestyle change and 10–15% weight loss, what is first-line pharmacologic therapy?", "options": [{"letter": "A", "text": "Spironolactone without contraception"}, {"letter": "B", "text": "Metformin alone as first line"}, {"letter": "C", "text": "Clomiphene"}, {"letter": "D", "text": "Letrozole"}, {"letter": "E", "text": "Combined OCP with a low-androgenic progestin such as drospirenone"}], "answer": "E", "explanation": "Not conceiving: combined OCP (20 mcg EE + low-androgenic progestin) first line — regulates shedding and protects against unopposed-estrogen endometrial hyperplasia. Metformin is second line; spironolactone is teratogenic and needs contraception.", "objective": "Menstrual Cycle Dysfunction (Adams) — PCOS presentation, exam findings, diagnosis and management", "section": "Menstrual Cycle Dysfunction"}, {"id": "9C", "group": 9, "stem": "Three years later she wants to become pregnant and is not ovulating despite weight loss. What is first-line ovulation induction?", "options": [{"letter": "A", "text": "Clomiphene"}, {"letter": "B", "text": "Laparoscopic ovarian drilling"}, {"letter": "C", "text": "Gonadotropin injections"}, {"letter": "D", "text": "Metformin plus spironolactone"}, {"letter": "E", "text": "Letrozole"}], "answer": "E", "explanation": "Letrozole is first-line ovulation induction in PCOS; clomiphene is the alternative.", "objective": "Menstrual Cycle Dysfunction (Adams) — PCOS presentation, exam findings, diagnosis and management", "section": "Menstrual Cycle Dysfunction"}, {"id": "10", "group": 10, "stem": "A 16-year-old has never had a period. She is 170 cm tall with Tanner 4 breast development but scant pubic and axillary hair. External genitalia are female with a short, blind-ending vaginal pouch. Pelvic ultrasound shows no uterus. hCG is negative. What is the most appropriate next test?", "options": [{"letter": "A", "text": "Progesterone challenge"}, {"letter": "B", "text": "MRI of the sella"}, {"letter": "C", "text": "Repeat ultrasound in 6 months"}, {"letter": "D", "text": "Karyotype with serum testosterone"}, {"letter": "E", "text": "Hysteroscopy"}], "answer": "D", "explanation": "Absent uterus → genetic testing: karyotype (Müllerian agenesis 46,XX vs androgen insensitivity 46,XY) with testosterone.", "objective": "Menstrual Cycle Dysfunction (Adams) — Differentiate primary and secondary amenorrhea", "section": "Menstrual Cycle Dysfunction"}, {"id": "10A", "group": 10, "stem": "Karyotype is 46,XY and testosterone is in the male range. What is the diagnosis?", "options": [{"letter": "A", "text": "Müllerian agenesis"}, {"letter": "B", "text": "Turner syndrome"}, {"letter": "C", "text": "Kallmann syndrome"}, {"letter": "D", "text": "Constitutional delay of puberty"}, {"letter": "E", "text": "Androgen insensitivity syndrome"}], "answer": "E", "explanation": "Androgen insensitivity: breasts present (aromatized testosterone), scant pubic/axillary hair, blind vaginal pouch, 46,XY with testes and no Müllerian structures, male-range testosterone.", "objective": "Menstrual Cycle Dysfunction (Adams) — Differentiate primary and secondary amenorrhea", "section": "Menstrual Cycle Dysfunction"}, {"id": "10B", "group": 10, "stem": "What is the appropriate management?", "options": [{"letter": "A", "text": "Referral, with gonadectomy after puberty"}, {"letter": "B", "text": "Cabergoline"}, {"letter": "C", "text": "Cyclic progesterone to induce menses"}, {"letter": "D", "text": "Immediate gonadectomy before puberty is complete"}, {"letter": "E", "text": "Hymenectomy"}], "answer": "A", "explanation": "Refer; gonadectomy after puberty.", "objective": "Menstrual Cycle Dysfunction (Adams) — Differentiate primary and secondary amenorrhea", "section": "Menstrual Cycle Dysfunction"}, {"id": "11", "group": 11, "stem": "A 31-year-old woman reports 6 years of progressively worsening painful periods, deep dyspareunia and painful bowel movements during menses. She does not desire pregnancy at this time. Exam shows tender uterosacral nodularity and a fixed retroverted uterus. hCG and GC/CT are negative. What is the most appropriate initial imaging?", "options": [{"letter": "A", "text": "Diagnostic laparoscopy"}, {"letter": "B", "text": "Serum CA-125"}, {"letter": "C", "text": "Hysterosalpingogram"}, {"letter": "D", "text": "Pelvic/transvaginal ultrasound"}, {"letter": "E", "text": "CT abdomen/pelvis"}], "answer": "D", "explanation": "Endometriosis work-up starts by excluding other causes with pelvic/transvaginal US. CA-125 is unreliable; laparoscopy is definitive but not required before treatment.", "objective": "Menstrual Cycle Dysfunction (Adams) — Pathophysiology, presentation, diagnosis and management of endometriosis", "section": "Menstrual Cycle Dysfunction"}, {"id": "11A", "group": 11, "stem": "Ultrasound shows a 4-cm homogeneous \"chocolate\" cyst of the left ovary. Which statement about confirming the diagnosis is correct?", "options": [{"letter": "A", "text": "Laparoscopy with biopsy must be performed before any medical therapy"}, {"letter": "B", "text": "The endometrioma proves malignancy"}, {"letter": "C", "text": "An elevated CA-125 confirms endometriosis"}, {"letter": "D", "text": "Laparoscopy with direct visualization and biopsy is the gold standard but is not required before starting empiric treatment"}, {"letter": "E", "text": "MRI is the gold standard"}], "answer": "D", "explanation": "Gold standard = laparoscopy with direct visualization + biopsy, but empiric diagnosis and treatment is reasonable.", "objective": "Menstrual Cycle Dysfunction (Adams) — Pathophysiology, presentation, diagnosis and management of endometriosis", "section": "Menstrual Cycle Dysfunction"}, {"id": "11B", "group": 11, "stem": "What is first-line medical therapy?", "options": [{"letter": "A", "text": "Danazol"}, {"letter": "B", "text": "Continuous monophasic combined OCP plus an NSAID"}, {"letter": "C", "text": "GnRH agonist with add-back therapy"}, {"letter": "D", "text": "Total abdominal hysterectomy with BSO"}, {"letter": "E", "text": "Letrozole"}], "answer": "B", "explanation": "Mild–moderate: continuous monophasic COC + NSAID; if no improvement keep the NSAID and switch hormone (different COC or norethindrone acetate).", "objective": "Menstrual Cycle Dysfunction (Adams) — Pathophysiology, presentation, diagnosis and management of endometriosis", "section": "Menstrual Cycle Dysfunction"}, {"id": "11C", "group": 11, "stem": "After two different hormonal regimens she still has severe, function-limiting pain. Which medical option is appropriate next?", "options": [{"letter": "A", "text": "Tamoxifen"}, {"letter": "B", "text": "Elagolix or leuprolide with low-dose estrogen/progestin add-back"}, {"letter": "C", "text": "Multiphasic OCP"}, {"letter": "D", "text": "Clomiphene"}, {"letter": "E", "text": "Metformin"}], "answer": "B", "explanation": "Severe/refractory: GnRH agonists (leuprolide, nafarelin) or antagonists (elagolix, relugolix) with add-back therapy; laparoscopy is diagnostic AND therapeutic for refractory pain.", "objective": "Menstrual Cycle Dysfunction (Adams) — Pathophysiology, presentation, diagnosis and management of endometriosis", "section": "Menstrual Cycle Dysfunction"}, {"id": "12", "group": 12, "stem": "A 66-year-old G4P4 reports vaginal heaviness and a bulge that is worse after standing all day, plus urinary urgency. On exam with Valsalva (supine, head of bed 45°), the cervix descends to 2 cm beyond the hymen; total vaginal length is 8 cm. What stage is her uterine prolapse?", "options": [{"letter": "A", "text": "Stage I"}, {"letter": "B", "text": "Stage II"}, {"letter": "C", "text": "Stage III"}, {"letter": "D", "text": "Stage IV"}, {"letter": "E", "text": "Stage 0"}], "answer": "C", "explanation": "Staging by the leading edge vs the hymen on strain: I >1 cm above; II within 1 cm above/below; III >1 cm beyond but ≤ total vaginal length; IV complete eversion.", "objective": "Pelvic Organ Prolapse (Adams) — Distinguish cystocele, rectocele, enterocele; grade uterine prolapse", "section": "Pelvic Organ Prolapse"}, {"id": "12A", "group": 12, "stem": "An anterior vaginal wall bulge also descends to the introitus with Valsalva. Which defect does this represent, and is imaging required?", "options": [{"letter": "A", "text": "Cystocele; urodynamic testing required before diagnosis"}, {"letter": "B", "text": "Enterocele; MRI required"}, {"letter": "C", "text": "Cystocele; diagnosis is clinical without imaging"}, {"letter": "D", "text": "Rectocele; defecography required"}, {"letter": "E", "text": "Urethral diverticulum; voiding cystourethrogram required"}], "answer": "C", "explanation": "Anterior compartment bulge = cystocele (± urethrocele). Diagnosis is clinical (history + Valsalva exam); no imaging required.", "objective": "Pelvic Organ Prolapse (Adams) — Distinguish cystocele, rectocele, enterocele; grade uterine prolapse", "section": "Pelvic Organ Prolapse"}, {"id": "12B", "group": 12, "stem": "She wishes to avoid surgery. What is the most appropriate first-line management?", "options": [{"letter": "A", "text": "Weight loss, which will reverse the prolapse"}, {"letter": "B", "text": "Observation only, since prolapse rarely causes symptoms"}, {"letter": "C", "text": "Hysterectomy is required at stage III"}, {"letter": "D", "text": "Systemic estrogen therapy alone"}, {"letter": "E", "text": "Urogynecology referral for pessary fitting plus pelvic floor (Kegel) training"}], "answer": "E", "explanation": "Symptomatic prolapse at any stage: refer to urogynecology; pessary (fitted by a trained provider, follow up for cleaning) + pelvic floor training, weight management, avoid heavy lifting, treat constipation. Weight loss does not reverse prolapse. Surgery if conservative care fails or is declined.", "objective": "Pelvic Organ Prolapse (Adams) — Distinguish cystocele, rectocele, enterocele; grade uterine prolapse", "section": "Pelvic Organ Prolapse"}, {"id": "13", "group": 13, "stem": "A 52-year-old woman's last menstrual period was 14 months ago. She has hot flashes many times a day and wakes drenched in sweat nightly. She has an intact uterus, no history of VTE, breast cancer or heart disease, and normal BP. Which statement about the diagnosis is correct?", "options": [{"letter": "A", "text": "Endometrial biopsy is required to confirm menopause"}, {"letter": "B", "text": "Menopause requires an FSH >40 IU/L for diagnosis"}, {"letter": "C", "text": "An estradiol level is required"}, {"letter": "D", "text": "Menopause is a clinical diagnosis after 12 months of amenorrhea; FSH only supports it"}, {"letter": "E", "text": "Anti-Müllerian hormone is the diagnostic test"}], "answer": "D", "explanation": "Menopause = 12 consecutive months of amenorrhea with no other cause — a clinical diagnosis. Review meds, check hCG and TSH; serum FSH is support only (consistently >25 IU/L).", "objective": "Menopause (Jackson) — Define menopause/perimenopause; treatment of vasomotor and atrophic symptoms", "section": "Menopause"}, {"id": "13A", "group": 13, "stem": "What is the most effective treatment for her symptoms?", "options": [{"letter": "A", "text": "Ospemifene"}, {"letter": "B", "text": "Estrogen plus a progestin (e.g., transdermal estradiol + micronized progesterone)"}, {"letter": "C", "text": "Systemic estrogen alone"}, {"letter": "D", "text": "Low-dose vaginal estrogen cream"}, {"letter": "E", "text": "Gabapentin at bedtime"}], "answer": "B", "explanation": "Moderate–severe vasomotor symptoms: MHT is the gold standard. Uterus intact → estrogen + progestin (never unopposed systemic estrogen → endometrial hyperplasia/cancer). Transdermal preferred (less VTE/lipid effect).", "objective": "Menopause (Jackson) — Define menopause/perimenopause; treatment of vasomotor and atrophic symptoms", "section": "Menopause"}, {"id": "13B", "group": 13, "stem": "Which counseling about her hormone therapy is correct?", "options": [{"letter": "A", "text": "It must be stopped after exactly 5 years"}, {"letter": "B", "text": "It is ideally started before age 60 or within 10 years of menopause, with no arbitrary stop date"}, {"letter": "C", "text": "Oral estrogen carries less VTE risk than transdermal"}, {"letter": "D", "text": "Mammography is unnecessary while she is on MHT"}, {"letter": "E", "text": "Starting MHT 15 years after menopause lowers stroke risk"}], "answer": "B", "explanation": "Start before 60 or within 10 years of menopause; no arbitrary stop date — individualize; monitor endometrium and mammography. Starting >10 years past menopause increases stroke and VTE.", "objective": "Menopause (Jackson) — Define menopause/perimenopause; treatment of vasomotor and atrophic symptoms", "section": "Menopause"}, {"id": "14", "group": 14, "stem": "A 49-year-old woman on tamoxifen for hormone receptor-positive breast cancer reports frequent daytime hot flashes. Which treatment is most appropriate?", "options": [{"letter": "A", "text": "Venlafaxine ER 37.5 mg daily"}, {"letter": "B", "text": "Conjugated estrogens/bazedoxifene"}, {"letter": "C", "text": "Paroxetine 7.5 mg daily"}, {"letter": "D", "text": "Fluoxetine 20 mg daily"}, {"letter": "E", "text": "Combined estrogen-progestin therapy"}], "answer": "A", "explanation": "Systemic MHT is relatively contraindicated with HR+ breast cancer. SSRIs (paroxetine, fluoxetine) reduce tamoxifen activation → use venlafaxine.", "objective": "Menopause (Jackson) — Define menopause/perimenopause; treatment of vasomotor and atrophic symptoms", "section": "Menopause"}, {"id": "15", "group": 15, "stem": "A 61-year-old nulliparous woman with BMI 38, type 2 diabetes and hypertension reports a single episode of vaginal spotting 3 weeks ago. Menopause was at 55. Pelvic exam is normal. What is the most appropriate next step?", "options": [{"letter": "A", "text": "Transvaginal ultrasound of the endometrial stripe and office endometrial biopsy"}, {"letter": "B", "text": "Reassurance, because a single episode of spotting is common"}, {"letter": "C", "text": "Start vaginal estrogen for atrophy"}, {"letter": "D", "text": "Serum CA-125"}, {"letter": "E", "text": "Pap smear only"}], "answer": "A", "explanation": "ANY postmenopausal bleeding = endometrial cancer until proven otherwise. First-choice orders: TVUS (stripe) and office endometrial biopsy.", "objective": "GYN Malignancies (Jackson) — Distinguish endometrial, cervical, vulvar, vaginal and ovarian cancer", "section": "GYN Malignancies"}, {"id": "15A", "group": 15, "stem": "The endometrial stripe measures 11 mm, and biopsy shows endometrioid adenocarcinoma. What is the next step in management?", "options": [{"letter": "A", "text": "TAH-BSO with pelvic and periaortic lymphadenectomy (surgical staging)"}, {"letter": "B", "text": "Chemotherapy with carboplatin/paclitaxel"}, {"letter": "C", "text": "Radiation therapy alone"}, {"letter": "D", "text": "Repeat biopsy in 3 months"}, {"letter": "E", "text": "High-dose progestin therapy alone"}], "answer": "A", "explanation": "All patients: TAH + BSO with pelvic + periaortic lymphadenectomy — surgical staging is diagnostic and therapeutic.", "objective": "GYN Malignancies (Jackson) — Distinguish endometrial, cervical, vulvar, vaginal and ovarian cancer", "section": "GYN Malignancies"}, {"id": "15B", "group": 15, "stem": "Final pathology shows tumor confined to the uterine corpus invading 60% of the myometrial thickness; cervix and nodes are negative. What is the stage?", "options": [{"letter": "A", "text": "IA"}, {"letter": "B", "text": "IB"}, {"letter": "C", "text": "II"}, {"letter": "D", "text": "IIIA"}, {"letter": "E", "text": "IIIC1"}], "answer": "B", "explanation": "Stage I = confined to corpus: IA <50% myometrial invasion, IB >50%. II = cervical stroma; III = outside uterus within pelvis.", "objective": "GYN Malignancies (Jackson) — Distinguish endometrial, cervical, vulvar, vaginal and ovarian cancer", "section": "GYN Malignancies"}, {"id": "16", "group": 16, "stem": "A 34-year-old woman's co-test shows cytology negative for intraepithelial lesion or malignancy (NILM) but positive high-risk HPV. What is the next step?", "options": [{"letter": "A", "text": "HPV genotyping for types 16/18"}, {"letter": "B", "text": "Repeat cytology in 2–4 months"}, {"letter": "C", "text": "Endometrial biopsy"}, {"letter": "D", "text": "Immediate LEEP"}, {"letter": "E", "text": "Repeat co-test in 5 years"}], "answer": "A", "explanation": "NILM but HPV-positive → genotype: HPV 16/18 positive → colposcopy; negative → repeat co-test in 1 year.", "objective": "GYN Malignancies (Jackson) — Pap report, Bethesda classification, HPV testing and colposcopy follow-up", "section": "GYN Malignancies"}, {"id": "16A", "group": 16, "stem": "Genotyping is positive for HPV 16. Colposcopy with acetic acid shows an acetowhite lesion; biopsy shows CIN 3. What is the appropriate management?", "options": [{"letter": "A", "text": "Topical imiquimod"}, {"letter": "B", "text": "Radical hysterectomy"}, {"letter": "C", "text": "LEEP or cold-knife conization"}, {"letter": "D", "text": "Observation with repeat co-test in 1 year"}, {"letter": "E", "text": "Cisplatin-based chemoradiation"}], "answer": "C", "explanation": "Histology drives treatment: CIN 1 → observe/repeat testing; CIN 2–3 → LEEP or cold-knife cone.", "objective": "GYN Malignancies (Jackson) — Pap report, Bethesda classification, HPV testing and colposcopy follow-up", "section": "GYN Malignancies"}, {"id": "17", "group": 17, "stem": "A 23-year-old woman's first Pap smear shows atypical squamous cells of undetermined significance (ASC-US). What is the recommended management?", "options": [{"letter": "A", "text": "LEEP"}, {"letter": "B", "text": "Repeat Pap in 3 years"}, {"letter": "C", "text": "Immediate colposcopy"}, {"letter": "D", "text": "Repeat cytology in 1 year"}, {"letter": "E", "text": "Reflex HPV testing and colposcopy if positive"}], "answer": "D", "explanation": "Age 21–24 with ASC-US or LSIL → repeat cytology in 1 year (avoid over-treatment). Reflex HPV for ASC-US applies at ≥25.", "objective": "GYN Malignancies (Jackson) — Pap report, Bethesda classification, HPV testing and colposcopy follow-up", "section": "GYN Malignancies"}, {"id": "18", "group": 18, "stem": "A 48-year-old woman who has not had cervical screening in 15 years presents with post-coital bleeding and watery discharge. Speculum exam shows a friable, exophytic 3-cm cervical mass that bleeds on contact. What establishes the diagnosis?", "options": [{"letter": "A", "text": "CT of the pelvis"}, {"letter": "B", "text": "Colposcopy-directed cervical biopsy"}, {"letter": "C", "text": "Repeat Pap smear"}, {"letter": "D", "text": "HPV testing"}, {"letter": "E", "text": "Serum SCC antigen"}], "answer": "B", "explanation": "Pap is a screen; colposcopy-directed biopsy → histology is the diagnosis (squamous cell carcinoma most common).", "objective": "GYN Malignancies (Jackson) — Distinguish endometrial, cervical, vulvar, vaginal and ovarian cancer", "section": "GYN Malignancies"}, {"id": "18A", "group": 18, "stem": "Biopsy confirms squamous cell carcinoma. Rectovaginal exam reveals parametrial thickening that does not reach the pelvic sidewall; imaging shows no hydronephrosis or distant disease. What is the stage and treatment?", "options": [{"letter": "A", "text": "IB2 — radical hysterectomy"}, {"letter": "B", "text": "IVA — pelvic exenteration"}, {"letter": "C", "text": "IIIB — palliative chemotherapy"}, {"letter": "D", "text": "IIB — cisplatin-based chemoradiation (external beam + brachytherapy), no surgery"}, {"letter": "E", "text": "IIA — modified radical hysterectomy"}], "answer": "D", "explanation": "Parametrial involvement = IIB → chemoradiation; IIA (no parametrium) → surgery. Pelvic sidewall or hydronephrosis = IIIB.", "objective": "GYN Malignancies (Jackson) — Distinguish endometrial, cervical, vulvar, vaginal and ovarian cancer", "section": "GYN Malignancies"}, {"id": "19", "group": 19, "stem": "A 63-year-old woman reports 2 months of bloating, early satiety and urinary frequency. Her sister had breast cancer at 42. Exam reveals shifting dullness and a fixed, irregular, solid right adnexal mass on rectovaginal exam. What is the most appropriate next test?", "options": [{"letter": "A", "text": "Upper endoscopy"}, {"letter": "B", "text": "Colonoscopy"}, {"letter": "C", "text": "Serum CA-125 alone"}, {"letter": "D", "text": "Paracentesis"}, {"letter": "E", "text": "Transvaginal ultrasound"}], "answer": "E", "explanation": "Ovarian cancer sequence: bimanual + rectovaginal exam → TVUS → CA-125 → pelvic MRI or CT.", "objective": "GYN Malignancies (Jackson) — Distinguish endometrial, cervical, vulvar, vaginal and ovarian cancer", "section": "GYN Malignancies"}, {"id": "19A", "group": 19, "stem": "Ultrasound shows a complex solid mass with ascites; CA-125 is 820 U/mL; CT shows omental caking. What establishes the diagnosis and begins treatment?", "options": [{"letter": "A", "text": "Trend CA-125 monthly"}, {"letter": "B", "text": "Repeat ultrasound in 6–12 weeks"}, {"letter": "C", "text": "Exploratory laparotomy with biopsy, surgical staging and debulking"}, {"letter": "D", "text": "Laparoscopic ovarian cystectomy"}, {"letter": "E", "text": "Start tamoxifen"}], "answer": "C", "explanation": "Gold standard: surgical exploration (laparotomy) with biopsy and staging → debulking + TAH-BSO, then adjuvant platinum + taxane. Epithelial serous carcinoma is most common.", "objective": "GYN Malignancies (Jackson) — Distinguish endometrial, cervical, vulvar, vaginal and ovarian cancer", "section": "GYN Malignancies"}, {"id": "19B", "group": 19, "stem": "Her 40-year-old daughter, who has no known mutation, asks about annual CA-125 and ultrasound screening for ovarian cancer. Which statement is correct?", "options": [{"letter": "A", "text": "There is no routine ovarian cancer screening for average-risk women; with this family history, genetic counseling/BRCA testing is appropriate"}, {"letter": "B", "text": "CA-125 is the best screening test for early-stage disease"}, {"letter": "C", "text": "Pap smears detect ovarian cancer"}, {"letter": "D", "text": "Annual transvaginal ultrasound reduces mortality in the general population"}, {"letter": "E", "text": "Annual CA-125 screening is recommended for all women over 40"}], "answer": "A", "explanation": "USPSTF: no routine screening (no mortality benefit; false positives lead to surgery). Screen only mutation carriers/strong family history; CA-125 monitors recurrence.", "objective": "GYN Malignancies (Jackson) — Distinguish endometrial, cervical, vulvar, vaginal and ovarian cancer", "section": "GYN Malignancies"}, {"id": "20", "group": 20, "stem": "A 42-year-old Black woman reports heavy, prolonged but regular menses, fatigue, pelvic pressure and urinary frequency. Bimanual exam shows a firm, nontender, irregular 14-week-size uterus. Hemoglobin is 9.1 g/dL. hCG is negative. What is the first-line imaging?", "options": [{"letter": "A", "text": "Pelvic MRI"}, {"letter": "B", "text": "Diagnostic laparoscopy"}, {"letter": "C", "text": "CT abdomen/pelvis"}, {"letter": "D", "text": "Hysterosalpingogram"}, {"letter": "E", "text": "Transvaginal ultrasound"}], "answer": "E", "explanation": "TVUS is first line for fibroids (well-circumscribed hypoechoic myometrial masses; confirms uterine origin). MRI is reserved for surgical planning.", "objective": "Benign GYN Neoplasms (Jackson) — Endometrial polyps, differential of an adnexal mass, leiomyoma", "section": "Benign GYN Neoplasms"}, {"id": "20A", "group": 20, "stem": "TVUS shows multiple intramural and submucosal fibroids. She wants definitive treatment of her bleeding and bulk symptoms but strongly desires future pregnancy. What is the best option?", "options": [{"letter": "A", "text": "Long-term leuprolide"}, {"letter": "B", "text": "Endometrial ablation"}, {"letter": "C", "text": "Myomectomy"}, {"letter": "D", "text": "Hysterectomy"}, {"letter": "E", "text": "Uterine artery embolization"}], "answer": "C", "explanation": "Fertility desired → myomectomy (preserves uterus AND fertility). UAE impairs fertility; hysterectomy is definitive; GnRH agonists cause bone loss — bridge only.", "objective": "Benign GYN Neoplasms (Jackson) — Endometrial polyps, differential of an adnexal mass, leiomyoma", "section": "Benign GYN Neoplasms"}, {"id": "20B", "group": 20, "stem": "Surgery is scheduled in 3 months. Which medication would best shrink the fibroids and stop her bleeding preoperatively?", "options": [{"letter": "A", "text": "Tranexamic acid"}, {"letter": "B", "text": "Leuprolide (GnRH agonist)"}, {"letter": "C", "text": "Medroxyprogesterone"}, {"letter": "D", "text": "Estrogen-progestin contraceptive"}, {"letter": "E", "text": "Levonorgestrel IUD"}], "answer": "B", "explanation": "GnRH agonist (leuprolide) is the most effective medical therapy — amenorrhea + tumor shrinkage — used as a bridge to surgery because of bone loss.", "objective": "Benign GYN Neoplasms (Jackson) — Endometrial polyps, differential of an adnexal mass, leiomyoma", "section": "Benign GYN Neoplasms"}, {"id": "21", "group": 21, "stem": "A 24-year-old woman found a painless lump in her left breast. Exam shows a 2-cm firm, rubbery, smooth, freely mobile, nontender mass with no adenopathy. What is the initial imaging study?", "options": [{"letter": "A", "text": "Excisional biopsy without imaging"}, {"letter": "B", "text": "PET scan"}, {"letter": "C", "text": "Diagnostic mammogram"}, {"letter": "D", "text": "Breast MRI"}, {"letter": "E", "text": "Targeted breast ultrasound"}], "answer": "E", "explanation": "Imaging-by-age rule: focal mass <30 yr → targeted ULTRASOUND first; >30 → diagnostic mammogram ± US.", "objective": "Breast Disorders (Bowman) — Fibrocystic changes, mastitis, abscess, fibroadenoma, gynecomastia, galactorrhea", "section": "Breast Disorders"}, {"id": "21A", "group": 21, "stem": "Ultrasound shows an oval, circumscribed, hypoechoic, wider-than-tall mass, and core biopsy confirms a simple fibroadenoma. What is the management?", "options": [{"letter": "A", "text": "Wide local excision with 1-cm margins"}, {"letter": "B", "text": "Tamoxifen"}, {"letter": "C", "text": "Monitoring with exam and imaging every 6 months to confirm 2-year stability"}, {"letter": "D", "text": "Mastectomy"}, {"letter": "E", "text": "No follow-up of any kind"}], "answer": "C", "explanation": "Typical fibroadenoma <2–3 cm → monitor every 6 months to confirm 2-year stability; excise if 2–4 cm, growing, symptomatic or atypical.", "objective": "Breast Disorders (Bowman) — Fibrocystic changes, mastitis, abscess, fibroadenoma, gynecomastia, galactorrhea", "section": "Breast Disorders"}, {"id": "22", "group": 22, "stem": "A 28-year-old woman who is 3 weeks postpartum and breastfeeding has a painful, red, warm wedge-shaped area of the right breast, a cracked nipple, fever 38.6 °C and myalgias. There is no fluctuant mass. What is the most appropriate management?", "options": [{"letter": "A", "text": "Diagnostic mammogram"}, {"letter": "B", "text": "Stop breastfeeding from the right breast and apply heat"}, {"letter": "C", "text": "Dicloxacillin and continue breastfeeding or pumping"}, {"letter": "D", "text": "Vigorous breast massage"}, {"letter": "E", "text": "Incision and drainage"}], "answer": "C", "explanation": "Lactational mastitis (S. aureus most common) → dicloxacillin (or cephalexin) 7–10 d; continue breastfeeding/pumping to maintain flow; no massage (damages tissue).", "objective": "Breast Disorders (Bowman) — Fibrocystic changes, mastitis, abscess, fibroadenoma, gynecomastia, galactorrhea", "section": "Breast Disorders"}, {"id": "22A", "group": 22, "stem": "Five days later she has a fluctuant, exquisitely tender 3-cm mass; ultrasound shows a loculated hypoechoic fluid collection. What is the next step?", "options": [{"letter": "A", "text": "Bromocriptine to suppress lactation"}, {"letter": "B", "text": "Core needle biopsy for inflammatory breast cancer"}, {"letter": "C", "text": "Stop breastfeeding permanently"}, {"letter": "D", "text": "Continue the same oral antibiotic alone"}, {"letter": "E", "text": "Ultrasound-guided needle aspiration or I&D with culture, plus antibiotics; continue breastfeeding"}], "answer": "E", "explanation": "Breast abscess = fluctuant mass needing drainage (US-guided aspiration or I&D) PLUS antibiotics; continue feeding/pumping.", "objective": "Breast Disorders (Bowman) — Fibrocystic changes, mastitis, abscess, fibroadenoma, gynecomastia, galactorrhea", "section": "Breast Disorders"}, {"id": "23", "group": 23, "stem": "A 64-year-old postmenopausal woman has a 2.2-cm hard, fixed, irregular mass in the upper outer quadrant of the left breast with overlying skin dimpling. What is the next step?", "options": [{"letter": "A", "text": "Repeat exam after her next menstrual cycle"}, {"letter": "B", "text": "Breast ultrasound only"}, {"letter": "C", "text": "Diagnostic mammogram plus ultrasound"}, {"letter": "D", "text": "Breast MRI only"}, {"letter": "E", "text": "Fine-needle aspiration"}], "answer": "C", "explanation": "Age >30 with a suspicious mass → diagnostic mammogram + ultrasound, then core needle biopsy with receptor testing.", "objective": "Breast Disorders (Bowman) — Breast cancer risk factors, presentation, TNM staging and management", "section": "Breast Disorders"}, {"id": "23A", "group": 23, "stem": "Core biopsy shows invasive ductal carcinoma, ER+/PR+, HER2 IHC 2+. What is the next step regarding HER2?", "options": [{"letter": "A", "text": "Repeat IHC in 3 months"}, {"letter": "B", "text": "Treat as HER2-negative"}, {"letter": "C", "text": "Treat as HER2-positive"}, {"letter": "D", "text": "Order Oncotype DX instead"}, {"letter": "E", "text": "Reflex FISH testing"}], "answer": "E", "explanation": "HER2 IHC 3+ = positive; 2+ = equivocal → FISH; 0/1+ = negative.", "objective": "Breast Disorders (Bowman) — Breast cancer risk factors, presentation, TNM staging and management", "section": "Breast Disorders"}, {"id": "23B", "group": 23, "stem": "FISH is not amplified. She undergoes lumpectomy with negative margins; sentinel node biopsy is negative. Which adjuvant plan is most appropriate?", "options": [{"letter": "A", "text": "Trastuzumab for 1 year"}, {"letter": "B", "text": "Aromatase inhibitor alone without radiation"}, {"letter": "C", "text": "Mastectomy is required"}, {"letter": "D", "text": "No radiation; tamoxifen only"}, {"letter": "E", "text": "Radiation, then an aromatase inhibitor for 5–10 years"}], "answer": "E", "explanation": "After BCS: radiation for all; order of adjuvants is chemo (±) → radiation → endocrine. Postmenopausal HR+ → aromatase inhibitor (anastrozole, letrozole, exemestane) 5–10 yr.", "objective": "Breast Disorders (Bowman) — Breast cancer risk factors, presentation, TNM staging and management", "section": "Breast Disorders"}, {"id": "23C", "group": 23, "stem": "Before starting the aromatase inhibitor, which baseline study is recommended?", "options": [{"letter": "A", "text": "Pulmonary function tests"}, {"letter": "B", "text": "Pelvic ultrasound"}, {"letter": "C", "text": "Echocardiogram"}, {"letter": "D", "text": "Bone density (DXA)"}, {"letter": "E", "text": "Ophthalmology exam"}], "answer": "D", "explanation": "Aromatase inhibitors cause bone loss and arthralgias → baseline bone density. (Echocardiogram is the baseline for trastuzumab.)", "objective": "Breast Disorders (Bowman) — Breast cancer risk factors, presentation, TNM staging and management", "section": "Breast Disorders"}, {"id": "24", "group": 24, "stem": "A 52-year-old non-lactating woman has 5 weeks of a warm, red, swollen, heavy left breast with peau d'orange covering more than one-third of the breast and a flattened nipple. No discrete lump is palpable. A 10-day course of cephalexin did not help. What is the most appropriate next step?", "options": [{"letter": "A", "text": "A second course of a different antibiotic"}, {"letter": "B", "text": "Bromocriptine"}, {"letter": "C", "text": "Warm compresses and reassurance"}, {"letter": "D", "text": "Incision and drainage"}, {"letter": "E", "text": "Diagnostic mammogram/US with core biopsy of the breast and punch biopsy of the skin"}], "answer": "E", "explanation": "\"Mastitis\" in a non-lactating woman that fails antibiotics = inflammatory breast cancer until proven otherwise → imaging + core biopsy + skin punch biopsy.", "objective": "Breast Disorders (Bowman) — Breast cancer risk factors, presentation, TNM staging and management", "section": "Breast Disorders"}, {"id": "24A", "group": 24, "stem": "Skin punch biopsy shows dermal lymphatic invasion by tumor emboli. What is the appropriate treatment sequence?", "options": [{"letter": "A", "text": "Skin-sparing mastectomy with immediate reconstruction"}, {"letter": "B", "text": "Endocrine therapy alone"}, {"letter": "C", "text": "Radiation alone"}, {"letter": "D", "text": "Lumpectomy followed by radiation"}, {"letter": "E", "text": "Neoadjuvant chemotherapy → modified radical mastectomy → post-mastectomy radiation"}], "answer": "E", "explanation": "Inflammatory breast cancer = T4d (at least stage IIIB) → trimodality: neoadjuvant chemo → modified radical mastectomy (no breast conservation, no immediate reconstruction) → PMRT.", "objective": "Breast Disorders (Bowman) — Breast cancer risk factors, presentation, TNM staging and management", "section": "Breast Disorders"}, {"id": "25", "group": 25, "stem": "A 27-year-old G1P0 with regular 28-day cycles has a positive home pregnancy test. Her last menstrual period began January 10. Using Naegele's rule, what is her estimated due date?", "options": [{"letter": "A", "text": "October 3"}, {"letter": "B", "text": "October 10"}, {"letter": "C", "text": "October 17"}, {"letter": "D", "text": "October 24"}, {"letter": "E", "text": "November 17"}], "answer": "C", "explanation": "Naegele: LMP + 1 year − 3 months + 7 days → January 10 − 3 months = October 10, + 7 days = October 17.", "objective": "Preconception & Prenatal Care (Adams) — Prenatal schedule, labs by trimester, dating, aneuploidy screening", "section": "Prenatal Care"}, {"id": "25A", "group": 25, "stem": "At her 10-week visit, the crown-rump length dates the pregnancy 9 days earlier than her LMP. What should be done?", "options": [{"letter": "A", "text": "Repeat ultrasound at 20 weeks before deciding"}, {"letter": "B", "text": "Redate the pregnancy to the ultrasound"}, {"letter": "C", "text": "Keep the LMP-based due date"}, {"letter": "D", "text": "Average the two dates"}, {"letter": "E", "text": "Order quantitative hCG to decide"}], "answer": "B", "explanation": "First-trimester CRL is the most accurate dating; redate to US if it differs from LMP by >7 days in the 1st trimester (±14 days in the 2nd).", "objective": "Preconception & Prenatal Care (Adams) — Prenatal schedule, labs by trimester, dating, aneuploidy screening", "section": "Prenatal Care"}, {"id": "25B", "group": 25, "stem": "She is Rh(D)-negative with a negative antibody screen. When is Rh immune globulin routinely given?", "options": [{"letter": "A", "text": "At the first prenatal visit only"}, {"letter": "B", "text": "Only if she has bleeding"}, {"letter": "C", "text": "At 36 weeks with the GBS culture"}, {"letter": "D", "text": "At 28 weeks and within 72 hours of delivering an Rh-positive infant"}, {"letter": "E", "text": "Within 72 hours of delivery only if the infant is Rh-negative"}], "answer": "D", "explanation": "Rh-negative → repeat antibody screen + RhoGAM 300 μg at 28 wk, within 72 h of delivering an Rh+ infant, and after any bleeding/trauma/SAB.", "objective": "Preconception & Prenatal Care (Adams) — Prenatal schedule, labs by trimester, dating, aneuploidy screening", "section": "Prenatal Care"}, {"id": "25C", "group": 25, "stem": "At 20 weeks, where would you expect the fundal height to be?", "options": [{"letter": "A", "text": "Midway between the symphysis and umbilicus"}, {"letter": "B", "text": "2–3 cm below the xiphoid"}, {"letter": "C", "text": "Just above the symphysis pubis"}, {"letter": "D", "text": "At the xiphoid"}, {"letter": "E", "text": "At the umbilicus"}], "answer": "E", "explanation": "Fundal height: 12 wk just above symphysis; 16 wk midway; 20 wk AT the umbilicus; 18–34 wk cm ≈ weeks; 36–38 wk 2–3 cm below xiphoid.", "objective": "Preconception & Prenatal Care (Adams) — Prenatal schedule, labs by trimester, dating, aneuploidy screening", "section": "Prenatal Care"}, {"id": "26", "group": 26, "stem": "A 36-year-old G2P1 at 16 weeks has a quad screen showing elevated β-hCG, elevated inhibin A, low AFP and low unconjugated estriol. Which condition is most consistent with this pattern?", "options": [{"letter": "A", "text": "Gastroschisis"}, {"letter": "B", "text": "Trisomy 18"}, {"letter": "C", "text": "Open neural tube defect"}, {"letter": "D", "text": "Trisomy 21"}, {"letter": "E", "text": "Normal pregnancy"}], "answer": "D", "explanation": "Down syndrome quad screen = ↑hCG ↑inhibin ↓AFP ↓estriol. Open NTD = ↑AFP.", "objective": "Preconception & Prenatal Care (Adams) — Prenatal schedule, labs by trimester, dating, aneuploidy screening", "section": "Prenatal Care"}, {"id": "26A", "group": 26, "stem": "What is the next step to diagnose the suspected condition?", "options": [{"letter": "A", "text": "Nuchal translucency ultrasound"}, {"letter": "B", "text": "Cell-free DNA alone is diagnostic"}, {"letter": "C", "text": "Amniocentesis"}, {"letter": "D", "text": "Repeat quad screen in 2 weeks"}, {"letter": "E", "text": "Maternal karyotype"}], "answer": "C", "explanation": "Screening estimates risk; invasive tests diagnose: CVS 10–13 wk, amniocentesis 15–20 wk.", "objective": "Preconception & Prenatal Care (Adams) — Prenatal schedule, labs by trimester, dating, aneuploidy screening", "section": "Prenatal Care"}, {"id": "27", "group": 27, "stem": "A 32-year-old G2P1 at 9 weeks has light vaginal bleeding with mild cramping and no passage of tissue. Vitals are normal. Speculum exam shows a closed cervical os and no tissue. TVUS shows an intrauterine pregnancy with fetal cardiac activity. What is the diagnosis and management?", "options": [{"letter": "A", "text": "Threatened abortion — expectant management with reassurance and return precautions"}, {"letter": "B", "text": "Incomplete abortion — misoprostol"}, {"letter": "C", "text": "Inevitable abortion — suction aspiration"}, {"letter": "D", "text": "Ectopic pregnancy — methotrexate"}, {"letter": "E", "text": "Missed abortion — mifepristone then misoprostol"}], "answer": "A", "explanation": "Bleeding + closed os + no tissue + live IUP = threatened abortion; 90–96% continue if cardiac activity at 7–11 wk. Expectant management with return precautions; consider RhIG.", "objective": "Complications of Pregnancy (De La Cruz) — Types of spontaneous abortion, diagnosis and management", "section": "Complications of Pregnancy"}, {"id": "28", "group": 28, "stem": "A 27-year-old at 10 weeks reports heavy bleeding and cramping after passing clots and tissue at home. She is hemodynamically stable and afebrile. Speculum exam shows an open os with tissue in the canal; the uterus is boggy and smaller than dates. TVUS shows retained products of conception. Which diagnosis fits?", "options": [{"letter": "A", "text": "Septic abortion"}, {"letter": "B", "text": "Threatened abortion"}, {"letter": "C", "text": "Anembryonic pregnancy"}, {"letter": "D", "text": "Complete abortion"}, {"letter": "E", "text": "Incomplete abortion"}], "answer": "E", "explanation": "Bleeding/open os/partial tissue passage with retained POC = incomplete abortion. Stable without infection → expectant, medical (mifepristone → misoprostol) or suction aspiration per preference.", "objective": "Complications of Pregnancy (De La Cruz) — Types of spontaneous abortion, diagnosis and management", "section": "Complications of Pregnancy"}, {"id": "29", "group": 29, "stem": "A 30-year-old woman with a history of PID presents with 6 weeks of amenorrhea, left lower quadrant pain and vaginal spotting. BP 118/74, HR 84. She has left adnexal tenderness without peritoneal signs. Urine hCG is positive. What are the most appropriate initial tests?", "options": [{"letter": "A", "text": "Diagnostic laparoscopy"}, {"letter": "B", "text": "Serum progesterone only"}, {"letter": "C", "text": "Quantitative serum hCG and transvaginal ultrasound (plus blood type/Rh and CBC)"}, {"letter": "D", "text": "Repeat urine hCG in 48 hours"}, {"letter": "E", "text": "CT abdomen/pelvis"}], "answer": "C", "explanation": "Ectopic work-up: quantitative serum hCG + TVUS, blood type/Rh, CBC; serial hCG q48–72 h if non-diagnostic.", "objective": "Complications of Pregnancy (De La Cruz) — Ectopic pregnancy and gestational trophoblastic disease", "section": "Complications of Pregnancy"}, {"id": "29A", "group": 29, "stem": "hCG is 3,800 mIU/mL. TVUS shows no intrauterine pregnancy and a 2.5-cm complex left adnexal mass without cardiac activity or free fluid. CBC, LFTs and creatinine are normal, and she is reliable for follow-up. What is the most appropriate management?", "options": [{"letter": "A", "text": "Expectant management with repeat ultrasound in 1 week"}, {"letter": "B", "text": "Emergency laparotomy"}, {"letter": "C", "text": "Mifepristone and misoprostol"}, {"letter": "D", "text": "Dilation and curettage"}, {"letter": "E", "text": "Methotrexate IM with serial hCG until undetectable"}], "answer": "E", "explanation": "No IUP with hCG above the discriminatory zone + adnexal mass = ectopic. Stable, unruptured, no cardiac activity, reliable follow-up (best hCG <5000, mass <3–4 cm) → methotrexate IM.", "objective": "Complications of Pregnancy (De La Cruz) — Ectopic pregnancy and gestational trophoblastic disease", "section": "Complications of Pregnancy"}, {"id": "29B", "group": 29, "stem": "Which instruction should she receive while on methotrexate?", "options": [{"letter": "A", "text": "No further hCG testing is needed after the injection"}, {"letter": "B", "text": "Avoid NSAIDs, alcohol, folate supplements and intercourse; follow serial hCG until undetectable"}, {"letter": "C", "text": "Use ibuprofen for pain"}, {"letter": "D", "text": "Resume intercourse immediately"}, {"letter": "E", "text": "Take her prenatal vitamin with folic acid daily"}], "answer": "B", "explanation": "During methotrexate: avoid NSAIDs, alcohol, folate and intercourse; serial hCG until undetectable. RhIG if Rh-negative.", "objective": "Complications of Pregnancy (De La Cruz) — Ectopic pregnancy and gestational trophoblastic disease", "section": "Complications of Pregnancy"}, {"id": "30", "group": 30, "stem": "A 41-year-old G3P2 at 11 weeks has heavy vaginal bleeding and severe vomiting. The uterus is 16-week size, no fetal heart tones are heard, BP is 150/96, and urine protein is 2+. What are the most appropriate initial studies?", "options": [{"letter": "A", "text": "Quantitative hCG and pelvic ultrasound"}, {"letter": "B", "text": "Serum lipase"}, {"letter": "C", "text": "Cell-free DNA"}, {"letter": "D", "text": "CT head"}, {"letter": "E", "text": "Fetal echocardiogram"}], "answer": "A", "explanation": "Uterus large for dates + bleeding + hyperemesis + preeclampsia <20 wk = molar pregnancy until proven otherwise → quantitative hCG + pelvic/transvaginal US (plus CBC, TSH/free T4, type/Rh, coags, CXR).", "objective": "Complications of Pregnancy (De La Cruz) — Ectopic pregnancy and gestational trophoblastic disease", "section": "Complications of Pregnancy"}, {"id": "30A", "group": 30, "stem": "hCG is 280,000 mIU/mL. Ultrasound shows a central heterogeneous \"snowstorm\" mass with no fetus and bilateral theca lutein cysts. What karyotype is expected?", "options": [{"letter": "A", "text": "46,XY of maternal origin"}, {"letter": "B", "text": "47,XX,+21"}, {"letter": "C", "text": "69,XXY with fetal tissue"}, {"letter": "D", "text": "45,X"}, {"letter": "E", "text": "46,XX of entirely paternal origin, no fetal tissue"}], "answer": "E", "explanation": "Complete mole = diploid 46, all paternal, no fetal tissue, hCG >100,000. Partial = triploid 69,XXY/XXX with fetal tissue, hCG usually <100,000.", "objective": "Complications of Pregnancy (De La Cruz) — Ectopic pregnancy and gestational trophoblastic disease", "section": "Complications of Pregnancy"}, {"id": "30B", "group": 30, "stem": "What is the appropriate management?", "options": [{"letter": "A", "text": "Suction uterine evacuation, then serial quantitative hCG until normal with reliable contraception during follow-up"}, {"letter": "B", "text": "Expectant management"}, {"letter": "C", "text": "Hysterectomy is mandatory"}, {"letter": "D", "text": "Methotrexate alone"}, {"letter": "E", "text": "Induction of labor with misoprostol"}], "answer": "A", "explanation": "Suction evacuation (hysterectomy alternative if childbearing complete) → serial hCG until normal, then surveillance; reliable contraception; RhIG if Rh-negative.", "objective": "Complications of Pregnancy (De La Cruz) — Ectopic pregnancy and gestational trophoblastic disease", "section": "Complications of Pregnancy"}, {"id": "30C", "group": 30, "stem": "After evacuation, her hCG plateaus over three consecutive weekly measurements. What does this indicate and what is next?", "options": [{"letter": "A", "text": "Normal postmolar course — continue observation"}, {"letter": "B", "text": "Gestational trophoblastic neoplasia — oncology referral for staging and chemotherapy (methotrexate or actinomycin-D)"}, {"letter": "C", "text": "Laboratory error — stop testing"}, {"letter": "D", "text": "Theca lutein cyst rupture — laparoscopy"}, {"letter": "E", "text": "New intrauterine pregnancy — obtain ultrasound"}], "answer": "B", "explanation": "Plateauing or rising hCG after evacuation = GTN (complete mole 13–20% risk) → oncology, staging (CXR, imaging), chemotherapy.", "objective": "Complications of Pregnancy (De La Cruz) — Ectopic pregnancy and gestational trophoblastic disease", "section": "Complications of Pregnancy"}, {"id": "31", "group": 31, "stem": "A 22-year-old G1 at 35 weeks presents with a headache not relieved by acetaminophen and seeing spots. BP is 168/112 and 166/110 on repeat 15 minutes later. Patellar reflexes are 3+. Labs are shown. [[LABS]] What is the diagnosis?", "options": [{"letter": "A", "text": "Chronic hypertension"}, {"letter": "B", "text": "HELLP syndrome"}, {"letter": "C", "text": "Preeclampsia with severe features"}, {"letter": "D", "text": "Preeclampsia without severe features"}, {"letter": "E", "text": "Gestational hypertension"}], "answer": "C", "explanation": "New HTN after 20 wk + proteinuria (P:C ≥0.3) = preeclampsia. Severe features (any one): BP ≥160/110, plt <100K, AST/ALT ≥2×, Cr >1.1, pulmonary edema, cerebral/visual symptoms. She has severe-range BP and cerebral/visual symptoms; labs are not HELLP.", "objective": "Diseases in Pregnancy (Marcus) — Hypertensive disorders of pregnancy", "section": "Hypertensive Disorders of Pregnancy", "labs": [{"test": "Platelets", "result": "145,000/µL", "range": "150,000–400,000/µL"}, {"test": "AST", "result": "38 U/L", "range": "10–40 U/L"}, {"test": "ALT", "result": "30 U/L", "range": "7–35 U/L"}, {"test": "Creatinine", "result": "0.8 mg/dL", "range": "0.4–0.8 mg/dL"}, {"test": "Urine protein:creatinine", "result": "0.5", "range": "<0.3"}]}, {"id": "31A", "group": 31, "stem": "What is the most appropriate management?", "options": [{"letter": "A", "text": "Magnesium sulfate and expectant management until 37 weeks"}, {"letter": "B", "text": "Lisinopril and bed rest"}, {"letter": "C", "text": "Betamethasone and delay delivery for 48 hours"}, {"letter": "D", "text": "Oral labetalol and outpatient follow-up in 1 week"}, {"letter": "E", "text": "IV labetalol, magnesium sulfate seizure prophylaxis, and delivery once stabilized"}], "answer": "E", "explanation": "Severe features → admit, urgent BP control (IV labetalol, IV hydralazine or IR nifedipine) + MgSO4; deliver at ≥34 wk once stable. Never ACE-I/ARB.", "objective": "Diseases in Pregnancy (Marcus) — Hypertensive disorders of pregnancy", "section": "Hypertensive Disorders of Pregnancy"}, {"id": "31B", "group": 31, "stem": "During the magnesium infusion, the nurse notes absent patellar reflexes and a respiratory rate of 10. What is the next step?", "options": [{"letter": "A", "text": "Increase the magnesium infusion"}, {"letter": "B", "text": "Emergency cesarean delivery"}, {"letter": "C", "text": "Give IV lorazepam"}, {"letter": "D", "text": "Give IV hydralazine"}, {"letter": "E", "text": "Stop the infusion and give calcium gluconate"}], "answer": "E", "explanation": "Hypermagnesemia: loss of DTRs (earliest) → respiratory depression → arrest. Stop the infusion and give calcium gluconate.", "objective": "Diseases in Pregnancy (Marcus) — Hypertensive disorders of pregnancy", "section": "Hypertensive Disorders of Pregnancy"}, {"id": "32", "group": 32, "stem": "A 19-year-old at 37 weeks with preeclampsia has a generalized tonic-clonic seizure on the labor floor. BP is 172/114. What is the first-line anticonvulsant?", "options": [{"letter": "A", "text": "IV levetiracetam"}, {"letter": "B", "text": "IV lorazepam"}, {"letter": "C", "text": "IV diazepam"}, {"letter": "D", "text": "Magnesium sulfate 4–6 g IV load, then 1–2 g/h"}, {"letter": "E", "text": "IV phenytoin"}], "answer": "D", "explanation": "Eclampsia: airway, O₂, left lateral decubitus → MgSO4 (first line; continue 24 h after delivery/last seizure) → urgent BP control → deliver once stable. Benzodiazepines/phenytoin are NOT first line.", "objective": "Diseases in Pregnancy (Marcus) — Hypertensive disorders of pregnancy", "section": "Hypertensive Disorders of Pregnancy"}, {"id": "33", "group": 33, "stem": "A 26-year-old at 9 weeks reports palpitations, heat intolerance, tremor and weight loss despite good appetite. She has exophthalmos and a goiter with a bruit. TSH is <0.01 mU/L, free T4 is elevated and TSI is positive. Which antithyroid drug is preferred now?", "options": [{"letter": "A", "text": "Propylthiouracil (PTU)"}, {"letter": "B", "text": "Levothyroxine"}, {"letter": "C", "text": "Radioactive iodine"}, {"letter": "D", "text": "Potassium iodide alone"}, {"letter": "E", "text": "Methimazole"}], "answer": "A", "explanation": "Graves' in pregnancy: PTU in the 1st trimester (methimazole → aplasia cutis/embryopathy). Radioactive iodine is contraindicated. Short-term β-blocker for symptoms.", "objective": "Diseases in Pregnancy (Marcus) — Thyroid, cardiac, asthma, seizure, VTE, anemia, depression, neuropathies, surgical conditions", "section": "Diseases in Pregnancy"}, {"id": "33A", "group": 33, "stem": "At 16 weeks she remains on therapy. What change is recommended?", "options": [{"letter": "A", "text": "Continue PTU through delivery"}, {"letter": "B", "text": "Stop all antithyroid medication"}, {"letter": "C", "text": "Switch to levothyroxine"}, {"letter": "D", "text": "Switch to methimazole"}, {"letter": "E", "text": "Add radioactive iodine"}], "answer": "D", "explanation": "Switch to methimazole in the 2nd/3rd trimester because PTU causes hepatotoxicity.", "objective": "Diseases in Pregnancy (Marcus) — Thyroid, cardiac, asthma, seizure, VTE, anemia, depression, neuropathies, surgical conditions", "section": "Diseases in Pregnancy"}, {"id": "34", "group": 34, "stem": "A 29-year-old at 28 weeks reports 2 days of left calf swelling and pain. The left calf is 3 cm larger than the right and tender. What is the most appropriate diagnostic test?", "options": [{"letter": "A", "text": "Compression duplex ultrasound"}, {"letter": "B", "text": "V/Q scan"}, {"letter": "C", "text": "CT pulmonary angiography"}, {"letter": "D", "text": "D-dimer"}, {"letter": "E", "text": "Venography"}], "answer": "A", "explanation": "DVT in pregnancy → compression duplex US. D-dimer is physiologically elevated and not useful.", "objective": "Diseases in Pregnancy (Marcus) — Thyroid, cardiac, asthma, seizure, VTE, anemia, depression, neuropathies, surgical conditions", "section": "Diseases in Pregnancy"}, {"id": "34A", "group": 34, "stem": "Ultrasound confirms a left femoral DVT. What is the treatment of choice?", "options": [{"letter": "A", "text": "Apixaban"}, {"letter": "B", "text": "Compression stockings alone"}, {"letter": "C", "text": "Warfarin"}, {"letter": "D", "text": "Aspirin 81 mg"}, {"letter": "E", "text": "Therapeutic enoxaparin (LMWH) through pregnancy and ≥6 weeks postpartum"}], "answer": "E", "explanation": "LMWH is the treatment of choice (continue ≥6 wk postpartum, total ≥3 months; hold ~24 h before delivery/neuraxial). Warfarin is category X in pregnancy (OK postpartum); DOACs are avoided.", "objective": "Diseases in Pregnancy (Marcus) — Thyroid, cardiac, asthma, seizure, VTE, anemia, depression, neuropathies, surgical conditions", "section": "Diseases in Pregnancy"}, {"id": "35", "group": 35, "stem": "A 28-year-old at 24 weeks with persistent asthma stopped her inhaled corticosteroid when she learned she was pregnant. She now uses albuterol 4–5 times a week and wakes at night with cough. Which is the most appropriate controller?", "options": [{"letter": "A", "text": "Continue albuterol only to avoid fetal exposure"}, {"letter": "B", "text": "Oral prednisone daily"}, {"letter": "C", "text": "Inhaled budesonide"}, {"letter": "D", "text": "Montelukast as preferred controller"}, {"letter": "E", "text": "Theophylline"}], "answer": "C", "explanation": "Inhaled budesonide is the preferred ICS in pregnancy (add LABA if uncontrolled). Under-treated asthma (maternal hypoxia → LBW, prematurity, preeclampsia) is riskier than the medications.", "objective": "Diseases in Pregnancy (Marcus) — Thyroid, cardiac, asthma, seizure, VTE, anemia, depression, neuropathies, surgical conditions", "section": "Diseases in Pregnancy"}, {"id": "35A", "group": 35, "stem": "Months later she presents with a severe exacerbation. ABG shows PaCO₂ 40 mm Hg. How should this be interpreted?", "options": [{"letter": "A", "text": "Expected hyperventilation from anxiety"}, {"letter": "B", "text": "Impending respiratory failure, because baseline PaCO₂ in pregnancy is ~30"}, {"letter": "C", "text": "Metabolic acidosis from ketosis"}, {"letter": "D", "text": "Normal — no concern"}, {"letter": "E", "text": "Reassuring compensated respiratory alkalosis"}], "answer": "B", "explanation": "Pregnancy causes compensated respiratory alkalosis (baseline PaCO₂ ~30); a \"normal\" 40 means CO₂ retention — impending failure.", "objective": "Diseases in Pregnancy (Marcus) — Thyroid, cardiac, asthma, seizure, VTE, anemia, depression, neuropathies, surgical conditions", "section": "Diseases in Pregnancy"}, {"id": "36", "group": 36, "stem": "A 31-year-old at 33 weeks reports numbness and tingling of the thumb, index and middle fingers of both hands, worse at night and relieved by shaking her hands. Tinel and Phalen signs are positive; strength is normal. What is first-line management?", "options": [{"letter": "A", "text": "Gabapentin"}, {"letter": "B", "text": "Surgical carpal tunnel release"}, {"letter": "C", "text": "Neutral wrist splints at night with activity modification"}, {"letter": "D", "text": "Nerve conduction studies before any treatment"}, {"letter": "E", "text": "Oral prednisone"}], "answer": "C", "explanation": "Pregnancy carpal tunnel is a clinical diagnosis; first line is a neutral night splint, activity modification and acetaminophen. It usually resolves within weeks of delivery.", "objective": "Diseases in Pregnancy (Marcus) — Thyroid, cardiac, asthma, seizure, VTE, anemia, depression, neuropathies, surgical conditions", "section": "Diseases in Pregnancy"}, {"id": "37", "group": 37, "stem": "A 30-year-old G2P1 at 26 weeks with BMI 31 has a non-fasting 50-g 1-hour glucose challenge of 152 mg/dL. What is the next step?", "options": [{"letter": "A", "text": "Hemoglobin A1c"}, {"letter": "B", "text": "Fasting 100-g 3-hour oral glucose tolerance test"}, {"letter": "C", "text": "Repeat the 50-g challenge in 4 weeks"}, {"letter": "D", "text": "No further testing; value is normal"}, {"letter": "E", "text": "Diagnose gestational diabetes and start insulin"}], "answer": "B", "explanation": "Two-step: 50-g GCT ≥135–140 → fasting 100-g 3-h OGTT. A1c is unreliable in pregnancy and never the GDM screen.", "objective": "Diabetes & Infections in Pregnancy (Lu) — Pre-existing and gestational diabetes", "section": "Diabetes & Infections in Pregnancy"}, {"id": "37A", "group": 37, "stem": "Her 3-hour OGTT values are shown. [[LABS]] What is the interpretation?", "options": [{"letter": "A", "text": "Gestational diabetes — begin nutrition therapy, exercise and self-monitoring of glucose 4×/day"}, {"letter": "B", "text": "Inconclusive — repeat the OGTT"}, {"letter": "C", "text": "Pre-existing type 2 diabetes — start insulin immediately"}, {"letter": "D", "text": "Impaired fasting glucose only — repeat at 32 weeks"}, {"letter": "E", "text": "Normal — no gestational diabetes"}], "answer": "A", "explanation": "≥2 values met or exceeded = GDM (Carpenter-Coustan 95/180/155/140). Fasting 98 and 1-h 186 exceed thresholds. First line: medical nutrition therapy, exercise, SMBG fasting + 2 h after meals.", "objective": "Diabetes & Infections in Pregnancy (Lu) — Pre-existing and gestational diabetes", "section": "Diabetes & Infections in Pregnancy", "labs": [{"test": "Fasting glucose", "result": "98 mg/dL", "range": "<95 mg/dL"}, {"test": "1-hour glucose", "result": "186 mg/dL", "range": "<180 mg/dL"}, {"test": "2-hour glucose", "result": "150 mg/dL", "range": "<155 mg/dL"}, {"test": "3-hour glucose", "result": "128 mg/dL", "range": "<140 mg/dL"}]}, {"id": "37B", "group": 37, "stem": "After 1 week of diet and exercise, 40% of her glucose values are above target. What is the preferred next step?", "options": [{"letter": "A", "text": "Continue diet for another month"}, {"letter": "B", "text": "Glyburide"}, {"letter": "C", "text": "Schedule cesarean at 34 weeks"}, {"letter": "D", "text": "Insulin"}, {"letter": "E", "text": "Metformin"}], "answer": "D", "explanation": "Not at goal (≥30% of values over target in 1 wk) → insulin preferred (does not cross the placenta); metformin or glyburide only if unable/non-adherent with insulin.", "objective": "Diabetes & Infections in Pregnancy (Lu) — Pre-existing and gestational diabetes", "section": "Diabetes & Infections in Pregnancy"}, {"id": "37C", "group": 37, "stem": "Which postpartum follow-up is recommended?", "options": [{"letter": "A", "text": "No follow-up — GDM resolves after delivery"}, {"letter": "B", "text": "HbA1c at the 6-week visit only"}, {"letter": "C", "text": "Annual 100-g OGTT"}, {"letter": "D", "text": "Fasting glucose every 10 years"}, {"letter": "E", "text": "75-g OGTT at 4–12 weeks postpartum, then at least every 3 years"}], "answer": "E", "explanation": "Postpartum 75-g OGTT at 4–12 wk, then at least every 3 years (lifetime T2DM risk ~50–60%).", "objective": "Diabetes & Infections in Pregnancy (Lu) — Pre-existing and gestational diabetes", "section": "Diabetes & Infections in Pregnancy"}, {"id": "38", "group": 38, "stem": "A 26-year-old G2P1 at 12 weeks has a urine culture that grows group B Streptococcus at 20,000 CFU/mL. Which statement about intrapartum management is correct?", "options": [{"letter": "A", "text": "She needs a rectovaginal GBS culture at 36–37 weeks to decide on prophylaxis"}, {"letter": "B", "text": "She should receive intrapartum IV penicillin regardless of later culture; no 36-week swab is needed"}, {"letter": "C", "text": "GBS bacteriuria below 100,000 CFU/mL is ignored"}, {"letter": "D", "text": "Prophylaxis is needed only if she develops intrapartum fever"}, {"letter": "E", "text": "She needs a scheduled cesarean"}], "answer": "B", "explanation": "GBS in the urine at ANY colony count this pregnancy (or a prior GBS-infected infant) = intrapartum prophylaxis regardless of culture; no 36-wk swab needed.", "objective": "Diabetes & Infections in Pregnancy (Lu) — Parasitic, viral and bacterial obstetric infections", "section": "Diabetes & Infections in Pregnancy"}, {"id": "38A", "group": 38, "stem": "In labor she reports a remote non-urticarial rash with penicillin (low risk). Which agent is most appropriate for GBS prophylaxis?", "options": [{"letter": "A", "text": "Azithromycin"}, {"letter": "B", "text": "Cefazolin"}, {"letter": "C", "text": "Gentamicin"}, {"letter": "D", "text": "No prophylaxis"}, {"letter": "E", "text": "Vancomycin"}], "answer": "B", "explanation": "Penicillin allergy: cefazolin (low risk); clindamycin if susceptible; vancomycin. Start ≥4 h before delivery.", "objective": "Diabetes & Infections in Pregnancy (Lu) — Parasitic, viral and bacterial obstetric infections", "section": "Diabetes & Infections in Pregnancy"}, {"id": "39", "group": 39, "stem": "A 24-year-old kindergarten teacher at 16 weeks has joint aches. Several children in her class have \"slapped cheek\" rashes. What is the most appropriate test?", "options": [{"letter": "A", "text": "Rubella titer"}, {"letter": "B", "text": "No testing — parvovirus does not affect pregnancy"}, {"letter": "C", "text": "Toxoplasma IgM/IgG"}, {"letter": "D", "text": "CMV PCR of urine"}, {"letter": "E", "text": "Parvovirus B19 IgG and IgM"}], "answer": "E", "explanation": "Exposure to fifth disease → parvovirus IgG/IgM (IgM+ = recent infection; IgG+/IgM− = immune). No routine screening.", "objective": "Diabetes & Infections in Pregnancy (Lu) — Parasitic, viral and bacterial obstetric infections", "section": "Diabetes & Infections in Pregnancy"}, {"id": "39A", "group": 39, "stem": "IgM is positive. Serial ultrasound with MCA Doppler at 22 weeks shows fetal anemia with ascites and skin edema. What is the management?", "options": [{"letter": "A", "text": "Immediate cesarean delivery"}, {"letter": "B", "text": "Intrauterine transfusion"}, {"letter": "C", "text": "Spiramycin"}, {"letter": "D", "text": "IV acyclovir"}, {"letter": "E", "text": "Termination is the only option"}], "answer": "B", "explanation": "Parvovirus attacks fetal RBC precursors → severe anemia → non-immune hydrops; fetal anemia/hydrops → intrauterine transfusion.", "objective": "Diabetes & Infections in Pregnancy (Lu) — Parasitic, viral and bacterial obstetric infections", "section": "Diabetes & Infections in Pregnancy"}, {"id": "40", "group": 40, "stem": "A 30-year-old at her first prenatal visit is HBsAg-positive with a high HBV viral load. Which plan best prevents vertical transmission?", "options": [{"letter": "A", "text": "Tenofovir for the mother and HBV vaccine + HBIG to the newborn within 12 hours of birth"}, {"letter": "B", "text": "No intervention; HBV is not transmitted vertically"}, {"letter": "C", "text": "Scheduled cesarean delivery"}, {"letter": "D", "text": "Interferon during pregnancy"}, {"letter": "E", "text": "Avoid breastfeeding and give the newborn HBIG at 2 months"}], "answer": "A", "explanation": "HBV transmits mainly intrapartum. Mother: tenofovir if viral load high. Newborn (the key step): HBV vaccine + HBIG within 12 h. Not a C-section indication.", "objective": "Diabetes & Infections in Pregnancy (Lu) — Parasitic, viral and bacterial obstetric infections", "section": "Diabetes & Infections in Pregnancy"}, {"id": "41", "group": 41, "stem": "A 28-year-old at 36 weeks with HIV has a viral load of 12,000 copies/mL despite ART. Which delivery and feeding plan is recommended?", "options": [{"letter": "A", "text": "Cesarean delivery and breastfeeding"}, {"letter": "B", "text": "Cesarean delivery and avoid breastfeeding"}, {"letter": "C", "text": "Vaginal delivery and avoid breastfeeding"}, {"letter": "D", "text": "Vaginal delivery and breastfeeding"}, {"letter": "E", "text": "Induction at 34 weeks"}], "answer": "B", "explanation": "Delivery route is based on viral load — high VL → cesarean. In the US, avoid breastfeeding (HIV transmits in utero, intrapartum AND via breast milk).", "objective": "Diabetes & Infections in Pregnancy (Lu) — Parasitic, viral and bacterial obstetric infections", "section": "Diabetes & Infections in Pregnancy"}, {"id": "42", "group": 42, "stem": "A 29-year-old at 28 weeks has fever, myalgias, headache and diarrhea 1 week after eating deli meats and unpasteurized soft cheese. Blood cultures grow gram-positive rods. What is the treatment?", "options": [{"letter": "A", "text": "Oseltamivir"}, {"letter": "B", "text": "Oral ciprofloxacin"}, {"letter": "C", "text": "IV ampicillin plus gentamicin"}, {"letter": "D", "text": "Supportive care only"}, {"letter": "E", "text": "Ceftriaxone"}], "answer": "C", "explanation": "Listeria monocytogenes (foodborne → transplacental; miscarriage, stillbirth, neonatal sepsis) → IV ampicillin + gentamicin. Notifiable.", "objective": "Diabetes & Infections in Pregnancy (Lu) — Parasitic, viral and bacterial obstetric infections", "section": "Diabetes & Infections in Pregnancy"}, {"id": "43", "group": 43, "stem": "A 22-year-old at 10 weeks tests positive for chlamydia on her first-visit NAAT. What is the treatment?", "options": [{"letter": "A", "text": "Levofloxacin 500 mg daily × 7 days"}, {"letter": "B", "text": "Azithromycin 1 g PO × 1"}, {"letter": "C", "text": "Doxycycline 100 mg BID × 7 days"}, {"letter": "D", "text": "Ceftriaxone 500 mg IM × 1 alone"}, {"letter": "E", "text": "No treatment until after delivery"}], "answer": "B", "explanation": "Chlamydia in pregnancy → azithromycin 1 g × 1; doxycycline is contraindicated in pregnancy. Neonatal infection = conjunctivitis + pneumonia.", "objective": "Diabetes & Infections in Pregnancy (Lu) — Parasitic, viral and bacterial obstetric infections", "section": "Diabetes & Infections in Pregnancy"}, {"id": "44", "group": 44, "stem": "A 38-year-old G2P1 at 41 2/7 weeks has a non-stress test with a baseline of 140 bpm and no accelerations over 40 minutes. What is the next step?", "options": [{"letter": "A", "text": "Amniocentesis"}, {"letter": "B", "text": "Biophysical profile"}, {"letter": "C", "text": "Emergency cesarean delivery"}, {"letter": "D", "text": "Reassure and repeat NST in 1 week"}, {"letter": "E", "text": "Contraction stress test is contraindicated; discharge home"}], "answer": "B", "explanation": "Non-reactive NST is worrisome \"but maybe not\" (fetal sleep, maternal fatigue/dehydration) → next step BPP, not stat cesarean.", "objective": "Labor & Delivery (Cook) — Terms, fetal assessment (NST/CST/BPP), Bishop score, rupture of membranes, normal labor", "section": "Labor & Delivery"}, {"id": "44A", "group": 44, "stem": "The BPP shows no fetal breathing, no gross body movements, normal tone, and a maximum vertical pocket of 1.5 cm, with the non-reactive NST. What is the score and management?", "options": [{"letter": "A", "text": "4/10 — repeat in 1 week"}, {"letter": "B", "text": "6/10 — repeat in 24 hours"}, {"letter": "C", "text": "10/10 — reassure"}, {"letter": "D", "text": "2/10 — deliver"}, {"letter": "E", "text": "8/10 — routine care"}], "answer": "D", "explanation": "Each component scores 2 or 0: tone 2; breathing 0; movement 0; fluid 0 (MVP must be >2 cm); NST 0 → 2/10. ≤4/10 = abnormal → deliver.", "objective": "Labor & Delivery (Cook) — Terms, fetal assessment (NST/CST/BPP), Bishop score, rupture of membranes, normal labor", "section": "Labor & Delivery"}, {"id": "45", "group": 45, "stem": "A 25-year-old G1 at 41 weeks with no prior uterine surgery is admitted for induction. Her cervix is 1 cm dilated, 40% effaced, −2 station, firm and posterior (Bishop score 3). What is the best next step?", "options": [{"letter": "A", "text": "External cephalic version"}, {"letter": "B", "text": "Oxytocin infusion and amniotomy"}, {"letter": "C", "text": "Discharge and return at 43 weeks"}, {"letter": "D", "text": "Cervical ripening with vaginal misoprostol"}, {"letter": "E", "text": "Scheduled cesarean delivery"}], "answer": "D", "explanation": "Bishop ≤6 = unfavorable → cervical ripening first (misoprostol, PGE2/Cervidil, Cook balloon). ≥8 favorable → oxytocin/amniotomy. Induce post-term by 41 wk.", "objective": "Labor & Delivery (Cook) — Terms, fetal assessment (NST/CST/BPP), Bishop score, rupture of membranes, normal labor", "section": "Labor & Delivery"}, {"id": "46", "group": 46, "stem": "A 33-year-old G3P2 with two prior cesarean deliveries presents at 31 weeks with painless bright-red vaginal bleeding. BP 118/70, HR 92. The uterus is soft and non-tender; the fetal heart tracing is reassuring. What is the most appropriate next step?", "options": [{"letter": "A", "text": "Amniotomy"}, {"letter": "B", "text": "Digital cervical exam to assess dilation"}, {"letter": "C", "text": "Transvaginal ultrasound to locate the placenta"}, {"letter": "D", "text": "Immediate cesarean delivery"}, {"letter": "E", "text": "Oxytocin augmentation"}], "answer": "C", "explanation": "Painless bright-red bleeding with a soft uterus = previa until proven otherwise. NO digital exam until previa is excluded; TVUS is the preferred, safe method to locate the placenta.", "objective": "L&D Complications (Cook) — Placental disorders, intrapartum emergencies, PPH, postpartum pituitary and psychiatric disorders", "section": "L&D Complications"}, {"id": "46A", "group": 46, "stem": "Ultrasound shows the placenta completely covering the internal os. Bleeding stops and she remains stable. What is the most appropriate plan?", "options": [{"letter": "A", "text": "Induction of labor at 37 weeks"}, {"letter": "B", "text": "Immediate cesarean at 31 weeks"}, {"letter": "C", "text": "Hospital observation, betamethasone, pelvic rest, and planned cesarean at 36 0/7–37 6/7 weeks"}, {"letter": "D", "text": "Tocolysis with planned vaginal delivery at term"}, {"letter": "E", "text": "Discharge with no restrictions"}], "answer": "C", "explanation": "Stable preterm previa → expectant management (observation, pelvic rest, betamethasone 24–34 wk, RhoGAM if Rh-negative); persistent previa → planned cesarean 36 0/7–37 6/7 wk (labor contraindicated).", "objective": "L&D Complications (Cook) — Placental disorders, intrapartum emergencies, PPH, postpartum pituitary and psychiatric disorders", "section": "L&D Complications"}, {"id": "46B", "group": 46, "stem": "Given her history, which additional evaluation is most important before delivery?", "options": [{"letter": "A", "text": "Targeted ultrasound with color Doppler ± MRI for placenta accreta spectrum"}, {"letter": "B", "text": "Fetal echocardiogram"}, {"letter": "C", "text": "Kleihauer-Betke testing weekly"}, {"letter": "D", "text": "Glucose tolerance test"}, {"letter": "E", "text": "Amniocentesis for lung maturity"}], "answer": "A", "explanation": "Previa + prior cesarean → evaluate for placenta accreta spectrum (risk rises steeply with number of cesareans).", "objective": "L&D Complications (Cook) — Placental disorders, intrapartum emergencies, PPH, postpartum pituitary and psychiatric disorders", "section": "L&D Complications"}, {"id": "47", "group": 47, "stem": "A 34-year-old with poorly controlled gestational diabetes and an estimated fetal weight of 4,300 g has a prolonged second stage. The fetal head delivers and then retracts against the perineum; gentle traction fails to deliver the anterior shoulder. After calling for help, what is the first maneuver?", "options": [{"letter": "A", "text": "Firm downward traction on the head"}, {"letter": "B", "text": "Zavanelli maneuver"}, {"letter": "C", "text": "McRoberts maneuver with suprapubic pressure"}, {"letter": "D", "text": "Fundal pressure"}, {"letter": "E", "text": "Deliberate clavicle fracture"}], "answer": "C", "explanation": "Shoulder dystocia (turtle sign): never pull down/laterally, no fundal pressure. McRoberts (hyperflex legs) + suprapubic pressure → posterior arm/rotational maneuvers → Gaskin; Zavanelli/clavicle fracture are last resorts.", "objective": "L&D Complications (Cook) — Placental disorders, intrapartum emergencies, PPH, postpartum pituitary and psychiatric disorders", "section": "L&D Complications"}, {"id": "47A", "group": 47, "stem": "After delivery, the newborn's right arm is adducted and internally rotated with the wrist flexed. What is the most likely injury?", "options": [{"letter": "A", "text": "Clavicle fracture"}, {"letter": "B", "text": "Humeral fracture"}, {"letter": "C", "text": "Erb's (upper brachial plexus) palsy"}, {"letter": "D", "text": "Klumpke palsy"}, {"letter": "E", "text": "Cephalohematoma"}], "answer": "C", "explanation": "Fetal complications of shoulder dystocia include brachial plexus (Erb's) palsy — the \"waiter's tip\" posture — clavicle/humerus fracture and hypoxia.", "objective": "L&D Complications (Cook) — Placental disorders, intrapartum emergencies, PPH, postpartum pituitary and psychiatric disorders", "section": "L&D Complications"}, {"id": "48", "group": 48, "stem": "A 29-year-old delivers twins vaginally after a prolonged oxytocin induction. Twenty minutes after the placentas deliver, she has lost 1,200 mL of blood. HR 118, BP 104/66. The fundus is soft, boggy and above the umbilicus. What are the first steps?", "options": [{"letter": "A", "text": "Methylergonovine IM as the first agent"}, {"letter": "B", "text": "Bimanual uterine massage, empty the bladder, and IV oxytocin (plus tranexamic acid)"}, {"letter": "C", "text": "Immediate hysterectomy"}, {"letter": "D", "text": "Observe; blood loss is normal for twins"}, {"letter": "E", "text": "Uterine artery embolization"}], "answer": "B", "explanation": "PPH (>1,000 mL) — Tone (atony) is ~70–80%. First line: bimanual massage/compression, empty the bladder, explore the cavity, IV oxytocin; TXA 1 g IV within 3 h.", "objective": "L&D Complications (Cook) — Placental disorders, intrapartum emergencies, PPH, postpartum pituitary and psychiatric disorders", "section": "L&D Complications"}, {"id": "48A", "group": 48, "stem": "Bleeding continues despite oxytocin. She has preeclampsia (BP now 158/104) and a history of asthma. Which uterotonic is most appropriate?", "options": [{"letter": "A", "text": "Misoprostol 800–1,000 mcg"}, {"letter": "B", "text": "Methylergonovine"}, {"letter": "C", "text": "Carboprost"}, {"letter": "D", "text": "Terbutaline"}, {"letter": "E", "text": "Nifedipine"}], "answer": "A", "explanation": "Methylergonovine is avoided in HTN/preeclampsia; carboprost is avoided in asthma → misoprostol.", "objective": "L&D Complications (Cook) — Placental disorders, intrapartum emergencies, PPH, postpartum pituitary and psychiatric disorders", "section": "L&D Complications"}, {"id": "48B", "group": 48, "stem": "Bleeding is controlled after balloon tamponade and 6 units of blood. Six weeks later she reports that her milk never came in, persistent amenorrhea, fatigue and cold intolerance. Labs are shown. [[LABS]] What is the diagnosis?", "options": [{"letter": "A", "text": "Primary adrenal insufficiency (Addison disease)"}, {"letter": "B", "text": "Lymphocytic hypophysitis"}, {"letter": "C", "text": "Postpartum thyroiditis"}, {"letter": "D", "text": "Primary hypothyroidism"}, {"letter": "E", "text": "Sheehan syndrome"}], "answer": "E", "explanation": "Failure to lactate (first sign, ↓ prolactin) after massive PPH + low pituitary AND low target-gland hormones = Sheehan syndrome (postpartum pituitary necrosis).", "objective": "L&D Complications (Cook) — Placental disorders, intrapartum emergencies, PPH, postpartum pituitary and psychiatric disorders", "section": "L&D Complications", "labs": [{"test": "8 AM cortisol", "result": "2.1 µg/dL", "range": "5–23 µg/dL"}, {"test": "ACTH", "result": "Low", "range": "Normal"}, {"test": "Free T4", "result": "0.6 ng/dL", "range": "0.8–1.8 ng/dL"}, {"test": "TSH", "result": "0.9 mU/L", "range": "0.4–4.0 mU/L"}, {"test": "Prolactin", "result": "Low", "range": "Normal"}]}, {"id": "48C", "group": 48, "stem": "Which hormone must be replaced first?", "options": [{"letter": "A", "text": "Levothyroxine"}, {"letter": "B", "text": "Estrogen/progestin"}, {"letter": "C", "text": "Desmopressin"}, {"letter": "D", "text": "Hydrocortisone"}, {"letter": "E", "text": "Growth hormone"}], "answer": "D", "explanation": "Replace glucocorticoid FIRST, then levothyroxine — giving thyroid hormone first can precipitate adrenal crisis.", "objective": "L&D Complications (Cook) — Placental disorders, intrapartum emergencies, PPH, postpartum pituitary and psychiatric disorders", "section": "L&D Complications"}, {"id": "49", "group": 49, "stem": "A 32-year-old undergoing a trial of labor after one low-transverse cesarean is augmented with oxytocin. She suddenly reports severe abdominal pain, the fetal heart rate drops to 70 bpm, and the presenting part is no longer palpable at the prior station. What is the most likely diagnosis and management?", "options": [{"letter": "A", "text": "Normal second stage — continue pushing"}, {"letter": "B", "text": "Placental abruption — amniotomy"}, {"letter": "C", "text": "Cord prolapse — knee-chest position and observation"}, {"letter": "D", "text": "Uterine rupture — immediate laparotomy/cesarean delivery"}, {"letter": "E", "text": "Uterine atony — oxytocin bolus"}], "answer": "D", "explanation": "Fetal bradycardia + loss of station + pain in a scarred uterus = rupture until proven otherwise → emergency laparotomy, deliver, repair or hysterectomy, resuscitate.", "objective": "L&D Complications (Cook) — Placental disorders, intrapartum emergencies, PPH, postpartum pituitary and psychiatric disorders", "section": "L&D Complications"}, {"id": "49A", "group": 49, "stem": "Which cervical ripening agent should have been avoided in a patient with a prior cesarean?", "options": [{"letter": "A", "text": "Membrane sweeping"}, {"letter": "B", "text": "Amniotomy"}, {"letter": "C", "text": "Misoprostol (prostaglandin)"}, {"letter": "D", "text": "Laminaria"}, {"letter": "E", "text": "Cook double balloon"}], "answer": "C", "explanation": "No prostaglandin ripening (misoprostol, PGE2) after prior cesarean/uterine surgery — rupture risk.", "objective": "L&D Complications (Cook) — Placental disorders, intrapartum emergencies, PPH, postpartum pituitary and psychiatric disorders", "section": "L&D Complications"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  const flagged = {};        // question id -> true, set by the learner at any point (never affects score)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  // Lab values as a table. q.labs is [{test, result, range}]. If the stem contains
+  // the marker [[LABS]] the table goes there (so the vignette can continue after
+  // the labs); otherwise it follows the stem.
+  function labsHtml(q) {
+    if (!q.labs || !q.labs.length) return '';
+    const hasRange = q.labs.some(l => l.range);
+    let html = '<table class="labs"><thead><tr><th>Test</th><th>Result</th>' +
+      (hasRange ? '<th>Reference Range</th>' : '') + '</tr></thead><tbody>';
+    q.labs.forEach(l => {
+      html += '<tr><td>' + esc(l.test) + '</td><td class="res">' + esc(l.result) + '</td>' +
+        (hasRange ? '<td class="ref">' + (l.range ? '(' + esc(String(l.range).replace(/^\(|\)$/g, '')) + ')' : '') + '</td>' : '') + '</tr>';
+    });
+    return html + '</tbody></table>';
+  }
+
+  function stemHtml(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    const table = labsHtml(q);
+    if (table && stem.indexOf('[[LABS]]') !== -1) {
+      const parts = stem.split('[[LABS]]');
+      return '<div class="stem">' + esc(parts[0].replace(/\s+$/, '')) + '</div>' + table +
+        (parts[1] && parts[1].trim() ? '<div class="stem">' + esc(parts[1].replace(/^\s+/, '')) + '</div>' : '');
+    }
+    return '<div class="stem">' + esc(stem.replace('[[LABS]]', '')) + '</div>' + table;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += stemHtml(q);
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += flagHtml(q);
+    html += '</div>';
+    return html;
+  }
+
+  // Flagging: available on every question in every mode, right or wrong, answered or
+  // not. A flagged question joins the missed list and the copy-out, so a question that
+  // was guessed correctly (or not understood) can still be carried into the next round
+  // of study. Flagging never changes the score — it is a bookmark, not a second answer.
+  function flagHtml(q) {
+    const on = !!flagged[q.id];
+    return '<div class="flagrow"><button class="flagbtn' + (on ? ' on' : '') + '" data-flag="' +
+      esc(q.id) + '">⚑ ' + (on ? 'Flagged' : 'Flag for review') + '</button></div>';
+  }
+
+  function bindFlags() {
+    $('main').querySelectorAll('[data-flag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-flag');
+        if (flagged[id]) delete flagged[id]; else flagged[id] = true;
+        if (mode === 'missed') {                 // toggle in place; the list is rebuilt on re-entry
+          btn.classList.toggle('on', !!flagged[id]);
+          btn.textContent = '⚑ ' + (flagged[id] ? 'Flagged' : 'Flag for review');
+          return;
+        }
+        renderPage(true);
+      });
+    });
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+    bindFlags();
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {                 // answered wrong, or flagged by the learner
+    return questions.filter(q => flagged[q.id] ||
+      (answers[q.id] !== undefined && answers[q.id] !== q.answer));
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed &amp; flagged (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed &amp; flagged</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          stemHtml(g[0]) + '</div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed & flagged (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed or flagged question' + (missed.length === 1 ? '' : 's');
+    bindFlags();
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  // Plain-text stem with the lab table flattened to one line per lab
+  function stemText(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    if (!q.labs || !q.labs.length) return stem.replace('[[LABS]]', '').trim();
+    const rows = q.labs.map(l => '  ' + l.test + ': ' + l.result + (l.range ? ' (ref ' + String(l.range).replace(/^\(|\)$/g, '') + ')' : '')).join('\n');
+    const i = stem.indexOf('[[LABS]]');
+    const before = i === -1 ? stem : stem.slice(0, i);
+    const hasHeader = /\b(labs|laboratory (studies|results|values))\s*:?\s*$/i.test(before);   // stem already says "Labs:"
+    const block = (hasHeader ? '' : 'Labs:\n') + rows;
+    return (i !== -1 ? before.replace(/\s+$/, '') + '\n' + block + '\n' + stem.slice(i + 8).replace(/^\s+/, '') : stem + '\n' + block).trim();
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + stemText(group[0]));
+      lines.push(stemText(q));
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      if (flagged[q.id]) lines.push(answers[q.id] === q.answer
+        ? 'FLAGGED by me — answered correctly but not understood' : 'FLAGGED by me');
+      lines.push(answers[q.id] === undefined ? 'Not answered' : 'My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed & flagged questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed & flagged'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(flagged).forEach(k => delete flagged[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  /* Lab table: vignettes with several lab values render them as a scannable
+     Test / Result / Reference Range table instead of a run-on sentence. */
+  .labs { width: 100%; border-collapse: separate; border-spacing: 0; margin: 10px 0 14px;
+    font-size: 0.95em; background: #fbfbf9; border: 1px solid #e3e1dc; border-radius: 10px; overflow: hidden; }
+  .labs th, .labs td { text-align: left; padding: 9px 14px; border-bottom: 1px solid #e3e1dc; vertical-align: top; }
+  .labs th { font-weight: 500; color: var(--ink-soft); }
+  .labs td:not(:first-child), .labs th:not(:first-child) { border-left: 1px solid #e3e1dc; }
+  .labs tr:last-child td { border-bottom: 0; }
+  .labs td.ref { color: var(--ink-soft); white-space: nowrap; }
+  .labs td.res { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .group.c3 .labs, .group.c4 .labs { font-size: 0.92em; }
+  .group.c3 .labs th, .group.c3 .labs td, .group.c4 .labs th, .group.c4 .labs td { padding: 5px 10px; }
+  @media (max-width: 520px) { .labs th, .labs td { padding: 7px 9px; } .labs td.ref, .labs td.res { white-space: normal; } }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  /* Flag for review: a bookmark the learner can toggle on any question at any time */
+  .flagrow { margin-top: 12px; }
+  .flagbtn { font: inherit; font-size: 0.82em; font-weight: 600; cursor: pointer; background: transparent;
+    border: 1.5px dashed var(--border); border-radius: 8px; padding: 4px 11px; color: var(--ink-soft); }
+  .flagbtn:hover { border-color: var(--amber); color: var(--amber); }
+  .flagbtn.on { background: var(--amber-bg); border-style: solid; border-color: var(--amber); color: var(--amber); }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = (function (raw) {
+  // Reshuffle stack order and option order on every open; follow-ups keep their clinical order; renumber ids.
+  function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  const groups = {}; const order = [];
+  raw.questions.forEach(q => { if (!groups[q.group]) { groups[q.group] = []; order.push(q.group); } groups[q.group].push(q); });
+  shuffle(order);
+  const out = []; const letters = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+  order.forEach((g, gi) => {
+    groups[g].forEach((q, qi) => {
+      const correct = q.options.find(o => o.letter === q.answer).text;
+      const opts = shuffle(q.options.map(o => o.text)).map((t, i) => ({ letter: letters[i], text: t }));
+      const ans = opts.find(o => o.text === correct).letter;
+      out.push(Object.assign({}, q, { id: String(gi + 1) + (qi === 0 ? '' : letters[qi - 1].toLowerCase()), group: gi + 1, options: opts, answer: ans }));
+    });
+  });
+  return { title: raw.title, questions: out };
+})({"title": "OB-GYN Exam 6 — Keywords, Associations & Rules", "questions": [{"id": "1", "group": 1, "section": "GYN Visit & Screening", "objective": "The annual visit — order of operations", "stem": "Any possibility of pregnancy at a GYN visit → First test:", "options": [{"letter": "A", "text": "CBC"}, {"letter": "B", "text": "Pap smear"}, {"letter": "C", "text": "Pelvic ultrasound"}, {"letter": "D", "text": "Urine or serum hCG"}], "answer": "D", "explanation": "Rule out pregnancy before anything else — the lecturer's first take-home."}, {"id": "1a", "group": 1, "section": "GYN Visit & Screening", "objective": "The annual visit — order of operations", "stem": "19-year-old, sexually active since 15, asymptomatic → Cervical cancer screening:", "options": [{"letter": "A", "text": "Pap smear now"}, {"letter": "B", "text": "Primary HPV test now"}, {"letter": "C", "text": "Co-testing now"}, {"letter": "D", "text": "None until age 21"}], "answer": "D", "explanation": "No cervical screening under 21 regardless of sexual history. She DOES need GC/CT NAAT (<25)."}, {"id": "1b", "group": 1, "section": "GYN Visit & Screening", "objective": "The annual visit — order of operations", "stem": "Total hysterectomy (cervix removed) for fibroids, no CIN 2/3 history → Cervical screening:", "options": [{"letter": "A", "text": "Stop screening"}, {"letter": "B", "text": "Continue Pap every 3 years"}, {"letter": "C", "text": "Vaginal cuff Pap yearly"}, {"letter": "D", "text": "Continue for 20 years"}], "answer": "A", "explanation": "With CIN 2/3 or cervical cancer history → continue 20 years post-op. HPV-vaccinated or cervix retained → keep screening."}, {"id": "1c", "group": 1, "section": "GYN Visit & Screening", "objective": "The annual visit — order of operations", "stem": "HSIL on Pap, age 30 → Next step:", "options": [{"letter": "A", "text": "Total hysterectomy"}, {"letter": "B", "text": "Repeat Pap in 1 year"}, {"letter": "C", "text": "Colposcopy with biopsy"}, {"letter": "D", "text": "Reflex HPV testing"}], "answer": "C", "explanation": "LSIL ≥25, ASC-H, HSIL → colposcopy. AGC → colposcopy + endometrial biopsy."}, {"id": "1d", "group": 1, "section": "GYN Visit & Screening", "objective": "The annual visit — order of operations", "stem": "Atypical glandular cells (AGC) on Pap, age 45 → Cancer the result predicts:", "options": [{"letter": "A", "text": "Ovarian carcinoma"}, {"letter": "B", "text": "Vulvar carcinoma"}, {"letter": "C", "text": "Endometrial carcinoma"}, {"letter": "D", "text": "Vaginal carcinoma"}], "answer": "C", "explanation": "Pap is abnormal in only 30–50% of endometrial cancers, but AGC/AGUS points there → EMB."}, {"id": "2", "group": 2, "section": "GYN Visit & Screening", "objective": "Exam findings → what they mean", "stem": "Cervix presents ANTERIORLY on speculum; fundus not felt abdominally → Uterine position:", "options": [{"letter": "A", "text": "Retroflexed"}, {"letter": "B", "text": "Anteverted"}, {"letter": "C", "text": "Anteflexed"}, {"letter": "D", "text": "Retroverted"}], "answer": "D", "explanation": "Retroverted = whole uterus tilts back. Retroflexed = only the body bends back; cervix stays normal."}, {"id": "3", "group": 3, "section": "Pelvic Organ Prolapse", "objective": "Which wall bulges, how far, what to do", "stem": "Sensation of a vaginal bulge + urinary urgency; ANTERIOR wall descends on Valsalva → Diagnosis:", "options": [{"letter": "A", "text": "Uterine prolapse"}, {"letter": "B", "text": "Enterocele"}, {"letter": "C", "text": "Rectocele"}, {"letter": "D", "text": "Cystocele"}], "answer": "D", "explanation": "Anterior = bladder. Most sensitive POP symptom = sensation of a vaginal bulge."}, {"id": "3a", "group": 3, "section": "Pelvic Organ Prolapse", "objective": "Which wall bulges, how far, what to do", "stem": "Posterior wall bulge, constipation, must splint to empty the rectum → Diagnosis:", "options": [{"letter": "A", "text": "Urethrocele"}, {"letter": "B", "text": "Rectocele"}, {"letter": "C", "text": "Cystocele"}, {"letter": "D", "text": "Enterocele"}], "answer": "B", "explanation": "Posterior compartment = rectum."}, {"id": "3b", "group": 3, "section": "Pelvic Organ Prolapse", "objective": "Which wall bulges, how far, what to do", "stem": "Post-hysterectomy, apical cuff bulge with small bowel behind it → Diagnosis:", "options": [{"letter": "A", "text": "Enterocele"}, {"letter": "B", "text": "Uterine prolapse"}, {"letter": "C", "text": "Cystocele"}, {"letter": "D", "text": "Rectocele"}], "answer": "A", "explanation": "Apical compartment; rides with vault prolapse."}, {"id": "3c", "group": 3, "section": "Pelvic Organ Prolapse", "objective": "Which wall bulges, how far, what to do", "stem": "Prolapse found on exam, patient has NO symptoms → Management:", "options": [{"letter": "A", "text": "Pessary fitting"}, {"letter": "B", "text": "Sacrospinous fixation"}, {"letter": "C", "text": "Hysterectomy"}, {"letter": "D", "text": "Observation"}], "answer": "D", "explanation": "Do not treat asymptomatic prolapse."}, {"id": "3d", "group": 3, "section": "Pelvic Organ Prolapse", "objective": "Which wall bulges, how far, what to do", "stem": "Symptomatic prolapse, wants to avoid surgery → First-line treatment:", "options": [{"letter": "A", "text": "Uterosacral fixation"}, {"letter": "B", "text": "Pessary"}, {"letter": "C", "text": "Weight loss alone"}, {"letter": "D", "text": "Vaginal estrogen alone"}], "answer": "B", "explanation": "Pessary ± Kegels for any stage. Weight loss does NOT reverse prolapse."}, {"id": "4", "group": 4, "section": "GYN Infections", "objective": "The vaginitis engine", "stem": "Thin gray discharge, fishy odor worse after sex, pH 5.0, little itch → Diagnosis:", "options": [{"letter": "A", "text": "Atrophic vaginitis"}, {"letter": "B", "text": "Trichomoniasis"}, {"letter": "C", "text": "Candida vaginitis"}, {"letter": "D", "text": "Bacterial vaginosis"}], "answer": "D", "explanation": "Most common vaginitis. Amsel 3 of 4: thin discharge, whiff +, pH >4.5, clue cells."}, {"id": "4a", "group": 4, "section": "GYN Infections", "objective": "The vaginitis engine", "stem": "Bacterial vaginosis, non-pregnant → Treatment:", "options": [{"letter": "A", "text": "Oral metronidazole"}, {"letter": "B", "text": "Oral azithromycin"}, {"letter": "C", "text": "IM ceftriaxone"}, {"letter": "D", "text": "Oral fluconazole"}], "answer": "A", "explanation": "Or metronidazole gel / clindamycin cream. Partners only for recurrent BV."}, {"id": "4b", "group": 4, "section": "GYN Infections", "objective": "The vaginitis engine", "stem": "Frothy yellow-green discharge, strawberry cervix, many WBCs → Diagnosis:", "options": [{"letter": "A", "text": "Gonococcal cervicitis"}, {"letter": "B", "text": "Trichomoniasis"}, {"letter": "C", "text": "Bacterial vaginosis"}, {"letter": "D", "text": "Candida vaginitis"}], "answer": "B", "explanation": "pH >4.5 like BV — WBCs and motile trichomonads split them. NAAT preferred."}, {"id": "4c", "group": 4, "section": "GYN Infections", "objective": "The vaginitis engine", "stem": "Trichomoniasis → Treatment plan:", "options": [{"letter": "A", "text": "Metronidazole gel for her only"}, {"letter": "B", "text": "Clindamycin cream for her only"}, {"letter": "C", "text": "Fluconazole for her and partners"}, {"letter": "D", "text": "Oral metronidazole for her and all partners"}], "answer": "D", "explanation": "Metronidazole GEL works for BV, NOT trich."}, {"id": "4d", "group": 4, "section": "GYN Infections", "objective": "The vaginitis engine", "stem": "Thick curdy odorless discharge with intense itch 2 weeks after amoxicillin, normal pH → Diagnosis:", "options": [{"letter": "A", "text": "Contact dermatitis"}, {"letter": "B", "text": "Bacterial vaginosis"}, {"letter": "C", "text": "Trichomoniasis"}, {"letter": "D", "text": "Candida vaginitis"}], "answer": "D", "explanation": "DM, antibiotics, steroids, HIV. KOH: pseudohyphae/budding yeast. Not an STI."}, {"id": "5", "group": 5, "section": "GYN Infections", "objective": "The STI grid", "stem": "Asymptomatic 19-year-old with a new partner → Screening test:", "options": [{"letter": "A", "text": "HSV serology"}, {"letter": "B", "text": "GC/CT NAAT"}, {"letter": "C", "text": "RPR"}, {"letter": "D", "text": "Wet mount"}], "answer": "B", "explanation": "Screen all sexually active women <25 and older women at risk. Chlamydia = MC STI, usually silent."}, {"id": "5a", "group": 5, "section": "GYN Infections", "objective": "The STI grid", "stem": "Mucopurulent cervicitis; gram-negative intracellular diplococci → Treatment:", "options": [{"letter": "A", "text": "Oral ciprofloxacin"}, {"letter": "B", "text": "IM ceftriaxone"}, {"letter": "C", "text": "Oral azithromycin"}, {"letter": "D", "text": "Oral metronidazole"}], "answer": "B", "explanation": "Add doxycycline if chlamydia not excluded. No azithro/fluoroquinolones (resistance)."}, {"id": "6", "group": 6, "section": "GYN Infections", "objective": "Syphilis — stage sets the treatment", "stem": "Single PAINLESS indurated genital ulcer + nontender inguinal nodes → Diagnosis:", "options": [{"letter": "A", "text": "Bartholin abscess"}, {"letter": "B", "text": "Primary syphilis"}, {"letter": "C", "text": "Chancroid"}, {"letter": "D", "text": "Genital herpes"}], "answer": "B", "explanation": "Painful = HSV; painless = chancre."}, {"id": "6a", "group": 6, "section": "GYN Infections", "objective": "Syphilis — stage sets the treatment", "stem": "Rash on palms and soles + flat moist condylomata lata → Stage:", "options": [{"letter": "A", "text": "Primary syphilis"}, {"letter": "B", "text": "Late latent syphilis"}, {"letter": "C", "text": "Tertiary syphilis"}, {"letter": "D", "text": "Secondary syphilis"}], "answer": "D", "explanation": "Also moth-eaten alopecia. Lata (flat, moist) ≠ acuminata (HPV)."}, {"id": "6b", "group": 6, "section": "GYN Infections", "objective": "Syphilis — stage sets the treatment", "stem": "Seropositive, asymptomatic, duration UNKNOWN → Treatment:", "options": [{"letter": "A", "text": "Oral doxycycline once"}, {"letter": "B", "text": "Benzathine penicillin G once"}, {"letter": "C", "text": "IV penicillin G"}, {"letter": "D", "text": "Benzathine penicillin G weekly × 3"}], "answer": "D", "explanation": "Can't prove early → treat as late latent."}, {"id": "6c", "group": 6, "section": "GYN Infections", "objective": "Syphilis — stage sets the treatment", "stem": "Fever and myalgias within hours of benzathine penicillin → Diagnosis:", "options": [{"letter": "A", "text": "Jarisch-Herxheimer reaction"}, {"letter": "B", "text": "Secondary syphilis flare"}, {"letter": "C", "text": "Penicillin allergy"}, {"letter": "D", "text": "Serum sickness"}], "answer": "A", "explanation": "NOT a penicillin allergy — antipyretics."}, {"id": "7", "group": 7, "section": "GYN Infections", "objective": "HSV · PID · Bartholin", "stem": "Painful grouped vesicles on an erythematous base + tender inguinal nodes → Diagnosis:", "options": [{"letter": "A", "text": "Chancroid"}, {"letter": "B", "text": "Genital herpes"}, {"letter": "C", "text": "Primary syphilis"}, {"letter": "D", "text": "Condyloma acuminata"}], "answer": "B", "explanation": "Primary episode: antivirals; episodic therapy starts in the prodrome."}, {"id": "7a", "group": 7, "section": "GYN Infections", "objective": "HSV · PID · Bartholin", "stem": "Sexually active, pelvic pain + cervical motion tenderness, no other cause → Next step:", "options": [{"letter": "A", "text": "Diagnostic laparoscopy"}, {"letter": "B", "text": "Await NAAT results"}, {"letter": "C", "text": "Empiric PID treatment"}, {"letter": "D", "text": "Pelvic MRI"}], "answer": "C", "explanation": "Minimum criteria = treat. Overtreatment beats undertreatment."}, {"id": "7b", "group": 7, "section": "GYN Infections", "objective": "HSV · PID · Bartholin", "stem": "Outpatient PID → Regimen:", "options": [{"letter": "A", "text": "Ceftriaxone + doxycycline + metronidazole"}, {"letter": "B", "text": "Azithromycin alone"}, {"letter": "C", "text": "Fluconazole + doxycycline"}, {"letter": "D", "text": "Ciprofloxacin + metronidazole"}], "answer": "A", "explanation": "Recheck in 72 h. Admit for TOA, pregnancy, failed outpatient, can't take PO."}, {"id": "7c", "group": 7, "section": "GYN Infections", "objective": "HSV · PID · Bartholin", "stem": "PID + pleuritic RUQ pain radiating to the right shoulder, normal LFTs → Diagnosis:", "options": [{"letter": "A", "text": "Hepatitis"}, {"letter": "B", "text": "Pyelonephritis"}, {"letter": "C", "text": "Acute cholecystitis"}, {"letter": "D", "text": "Fitz-Hugh-Curtis syndrome"}], "answer": "D", "explanation": "Perihepatitis — 'violin-string' adhesions. Treat the PID."}, {"id": "7d", "group": 7, "section": "GYN Infections", "objective": "HSV · PID · Bartholin", "stem": "Painless, non-inflamed swelling at the 4 o'clock position of the vulva → Management:", "options": [{"letter": "A", "text": "Excisional biopsy"}, {"letter": "B", "text": "I&D with Word catheter"}, {"letter": "C", "text": "Amoxicillin-clavulanate"}, {"letter": "D", "text": "Sitz baths and observation"}], "answer": "D", "explanation": "Bartholin CYST. Abscess (tender, fluctuant) → I&D + Word catheter. Postmenopausal/solid → biopsy for carcinoma."}, {"id": "8", "group": 8, "section": "Menstrual Cycle Dysfunction", "objective": "PMS · PMDD · dysmenorrhea", "stem": "Irritability and bloating in the 5 days before menses, relief once bleeding starts, 3 cycles → Diagnosis:", "options": [{"letter": "A", "text": "Major depressive disorder"}, {"letter": "B", "text": "Premenstrual syndrome"}, {"letter": "C", "text": "Premenstrual dysphoric disorder"}, {"letter": "D", "text": "Perimenopause"}], "answer": "B", "explanation": "≥1 affective or somatic symptom; MC behavioral sx = irritability."}, {"id": "8a", "group": 8, "section": "Menstrual Cycle Dysfunction", "objective": "PMS · PMDD · dysmenorrhea", "stem": "≥5 symptoms incl. marked mood lability in the final week before menses, impairing work → Diagnosis:", "options": [{"letter": "A", "text": "Premenstrual dysphoric disorder"}, {"letter": "B", "text": "Bipolar disorder"}, {"letter": "C", "text": "Premenstrual syndrome"}, {"letter": "D", "text": "Generalized anxiety"}], "answer": "A", "explanation": "≥5 of 11 with ≥1 core mood symptom."}, {"id": "8b", "group": 8, "section": "Menstrual Cycle Dysfunction", "objective": "PMS · PMDD · dysmenorrhea", "stem": "PMDD → First-line treatment:", "options": [{"letter": "A", "text": "Multiphasic OCP"}, {"letter": "B", "text": "Benzodiazepine"}, {"letter": "C", "text": "SSRI"}, {"letter": "D", "text": "NSAID alone"}], "answer": "C", "explanation": "Continuous or luteal-only. Avoid multiphasic OCPs (worsen mood)."}, {"id": "8c", "group": 8, "section": "Menstrual Cycle Dysfunction", "objective": "PMS · PMDD · dysmenorrhea", "stem": "17-year-old, crampy pain days 1–2 of menses, normal pelvic exam → First-line treatment:", "options": [{"letter": "A", "text": "NSAIDs"}, {"letter": "B", "text": "Hysteroscopy"}, {"letter": "C", "text": "Diagnostic laparoscopy"}, {"letter": "D", "text": "GnRH agonist"}], "answer": "A", "explanation": "Primary dysmenorrhea (PGF2α). Then monophasic COC."}, {"id": "9", "group": 9, "section": "Menstrual Cycle Dysfunction", "objective": "PCOS — Rotterdam, then treat by goal", "stem": "Oligomenorrhea, hirsutism, acne, acanthosis nigricans → Diagnosis:", "options": [{"letter": "A", "text": "Nonclassic adrenal hyperplasia"}, {"letter": "B", "text": "Primary hypothyroidism"}, {"letter": "C", "text": "Polycystic ovarian syndrome"}, {"letter": "D", "text": "Cushing syndrome"}], "answer": "C", "explanation": "Rotterdam 2 of 3: oligo/anovulation, hyperandrogenism, polycystic ovaries. Cysts are NOT mandatory."}, {"id": "9a", "group": 9, "section": "Menstrual Cycle Dysfunction", "objective": "PCOS — Rotterdam, then treat by goal", "stem": "PCOS, not trying to conceive, wants regular cycles → First-line drug:", "options": [{"letter": "A", "text": "Leuprolide injection"}, {"letter": "B", "text": "Clomiphene citrate"}, {"letter": "C", "text": "Letrozole for ovulation"}, {"letter": "D", "text": "Combined oral contraceptive"}], "answer": "D", "explanation": "Plus weight loss for everyone. Metformin 2nd-line; spironolactone is teratogenic."}, {"id": "9b", "group": 9, "section": "Menstrual Cycle Dysfunction", "objective": "PCOS — Rotterdam, then treat by goal", "stem": "PCOS, trying to conceive → First-line ovulation induction:", "options": [{"letter": "A", "text": "Letrozole"}, {"letter": "B", "text": "Spironolactone"}, {"letter": "C", "text": "Metformin alone"}, {"letter": "D", "text": "Combined OCP"}], "answer": "A", "explanation": "Clomiphene is the alternative."}, {"id": "10", "group": 10, "section": "Menstrual Cycle Dysfunction", "objective": "Abnormal uterine bleeding — PALM-COEIN", "stem": "Abnormal bleeding in a reproductive-age woman → First test:", "options": [{"letter": "A", "text": "hCG"}, {"letter": "B", "text": "Endometrial biopsy"}, {"letter": "C", "text": "Coagulation panel"}, {"letter": "D", "text": "Hysteroscopy"}], "answer": "A", "explanation": "Pregnancy complications first, always."}, {"id": "10a", "group": 10, "section": "Menstrual Cycle Dysfunction", "objective": "Abnormal uterine bleeding — PALM-COEIN", "stem": "Adolescent with heavy menses since menarche → Labs to add:", "options": [{"letter": "A", "text": "Coagulation studies"}, {"letter": "B", "text": "FSH and LH"}, {"letter": "C", "text": "CA-125"}, {"letter": "D", "text": "Endometrial biopsy"}], "answer": "A", "explanation": "von Willebrand — coags in ALL adolescents with heavy menstrual bleeding."}, {"id": "11a", "group": 11, "section": "Menstrual Cycle Dysfunction", "objective": "Amenorrhea engine", "stem": "No menses by 15, short stature, webbed neck, no breasts, ↑ FSH → Diagnosis:", "options": [{"letter": "A", "text": "Müllerian agenesis"}, {"letter": "B", "text": "Turner syndrome"}, {"letter": "C", "text": "Kallmann syndrome"}, {"letter": "D", "text": "Androgen insensitivity"}], "answer": "B", "explanation": "45,XO with streak gonads → HRT."}, {"id": "11b", "group": 11, "section": "Menstrual Cycle Dysfunction", "objective": "Amenorrhea engine", "stem": "Breasts present, scant pubic/axillary hair, blind vaginal pouch → Diagnosis:", "options": [{"letter": "A", "text": "Androgen insensitivity syndrome"}, {"letter": "B", "text": "Turner syndrome (45,XO)"}, {"letter": "C", "text": "Müllerian agenesis (MRKH)"}, {"letter": "D", "text": "Kallmann syndrome"}], "answer": "A", "explanation": "46,XY with testes. Müllerian agenesis has normal hair and is 46,XX."}, {"id": "11c", "group": 11, "section": "Menstrual Cycle Dysfunction", "objective": "Amenorrhea engine", "stem": "Amenorrhea after D&C for retained tissue; normal hormones; no withdrawal bleed → Diagnosis:", "options": [{"letter": "A", "text": "Asherman syndrome"}, {"letter": "B", "text": "Prolactinoma"}, {"letter": "C", "text": "Premature ovarian insufficiency"}, {"letter": "D", "text": "Sheehan syndrome"}], "answer": "A", "explanation": "Intrauterine adhesions → hysteroscopic lysis."}, {"id": "12", "group": 12, "section": "Menstrual Cycle Dysfunction", "objective": "Endometriosis vs adenomyosis", "stem": "Progressive dysmenorrhea, deep dyspareunia, infertility, tender uterosacral nodules → Diagnosis:", "options": [{"letter": "A", "text": "Endometriosis"}, {"letter": "B", "text": "Primary dysmenorrhea"}, {"letter": "C", "text": "Leiomyoma"}, {"letter": "D", "text": "Adenomyosis"}], "answer": "A", "explanation": "Endometrial tissue OUTSIDE the uterus; ovaries MC site."}, {"id": "12a", "group": 12, "section": "Menstrual Cycle Dysfunction", "objective": "Endometriosis vs adenomyosis", "stem": "Endometriosis → Definitive diagnosis:", "options": [{"letter": "A", "text": "Laparoscopy with biopsy"}, {"letter": "B", "text": "Pelvic MRI"}, {"letter": "C", "text": "CA-125"}, {"letter": "D", "text": "Transvaginal ultrasound"}], "answer": "A", "explanation": "Definitive — but NOT required before starting treatment."}, {"id": "12b", "group": 12, "section": "Menstrual Cycle Dysfunction", "objective": "Endometriosis vs adenomyosis", "stem": "Endometriosis → First-line treatment:", "options": [{"letter": "A", "text": "Total hysterectomy + BSO"}, {"letter": "B", "text": "Continuous COC + NSAID"}, {"letter": "C", "text": "Danazol monotherapy"}, {"letter": "D", "text": "Clomiphene + letrozole"}], "answer": "B", "explanation": "→ progestins → GnRH agonist/antagonist with add-back."}, {"id": "12c", "group": 12, "section": "Menstrual Cycle Dysfunction", "objective": "Endometriosis vs adenomyosis", "stem": "Multiparous 45-year-old, heavy painful menses, soft boggy symmetrically enlarged uterus → Diagnosis:", "options": [{"letter": "A", "text": "Leiomyoma"}, {"letter": "B", "text": "Adenomyosis"}, {"letter": "C", "text": "Endometrial carcinoma"}, {"letter": "D", "text": "Endometriosis"}], "answer": "B", "explanation": "Endometrium within the myometrium. Fibroid = irregular, firm. Hysterectomy is definitive."}, {"id": "13", "group": 13, "section": "Menopause", "objective": "Stage it, then treat the symptom type", "stem": "52-year-old, no period for 12 consecutive months → Workup required:", "options": [{"letter": "A", "text": "Serum FSH and LH"}, {"letter": "B", "text": "Serum estradiol level"}, {"letter": "C", "text": "History and medication review"}, {"letter": "D", "text": "Pelvic ultrasound"}], "answer": "C", "explanation": "Menopause is a clinical, retrospective diagnosis — FSH not required at typical age."}, {"id": "13a", "group": 13, "section": "Menopause", "objective": "Stage it, then treat the symptom type", "stem": "Most common and first menopausal symptom →", "options": [{"letter": "A", "text": "Vaginal dryness"}, {"letter": "B", "text": "Insomnia"}, {"letter": "C", "text": "Recurrent UTIs"}, {"letter": "D", "text": "Hot flashes"}], "answer": "D", "explanation": "VMS peak in the late transition, then fade over a few years."}, {"id": "13b", "group": 13, "section": "Menopause", "objective": "Stage it, then treat the symptom type", "stem": "Menopausal symptoms that keep worsening after menopause →", "options": [{"letter": "A", "text": "Genitourinary syndrome of menopause"}, {"letter": "B", "text": "Night sweats and insomnia"}, {"letter": "C", "text": "Vasomotor hot flashes"}, {"letter": "D", "text": "Mood lability and irritability"}], "answer": "A", "explanation": "Dryness, dyspareunia, urgency, recurrent UTIs — they do not resolve."}, {"id": "14", "group": 14, "section": "Menopause", "objective": "Menopause treatment pairings", "stem": "Moderate–severe hot flashes, uterus intact, age 53 → Treatment:", "options": [{"letter": "A", "text": "Estrogen alone"}, {"letter": "B", "text": "Vaginal estrogen alone"}, {"letter": "C", "text": "Ospemifene"}, {"letter": "D", "text": "Estrogen + progestin"}], "answer": "D", "explanation": "Never unopposed systemic estrogen with a uterus → endometrial hyperplasia/cancer."}, {"id": "14a", "group": 14, "section": "Menopause", "objective": "Menopause treatment pairings", "stem": "MHT contraindicated, daytime hot flashes → First-line drug:", "options": [{"letter": "A", "text": "Gabapentin"}, {"letter": "B", "text": "SSRI (paroxetine)"}, {"letter": "C", "text": "Clonidine"}, {"letter": "D", "text": "Black cohosh"}], "answer": "B", "explanation": "Night symptoms → gabapentin (sedation) or clonidine."}, {"id": "14b", "group": 14, "section": "Menopause", "objective": "Menopause treatment pairings", "stem": "Hot flashes in a breast cancer patient on tamoxifen → Drug:", "options": [{"letter": "A", "text": "Venlafaxine"}, {"letter": "B", "text": "Paroxetine"}, {"letter": "C", "text": "Systemic estrogen"}, {"letter": "D", "text": "Fluoxetine"}], "answer": "A", "explanation": "SSRIs ↓ tamoxifen metabolism."}, {"id": "14d", "group": 14, "section": "Menopause", "objective": "Menopause treatment pairings", "stem": "Severe vaginal dryness and dyspareunia, lubricants failed → Treatment:", "options": [{"letter": "A", "text": "Oral SSRI"}, {"letter": "B", "text": "Oral gabapentin"}, {"letter": "C", "text": "Systemic estrogen + progestin"}, {"letter": "D", "text": "Low-dose vaginal estrogen"}], "answer": "D", "explanation": "Cream, tablet, or ring — minimal systemic exposure."}, {"id": "15", "group": 15, "section": "GYN Malignancies", "objective": "Endometrial carcinoma", "stem": "62-year-old with postmenopausal bleeding → First test:", "options": [{"letter": "A", "text": "Pelvic MRI"}, {"letter": "B", "text": "Transvaginal ultrasound"}, {"letter": "C", "text": "Pap smear"}, {"letter": "D", "text": "CA-125 level"}], "answer": "B", "explanation": "PMB = cancer until proven otherwise. EMB is also acceptable first."}, {"id": "15a", "group": 15, "section": "GYN Malignancies", "objective": "Endometrial carcinoma", "stem": "Postmenopausal bleeding, endometrial stripe >4 mm → Next step:", "options": [{"letter": "A", "text": "Repeat TVUS in 6 months"}, {"letter": "B", "text": "Hysterectomy"}, {"letter": "C", "text": "Endometrial biopsy"}, {"letter": "D", "text": "CA-125"}], "answer": "C", "explanation": "Negative EMB but persistent bleeding → hysteroscopy / D&C."}, {"id": "15b", "group": 15, "section": "GYN Malignancies", "objective": "Endometrial carcinoma", "stem": "Obese, nulliparous, PCOS, late menopause → Cancer risk theme:", "options": [{"letter": "A", "text": "HPV infection"}, {"letter": "B", "text": "Lichen sclerosus"}, {"letter": "C", "text": "BRCA mutation"}, {"letter": "D", "text": "Unopposed estrogen"}], "answer": "D", "explanation": "Endometrial = MC GYN cancer; adenocarcinoma."}, {"id": "15c", "group": 15, "section": "GYN Malignancies", "objective": "Endometrial carcinoma", "stem": "Endometrial carcinoma → Primary treatment:", "options": [{"letter": "A", "text": "Wide local excision"}, {"letter": "B", "text": "Chemoradiation alone"}, {"letter": "C", "text": "LEEP"}, {"letter": "D", "text": "Total hysterectomy with BSO"}], "answer": "D", "explanation": "Surgical staging; ± radiation."}, {"id": "16", "group": 16, "section": "GYN Malignancies", "objective": "Cervical · vulvar · vaginal", "stem": "Postcoital bleeding and watery discharge → Cancer to rule out:", "options": [{"letter": "A", "text": "Endometrial carcinoma"}, {"letter": "B", "text": "Cervical carcinoma"}, {"letter": "C", "text": "Ovarian carcinoma"}, {"letter": "D", "text": "Vulvar carcinoma"}], "answer": "B", "explanation": "Cervicitis is more common, but contact bleeding = cervical cancer until proven otherwise."}, {"id": "16a", "group": 16, "section": "GYN Malignancies", "objective": "Cervical · vulvar · vaginal", "stem": "Cervical cancer → Principal cause:", "options": [{"letter": "A", "text": "Unopposed estrogen"}, {"letter": "B", "text": "Lichen sclerosus"}, {"letter": "C", "text": "BRCA mutation"}, {"letter": "D", "text": "HPV 16/18"}], "answer": "D", "explanation": "CIN precedes invasion by ~10 years; only GYN cancer with population screening."}, {"id": "16b", "group": 16, "section": "GYN Malignancies", "objective": "Cervical · vulvar · vaginal", "stem": "Cervical cancer invading the parametria (IIB) → Treatment:", "options": [{"letter": "A", "text": "Simple hysterectomy"}, {"letter": "B", "text": "Radical hysterectomy"}, {"letter": "C", "text": "Cone biopsy"}, {"letter": "D", "text": "Chemoradiation"}], "answer": "D", "explanation": "IIA → radical hysterectomy; IIB+ → chemoradiation, not surgery."}, {"id": "16c", "group": 16, "section": "GYN Malignancies", "objective": "Cervical · vulvar · vaginal", "stem": "Elderly woman, chronic vulvar itch, lichen sclerosus, persistent labial plaque → Next step:", "options": [{"letter": "A", "text": "Antifungal cream"}, {"letter": "B", "text": "Vulvar biopsy"}, {"letter": "C", "text": "Topical steroid trial"}, {"letter": "D", "text": "Reassurance"}], "answer": "B", "explanation": "Vulvar cancer — don't keep treating as dermatitis."}, {"id": "17", "group": 17, "section": "GYN Malignancies", "objective": "Ovarian carcinoma", "stem": "63-year-old, constant bloating, early satiety, ascites → Suspected diagnosis:", "options": [{"letter": "A", "text": "Cervical carcinoma"}, {"letter": "B", "text": "Leiomyoma"}, {"letter": "C", "text": "Ovarian carcinoma"}, {"letter": "D", "text": "Endometrial carcinoma"}], "answer": "C", "explanation": "'Silent' cancer; 5th cause of cancer death."}, {"id": "17a", "group": 17, "section": "GYN Malignancies", "objective": "Ovarian carcinoma", "stem": "Suspected ovarian cancer → Initial workup:", "options": [{"letter": "A", "text": "TVUS + CA-125"}, {"letter": "B", "text": "Endometrial biopsy"}, {"letter": "C", "text": "Pap smear"}, {"letter": "D", "text": "Colposcopy"}], "answer": "A", "explanation": "Then CT/MRI; definitive diagnosis and staging at laparotomy."}, {"id": "17b", "group": 17, "section": "GYN Malignancies", "objective": "Ovarian carcinoma", "stem": "Average-risk woman asks for ovarian cancer screening → Recommendation:", "options": [{"letter": "A", "text": "CA-125 + TVUS yearly"}, {"letter": "B", "text": "No routine screening"}, {"letter": "C", "text": "Annual CA-125"}, {"letter": "D", "text": "Annual TVUS"}], "answer": "B", "explanation": "False positives → unnecessary surgery. CA-125 = monitoring after treatment."}, {"id": "18", "group": 18, "section": "Benign GYN Neoplasms", "objective": "Fibroid vs polyp vs adnexal mass", "stem": "40-year-old, heavy prolonged menses, firm irregular 'cobblestone' uterus → Diagnosis:", "options": [{"letter": "A", "text": "Leiomyoma"}, {"letter": "B", "text": "Endometrial carcinoma"}, {"letter": "C", "text": "Adenomyosis"}, {"letter": "D", "text": "Endometrial polyp"}], "answer": "A", "explanation": "MC benign pelvic tumor; estrogen-driven; MC reason for hysterectomy."}, {"id": "18a", "group": 18, "section": "Benign GYN Neoplasms", "objective": "Fibroid vs polyp vs adnexal mass", "stem": "Suspected leiomyoma → First test:", "options": [{"letter": "A", "text": "Pelvic MRI"}, {"letter": "B", "text": "Hysterosalpingogram"}, {"letter": "C", "text": "Transvaginal ultrasound"}, {"letter": "D", "text": "CA-125"}], "answer": "C", "explanation": "MRI only for surgical planning."}, {"id": "18b", "group": 18, "section": "Benign GYN Neoplasms", "objective": "Fibroid vs polyp vs adnexal mass", "stem": "Symptomatic fibroids, wants future pregnancy → Procedure:", "options": [{"letter": "A", "text": "Myomectomy"}, {"letter": "B", "text": "Hysterectomy"}, {"letter": "C", "text": "Uterine artery embolization"}, {"letter": "D", "text": "Endometrial ablation"}], "answer": "A", "explanation": "UAE impairs fertility; hysterectomy is definitive."}, {"id": "18c", "group": 18, "section": "Benign GYN Neoplasms", "objective": "Fibroid vs polyp vs adnexal mass", "stem": "Light intermenstrual bleeding in a postmenopausal woman on tamoxifen → Likely lesion:", "options": [{"letter": "A", "text": "Endometrial polyp"}, {"letter": "B", "text": "Adenomyosis"}, {"letter": "C", "text": "Leiomyoma"}, {"letter": "D", "text": "Cervical ectropion"}], "answer": "A", "explanation": "Also HRT, obesity. TVUS can miss polyps."}, {"id": "18d", "group": 18, "section": "Benign GYN Neoplasms", "objective": "Fibroid vs polyp vs adnexal mass", "stem": "Symptomatic endometrial polyp → Diagnosis and treatment:", "options": [{"letter": "A", "text": "Observation"}, {"letter": "B", "text": "Uterine artery embolization"}, {"letter": "C", "text": "Hysteroscopic polypectomy"}, {"letter": "D", "text": "GnRH agonist"}], "answer": "C", "explanation": "Removal mandated if symptomatic or postmenopausal — get tissue."}, {"id": "19", "group": 19, "section": "Breast", "objective": "Benign breast — buzzword → move", "stem": "Cyclic bilateral tender breast lumpiness, worse premenstrually → Diagnosis:", "options": [{"letter": "A", "text": "Fibroadenoma"}, {"letter": "B", "text": "Breast cancer"}, {"letter": "C", "text": "Mastitis"}, {"letter": "D", "text": "Fibrocystic changes"}], "answer": "D", "explanation": "MC benign breast condition — supportive bra, NSAIDs, ↓ caffeine."}, {"id": "19a", "group": 19, "section": "Breast", "objective": "Benign breast — buzzword → move", "stem": "22-year-old, solitary rubbery, well-circumscribed, freely mobile mass → Diagnosis:", "options": [{"letter": "A", "text": "Fat necrosis"}, {"letter": "B", "text": "Fibroadenoma"}, {"letter": "C", "text": "Phyllodes tumor"}, {"letter": "D", "text": "Breast cyst"}], "answer": "B", "explanation": "MC benign tumor."}, {"id": "19b", "group": 19, "section": "Breast", "objective": "Benign breast — buzzword → move", "stem": "'Fibroadenoma' that grows rapidly and becomes large → Diagnosis:", "options": [{"letter": "A", "text": "Fibrocystic change"}, {"letter": "B", "text": "Intraductal papilloma"}, {"letter": "C", "text": "Lipoma"}, {"letter": "D", "text": "Phyllodes tumor"}], "answer": "D", "explanation": "Wide excision with negative margins."}, {"id": "19c", "group": 19, "section": "Breast", "objective": "Benign breast — buzzword → move", "stem": "Breastfeeding, 3 weeks postpartum, red tender wedge + fever → Treatment:", "options": [{"letter": "A", "text": "Incision and drainage"}, {"letter": "B", "text": "Dicloxacillin, keep breastfeeding"}, {"letter": "C", "text": "Dicloxacillin, stop breastfeeding"}, {"letter": "D", "text": "Warm compresses alone"}], "answer": "B", "explanation": "Mastitis — S. aureus; no massage."}, {"id": "19d", "group": 19, "section": "Breast", "objective": "Benign breast — buzzword → move", "stem": "'Mastitis' not improving on antibiotics; peau d'orange, no discrete lump → Next step:", "options": [{"letter": "A", "text": "Repeat ultrasound"}, {"letter": "B", "text": "Biopsy"}, {"letter": "C", "text": "Warm compresses"}, {"letter": "D", "text": "Second antibiotic course"}], "answer": "B", "explanation": "Inflammatory breast cancer — T4, poor prognosis."}, {"id": "20", "group": 20, "section": "Breast", "objective": "Nipple discharge & gynecomastia", "stem": "Spontaneous, bloody, unilateral nipple discharge → Next step:", "options": [{"letter": "A", "text": "Prolactin level"}, {"letter": "B", "text": "Surgical referral"}, {"letter": "C", "text": "Reassurance"}, {"letter": "D", "text": "Pituitary MRI"}], "answer": "B", "explanation": "Imaging → duct excision (intraductal papilloma vs cancer)."}, {"id": "20a", "group": 20, "section": "Breast", "objective": "Nipple discharge & gynecomastia", "stem": "Bilateral milky nipple discharge, not pregnant or lactating → Labs:", "options": [{"letter": "A", "text": "Prolactin + TSH"}, {"letter": "B", "text": "CA 15-3"}, {"letter": "C", "text": "Estradiol + FSH"}, {"letter": "D", "text": "Cortisol"}], "answer": "A", "explanation": "Pituitary MRI only if prolactin is elevated."}, {"id": "20b", "group": 20, "section": "Breast", "objective": "Nipple discharge & gynecomastia", "stem": "Crusted, scaly, oozing nipple and areola → Diagnosis:", "options": [{"letter": "A", "text": "Eczema"}, {"letter": "B", "text": "Mastitis"}, {"letter": "C", "text": "Intraductal papilloma"}, {"letter": "D", "text": "Paget's disease of the breast"}], "answer": "D", "explanation": "Underlying DCIS or invasive ductal carcinoma."}, {"id": "20c", "group": 20, "section": "Breast", "objective": "Nipple discharge & gynecomastia", "stem": "Man on spironolactone, tender rubbery disc concentric beneath the nipple → Diagnosis:", "options": [{"letter": "A", "text": "Male breast cancer"}, {"letter": "B", "text": "Gynecomastia"}, {"letter": "C", "text": "Lipoma"}, {"letter": "D", "text": "Pseudogynecomastia"}], "answer": "B", "explanation": "Rule out cancer (eccentric, hard), then stop the culprit drug."}, {"id": "21", "group": 21, "section": "Breast", "objective": "Breast cancer — present, image, treat by receptor", "stem": "58-year-old, painless hard fixed irregular breast mass → Imaging:", "options": [{"letter": "A", "text": "Whole-body PET scan"}, {"letter": "B", "text": "Diagnostic mammogram + ultrasound"}, {"letter": "C", "text": "Screening mammogram alone"}, {"letter": "D", "text": "Breast ultrasound alone"}], "answer": "B", "explanation": "Then core needle biopsy for tissue."}, {"id": "21a", "group": 21, "section": "Breast", "objective": "Breast cancer — present, image, treat by receptor", "stem": "ER-positive breast cancer, premenopausal → Endocrine therapy:", "options": [{"letter": "A", "text": "Trastuzumab"}, {"letter": "B", "text": "Tamoxifen"}, {"letter": "C", "text": "None"}, {"letter": "D", "text": "Aromatase inhibitor alone"}], "answer": "B", "explanation": "AIs alone don't work premenopausally (ovaries still make estrogen)."}, {"id": "21b", "group": 21, "section": "Breast", "objective": "Breast cancer — present, image, treat by receptor", "stem": "HER2-positive breast cancer → Targeted drug:", "options": [{"letter": "A", "text": "Tamoxifen"}, {"letter": "B", "text": "Letrozole"}, {"letter": "C", "text": "Trastuzumab"}, {"letter": "D", "text": "Fulvestrant"}], "answer": "C", "explanation": "± pertuzumab; teratogenic."}, {"id": "21c", "group": 21, "section": "Breast", "objective": "Breast cancer — present, image, treat by receptor", "stem": "BRCA1 mutation carrier with breast cancer → Most likely receptor profile:", "options": [{"letter": "A", "text": "HER2-positive"}, {"letter": "B", "text": "Triple-negative"}, {"letter": "C", "text": "PR-positive only"}, {"letter": "D", "text": "ER-positive"}], "answer": "B", "explanation": "Chemo ± immunotherapy; no hormone or HER2 therapy. BRCA2 → ER+."}, {"id": "22", "group": 22, "section": "Prenatal Care", "objective": "Is she pregnant, and how far along?", "stem": "Positive pregnancy test → Category of pregnancy sign:", "options": [{"letter": "A", "text": "Positive"}, {"letter": "B", "text": "Diagnostic"}, {"letter": "C", "text": "Probable"}, {"letter": "D", "text": "Presumptive"}], "answer": "C", "explanation": "Positive signs: examiner-felt movement, fetal heart tones, fetus on ultrasound."}, {"id": "23", "group": 23, "section": "Prenatal Care", "objective": "What is due, and when", "stem": "Screen at 24–28 weeks in every pregnancy → Test:", "options": [{"letter": "A", "text": "1-hour glucose challenge"}, {"letter": "B", "text": "HbA1c level"}, {"letter": "C", "text": "GBS culture"}, {"letter": "D", "text": "Quad screen"}], "answer": "A", "explanation": "Insulin resistance rises in the 2nd–3rd trimester."}, {"id": "23a", "group": 23, "section": "Prenatal Care", "objective": "What is due, and when", "stem": "Rh-negative, antibody screen negative at 28 weeks → Give:", "options": [{"letter": "A", "text": "IVIG"}, {"letter": "B", "text": "Rh-positive blood"}, {"letter": "C", "text": "Nothing until delivery"}, {"letter": "D", "text": "RhoGAM"}], "answer": "D", "explanation": "Also after delivery of an Rh+ baby and any bleed/procedure. Antibody-positive = already sensitized."}, {"id": "23b", "group": 23, "section": "Prenatal Care", "objective": "What is due, and when", "stem": "36–37 weeks → Screening test:", "options": [{"letter": "A", "text": "GBS rectovaginal culture"}, {"letter": "B", "text": "Rubella titer"}, {"letter": "C", "text": "1-hour glucose challenge"}, {"letter": "D", "text": "Quad screen"}], "answer": "A", "explanation": "Positive → IV penicillin in labor."}, {"id": "23c", "group": 23, "section": "Prenatal Care", "objective": "What is due, and when", "stem": "Vaccine recommended in EVERY pregnancy →", "options": [{"letter": "A", "text": "MMR"}, {"letter": "B", "text": "Tdap"}, {"letter": "C", "text": "Live intranasal influenza"}, {"letter": "D", "text": "Varicella"}], "answer": "B", "explanation": "Plus inactivated flu any trimester; RSV in season."}, {"id": "23d", "group": 23, "section": "Prenatal Care", "objective": "What is due, and when", "stem": "Quad screen with ELEVATED AFP → Suspect:", "options": [{"letter": "A", "text": "Normal pregnancy"}, {"letter": "B", "text": "Trisomy 18"}, {"letter": "C", "text": "Open neural tube defect"}, {"letter": "D", "text": "Down syndrome"}], "answer": "C", "explanation": "Down: ↓ AFP, ↓ estriol, ↑ hCG, ↑ inhibin."}, {"id": "24", "group": 24, "section": "Prenatal Care", "objective": "Common complaints & fetal surveillance", "stem": "Nausea and vomiting of pregnancy, diet changes failed → First drug:", "options": [{"letter": "A", "text": "Ondansetron"}, {"letter": "B", "text": "Metoclopramide"}, {"letter": "C", "text": "Pyridoxine ± doxylamine"}, {"letter": "D", "text": "IV fluids + promethazine"}], "answer": "C", "explanation": "Then ondansetron/metoclopramide."}, {"id": "24a", "group": 24, "section": "Prenatal Care", "objective": "Common complaints & fetal surveillance", "stem": "Decreased fetal movement → First test:", "options": [{"letter": "A", "text": "Umbilical Doppler"}, {"letter": "B", "text": "Contraction stress test"}, {"letter": "C", "text": "Amniocentesis"}, {"letter": "D", "text": "Nonstress test"}], "answer": "D", "explanation": "Kick counts → NST → BPP → Doppler."}, {"id": "24b", "group": 24, "section": "Prenatal Care", "objective": "Common complaints & fetal surveillance", "stem": "Non-reactive NST → Next step:", "options": [{"letter": "A", "text": "Emergency cesarean"}, {"letter": "B", "text": "Induction of labor"}, {"letter": "C", "text": "Reassurance"}, {"letter": "D", "text": "Biophysical profile"}], "answer": "D", "explanation": "Fetal sleep or tired mom — not automatically distress."}, {"id": "25", "group": 25, "section": "Early Pregnancy Complications", "objective": "Spontaneous abortion — the classification grid", "stem": "8 weeks, bleeding, CLOSED os, IUP with cardiac activity → Diagnosis:", "options": [{"letter": "A", "text": "Inevitable abortion"}, {"letter": "B", "text": "Threatened abortion"}, {"letter": "C", "text": "Incomplete abortion"}, {"letter": "D", "text": "Missed abortion"}], "answer": "B", "explanation": "Most continue — expectant management + return precautions."}, {"id": "25a", "group": 25, "section": "Early Pregnancy Complications", "objective": "Spontaneous abortion — the classification grid", "stem": "Bleeding, open os, partial tissue passed, retained POC on US → Diagnosis:", "options": [{"letter": "A", "text": "Complete abortion"}, {"letter": "B", "text": "Missed abortion"}, {"letter": "C", "text": "Inevitable abortion"}, {"letter": "D", "text": "Incomplete abortion"}], "answer": "D", "explanation": "Expectant / medical / aspiration."}, {"id": "25b", "group": 25, "section": "Early Pregnancy Complications", "objective": "Spontaneous abortion — the classification grid", "stem": "Routine 11-week US: no cardiac activity, patient has NO symptoms → Diagnosis:", "options": [{"letter": "A", "text": "Complete abortion"}, {"letter": "B", "text": "Threatened abortion"}, {"letter": "C", "text": "Missed abortion"}, {"letter": "D", "text": "Inevitable abortion"}], "answer": "C", "explanation": "Nonviable and asymptomatic."}, {"id": "25c", "group": 25, "section": "Early Pregnancy Complications", "objective": "Spontaneous abortion — the classification grid", "stem": "Fever, uterine tenderness, purulent discharge after a pregnancy loss → Management:", "options": [{"letter": "A", "text": "Expectant management"}, {"letter": "B", "text": "Misoprostol, then observe"}, {"letter": "C", "text": "Oral antibiotics, then recheck"}, {"letter": "D", "text": "IV antibiotics + uterine evacuation"}], "answer": "D", "explanation": "Septic abortion — prompt evacuation once antibiotics started."}, {"id": "25d", "group": 25, "section": "Early Pregnancy Complications", "objective": "Spontaneous abortion — the classification grid", "stem": "Stable early loss, wants to avoid a procedure → Medical regimen:", "options": [{"letter": "A", "text": "Oxytocin infusion"}, {"letter": "B", "text": "Methotrexate injection"}, {"letter": "C", "text": "Methylergonovine"}, {"letter": "D", "text": "Mifepristone then misoprostol"}], "answer": "D", "explanation": "NSAIDs for cramping."}, {"id": "26", "group": 26, "section": "Early Pregnancy Complications", "objective": "Ectopic pregnancy", "stem": "6 weeks, unilateral pelvic pain + spotting, hCG above the discriminatory zone, empty uterus → Suspect:", "options": [{"letter": "A", "text": "Threatened abortion"}, {"letter": "B", "text": "Corpus luteum cyst"}, {"letter": "C", "text": "Complete abortion"}, {"letter": "D", "text": "Ectopic pregnancy"}], "answer": "D", "explanation": "Ectopic stays on the list until the pregnancy is located."}, {"id": "26a", "group": 26, "section": "Early Pregnancy Complications", "objective": "Ectopic pregnancy", "stem": "Ectopic pregnancy → Top risk factor:", "options": [{"letter": "A", "text": "Prior vaginal delivery"}, {"letter": "B", "text": "Maternal age <20"}, {"letter": "C", "text": "Oral contraceptive use"}, {"letter": "D", "text": "Prior ectopic"}], "answer": "D", "explanation": "Also PID, tubal surgery, IVF, IUD, smoking."}, {"id": "26b", "group": 26, "section": "Early Pregnancy Complications", "objective": "Ectopic pregnancy", "stem": "Stable, unruptured ectopic, no fetal cardiac activity, reliable follow-up → Treatment:", "options": [{"letter": "A", "text": "Methotrexate"}, {"letter": "B", "text": "Salpingectomy"}, {"letter": "C", "text": "Mifepristone"}, {"letter": "D", "text": "Expectant management"}], "answer": "A", "explanation": "Best when hCG and mass are small."}, {"id": "26c", "group": 26, "section": "Early Pregnancy Complications", "objective": "Ectopic pregnancy", "stem": "Ectopic with hypotension and peritoneal signs → Management:", "options": [{"letter": "A", "text": "Repeat TVUS"}, {"letter": "B", "text": "Emergency surgery"}, {"letter": "C", "text": "Methotrexate"}, {"letter": "D", "text": "Serial hCG"}], "answer": "B", "explanation": "Unstable = operating room."}, {"id": "27", "group": 27, "section": "Early Pregnancy Complications", "objective": "Gestational trophoblastic disease", "stem": "Uterus larger than dates, hyperemesis, BP 150/95 at 12 weeks, hCG 250,000 → Diagnosis:", "options": [{"letter": "A", "text": "Chronic hypertension"}, {"letter": "B", "text": "Complete molar pregnancy"}, {"letter": "C", "text": "Twin gestation"}, {"letter": "D", "text": "Partial molar pregnancy"}], "answer": "B", "explanation": "Preeclampsia before 20 weeks = mole until proven otherwise."}, {"id": "27a", "group": 27, "section": "Early Pregnancy Complications", "objective": "Gestational trophoblastic disease", "stem": "Complete mole → Ultrasound appearance:", "options": [{"letter": "A", "text": "Swiss-cheese placenta with fetus"}, {"letter": "B", "text": "Snowstorm pattern"}, {"letter": "C", "text": "Double decidual sign"}, {"letter": "D", "text": "Ring of fire"}], "answer": "B", "explanation": "No sac or fetus. Partial mole: Swiss-cheese placenta + abnormal fetus."}, {"id": "27b", "group": 27, "section": "Early Pregnancy Complications", "objective": "Gestational trophoblastic disease", "stem": "Molar pregnancy → Treatment:", "options": [{"letter": "A", "text": "Suction evacuation"}, {"letter": "B", "text": "Methotrexate first"}, {"letter": "C", "text": "Observation"}, {"letter": "D", "text": "Misoprostol induction"}], "answer": "A", "explanation": "Histology is definitive."}, {"id": "27c", "group": 27, "section": "Early Pregnancy Complications", "objective": "Gestational trophoblastic disease", "stem": "After molar evacuation → Follow-up:", "options": [{"letter": "A", "text": "Serial CA-125"}, {"letter": "B", "text": "No follow-up needed"}, {"letter": "C", "text": "Monthly pelvic MRI"}, {"letter": "D", "text": "Serial quantitative hCG"}], "answer": "D", "explanation": "Plateau or rise = post-molar GTN → oncology/chemotherapy."}, {"id": "28", "group": 28, "section": "Diseases in Pregnancy", "objective": "Hypertensive disorders — the 20-week line", "stem": "BP 150/96 at 12 weeks → Diagnosis:", "options": [{"letter": "A", "text": "White-coat hypertension"}, {"letter": "B", "text": "Chronic hypertension"}, {"letter": "C", "text": "Gestational hypertension"}, {"letter": "D", "text": "Preeclampsia"}], "answer": "B", "explanation": "HTN before 20 weeks (or persisting ≥12 wk postpartum) = chronic."}, {"id": "28a", "group": 28, "section": "Diseases in Pregnancy", "objective": "Hypertensive disorders — the 20-week line", "stem": "New BP 146/94 at 32 weeks, no proteinuria, no end-organ dysfunction → Diagnosis:", "options": [{"letter": "A", "text": "Chronic hypertension"}, {"letter": "B", "text": "HELLP syndrome"}, {"letter": "C", "text": "Gestational hypertension"}, {"letter": "D", "text": "Preeclampsia"}], "answer": "C", "explanation": "Most common hypertensive disorder of pregnancy."}, {"id": "28b", "group": 28, "section": "Diseases in Pregnancy", "objective": "Hypertensive disorders — the 20-week line", "stem": "New HTN at 34 weeks + protein:creatinine ratio 0.5 → Diagnosis:", "options": [{"letter": "A", "text": "Nephrotic syndrome"}, {"letter": "B", "text": "Preeclampsia"}, {"letter": "C", "text": "Gestational hypertension"}, {"letter": "D", "text": "Chronic hypertension"}], "answer": "B", "explanation": "24-h urine = gold standard; P:C ratio most used."}, {"id": "28c", "group": 28, "section": "Diseases in Pregnancy", "objective": "Hypertensive disorders — the 20-week line", "stem": "New HTN at 30 weeks, BP 164/112, NO proteinuria → Diagnosis:", "options": [{"letter": "A", "text": "Gestational hypertension"}, {"letter": "B", "text": "Preeclampsia without severe features"}, {"letter": "C", "text": "Preeclampsia with severe features"}, {"letter": "D", "text": "Chronic hypertension"}], "answer": "C", "explanation": "Proteinuria not required once a severe feature is present."}, {"id": "28d", "group": 28, "section": "Diseases in Pregnancy", "objective": "Hypertensive disorders — the 20-week line", "stem": "Preeclampsia patient has a tonic-clonic seizure → Diagnosis:", "options": [{"letter": "A", "text": "Hypoglycemic seizure"}, {"letter": "B", "text": "HELLP syndrome"}, {"letter": "C", "text": "Epilepsy"}, {"letter": "D", "text": "Eclampsia"}], "answer": "D", "explanation": "Airway, left lateral, magnesium, deliver once stable."}, {"id": "28e", "group": 28, "section": "Diseases in Pregnancy", "objective": "Hypertensive disorders — the 20-week line", "stem": "Eclampsia → First-line anticonvulsant:", "options": [{"letter": "A", "text": "Lorazepam"}, {"letter": "B", "text": "Phenytoin"}, {"letter": "C", "text": "Magnesium sulfate"}, {"letter": "D", "text": "Levetiracetam"}], "answer": "C", "explanation": "Continue 24 h after delivery or last seizure."}, {"id": "28f", "group": 28, "section": "Diseases in Pregnancy", "objective": "Hypertensive disorders — the 20-week line", "stem": "33 weeks, RUQ pain, falling platelets, rising AST, schistocytes → Diagnosis:", "options": [{"letter": "A", "text": "Intrahepatic cholestasis"}, {"letter": "B", "text": "Acute fatty liver of pregnancy"}, {"letter": "C", "text": "HELLP syndrome"}, {"letter": "D", "text": "Cholecystitis"}], "answer": "C", "explanation": "Normal BP doesn't exclude it; ~30% are postpartum."}, {"id": "29", "group": 29, "section": "Diseases in Pregnancy", "objective": "BP drugs & magnesium", "stem": "Acute severe-range BP (≥160/110) in pregnancy → Drug:", "options": [{"letter": "A", "text": "IV nitroprusside"}, {"letter": "B", "text": "Oral lisinopril"}, {"letter": "C", "text": "IV labetalol"}, {"letter": "D", "text": "IV furosemide"}], "answer": "C", "explanation": "Or IV hydralazine / IR nifedipine."}, {"id": "29a", "group": 29, "section": "Diseases in Pregnancy", "objective": "BP drugs & magnesium", "stem": "Chronic HTN patient on lisinopril becomes pregnant → Switch to:", "options": [{"letter": "A", "text": "Losartan"}, {"letter": "B", "text": "Labetalol"}, {"letter": "C", "text": "Enalapril"}, {"letter": "D", "text": "Spironolactone"}], "answer": "B", "explanation": "ACEi/ARBs are fetotoxic. Also nifedipine, methyldopa."}, {"id": "29b", "group": 29, "section": "Diseases in Pregnancy", "objective": "BP drugs & magnesium", "stem": "On magnesium sulfate: absent patellar reflexes, RR 8 → Antidote:", "options": [{"letter": "A", "text": "Calcium gluconate"}, {"letter": "B", "text": "Sodium bicarbonate"}, {"letter": "C", "text": "Flumazenil"}, {"letter": "D", "text": "Naloxone"}], "answer": "A", "explanation": "Stop the infusion. Loss of DTRs is the earliest toxicity sign."}, {"id": "30", "group": 30, "section": "Diseases in Pregnancy", "objective": "Thyroid & other diseases in pregnancy", "stem": "Hyperthyroidism in the FIRST trimester → Drug:", "options": [{"letter": "A", "text": "Propylthiouracil"}, {"letter": "B", "text": "Methimazole"}, {"letter": "C", "text": "Radioactive iodine"}, {"letter": "D", "text": "Levothyroxine"}], "answer": "A", "explanation": "Methimazole → scalp defects early; PTU → liver later."}, {"id": "30a", "group": 30, "section": "Diseases in Pregnancy", "objective": "Thyroid & other diseases in pregnancy", "stem": "Hyperthyroidism in the 2nd/3rd trimester → Drug:", "options": [{"letter": "A", "text": "Thyroidectomy"}, {"letter": "B", "text": "Methimazole"}, {"letter": "C", "text": "Propylthiouracil"}, {"letter": "D", "text": "Radioactive iodine"}], "answer": "B", "explanation": "Switch from PTU after the first trimester."}, {"id": "30b", "group": 30, "section": "Diseases in Pregnancy", "objective": "Thyroid & other diseases in pregnancy", "stem": "10% weight loss, ketonuria, hypokalemic metabolic alkalosis at 10 weeks → Diagnosis:", "options": [{"letter": "A", "text": "Morning sickness"}, {"letter": "B", "text": "Acute fatty liver"}, {"letter": "C", "text": "Hyperemesis gravidarum"}, {"letter": "D", "text": "Gastroenteritis"}], "answer": "C", "explanation": "Look for twins or a mole. IV fluids, antiemetics, K⁺, thiamine before dextrose."}, {"id": "30c", "group": 30, "section": "Diseases in Pregnancy", "objective": "Thyroid & other diseases in pregnancy", "stem": "3rd trimester, intense itching of palms and soles at night, no rash → Diagnosis:", "options": [{"letter": "A", "text": "PUPPP (polymorphic eruption)"}, {"letter": "B", "text": "HELLP syndrome"}, {"letter": "C", "text": "Intrahepatic cholestasis of pregnancy"}, {"letter": "D", "text": "Allergic contact dermatitis"}], "answer": "C", "explanation": "↑ bile acids → stillbirth risk; ursodeoxycholic acid."}, {"id": "30d", "group": 30, "section": "Diseases in Pregnancy", "objective": "Thyroid & other diseases in pregnancy", "stem": "3rd trimester: N/V, jaundice, hypoglycemia, ↑ PT, ↑ ammonia → Diagnosis:", "options": [{"letter": "A", "text": "HELLP syndrome"}, {"letter": "B", "text": "Cholestasis of pregnancy"}, {"letter": "C", "text": "Hepatitis A"}, {"letter": "D", "text": "Acute fatty liver of pregnancy"}], "answer": "D", "explanation": "Hypoglycemia + coagulopathy split it from HELLP → prompt delivery."}, {"id": "30e", "group": 30, "section": "Diseases in Pregnancy", "objective": "Thyroid & other diseases in pregnancy", "stem": "Painless cervical dilation at 20 weeks, no contractions → Diagnosis:", "options": [{"letter": "A", "text": "Placental abruption"}, {"letter": "B", "text": "Preterm labor"}, {"letter": "C", "text": "Inevitable abortion"}, {"letter": "D", "text": "Cervical insufficiency"}], "answer": "D", "explanation": "Cerclage / vaginal progesterone."}, {"id": "31", "group": 31, "section": "Diabetes & Infections in Pregnancy", "objective": "Diabetes — when did it start?", "stem": "1-hour glucose challenge abnormal → Next step:", "options": [{"letter": "A", "text": "3-hour 100-g OGTT"}, {"letter": "B", "text": "Start insulin"}, {"letter": "C", "text": "HbA1c"}, {"letter": "D", "text": "Repeat 1-hour test"}], "answer": "A", "explanation": "≥2 abnormal values = GDM. One abnormal value is NOT GDM."}, {"id": "31a", "group": 31, "section": "Diabetes & Infections in Pregnancy", "objective": "Diabetes — when did it start?", "stem": "New GDM → First-line management:", "options": [{"letter": "A", "text": "Diet and exercise"}, {"letter": "B", "text": "Glyburide"}, {"letter": "C", "text": "Metformin"}, {"letter": "D", "text": "Insulin"}], "answer": "A", "explanation": "Then insulin if targets missed."}, {"id": "31b", "group": 31, "section": "Diabetes & Infections in Pregnancy", "objective": "Diabetes — when did it start?", "stem": "Poorly controlled pre-existing diabetes at conception → Fetal risk:", "options": [{"letter": "A", "text": "Postterm delivery"}, {"letter": "B", "text": "Congenital anomalies"}, {"letter": "C", "text": "Neonatal hypercalcemia"}, {"letter": "D", "text": "Macrosomia only"}], "answer": "B", "explanation": "Caudal regression, VSD/transposition, NTD — insult during organogenesis."}, {"id": "32", "group": 32, "section": "Diabetes & Infections in Pregnancy", "objective": "The organism grid", "stem": "Newborn: hydrocephalus, intracranial calcifications, chorioretinitis; cat at home → Organism:", "options": [{"letter": "A", "text": "Toxoplasma"}, {"letter": "B", "text": "HSV"}, {"letter": "C", "text": "CMV"}, {"letter": "D", "text": "Rubella"}], "answer": "A", "explanation": "Avoid litter and raw meat."}, {"id": "32a", "group": 32, "section": "Diabetes & Infections in Pregnancy", "objective": "The organism grid", "stem": "Failed newborn hearing screen + periventricular calcifications → Organism:", "options": [{"letter": "A", "text": "Parvovirus B19"}, {"letter": "B", "text": "Toxoplasma"}, {"letter": "C", "text": "Cytomegalovirus"}, {"letter": "D", "text": "Zika"}], "answer": "C", "explanation": "MC congenital infection."}, {"id": "32b", "group": 32, "section": "Diabetes & Infections in Pregnancy", "objective": "The organism grid", "stem": "Fetal hydrops after maternal 'slapped-cheek' exposure → Organism:", "options": [{"letter": "A", "text": "Parvovirus B19"}, {"letter": "B", "text": "Cytomegalovirus"}, {"letter": "C", "text": "Varicella"}, {"letter": "D", "text": "Rubella"}], "answer": "A", "explanation": "Fetal anemia → hydrops."}, {"id": "32c", "group": 32, "section": "Diabetes & Infections in Pregnancy", "objective": "The organism grid", "stem": "Pregnant woman with fever and diarrhea after deli meat and soft cheese → Treatment:", "options": [{"letter": "A", "text": "Metronidazole"}, {"letter": "B", "text": "Supportive care only"}, {"letter": "C", "text": "Ampicillin + gentamicin"}, {"letter": "D", "text": "Ciprofloxacin"}], "answer": "C", "explanation": "Listeria — treat mother and baby."}, {"id": "32d", "group": 32, "section": "Diabetes & Infections in Pregnancy", "objective": "The organism grid", "stem": "GBS-positive culture → Intrapartum prophylaxis:", "options": [{"letter": "A", "text": "IM ceftriaxone"}, {"letter": "B", "text": "None if asymptomatic"}, {"letter": "C", "text": "IV penicillin G"}, {"letter": "D", "text": "Oral amoxicillin at 36 weeks"}], "answer": "C", "explanation": "PCN allergy: cefazolin / clindamycin / vancomycin."}, {"id": "32e", "group": 32, "section": "Diabetes & Infections in Pregnancy", "objective": "The organism grid", "stem": "Active genital HSV lesions at the onset of labor → Delivery plan:", "options": [{"letter": "A", "text": "Forceps-assisted delivery"}, {"letter": "B", "text": "Cesarean delivery"}, {"letter": "C", "text": "Induction of labor"}, {"letter": "D", "text": "Vaginal delivery"}], "answer": "B", "explanation": "Acyclovir from 36 weeks. HPV warts are NOT a C-section indication."}, {"id": "32f", "group": 32, "section": "Diabetes & Infections in Pregnancy", "objective": "The organism grid", "stem": "HBsAg-positive mother → Newborn plan:", "options": [{"letter": "A", "text": "HBV vaccine + HBIG"}, {"letter": "B", "text": "Vaccine at 2 months"}, {"letter": "C", "text": "Avoid breastfeeding"}, {"letter": "D", "text": "HBIG alone"}], "answer": "A", "explanation": "Within 12 hours of birth."}, {"id": "32g", "group": 32, "section": "Diabetes & Infections in Pregnancy", "objective": "The organism grid", "stem": "Syphilis in pregnancy, penicillin-allergic → Treatment:", "options": [{"letter": "A", "text": "IM ceftriaxone"}, {"letter": "B", "text": "Oral azithromycin"}, {"letter": "C", "text": "Desensitize, then penicillin"}, {"letter": "D", "text": "Oral doxycycline"}], "answer": "C", "explanation": "Only penicillin G works for the fetus."}, {"id": "33", "group": 33, "section": "Labor & Delivery", "objective": "Reading the FHR tracing", "stem": "Shallow decelerations that mirror each contraction → Cause:", "options": [{"letter": "A", "text": "Head compression"}, {"letter": "B", "text": "Uteroplacental insufficiency"}, {"letter": "C", "text": "Cord compression"}, {"letter": "D", "text": "Fetal anemia"}], "answer": "A", "explanation": "Early decels — benign."}, {"id": "33a", "group": 33, "section": "Labor & Delivery", "objective": "Reading the FHR tracing", "stem": "Abrupt V-shaped drops with rapid recovery → Cause:", "options": [{"letter": "A", "text": "Uteroplacental insufficiency"}, {"letter": "B", "text": "Cord compression"}, {"letter": "C", "text": "Head compression"}, {"letter": "D", "text": "Maternal fever"}], "answer": "B", "explanation": "Variable decels — amnioinfusion can cushion the cord."}, {"id": "33b", "group": 33, "section": "Labor & Delivery", "objective": "Reading the FHR tracing", "stem": "Gradual decelerations that begin after each contraction → Cause:", "options": [{"letter": "A", "text": "Head compression"}, {"letter": "B", "text": "Fetal sleep cycle"}, {"letter": "C", "text": "Uteroplacental insufficiency"}, {"letter": "D", "text": "Cord compression"}], "answer": "C", "explanation": "Late decels — non-reassuring."}, {"id": "34", "group": 34, "section": "Labor & Delivery", "objective": "Labor progress, induction & delivery", "stem": "Active labor, contractions <200 MVU, no cervical change → Treatment:", "options": [{"letter": "A", "text": "Cesarean delivery"}, {"letter": "B", "text": "Terbutaline"}, {"letter": "C", "text": "Misoprostol"}, {"letter": "D", "text": "Oxytocin augmentation"}], "answer": "D", "explanation": "Uterine inertia. >200 MVU with no descent → CPD → cesarean."}, {"id": "34a", "group": 34, "section": "Labor & Delivery", "objective": "Labor progress, induction & delivery", "stem": "Induction indicated, Bishop score 4 → Next step:", "options": [{"letter": "A", "text": "Amniotomy"}, {"letter": "B", "text": "Cesarean delivery"}, {"letter": "C", "text": "Oxytocin alone"}, {"letter": "D", "text": "Cervical ripening"}], "answer": "D", "explanation": "Misoprostol, PGE2, balloon. Bishop ≥8 = favorable."}, {"id": "34b", "group": 34, "section": "Labor & Delivery", "objective": "Labor progress, induction & delivery", "stem": "Prior cesarean, cervix unripe → Ripening agent to AVOID:", "options": [{"letter": "A", "text": "Foley balloon"}, {"letter": "B", "text": "Oxytocin"}, {"letter": "C", "text": "Membrane sweep"}, {"letter": "D", "text": "Misoprostol"}], "answer": "D", "explanation": "No prostaglandins after uterine surgery — rupture risk."}, {"id": "34c", "group": 34, "section": "Labor & Delivery", "objective": "Labor progress, induction & delivery", "stem": "Prior CLASSICAL cesarean → Delivery plan:", "options": [{"letter": "A", "text": "Scheduled repeat cesarean"}, {"letter": "B", "text": "Induction with oxytocin"}, {"letter": "C", "text": "Induction with misoprostol"}, {"letter": "D", "text": "Trial of labor"}], "answer": "A", "explanation": "Rupture risk even without contractions — never labor."}, {"id": "34d", "group": 34, "section": "Labor & Delivery", "objective": "Labor progress, induction & delivery", "stem": "Breech at 37 weeks, membranes intact → Next step:", "options": [{"letter": "A", "text": "Await spontaneous labor"}, {"letter": "B", "text": "External cephalic version"}, {"letter": "C", "text": "Induction of labor"}, {"letter": "D", "text": "Immediate cesarean"}], "answer": "B", "explanation": "Else cesarean at 39 weeks. Transverse lie = absolute contraindication to labor."}, {"id": "35", "group": 35, "section": "Labor & Delivery", "objective": "Preterm labor & PROM", "stem": "Preterm labor at 30 weeks → Drug for fetal lung maturity:", "options": [{"letter": "A", "text": "Betamethasone"}, {"letter": "B", "text": "Terbutaline"}, {"letter": "C", "text": "Progesterone"}, {"letter": "D", "text": "Magnesium sulfate"}], "answer": "A", "explanation": "Tocolysis buys ~48 h for steroids."}, {"id": "35a", "group": 35, "section": "Labor & Delivery", "objective": "Preterm labor & PROM", "stem": "Preterm delivery expected before 32 weeks → Fetal neuroprotection:", "options": [{"letter": "A", "text": "Betamethasone"}, {"letter": "B", "text": "Indomethacin"}, {"letter": "C", "text": "Nifedipine"}, {"letter": "D", "text": "Magnesium sulfate"}], "answer": "D", "explanation": "↓ IVH / cerebral palsy."}, {"id": "35b", "group": 35, "section": "Labor & Delivery", "objective": "Preterm labor & PROM", "stem": "PROM: fever, fetal tachycardia, uterine tenderness, foul fluid → Diagnosis:", "options": [{"letter": "A", "text": "Pyelonephritis"}, {"letter": "B", "text": "Endometritis"}, {"letter": "C", "text": "Chorioamnionitis"}, {"letter": "D", "text": "Abruption"}], "answer": "C", "explanation": "Antibiotics + timely delivery."}, {"id": "36", "group": 36, "section": "L&D Complications & Postpartum", "objective": "Bleeding after 20 weeks", "stem": "32 weeks, PAINLESS bright red vaginal bleeding → Diagnosis:", "options": [{"letter": "A", "text": "Placenta previa"}, {"letter": "B", "text": "Uterine rupture"}, {"letter": "C", "text": "Vasa previa"}, {"letter": "D", "text": "Placental abruption"}], "answer": "A", "explanation": "Transvaginal US; NO digital exam until excluded; planned cesarean 36–37⁶⁄₇ wk."}, {"id": "36a", "group": 36, "section": "L&D Complications & Postpartum", "objective": "Bleeding after 20 weeks", "stem": "Painful bleeding, tender firm uterus; cocaine use → Diagnosis:", "options": [{"letter": "A", "text": "Bloody show"}, {"letter": "B", "text": "Cervical polyp"}, {"letter": "C", "text": "Placenta previa"}, {"letter": "D", "text": "Placental abruption"}], "answer": "D", "explanation": "Also trauma, HTN/preeclampsia, smoking, prior abruption, PROM, chorioamnionitis."}, {"id": "36b", "group": 36, "section": "L&D Complications & Postpartum", "objective": "Bleeding after 20 weeks", "stem": "Prior cesareans ×2 + anterior previa; US shows lacunae and loss of the clear zone → Diagnosis:", "options": [{"letter": "A", "text": "Placental abruption"}, {"letter": "B", "text": "Molar pregnancy"}, {"letter": "C", "text": "Succenturiate lobe"}, {"letter": "D", "text": "Placenta accreta spectrum"}], "answer": "D", "explanation": "Plan cesarean hysterectomy — do NOT pull the placenta off."}, {"id": "36c", "group": 36, "section": "L&D Complications & Postpartum", "objective": "Bleeding after 20 weeks", "stem": "Fundal height lagging, oligohydramnios, reversed end-diastolic flow → Management:", "options": [{"letter": "A", "text": "Deliver now"}, {"letter": "B", "text": "Repeat Doppler in 1 week"}, {"letter": "C", "text": "Bed rest"}, {"letter": "D", "text": "Low-dose aspirin"}], "answer": "A", "explanation": "Placental insufficiency — reversed EDF is premorbid."}, {"id": "36d", "group": 36, "section": "L&D Complications & Postpartum", "objective": "Bleeding after 20 weeks", "stem": "Suspected placenta previa → Exam to AVOID until it is excluded:", "options": [{"letter": "A", "text": "Digital vaginal exam"}, {"letter": "B", "text": "Transvaginal ultrasound"}, {"letter": "C", "text": "Sterile speculum exam"}, {"letter": "D", "text": "Abdominal palpation"}], "answer": "A", "explanation": "TVUS is safe and preferred; a finger can provoke hemorrhage."}, {"id": "36e", "group": 36, "section": "L&D Complications & Postpartum", "objective": "Bleeding after 20 weeks", "stem": "Persistent placenta previa, mother and fetus stable → Delivery plan:", "options": [{"letter": "A", "text": "Planned cesarean at 36–37⁶⁄₇ wk"}, {"letter": "B", "text": "Induction of labor at 39 wk"}, {"letter": "C", "text": "Immediate cesarean at 32 wk"}, {"letter": "D", "text": "Trial of labor at 40 wk"}], "answer": "A", "explanation": "Unstable or uncontrolled bleeding → urgent cesarean."}, {"id": "36f", "group": 36, "section": "L&D Complications & Postpartum", "objective": "Bleeding after 20 weeks", "stem": "Suspected abruption, ultrasound shows no retroplacental clot → Interpretation:", "options": [{"letter": "A", "text": "Abruption not excluded"}, {"letter": "B", "text": "Abruption ruled out"}, {"letter": "C", "text": "Placenta previa likely"}, {"letter": "D", "text": "Preterm labor confirmed"}], "answer": "A", "explanation": "Clinical diagnosis; CBC, type & crossmatch, coags, fibrinogen."}, {"id": "37", "group": 37, "section": "L&D Complications & Postpartum", "objective": "Delivery emergencies", "stem": "Head delivers then retracts against the perineum ('turtle sign') → Diagnosis:", "options": [{"letter": "A", "text": "Cord prolapse"}, {"letter": "B", "text": "Arrest of descent"}, {"letter": "C", "text": "Shoulder dystocia"}, {"letter": "D", "text": "Uterine rupture"}], "answer": "C", "explanation": "RF: macrosomia, diabetes, prior dystocia."}, {"id": "37a", "group": 37, "section": "L&D Complications & Postpartum", "objective": "Delivery emergencies", "stem": "Shoulder dystocia → First maneuvers:", "options": [{"letter": "A", "text": "Fundal pressure"}, {"letter": "B", "text": "McRoberts + suprapubic pressure"}, {"letter": "C", "text": "Zavanelli maneuver"}, {"letter": "D", "text": "Downward traction on the head"}], "answer": "B", "explanation": "Then deliver the posterior arm. Never pull down."}, {"id": "37b", "group": 37, "section": "L&D Complications & Postpartum", "objective": "Delivery emergencies", "stem": "Cord palpated after ROM + sudden fetal bradycardia → First move:", "options": [{"letter": "A", "text": "Elevate the presenting part"}, {"letter": "B", "text": "Push the cord back in"}, {"letter": "C", "text": "Start oxytocin"}, {"letter": "D", "text": "Begin amnioinfusion"}], "answer": "A", "explanation": "Knee-chest/Trendelenburg → emergency cesarean."}, {"id": "37c", "group": 37, "section": "L&D Complications & Postpartum", "objective": "Delivery emergencies", "stem": "Laboring after prior cesarean: sudden pain, loss of station, bradycardia → Diagnosis:", "options": [{"letter": "A", "text": "Shoulder dystocia"}, {"letter": "B", "text": "Placental abruption"}, {"letter": "C", "text": "Cord prolapse"}, {"letter": "D", "text": "Uterine rupture"}], "answer": "D", "explanation": "Emergency laparotomy."}, {"id": "38", "group": 38, "section": "L&D Complications & Postpartum", "objective": "Postpartum hemorrhage — the 4 T's", "stem": "Heavy bleeding after delivery, soft boggy fundus → Cause:", "options": [{"letter": "A", "text": "Retained placenta"}, {"letter": "B", "text": "Coagulopathy"}, {"letter": "C", "text": "Uterine atony"}, {"letter": "D", "text": "Cervical laceration"}], "answer": "C", "explanation": "MC cause of PPH (Tone)."}, {"id": "38a", "group": 38, "section": "L&D Complications & Postpartum", "objective": "Postpartum hemorrhage — the 4 T's", "stem": "Uterine atony → First-line uterotonic:", "options": [{"letter": "A", "text": "Oxytocin"}, {"letter": "B", "text": "Methylergonovine"}, {"letter": "C", "text": "Terbutaline"}, {"letter": "D", "text": "Magnesium sulfate"}], "answer": "A", "explanation": "With bimanual massage; then methylergonovine/prostaglandins."}, {"id": "38b", "group": 38, "section": "L&D Complications & Postpartum", "objective": "Postpartum hemorrhage — the 4 T's", "stem": "Postpartum bleeding despite a FIRM contracted uterus → Cause:", "options": [{"letter": "A", "text": "Uterine atony"}, {"letter": "B", "text": "Placental separation"}, {"letter": "C", "text": "Full bladder"}, {"letter": "D", "text": "Genital tract laceration"}], "answer": "D", "explanation": "Trauma — inspect and suture."}, {"id": "39", "group": 39, "section": "L&D Complications & Postpartum", "objective": "Postpartum — pituitary, fever, mood", "stem": "Failure to lactate after massive PPH → Diagnosis:", "options": [{"letter": "A", "text": "Postpartum depression"}, {"letter": "B", "text": "Prolactinoma"}, {"letter": "C", "text": "Postpartum thyroiditis"}, {"letter": "D", "text": "Sheehan syndrome"}], "answer": "D", "explanation": "Ischemic pituitary necrosis."}, {"id": "39a", "group": 39, "section": "L&D Complications & Postpartum", "objective": "Postpartum — pituitary, fever, mood", "stem": "Fever on postpartum day 2 after cesarean, uterine tenderness → Treatment:", "options": [{"letter": "A", "text": "Oral dicloxacillin"}, {"letter": "B", "text": "Oral cephalexin"}, {"letter": "C", "text": "Nitrofurantoin"}, {"letter": "D", "text": "Clindamycin + gentamicin"}], "answer": "D", "explanation": "Endometritis — cesarean is the biggest risk factor."}, {"id": "39b", "group": 39, "section": "L&D Complications & Postpartum", "objective": "Postpartum — pituitary, fever, mood", "stem": "Depressed mood >2 weeks postpartum, Edinburgh score 15 → Diagnosis:", "options": [{"letter": "A", "text": "Postpartum thyroiditis"}, {"letter": "B", "text": "Postpartum blues"}, {"letter": "C", "text": "Postpartum depression"}, {"letter": "D", "text": "Postpartum psychosis"}], "answer": "C", "explanation": "Ask about safety first; check TSH; sertraline, zuranolone."}, {"id": "39c", "group": 39, "section": "L&D Complications & Postpartum", "objective": "Postpartum — pituitary, fever, mood", "stem": "Hallucinations and thoughts of harming the baby 10 days postpartum → Management:", "options": [{"letter": "A", "text": "Reassurance"}, {"letter": "B", "text": "Counseling only"}, {"letter": "C", "text": "Outpatient SSRI"}, {"letter": "D", "text": "Inpatient psychiatry"}], "answer": "D", "explanation": "Postpartum psychosis = medical emergency."}, {"id": "40", "group": 40, "section": "Labor & Delivery", "objective": "Newborn — Apgar", "stem": "5-minute Apgar score of 5 → Next step:", "options": [{"letter": "A", "text": "Repeat q5 min up to 20 min"}, {"letter": "B", "text": "Stop scoring at 5 minutes"}, {"letter": "C", "text": "Repeat once at 1 hour"}, {"letter": "D", "text": "Repeat once at 24 hours"}], "answer": "A", "explanation": "Apgar at 1 and 5 min; <7 at 5 min → keep scoring."}, {"id": "40a", "group": 40, "section": "Labor & Delivery", "objective": "Newborn — Apgar", "stem": "Apgar score of 4–6 → Interpretation:", "options": [{"letter": "A", "text": "Moderately abnormal"}, {"letter": "B", "text": "Reassuring"}, {"letter": "C", "text": "Low"}, {"letter": "D", "text": "Birth asphyxia"}], "answer": "A", "explanation": "7–10 reassuring · 0–3 low; low score alone ≠ asphyxia."}, {"id": "40b", "group": 40, "section": "Labor & Delivery", "objective": "Newborn — Apgar", "stem": "Apgar score → What it does:", "options": [{"letter": "A", "text": "Describes the newborn's status"}, {"letter": "B", "text": "Decides whether to resuscitate"}, {"letter": "C", "text": "Diagnoses birth asphyxia"}, {"letter": "D", "text": "Predicts neuro outcome"}], "answer": "A", "explanation": "It does NOT decide resuscitation; low score alone ≠ asphyxia or prognosis."}]});
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  const flagged = {};        // question id -> true, set by the learner at any point (never affects score)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  // Lab values as a table. q.labs is [{test, result, range}]. If the stem contains
+  // the marker [[LABS]] the table goes there (so the vignette can continue after
+  // the labs); otherwise it follows the stem.
+  function labsHtml(q) {
+    if (!q.labs || !q.labs.length) return '';
+    const hasRange = q.labs.some(l => l.range);
+    let html = '<table class="labs"><thead><tr><th>Test</th><th>Result</th>' +
+      (hasRange ? '<th>Reference Range</th>' : '') + '</tr></thead><tbody>';
+    q.labs.forEach(l => {
+      html += '<tr><td>' + esc(l.test) + '</td><td class="res">' + esc(l.result) + '</td>' +
+        (hasRange ? '<td class="ref">' + (l.range ? '(' + esc(String(l.range).replace(/^\(|\)$/g, '')) + ')' : '') + '</td>' : '') + '</tr>';
+    });
+    return html + '</tbody></table>';
+  }
+
+  function stemHtml(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    const table = labsHtml(q);
+    if (table && stem.indexOf('[[LABS]]') !== -1) {
+      const parts = stem.split('[[LABS]]');
+      return '<div class="stem">' + esc(parts[0].replace(/\s+$/, '')) + '</div>' + table +
+        (parts[1] && parts[1].trim() ? '<div class="stem">' + esc(parts[1].replace(/^\s+/, '')) + '</div>' : '');
+    }
+    return '<div class="stem">' + esc(stem.replace('[[LABS]]', '')) + '</div>' + table;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += stemHtml(q);
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += flagHtml(q);
+    html += '</div>';
+    return html;
+  }
+
+  // Flagging: available on every question in every mode, right or wrong, answered or
+  // not. A flagged question joins the missed list and the copy-out, so a question that
+  // was guessed correctly (or not understood) can still be carried into the next round
+  // of study. Flagging never changes the score — it is a bookmark, not a second answer.
+  function flagHtml(q) {
+    const on = !!flagged[q.id];
+    return '<div class="flagrow"><button class="flagbtn' + (on ? ' on' : '') + '" data-flag="' +
+      esc(q.id) + '">⚑ ' + (on ? 'Flagged' : 'Flag for review') + '</button></div>';
+  }
+
+  function bindFlags() {
+    $('main').querySelectorAll('[data-flag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-flag');
+        if (flagged[id]) delete flagged[id]; else flagged[id] = true;
+        if (mode === 'missed') {                 // toggle in place; the list is rebuilt on re-entry
+          btn.classList.toggle('on', !!flagged[id]);
+          btn.textContent = '⚑ ' + (flagged[id] ? 'Flagged' : 'Flag for review');
+          return;
+        }
+        renderPage(true);
+      });
+    });
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+    bindFlags();
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {                 // answered wrong, or flagged by the learner
+    return questions.filter(q => flagged[q.id] ||
+      (answers[q.id] !== undefined && answers[q.id] !== q.answer));
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed &amp; flagged (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed &amp; flagged</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          stemHtml(g[0]) + '</div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed & flagged (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed or flagged question' + (missed.length === 1 ? '' : 's');
+    bindFlags();
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  // Plain-text stem with the lab table flattened to one line per lab
+  function stemText(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    if (!q.labs || !q.labs.length) return stem.replace('[[LABS]]', '').trim();
+    const rows = q.labs.map(l => '  ' + l.test + ': ' + l.result + (l.range ? ' (ref ' + String(l.range).replace(/^\(|\)$/g, '') + ')' : '')).join('\n');
+    const i = stem.indexOf('[[LABS]]');
+    const before = i === -1 ? stem : stem.slice(0, i);
+    const hasHeader = /\b(labs|laboratory (studies|results|values))\s*:?\s*$/i.test(before);   // stem already says "Labs:"
+    const block = (hasHeader ? '' : 'Labs:\n') + rows;
+    return (i !== -1 ? before.replace(/\s+$/, '') + '\n' + block + '\n' + stem.slice(i + 8).replace(/^\s+/, '') : stem + '\n' + block).trim();
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + stemText(group[0]));
+      lines.push(stemText(q));
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      if (flagged[q.id]) lines.push(answers[q.id] === q.answer
+        ? 'FLAGGED by me — answered correctly but not understood' : 'FLAGGED by me');
+      lines.push(answers[q.id] === undefined ? 'Not answered' : 'My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed & flagged questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed & flagged'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(flagged).forEach(k => delete flagged[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
