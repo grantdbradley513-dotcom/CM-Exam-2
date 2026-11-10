@@ -1,0 +1,769 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  /* Lab table: vignettes with several lab values render them as a scannable
+     Test / Result / Reference Range table instead of a run-on sentence. */
+  .labs { width: 100%; border-collapse: separate; border-spacing: 0; margin: 10px 0 14px;
+    font-size: 0.95em; background: #fbfbf9; border: 1px solid #e3e1dc; border-radius: 10px; overflow: hidden; }
+  .labs th, .labs td { text-align: left; padding: 9px 14px; border-bottom: 1px solid #e3e1dc; vertical-align: top; }
+  .labs th { font-weight: 500; color: var(--ink-soft); }
+  .labs td:not(:first-child), .labs th:not(:first-child) { border-left: 1px solid #e3e1dc; }
+  .labs tr:last-child td { border-bottom: 0; }
+  .labs td.ref { color: var(--ink-soft); white-space: nowrap; }
+  .labs td.res { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .group.c3 .labs, .group.c4 .labs { font-size: 0.92em; }
+  .group.c3 .labs th, .group.c3 .labs td, .group.c4 .labs th, .group.c4 .labs td { padding: 5px 10px; }
+  @media (max-width: 520px) { .labs th, .labs td { padding: 7px 9px; } .labs td.ref, .labs td.res { white-space: normal; } }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  /* Flag for review: a bookmark the learner can toggle on any question at any time */
+  .flagrow { margin-top: 12px; }
+  .flagbtn { font: inherit; font-size: 0.82em; font-weight: 600; cursor: pointer; background: transparent;
+    border: 1.5px dashed var(--border); border-radius: 8px; padding: 4px 11px; color: var(--ink-soft); }
+  .flagbtn:hover { border-color: var(--amber); color: var(--amber); }
+  .flagbtn.on { background: var(--amber-bg); border-style: solid; border-color: var(--amber); color: var(--amber); }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+
+  .mrow { border: 1.5px solid #d5dae3; border-radius: 10px; padding: 10px 12px; margin: 10px 0; background: #fff; }
+  .mrow.good { border-color: #2e7d32; background: #edf7ee; }
+  .mrow.bad { border-color: #c62828; background: #fdeeee; }
+  .mdrug { font-weight: 700; margin-bottom: 6px; }
+  .msel { width: 100%; font: inherit; font-size: 0.95em; padding: 8px; border: 1.5px solid #b8c0cc; border-radius: 8px; background: #fff; color: inherit; }
+  .mfb { margin-top: 6px; font-size: 0.92em; }
+  .mrow .flagrow { margin-top: 6px; }
+  .mcheck { margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "PT2 Exam 4 OB/GYN Pharm — High-Yield Practice Exam", "questions": [{"id": "1", "group": 1, "stem": "A 36-year-old woman who smokes one pack of cigarettes daily and has migraine with visual aura asks for \"the pill.\" Her periods are heavy and crampy, and she wants reliable long-term contraception. Blood pressure is 128/78 mm Hg. Which method is most appropriate?", "options": [{"letter": "A", "text": "Ethinyl estradiol/norelgestromin patch (Xulane)"}, {"letter": "B", "text": "Drospirenone/ethinyl estradiol (Yaz)"}, {"letter": "C", "text": "Levonorgestrel IUD (Mirena)"}, {"letter": "D", "text": "Copper IUD (Paragard)"}, {"letter": "E", "text": "Ethinyl estradiol/etonogestrel ring (NuvaRing)"}], "answer": "C", "explanation": "Migraine with aura (any age) and age ≥35 plus smoking are both absolute contraindications to estrogen, which rules out the pill, patch, and ring. The LNG-IUD is progestin-only (no ↑ VTE) and reduces bleeding and cramps; the copper IUD makes both worse.", "objective": "Contraception — Obj 4 & 6: contraindications to estrogen-progestin combinations; choosing a method for a scenario", "section": "Contraception"}, {"id": "1A", "group": 1, "stem": "Prescribing an estrogen-containing method to this patient would put her at greatest risk of which complication?", "options": [{"letter": "A", "text": "Benign ovarian cyst formation"}, {"letter": "B", "text": "Stroke and other thrombotic events"}, {"letter": "C", "text": "Hyperkalemia with arrhythmia"}, {"letter": "D", "text": "Loss of bone mineral density"}, {"letter": "E", "text": "Endometrial hyperplasia and cancer"}], "answer": "B", "explanation": "Estrogen raises clotting factors and lowers antithrombin/protein S. Migraine with aura adds stroke risk, and age ≥35 with smoking adds MI/stroke risk. COCs actually lower ovarian-cyst, ovarian-cancer, and endometrial-cancer risk.", "objective": "Contraception — Obj 2 & 3: estrogen adverse effects; hazards of oral contraceptives", "section": "Contraception"}, {"id": "1B", "group": 1, "stem": "After the method is started, what change in her menstrual bleeding should she be told to expect over the next 2 years?", "options": [{"letter": "A", "text": "Heavier bleeding with more cramps"}, {"letter": "B", "text": "Heavy bleeding every three months"}, {"letter": "C", "text": "Scheduled monthly withdrawal bleeds"}, {"letter": "D", "text": "Lighter bleeding, often amenorrhea"}, {"letter": "E", "text": "No change in monthly bleeding"}], "answer": "D", "explanation": "The LNG-IUD thins the endometrium locally: less blood loss and dysmenorrhea, with 40–50% amenorrheic at 2 years. Heavier, crampier periods are the copper IUD's signature.", "objective": "Contraception — Obj 5: dosage forms and routes (intrauterine)", "section": "Contraception"}, {"id": "2", "group": 2, "stem": "A 30-year-old woman who is not pregnant has mucopurulent cervical discharge and a friable cervix after sex with a new partner. NAAT is positive for Chlamydia trachomatis and negative for Neisseria gonorrhoeae. Which is the preferred regimen?", "options": [{"letter": "A", "text": "Doxycycline (Vibramycin) 100 mg PO twice daily for 7 days"}, {"letter": "B", "text": "Azithromycin (Zithromax) 1 g PO given as one single dose"}, {"letter": "C", "text": "Levofloxacin (Levaquin) 500 mg PO once daily for 7 days"}, {"letter": "D", "text": "Ceftriaxone (Rocephin) 500 mg IM given as a single dose"}, {"letter": "E", "text": "Metronidazole (Flagyl) 2 g PO given as one single dose"}], "answer": "A", "explanation": "Doxycycline 100 mg BID × 7 d is preferred for chlamydia. Azithromycin and levofloxacin are alternatives (azithromycin is less effective for rectal infection). Retest at 3 months; treat partners (EPT).", "objective": "GYN Infections — Obj 4: treatment plan for chlamydia", "section": "GYN Infections & STIs"}, {"id": "2A", "group": 2, "stem": "By what mechanism does the preferred drug act against this organism?", "options": [{"letter": "A", "text": "Inhibits DNA gyrase"}, {"letter": "B", "text": "Binds the 50S ribosomal subunit"}, {"letter": "C", "text": "Inhibits cell wall synthesis"}, {"letter": "D", "text": "Inhibits ergosterol synthesis"}, {"letter": "E", "text": "Binds the 30S ribosomal subunit"}], "answer": "E", "explanation": "Tetracyclines inhibit protein synthesis at 30S. 50S = macrolides (azithromycin); DNA gyrase/topoisomerase IV = fluoroquinolones; cell wall = cephalosporins and penicillins; ergosterol = azoles.", "objective": "GYN Infections — Obj 2: tetracyclines", "section": "GYN Infections & STIs"}, {"id": "2B", "group": 2, "stem": "In which patient would this same regimen have been contraindicated?", "options": [{"letter": "A", "text": "A woman with kidney disease"}, {"letter": "B", "text": "A woman with myasthenia gravis"}, {"letter": "C", "text": "A woman with a sulfa allergy"}, {"letter": "D", "text": "A woman with a seizure disorder"}, {"letter": "E", "text": "A woman who is pregnant"}], "answer": "E", "explanation": "Tetracyclines cross the placenta and deposit in fetal bone and teeth; also contraindicated in children under 8. Myasthenia gravis exacerbation is a fluoroquinolone black box warning.", "objective": "GYN Infections — Obj 2: tetracyclines — contraindications", "section": "GYN Infections & STIs"}, {"id": "3", "group": 3, "stem": "A 17-year-old girl who is not sexually active has cramping lower abdominal pain on the first 2 days of every period, radiating to her thighs with nausea. Pelvic examination is normal. Which treatment is first line?", "options": [{"letter": "A", "text": "Naproxen (Naprosyn) started the day before menses"}, {"letter": "B", "text": "Tranexamic acid (Lysteda) during menses"}, {"letter": "C", "text": "Medroxyprogesterone acetate (Depo-Provera)"}, {"letter": "D", "text": "Levonorgestrel/ethinyl estradiol (Lutera) daily"}, {"letter": "E", "text": "Oxycodone (Roxicodone) as needed for pain"}], "answer": "A", "explanation": "Primary dysmenorrhea (prostaglandin-driven, normal exam): NSAIDs are the treatment of choice — naproxen 500 mg BID or ibuprofen 800 mg TID, started the day before or at onset of menses and taken on a schedule. Opioids are not indicated.", "objective": "Menstruation Disorders — Obj 2: treatment of primary dysmenorrhea", "section": "Menstruation-Related Disorders"}, {"id": "3A", "group": 3, "stem": "If her pain is still not controlled after several cycles of correctly scheduled treatment, what is the next step?", "options": [{"letter": "A", "text": "Tramadol (Ultram)"}, {"letter": "B", "text": "Combined hormonal contraceptive"}, {"letter": "C", "text": "Leuprolide (Lupron Depot)"}, {"letter": "D", "text": "Tranexamic acid (Lysteda)"}, {"letter": "E", "text": "Danazol (Danocrine)"}], "answer": "B", "explanation": "Dysmenorrhea ladder: 1) NSAIDs, 2) combined hormonal contraceptives (pill, patch, or ring; allow a 2–3 month trial), 3) progestins (Depo-Provera, LNG-IUD). The copper IUD worsens dysmenorrhea.", "objective": "Menstruation Disorders — Obj 2: treatment of primary dysmenorrhea", "section": "Menstruation-Related Disorders"}, {"id": "4", "group": 4, "stem": "A 48-year-old woman taking tamoxifen for estrogen receptor–positive breast cancer has bothersome daytime hot flashes. Which medication is most appropriate?", "options": [{"letter": "A", "text": "Paroxetine (Paxil)"}, {"letter": "B", "text": "Conjugated estrogens (Premarin)"}, {"letter": "C", "text": "Escitalopram (Lexapro)"}, {"letter": "D", "text": "Venlafaxine ER (Effexor XR)"}, {"letter": "E", "text": "Ospemifene (Osphena)"}], "answer": "D", "explanation": "On tamoxifen, avoid SSRIs and use the SNRI venlafaxine ER (start 37.5 mg). Systemic hormone therapy is a relative contraindication in hormone receptor–positive breast cancer.", "objective": "Menopause — Obj 2 & 5: SSRIs/SNRIs; case-based treatment plan", "section": "Menopause"}, {"id": "4A", "group": 4, "stem": "Why should paroxetine (Paxil), the FDA-approved SSRI for hot flashes, be avoided in this patient?", "options": [{"letter": "A", "text": "It increases tamoxifen clearance"}, {"letter": "B", "text": "It raises the risk of thrombosis"}, {"letter": "C", "text": "It decreases tamoxifen metabolism"}, {"letter": "D", "text": "It prolongs the QT interval"}, {"letter": "E", "text": "It can cause serotonin syndrome"}], "answer": "C", "explanation": "SSRIs decrease tamoxifen metabolism, leaving less active drug. Otherwise SSRIs (paroxetine, citalopram, escitalopram) are first line for daytime symptoms in women who are not hormone-therapy candidates.", "objective": "Menopause — Obj 2: SSRIs/SNRIs — cautions", "section": "Menopause"}, {"id": "5", "group": 5, "stem": "A 30-year-old woman with hypothyroidism well controlled on levothyroxine (Synthroid) has a positive home pregnancy test. What is the most appropriate next step?", "options": [{"letter": "A", "text": "Switch to liothyronine (Cytomel) and check TSH every 8 weeks"}, {"letter": "B", "text": "Decrease the dose by 25% now and check TSH every 4 weeks"}, {"letter": "C", "text": "Hold levothyroxine until the second trimester, then restart it"}, {"letter": "D", "text": "Continue the same dose and check TSH at the end of the first trimester"}, {"letter": "E", "text": "Increase the dose by 25% now and check TSH every 4 weeks"}], "answer": "E", "explanation": "Raise levothyroxine 25% as soon as pregnancy is detected; TSH every 4 weeks through the first 20 weeks, target <2.5 mU/L. Return to the pre-pregnancy dose after delivery and recheck at 6 weeks postpartum.", "objective": "Pregnancy & Lactation — Obj 5: hypothyroidism in pregnancy", "section": "Drugs in Pregnancy & Lactation"}, {"id": "6", "group": 6, "stem": "A 23-year-old woman who weighs 140 lb had a condom break 30 hours ago. She had a deep venous thrombosis 2 years ago and wants emergency contraception she can get at the pharmacy today without a prescription. Which option is appropriate?", "options": [{"letter": "A", "text": "Mifepristone (Mifeprex) single dose"}, {"letter": "B", "text": "Daily ethinyl estradiol/levonorgestrel"}, {"letter": "C", "text": "Levonorgestrel 1.5 mg (Plan B One-Step)"}, {"letter": "D", "text": "Ulipristal acetate (Ella) single dose"}, {"letter": "E", "text": "None; hormones are contraindicated"}], "answer": "C", "explanation": "The contraindications to combined and progestin contraceptives do NOT apply to emergency contraception — prior VTE is fine. Levonorgestrel EC is OTC (FDA-approved to 72 h); ulipristal is prescription-only. EC is not the abortion pill.", "objective": "Contraception — Obj 7: emergency contraception principles", "section": "Contraception"}, {"id": "7", "group": 7, "stem": "A 26-year-old woman at 40 weeks of gestation arrives for a scheduled induction. The fetus is vertex with a reassuring tracing and the cervix is favorable, but examination shows clusters of painful vesicles on both labia. What is the most appropriate plan?", "options": [{"letter": "A", "text": "Give terbutaline (Brethine), then induce"}, {"letter": "B", "text": "Do not induce; avoid vaginal delivery"}, {"letter": "C", "text": "Place vaginal misoprostol (Cytotec)"}, {"letter": "D", "text": "Start an oxytocin (Pitocin) infusion"}, {"letter": "E", "text": "Place a dinoprostone (Cervidil) insert"}], "answer": "B", "explanation": "Oxytocin is contraindicated whenever vaginal delivery should not occur — active genital herpes, cord prolapse, total placenta previa — plus significant cephalopelvic disproportion, unfavorable fetal position, fetal distress, and a hypertonic uterus.", "objective": "Labor & Delivery — Obj 8: oxytocin — contraindications", "section": "Labor & Delivery"}, {"id": "8", "group": 8, "stem": "A woman at 8 weeks of gestation has daily nausea and vomiting despite small frequent meals and avoiding fatty foods. She is not dehydrated. Which medication is first line?", "options": [{"letter": "A", "text": "Prochlorperazine (Compazine)"}, {"letter": "B", "text": "Ondansetron (Zofran)"}, {"letter": "C", "text": "Promethazine (Phenergan)"}, {"letter": "D", "text": "Pyridoxine/doxylamine (Diclegis)"}, {"letter": "E", "text": "Metoclopramide (Reglan)"}], "answer": "D", "explanation": "N/V of pregnancy: pyridoxine (B6) ± doxylamine first. Promethazine, metoclopramide, and prochlorperazine are 2nd/3rd line; ondansetron is for severe N/V with dehydration (small possible ↑ orofacial clefts).", "objective": "Pregnancy & Lactation — Obj 3 & 4: treatment of the discomforts of pregnancy", "section": "Drugs in Pregnancy & Lactation"}, {"id": "9", "group": 9, "stem": "A 58-year-old woman who takes warfarin (Coumadin) for atrial fibrillation has a frothy yellow-green malodorous vaginal discharge. Examination shows punctate cervical hemorrhages, and wet mount shows motile flagellated organisms. Which treatment is most appropriate?", "options": [{"letter": "A", "text": "Metronidazole (Flagyl) 500 mg twice daily for 7 days"}, {"letter": "B", "text": "Fluconazole (Diflucan) 150 mg as one single dose"}, {"letter": "C", "text": "Clindamycin 2% vaginal cream nightly for 7 days"}, {"letter": "D", "text": "Azithromycin (Zithromax) 1 g as one single dose"}, {"letter": "E", "text": "Doxycycline (Vibramycin) twice daily for 7 days"}], "answer": "A", "explanation": "Frothy discharge, strawberry cervix, flagellated protozoa = trichomoniasis → metronidazole 500 mg BID × 7 d in women (2 g × 1 in men; tinidazole 2 g × 1 alternative). Same regimen in pregnancy.", "objective": "GYN Infections — Obj 4: treatment plan for trichomoniasis", "section": "GYN Infections & STIs"}, {"id": "9A", "group": 9, "stem": "Which laboratory value needs closer monitoring while she takes this treatment?", "options": [{"letter": "A", "text": "Hemoglobin A1c level"}, {"letter": "B", "text": "INR (prothrombin time)"}, {"letter": "C", "text": "Serum potassium level"}, {"letter": "D", "text": "Serum sodium level"}, {"letter": "E", "text": "Thyroid-stimulating hormone"}], "answer": "B", "explanation": "Metronidazole increases warfarin's effect (↑ INR/PT) and raises lithium levels.", "objective": "GYN Infections — Obj 2 & 3: metronidazole interactions and monitoring", "section": "GYN Infections & STIs"}, {"id": "9B", "group": 9, "stem": "Which additional step belongs in her management plan?", "options": [{"letter": "A", "text": "Add ceftriaxone to cover likely coinfection"}, {"letter": "B", "text": "Give doxycycline after sex as prophylaxis"}, {"letter": "C", "text": "Treat her again only if her symptoms come back"}, {"letter": "D", "text": "Treat her partner and retest her within 3 months"}, {"letter": "E", "text": "Perform a test of cure 7 to 14 days after therapy"}], "answer": "D", "explanation": "Trichomoniasis: treat recent partners and retest all women within 3 months (high reinfection rate). The 7–14 day test of cure is for pharyngeal gonorrhea.", "objective": "GYN Infections — Obj 3 & 4: monitoring; partner management", "section": "GYN Infections & STIs"}, {"id": "10", "group": 10, "stem": "A woman receiving a magnesium sulfate infusion in preterm labor has absent patellar reflexes and a respiratory rate of 9/min. Which antidote should be given?", "options": [{"letter": "A", "text": "Calcium gluconate"}, {"letter": "B", "text": "Naloxone (Narcan)"}, {"letter": "C", "text": "Flumazenil (Romazicon)"}, {"letter": "D", "text": "Atropine sulfate"}, {"letter": "E", "text": "Protamine sulfate"}], "answer": "A", "explanation": "Magnesium toxicity: loss of deep tendon reflexes → respiratory depression → cardiac arrest. Monitor DTRs, respiratory rate, and urine output; antidote is calcium gluconate. [Board-standard content — the lecture only names magnesium for fetal neuroprotection.]", "objective": "Labor & Delivery — Obj 1: agents used in labor and delivery (magnesium sulfate — drug list)", "section": "Labor & Delivery"}, {"id": "11", "group": 11, "stem": "A 22-year-old woman has a thin gray vaginal discharge with a fishy odor that is worse after intercourse. Vaginal pH is 5.0, the whiff test is positive, and wet mount shows epithelial cells studded with bacteria. Which regimen is most appropriate?", "options": [{"letter": "A", "text": "Fluconazole (Diflucan) 150 mg PO as a single dose"}, {"letter": "B", "text": "Ceftriaxone (Rocephin) 500 mg IM as a single dose"}, {"letter": "C", "text": "Metronidazole (Flagyl) 500 mg PO twice daily for 7 days"}, {"letter": "D", "text": "Azithromycin (Zithromax) 1 g PO as a single dose"}, {"letter": "E", "text": "Doxycycline (Vibramycin) 100 mg PO twice daily for 7 days"}], "answer": "C", "explanation": "pH >4.5 + clue cells + positive whiff = bacterial vaginosis → metronidazole 500 mg BID × 7 d (or metronidazole gel × 5 d, or clindamycin cream × 7 d).", "objective": "GYN Infections — Obj 4: treatment plan for bacterial vaginosis", "section": "GYN Infections & STIs"}, {"id": "11A", "group": 11, "stem": "Which statement about follow-up is correct for this patient?", "options": [{"letter": "A", "text": "A repeat NAAT is required at 3 months"}, {"letter": "B", "text": "The case must be reported to public health"}, {"letter": "C", "text": "Her partner must be treated at the same visit"}, {"letter": "D", "text": "A test of cure is required at 4 weeks"}, {"letter": "E", "text": "No test of cure is needed if symptoms resolve"}], "answer": "E", "explanation": "BV (and candidiasis): no test of cure if symptoms resolve; routine partner treatment is not recommended (ACOG: consider it for recurrent BV in a monogamous relationship). Three-month retesting applies to trichomoniasis, chlamydia, and gonorrhea.", "objective": "GYN Infections — Obj 3: monitoring parameters", "section": "GYN Infections & STIs"}, {"id": "12", "group": 12, "stem": "A 51-year-old woman whose last menstrual period was 14 months ago has severe hot flashes day and night that disrupt her work and sleep. She has an intact uterus, does not smoke, has a BMI of 24, and has no history of breast cancer, blood clots, or cardiovascular disease. Which therapy is most appropriate?", "options": [{"letter": "A", "text": "Estradiol (Estrace) without a progestin"}, {"letter": "B", "text": "Ospemifene (Osphena) 60 mg daily"}, {"letter": "C", "text": "Vaginal estradiol tablet (Vagifem)"}, {"letter": "D", "text": "Estradiol (Estrace) plus micronized progesterone"}, {"letter": "E", "text": "Black cohosh supplement daily"}], "answer": "D", "explanation": "Hormone therapy is the gold standard for moderate–severe vasomotor symptoms in a candidate (<60 or within 10 years of onset, no contraindications). An intact uterus requires a progestin. Ospemifene and low-dose vaginal estrogen treat vaginal symptoms, not hot flashes.", "objective": "Menopause — Obj 5: case-based treatment plan", "section": "Menopause"}, {"id": "12A", "group": 12, "stem": "Why does this patient's regimen need the progesterone component?", "options": [{"letter": "A", "text": "It prevents venous thromboembolism and stroke"}, {"letter": "B", "text": "It prevents endometrial hyperplasia and cancer"}, {"letter": "C", "text": "It lowers the long-term risk of breast cancer"}, {"letter": "D", "text": "It improves control of vasomotor symptoms"}, {"letter": "E", "text": "It prevents osteoporosis and hip fracture"}], "answer": "B", "explanation": "Unopposed estrogen with an intact uterus → endometrial hyperplasia/cancer. Options: medroxyprogesterone acetate, micronized progesterone, or a levonorgestrel IUD. Not needed after hysterectomy.", "objective": "Menopause — Obj 2: progestins", "section": "Menopause"}, {"id": "12B", "group": 12, "stem": "She asks whether a patch would be safer than a pill. What advantage does transdermal estradiol (Climara) have over oral estrogen?", "options": [{"letter": "A", "text": "Higher first-pass liver metabolism"}, {"letter": "B", "text": "Removes the need for a progestin"}, {"letter": "C", "text": "Lower risk of thrombotic events"}, {"letter": "D", "text": "Lower risk of endometrial cancer"}, {"letter": "E", "text": "No need for mammography screening"}], "answer": "C", "explanation": "Transdermal estrogen is preferred over oral: less thrombotic risk, less effect on lipids, and it avoids first-pass metabolism. A uterus still needs a progestin.", "objective": "Menopause — Obj 3: advantages and disadvantages of agents", "section": "Menopause"}, {"id": "13", "group": 13, "stem": "Which adverse-effect profile belongs to Indomethacin (Indocin)?", "options": [{"letter": "A", "text": "Fever, GI upset, back pain, abnormal uterine contractions"}, {"letter": "B", "text": "Uterine rupture, hypertension; fetal jaundice, retinal hemorrhage"}, {"letter": "C", "text": "Excessive uterine stimulation, fetal heart rate changes, fetal distress"}, {"letter": "D", "text": "Maternal gastritis and bleeding; fetal ductus narrowing, oligohydramnios"}, {"letter": "E", "text": "Hypotension, flushing, headache, palpitations, peripheral edema"}, {"letter": "F", "text": "Tachycardia, hypokalemia, hyperglycemia; newborn hypoglycemia"}], "answer": "D", "explanation": "NSAID tocolytic; not after 32 weeks.", "objective": "Labor & Delivery — Obj 5: indomethacin", "section": "Labor & Delivery", "match": true, "matchLabel": "Indomethacin (Indocin)", "matchPrompt": "Match each labor and delivery drug to its adverse-effect profile. Each profile is used once."}, {"id": "13A", "group": 13, "stem": "Which adverse-effect profile belongs to Nifedipine (Procardia)?", "options": [{"letter": "A", "text": "Fever, GI upset, back pain, abnormal uterine contractions"}, {"letter": "B", "text": "Uterine rupture, hypertension; fetal jaundice, retinal hemorrhage"}, {"letter": "C", "text": "Excessive uterine stimulation, fetal heart rate changes, fetal distress"}, {"letter": "D", "text": "Maternal gastritis and bleeding; fetal ductus narrowing, oligohydramnios"}, {"letter": "E", "text": "Hypotension, flushing, headache, palpitations, peripheral edema"}, {"letter": "F", "text": "Tachycardia, hypokalemia, hyperglycemia; newborn hypoglycemia"}], "answer": "E", "explanation": "Vasodilation effects; monitor HR, BP, CHF signs, edema.", "objective": "Labor & Delivery — Obj 5: nifedipine", "section": "Labor & Delivery", "match": true, "matchLabel": "Nifedipine (Procardia)", "matchPrompt": "Match each labor and delivery drug to its adverse-effect profile. Each profile is used once."}, {"id": "13B", "group": 13, "stem": "Which adverse-effect profile belongs to Terbutaline (Brethine)?", "options": [{"letter": "A", "text": "Fever, GI upset, back pain, abnormal uterine contractions"}, {"letter": "B", "text": "Uterine rupture, hypertension; fetal jaundice, retinal hemorrhage"}, {"letter": "C", "text": "Excessive uterine stimulation, fetal heart rate changes, fetal distress"}, {"letter": "D", "text": "Maternal gastritis and bleeding; fetal ductus narrowing, oligohydramnios"}, {"letter": "E", "text": "Hypotension, flushing, headache, palpitations, peripheral edema"}, {"letter": "F", "text": "Tachycardia, hypokalemia, hyperglycemia; newborn hypoglycemia"}], "answer": "F", "explanation": "Most maternal AEs → second line; monitor electrolytes and glucose.", "objective": "Labor & Delivery — Obj 5: terbutaline", "section": "Labor & Delivery", "match": true, "matchLabel": "Terbutaline (Brethine)", "matchPrompt": "Match each labor and delivery drug to its adverse-effect profile. Each profile is used once."}, {"id": "13C", "group": 13, "stem": "Which adverse-effect profile belongs to Oxytocin (Pitocin)?", "options": [{"letter": "A", "text": "Fever, GI upset, back pain, abnormal uterine contractions"}, {"letter": "B", "text": "Uterine rupture, hypertension; fetal jaundice, retinal hemorrhage"}, {"letter": "C", "text": "Excessive uterine stimulation, fetal heart rate changes, fetal distress"}, {"letter": "D", "text": "Maternal gastritis and bleeding; fetal ductus narrowing, oligohydramnios"}, {"letter": "E", "text": "Hypotension, flushing, headache, palpitations, peripheral edema"}, {"letter": "F", "text": "Tachycardia, hypokalemia, hyperglycemia; newborn hypoglycemia"}], "answer": "B", "explanation": "Also arrhythmias, pelvic hematoma, low Apgar.", "objective": "Labor & Delivery — Obj 8: oxytocin", "section": "Labor & Delivery", "match": true, "matchLabel": "Oxytocin (Pitocin)", "matchPrompt": "Match each labor and delivery drug to its adverse-effect profile. Each profile is used once."}, {"id": "13D", "group": 13, "stem": "Which adverse-effect profile belongs to Misoprostol (Cytotec)?", "options": [{"letter": "A", "text": "Fever, GI upset, back pain, abnormal uterine contractions"}, {"letter": "B", "text": "Uterine rupture, hypertension; fetal jaundice, retinal hemorrhage"}, {"letter": "C", "text": "Excessive uterine stimulation, fetal heart rate changes, fetal distress"}, {"letter": "D", "text": "Maternal gastritis and bleeding; fetal ductus narrowing, oligohydramnios"}, {"letter": "E", "text": "Hypotension, flushing, headache, palpitations, peripheral edema"}, {"letter": "F", "text": "Tachycardia, hypokalemia, hyperglycemia; newborn hypoglycemia"}], "answer": "C", "explanation": "PGE1; higher AE rate than dinoprostone; no prior C-section.", "objective": "Labor & Delivery — Obj 7: misoprostol", "section": "Labor & Delivery", "match": true, "matchLabel": "Misoprostol (Cytotec)", "matchPrompt": "Match each labor and delivery drug to its adverse-effect profile. Each profile is used once."}, {"id": "13E", "group": 13, "stem": "Which adverse-effect profile belongs to Dinoprostone (Cervidil)?", "options": [{"letter": "A", "text": "Fever, GI upset, back pain, abnormal uterine contractions"}, {"letter": "B", "text": "Uterine rupture, hypertension; fetal jaundice, retinal hemorrhage"}, {"letter": "C", "text": "Excessive uterine stimulation, fetal heart rate changes, fetal distress"}, {"letter": "D", "text": "Maternal gastritis and bleeding; fetal ductus narrowing, oligohydramnios"}, {"letter": "E", "text": "Hypotension, flushing, headache, palpitations, peripheral edema"}, {"letter": "F", "text": "Tachycardia, hypokalemia, hyperglycemia; newborn hypoglycemia"}], "answer": "A", "explanation": "PGE2; black box — medical facility only.", "objective": "Labor & Delivery — Obj 7: dinoprostone", "section": "Labor & Delivery", "match": true, "matchLabel": "Dinoprostone (Cervidil)", "matchPrompt": "Match each labor and delivery drug to its adverse-effect profile. Each profile is used once."}, {"id": "14", "group": 14, "stem": "In a combined oral contraceptive, the estrogen and the progestin each contribute differently to preventing pregnancy. Which action is the contribution of the estrogen component?", "options": [{"letter": "A", "text": "Suppresses FSH, so no dominant follicle"}, {"letter": "B", "text": "Slows fallopian tube peristalsis"}, {"letter": "C", "text": "Blocks the midcycle surge of LH"}, {"letter": "D", "text": "Thins the endometrial lining"}, {"letter": "E", "text": "Thickens the cervical mucus barrier"}], "answer": "A", "explanation": "Estrogen suppresses FSH → no dominant follicle is selected. The other four actions belong to the progestin: blocks the LH surge, thickens mucus, slows tubal peristalsis, thins the endometrium.", "objective": "Contraception — Obj 2: mechanism of action of estrogens and progestins", "section": "Contraception"}, {"id": "15", "group": 15, "stem": "A 28-year-old woman has severe irritability, depressed mood, and bloating during the week before each period; symptoms resolve within 2 days of menses and have been documented in a diary for two cycles. They are disrupting her job, and she does not want hormonal contraception. Which medication is first line?", "options": [{"letter": "A", "text": "Leuprolide (Lupron Depot)"}, {"letter": "B", "text": "Tranexamic acid (Lysteda)"}, {"letter": "C", "text": "Spironolactone (Aldactone)"}, {"letter": "D", "text": "Danazol (Danocrine)"}, {"letter": "E", "text": "Fluoxetine (Prozac)"}], "answer": "E", "explanation": "Premenstrual symptoms that impair functioning = PMDD → SSRI first line (fluoxetine, sertraline, paroxetine), dosed continuously or in the luteal phase only; screen for suicidal thoughts. Drospirenone/EE is the choice if she wants contraception. GnRH agonists are for refractory disease.", "objective": "Menstruation Disorders — Obj 3: treatment of PMS/PMDD", "section": "Menstruation-Related Disorders"}, {"id": "15A", "group": 15, "stem": "How soon should she expect her symptoms to improve after starting this medication?", "options": [{"letter": "A", "text": "Only with daily dosing"}, {"letter": "B", "text": "After 4 to 6 weeks"}, {"letter": "C", "text": "After about 3 months"}, {"letter": "D", "text": "After about 6 months"}, {"letter": "E", "text": "Within the first cycle"}], "answer": "E", "explanation": "SSRIs work within days in PMDD (first cycle) — unlike the weeks needed in major depression — which is why luteal-phase dosing (ovulation → onset of menses) works. Non-responders: try a second SSRI.", "objective": "Menstruation Disorders — Obj 3 & 4: PMS/PMDD treatment and monitoring", "section": "Menstruation-Related Disorders"}, {"id": "16", "group": 16, "stem": "A 30-year-old woman plans to conceive in about 6 months and wants contraception until then. Which method should be avoided?", "options": [{"letter": "A", "text": "Ethinyl estradiol/etonogestrel ring (NuvaRing)"}, {"letter": "B", "text": "Copper IUD (Paragard)"}, {"letter": "C", "text": "Levonorgestrel/ethinyl estradiol (Lutera)"}, {"letter": "D", "text": "Medroxyprogesterone acetate (Depo-Provera)"}, {"letter": "E", "text": "Norethindrone 0.35 mg (Micronor)"}], "answer": "D", "explanation": "Return to fertility after Depo-Provera can take many months. Fertility returns essentially immediately after pills and the ring, and rapidly after IUD or implant removal.", "objective": "Contraception — Obj 6: choosing a method for a scenario", "section": "Contraception"}, {"id": "17", "group": 17, "stem": "A 65-year-old woman who went through menopause 13 years ago has severe vaginal dryness, itching, and pain with intercourse despite regular use of lubricants and moisturizers. She has no hot flashes. Which treatment is most appropriate?", "options": [{"letter": "A", "text": "Vaginal estradiol cream (Estrace)"}, {"letter": "B", "text": "Transdermal estradiol patch (Climara)"}, {"letter": "C", "text": "Low-dose oral paroxetine (Paxil)"}, {"letter": "D", "text": "Bedtime gabapentin (Neurontin)"}, {"letter": "E", "text": "Oral conjugated estrogens (Premarin)"}], "answer": "A", "explanation": "Genitourinary symptoms only → low-dose vaginal estrogen (cream, tablet, or ring): low systemic exposure. Ospemifene is the oral alternative. Systemic therapy is not used for urogenital-only symptoms.", "objective": "Menopause — Obj 5: case-based treatment plan (vaginal symptoms)", "section": "Menopause"}, {"id": "17A", "group": 17, "stem": "She asks whether she should also start an estrogen pill. Starting systemic hormone therapy at this point would most increase her risk of which complications?", "options": [{"letter": "A", "text": "Osteoporosis and hip fracture"}, {"letter": "B", "text": "Stroke and venous thromboembolism"}, {"letter": "C", "text": "Liver injury and jaundice"}, {"letter": "D", "text": "Hyperkalemia and arrhythmia"}, {"letter": "E", "text": "Tendinitis and tendon rupture"}], "answer": "B", "explanation": "ACOG 2026 start window: before age 60 or within 10 years of menopause onset. Starting later raises stroke and VTE risk; early initiation is associated with lower CHD but still ↑ VTE.", "objective": "Menopause — Obj 2 & 3: estrogens — cautions; advantages and disadvantages", "section": "Menopause"}, {"id": "18", "group": 18, "stem": "A 38-year-old woman who weighs 68 kg has purulent cervical discharge and dyspareunia after sex with a new partner. NAAT is positive for Neisseria gonorrhoeae; the chlamydia result is still pending. Which regimen is most appropriate?", "options": [{"letter": "A", "text": "Cefixime 800 mg PO once with no additional antibiotic"}, {"letter": "B", "text": "Azithromycin 1 g PO once with no additional antibiotic"}, {"letter": "C", "text": "Ceftriaxone 500 mg IM once plus doxycycline for 7 days"}, {"letter": "D", "text": "Ceftriaxone 500 mg IM once with no additional antibiotic"}, {"letter": "E", "text": "Ceftriaxone 1 g IM once plus metronidazole for 7 days"}], "answer": "C", "explanation": "Uncomplicated gonorrhea: ceftriaxone 500 mg IM × 1 (1 g if ≥150 kg). If chlamydia is not excluded, add doxycycline 100 mg BID × 7 d. Cefixime 800 mg is the oral alternative (not for pharyngeal infection). Retest everyone at 3 months.", "objective": "GYN Infections — Obj 4: treatment plan for gonorrhea", "section": "GYN Infections & STIs"}, {"id": "19", "group": 19, "stem": "A 52-year-old woman with an intact uterus is starting transdermal estradiol for severe hot flashes. She has an elevated LDL cholesterol and a father who had a myocardial infarction at age 50. Which agent is the preferred choice to protect her endometrium?", "options": [{"letter": "A", "text": "Megestrol acetate (Megace)"}, {"letter": "B", "text": "Micronized progesterone (Prometrium)"}, {"letter": "C", "text": "No added agent is needed"}, {"letter": "D", "text": "Medroxyprogesterone acetate (Provera)"}, {"letter": "E", "text": "Danazol (Danocrine)"}], "answer": "B", "explanation": "Per the 2026 deck, medroxyprogesterone acetate carries a higher risk of possible coronary heart disease and increased lipids than micronized progesterone, which is the safer progestin. Both can cause mood swings.", "objective": "Menopause — Obj 2 & 3: progestins; advantages and disadvantages", "section": "Menopause"}, {"id": "20", "group": 20, "stem": "A 31-year-old woman with endometriosis is started on elagolix (Orilissa). She is sexually active with a male partner and says she will not need birth control \"because this medicine stops my periods.\" What should she be told?", "options": [{"letter": "A", "text": "Use contraception; ovulation can still occur"}, {"letter": "B", "text": "Avoid alcohol until 3 days after therapy"}, {"letter": "C", "text": "Check potassium during the first cycle"}, {"letter": "D", "text": "Take it only on days of menstrual bleeding"}, {"letter": "E", "text": "Expect a symptom flare in the first 2 weeks"}], "answer": "A", "explanation": "Elagolix gives partial suppression — ovulation may occur, and it is contraindicated in pregnancy. Also screen for suicidal ideation/worsening depression and watch bone density (dose-dependent loss; high dose ≤6 months).", "objective": "Menstruation Disorders — Obj 5: GnRH analogs — elagolix cautions and patient education", "section": "Menstruation-Related Disorders"}, {"id": "21", "group": 21, "stem": "A 24-year-old woman with acne and hirsutism from polycystic ovary syndrome wants an oral contraceptive that will also help her skin. She takes lisinopril for well-controlled hypertension and does not smoke. Which contraceptive is the best fit?", "options": [{"letter": "A", "text": "Norgestrel 0.075 mg (Opill)"}, {"letter": "B", "text": "Etonogestrel implant (Nexplanon)"}, {"letter": "C", "text": "Medroxyprogesterone acetate (Depo-Provera)"}, {"letter": "D", "text": "Drospirenone/ethinyl estradiol (Yaz)"}, {"letter": "E", "text": "Norethindrone 0.35 mg (Micronor)"}], "answer": "D", "explanation": "Drospirenone is the anti-androgenic (4th-generation) progestin, derived from spironolactone — the choice for acne, hirsutism, PCOS, and PMDD. Progestin-only methods can worsen acne and weight; COCs help acne.", "objective": "Contraception — Obj 2 & 6: progestins; choosing a method for a scenario", "section": "Contraception"}, {"id": "21A", "group": 21, "stem": "Given her other medication, which laboratory test should be checked during her first cycle on this contraceptive?", "options": [{"letter": "A", "text": "ALT and AST"}, {"letter": "B", "text": "Serum sodium"}, {"letter": "C", "text": "Fasting glucose"}, {"letter": "D", "text": "Thyroid-stimulating hormone"}, {"letter": "E", "text": "Serum potassium"}], "answer": "E", "explanation": "Drospirenone is spironolactone-like and can raise potassium. Check serum K during cycle 1 when combined with another K-raising drug: ACE inhibitors, ARBs, NSAIDs, spironolactone. Avoid in significant renal dysfunction.", "objective": "Contraception — Obj 2: progestin cautions and monitoring", "section": "Contraception"}, {"id": "22", "group": 22, "stem": "A 52-year-old woman who had a hysterectomy 5 years ago has moderate to severe hot flashes and no contraindications to hormone therapy. Which regimen is most appropriate?", "options": [{"letter": "A", "text": "Raloxifene (Evista) alone"}, {"letter": "B", "text": "Estradiol/norethindrone patch (CombiPatch)"}, {"letter": "C", "text": "Estradiol (Estrace) alone"}, {"letter": "D", "text": "Conjugated estrogens/medroxyprogesterone (Prempro)"}, {"letter": "E", "text": "Ospemifene (Osphena) alone"}], "answer": "C", "explanation": "No uterus → estrogen alone; a progestin is only for endometrial protection. Ospemifene is for dyspareunia/dryness, and raloxifene (osteoporosis) can worsen hot flashes.", "objective": "Menopause — Obj 1 & 5: therapeutic categories; case-based treatment plan", "section": "Menopause"}, {"id": "23", "group": 23, "stem": "A 22-year-old woman taking a combined oral contraceptive realizes she missed her active pills on two consecutive days during the second week of the pack. What should she be told?", "options": [{"letter": "A", "text": "Take both of the missed pills now and finish the pack; no backup method is needed"}, {"letter": "B", "text": "Stop the pack for a full 7 days, then restart a new pack with backup for 48 hours"}, {"letter": "C", "text": "Discard this pack and begin a new pack on the first day of her next period"}, {"letter": "D", "text": "Take one pill now and finish the pack as usual; no backup method is needed"}, {"letter": "E", "text": "Take the most recent missed pill now, finish the pack, and use backup for 7 days"}], "answer": "E", "explanation": "≥2 consecutive missed pills (≥48 h): take the most recent missed pill, discard the earlier one, continue the pack, and use backup or abstain until 7 consecutive active pills are taken. One pill missed/<48 h late: take it ASAP, no backup.", "objective": "Contraception — Obj 6: patient education (missed-pill rules)", "section": "Contraception"}, {"id": "24", "group": 24, "stem": "A 27-year-old woman at 9 weeks of gestation has 2 days of dysuria, urgency, and frequency. She is afebrile with no flank pain, and urinalysis shows pyuria and bacteriuria. Which antibiotic is most appropriate?", "options": [{"letter": "A", "text": "Ciprofloxacin (Cipro)"}, {"letter": "B", "text": "Nitrofurantoin (Macrobid)"}, {"letter": "C", "text": "Doxycycline (Vibramycin)"}, {"letter": "D", "text": "Cefpodoxime (Vantin)"}, {"letter": "E", "text": "Trimethoprim-sulfamethoxazole (Bactrim DS)"}], "answer": "D", "explanation": "Cystitis in the 1st trimester: a β-lactam (cefpodoxime, amoxicillin-clavulanate, cephalexin) or fosfomycin. TMP-SMX and nitrofurantoin are avoided in the 1st trimester and at term; fluoroquinolones and tetracyclines are avoided throughout pregnancy.", "objective": "Pregnancy & Lactation — Obj 5: cystitis in pregnancy (slide 37 — \"know this slide\")", "section": "Drugs in Pregnancy & Lactation"}, {"id": "24A", "group": 24, "stem": "She asks why trimethoprim-sulfamethoxazole (Bactrim DS), which cleared a past infection, was not chosen. What is the concern at her current stage of pregnancy?", "options": [{"letter": "A", "text": "Premature closure of the ductus"}, {"letter": "B", "text": "Folate antagonism causing malformations"}, {"letter": "C", "text": "Damage to fetal joint cartilage"}, {"letter": "D", "text": "Kernicterus from displaced bilirubin"}, {"letter": "E", "text": "Discoloration of the fetal teeth"}], "answer": "B", "explanation": "First trimester: trimethoprim is a folate antagonist → malformations. At term the concern switches to the sulfonamide displacing bilirubin from albumin → kernicterus. Teeth = tetracyclines; cartilage = fluoroquinolones; ductus = NSAIDs.", "objective": "Pregnancy & Lactation — Obj 5: antibiotics to avoid in pregnancy", "section": "Drugs in Pregnancy & Lactation"}, {"id": "25", "group": 25, "stem": "A woman at 30 weeks of gestation has regular contractions, a temperature of 38.9°C (102°F), uterine tenderness, foul-smelling amniotic fluid, and fetal tachycardia. Which is most appropriate regarding tocolysis?", "options": [{"letter": "A", "text": "No tocolytic should be given"}, {"letter": "B", "text": "Magnesium sulfate for 48 hours"}, {"letter": "C", "text": "Terbutaline (Brethine) as one dose"}, {"letter": "D", "text": "Nifedipine (Procardia) for 48 hours"}, {"letter": "E", "text": "Indomethacin (Indocin) for 48 hours"}], "answer": "A", "explanation": "Fever, uterine tenderness, and foul fluid = intrauterine infection, a contraindication to tocolysis. The others: fetal distress or demise, maternal hemorrhage with instability, a drug-specific contraindication, and PPROM (unless needed for transport or steroids).", "objective": "Labor & Delivery — Obj 4: contraindications to tocolysis", "section": "Labor & Delivery"}, {"id": "26", "group": 26, "stem": "A 25-year-old woman has tingling followed by painful grouped vesicles and shallow ulcers on both labia, low-grade fever, and tender inguinal lymph nodes. This is her first episode. Which medication should be started?", "options": [{"letter": "A", "text": "Benzathine penicillin G (Bicillin L-A)"}, {"letter": "B", "text": "Ceftriaxone (Rocephin)"}, {"letter": "C", "text": "Valacyclovir (Valtrex)"}, {"letter": "D", "text": "Fluconazole (Diflucan)"}, {"letter": "E", "text": "Doxycycline (Vibramycin)"}], "answer": "C", "explanation": "Painful vesicles/ulcers with a prodrome and tender nodes = genital herpes. Initial episode: valacyclovir 1 g BID, acyclovir 400 mg TID, or famciclovir 250 mg TID × 7–10 d.", "objective": "GYN Infections — Obj 4: treatment plan for genital herpes", "section": "GYN Infections & STIs"}, {"id": "26A", "group": 26, "stem": "A year later she feels the same tingling again but has no visible lesions. When should she start episodic therapy?", "options": [{"letter": "A", "text": "After a positive viral culture"}, {"letter": "B", "text": "Now, during the prodrome"}, {"letter": "C", "text": "Once vesicles have appeared"}, {"letter": "D", "text": "Only if fever also develops"}, {"letter": "E", "text": "Once lesions have crusted"}], "answer": "B", "explanation": "Episodic therapy for a recurrence only helps if started during the prodrome or within 24 hours of lesion onset. Frequent recurrences → daily suppressive therapy.", "objective": "GYN Infections — Obj 2 & 4: antivirals — patient education", "section": "GYN Infections & STIs"}, {"id": "27", "group": 27, "stem": "A 28-year-old woman at 29 weeks of gestation has regular painful contractions, and her cervix has dilated from 1 cm to 3 cm over 2 hours. She is afebrile, membranes are intact, and the fetal heart tracing is reassuring. Which first-line agent should be given to slow her contractions?", "options": [{"letter": "A", "text": "Indomethacin (Indocin)"}, {"letter": "B", "text": "Misoprostol (Cytotec)"}, {"letter": "C", "text": "Dinoprostone (Cervidil)"}, {"letter": "D", "text": "Terbutaline (Brethine)"}, {"letter": "E", "text": "Oxytocin (Pitocin)"}], "answer": "A", "explanation": "Preterm labor (contractions + cervical change between 20 and 37 weeks) at 22–33 weeks → tocolysis. Indomethacin is first line (nifedipine is the alternate first line); terbutaline is second line. Oxytocin, misoprostol, and dinoprostone promote labor.", "objective": "Labor & Delivery — Obj 1 & 2: tocolytics; gestational-age criteria for tocolysis", "section": "Labor & Delivery"}, {"id": "27A", "group": 27, "stem": "What is the main purpose of giving this agent to her?", "options": [{"letter": "A", "text": "Lower the risk of postpartum hemorrhage"}, {"letter": "B", "text": "Eradicate group B streptococcal colonization"}, {"letter": "C", "text": "Continue the pregnancy to 37 weeks of gestation"}, {"letter": "D", "text": "Delay delivery 48 hours for antenatal steroids"}, {"letter": "E", "text": "Soften and efface the cervix before delivery"}], "answer": "D", "explanation": "Tocolytics buy time (≥48 h); they do not prevent preterm birth. The time is used for antenatal corticosteroids, GBS antibiotic prophylaxis, and maternal transfer to a center with appropriate neonatal care.", "objective": "Labor & Delivery — Obj 3: goals of tocolytic therapy", "section": "Labor & Delivery"}, {"id": "27B", "group": 27, "stem": "Which additional drug should she receive now to accelerate fetal lung maturity?", "options": [{"letter": "A", "text": "Nifedipine (Procardia)"}, {"letter": "B", "text": "Penicillin G"}, {"letter": "C", "text": "Betamethasone (Celestone)"}, {"letter": "D", "text": "Terbutaline (Brethine)"}, {"letter": "E", "text": "Magnesium sulfate"}], "answer": "C", "explanation": "Betamethasone 12 mg IM q24h × 2 doses at 24–34 weeks when delivery is likely within 7 days → ↓ RDS, intraventricular hemorrhage, and death. Magnesium sulfate is for fetal neuroprotection, not lung maturity.", "objective": "Labor & Delivery — Obj 6: antenatal glucocorticoids", "section": "Labor & Delivery"}, {"id": "28", "group": 28, "stem": "Which adverse-effect profile belongs to Metronidazole (Flagyl)?", "options": [{"letter": "A", "text": "Tendon rupture, CNS effects, dysglycemia, aortic dissection"}, {"letter": "B", "text": "Metallic taste, GI upset, neuropathy with prolonged use"}, {"letter": "C", "text": "Crystal nephropathy with acute kidney injury, headache"}, {"letter": "D", "text": "Hepatotoxicity, QT prolongation, CYP450 interactions"}, {"letter": "E", "text": "Hypersensitivity rash, diarrhea, biliary sludging"}, {"letter": "F", "text": "Photosensitivity, esophageal erosion, pseudotumor cerebri"}], "answer": "B", "explanation": "Also QTc prolongation; ↑ INR with warfarin.", "objective": "GYN Infections — Obj 2: metronidazole", "section": "GYN Infections & STIs", "match": true, "matchLabel": "Metronidazole (Flagyl)", "matchPrompt": "Match each anti-infective to its adverse-effect profile. Each profile is used once."}, {"id": "28A", "group": 28, "stem": "Which adverse-effect profile belongs to Doxycycline (Vibramycin)?", "options": [{"letter": "A", "text": "Tendon rupture, CNS effects, dysglycemia, aortic dissection"}, {"letter": "B", "text": "Metallic taste, GI upset, neuropathy with prolonged use"}, {"letter": "C", "text": "Crystal nephropathy with acute kidney injury, headache"}, {"letter": "D", "text": "Hepatotoxicity, QT prolongation, CYP450 interactions"}, {"letter": "E", "text": "Hypersensitivity rash, diarrhea, biliary sludging"}, {"letter": "F", "text": "Photosensitivity, esophageal erosion, pseudotumor cerebri"}], "answer": "F", "explanation": "Take with a full glass of water, stay upright, sun protection.", "objective": "GYN Infections — Obj 2: tetracyclines", "section": "GYN Infections & STIs", "match": true, "matchLabel": "Doxycycline (Vibramycin)", "matchPrompt": "Match each anti-infective to its adverse-effect profile. Each profile is used once."}, {"id": "28B", "group": 28, "stem": "Which adverse-effect profile belongs to Levofloxacin (Levaquin)?", "options": [{"letter": "A", "text": "Tendon rupture, CNS effects, dysglycemia, aortic dissection"}, {"letter": "B", "text": "Metallic taste, GI upset, neuropathy with prolonged use"}, {"letter": "C", "text": "Crystal nephropathy with acute kidney injury, headache"}, {"letter": "D", "text": "Hepatotoxicity, QT prolongation, CYP450 interactions"}, {"letter": "E", "text": "Hypersensitivity rash, diarrhea, biliary sludging"}, {"letter": "F", "text": "Photosensitivity, esophageal erosion, pseudotumor cerebri"}], "answer": "A", "explanation": "Black box: tendon, neuropathy, CNS, myasthenia gravis.", "objective": "GYN Infections — Obj 2: fluoroquinolones", "section": "GYN Infections & STIs", "match": true, "matchLabel": "Levofloxacin (Levaquin)", "matchPrompt": "Match each anti-infective to its adverse-effect profile. Each profile is used once."}, {"id": "28C", "group": 28, "stem": "Which adverse-effect profile belongs to Ceftriaxone (Rocephin)?", "options": [{"letter": "A", "text": "Tendon rupture, CNS effects, dysglycemia, aortic dissection"}, {"letter": "B", "text": "Metallic taste, GI upset, neuropathy with prolonged use"}, {"letter": "C", "text": "Crystal nephropathy with acute kidney injury, headache"}, {"letter": "D", "text": "Hepatotoxicity, QT prolongation, CYP450 interactions"}, {"letter": "E", "text": "Hypersensitivity rash, diarrhea, biliary sludging"}, {"letter": "F", "text": "Photosensitivity, esophageal erosion, pseudotumor cerebri"}], "answer": "E", "explanation": "Cephalosporin hypersensitivity about 5%.", "objective": "GYN Infections — Obj 2: cephalosporins", "section": "GYN Infections & STIs", "match": true, "matchLabel": "Ceftriaxone (Rocephin)", "matchPrompt": "Match each anti-infective to its adverse-effect profile. Each profile is used once."}, {"id": "28D", "group": 28, "stem": "Which adverse-effect profile belongs to Valacyclovir (Valtrex)?", "options": [{"letter": "A", "text": "Tendon rupture, CNS effects, dysglycemia, aortic dissection"}, {"letter": "B", "text": "Metallic taste, GI upset, neuropathy with prolonged use"}, {"letter": "C", "text": "Crystal nephropathy with acute kidney injury, headache"}, {"letter": "D", "text": "Hepatotoxicity, QT prolongation, CYP450 interactions"}, {"letter": "E", "text": "Hypersensitivity rash, diarrhea, biliary sludging"}, {"letter": "F", "text": "Photosensitivity, esophageal erosion, pseudotumor cerebri"}], "answer": "C", "explanation": "Hydrate; monitor serum creatinine; renal dosing.", "objective": "GYN Infections — Obj 2: antivirals", "section": "GYN Infections & STIs", "match": true, "matchLabel": "Valacyclovir (Valtrex)", "matchPrompt": "Match each anti-infective to its adverse-effect profile. Each profile is used once."}, {"id": "28E", "group": 28, "stem": "Which adverse-effect profile belongs to Fluconazole (Diflucan)?", "options": [{"letter": "A", "text": "Tendon rupture, CNS effects, dysglycemia, aortic dissection"}, {"letter": "B", "text": "Metallic taste, GI upset, neuropathy with prolonged use"}, {"letter": "C", "text": "Crystal nephropathy with acute kidney injury, headache"}, {"letter": "D", "text": "Hepatotoxicity, QT prolongation, CYP450 interactions"}, {"letter": "E", "text": "Hypersensitivity rash, diarrhea, biliary sludging"}, {"letter": "F", "text": "Photosensitivity, esophageal erosion, pseudotumor cerebri"}], "answer": "D", "explanation": "Monitor EKG and ALT/AST; no drug-level monitoring needed.", "objective": "GYN Infections — Obj 2: azole antifungals", "section": "GYN Infections & STIs", "match": true, "matchLabel": "Fluconazole (Diflucan)", "matchPrompt": "Match each anti-infective to its adverse-effect profile. Each profile is used once."}, {"id": "29", "group": 29, "stem": "A 29-year-old woman with major depressive disorder is planning pregnancy and needs to start an antidepressant. Which medication is the preferred first-line choice?", "options": [{"letter": "A", "text": "Bupropion (Wellbutrin)"}, {"letter": "B", "text": "Paroxetine (Paxil)"}, {"letter": "C", "text": "Venlafaxine (Effexor XR)"}, {"letter": "D", "text": "Amitriptyline (Elavil)"}, {"letter": "E", "text": "Sertraline (Zoloft)"}], "answer": "E", "explanation": "SSRIs are first line in pregnancy (sertraline, fluoxetine, escitalopram). Paroxetine is not first line; bupropion is not preferred (possible ↑ spontaneous abortion); SNRIs are reasonable alternatives, not first choice.", "objective": "Pregnancy & Lactation — Obj 5: depression in pregnancy and lactation", "section": "Drugs in Pregnancy & Lactation"}, {"id": "29A", "group": 29, "stem": "Her sister did well on paroxetine (Paxil), and she asks why it is not a first-line choice for her. What is the concern?", "options": [{"letter": "A", "text": "Possible congenital heart defects"}, {"letter": "B", "text": "Kernicterus in the newborn"}, {"letter": "C", "text": "Possible open neural tube defects"}, {"letter": "D", "text": "Fetal renal failure in late pregnancy"}, {"letter": "E", "text": "Premature closure of the ductus"}], "answer": "A", "explanation": "Paroxetine carries a possible increase in congenital heart defects, so it is not first line in pregnancy — yet it is a preferred start (with sertraline) during breastfeeding because milk levels are lowest.", "objective": "Pregnancy & Lactation — Obj 5: depression in pregnancy and lactation", "section": "Drugs in Pregnancy & Lactation"}, {"id": "30", "group": 30, "stem": "A woman at 18 weeks of gestation has vulvar itching and a thick, white, curd-like discharge. Vaginal pH is 4.0, the whiff test is negative, and KOH prep shows pseudohyphae. Which treatment is most appropriate?", "options": [{"letter": "A", "text": "Clindamycin 2% vaginal cream for 7 days"}, {"letter": "B", "text": "Fluconazole (Diflucan) 150 mg PO once"}, {"letter": "C", "text": "Clotrimazole 1% vaginal cream for 7 days"}, {"letter": "D", "text": "Tinidazole (Tindamax) 2 g PO once"}, {"letter": "E", "text": "Metronidazole (Flagyl) 500 mg for 7 days"}], "answer": "C", "explanation": "Normal pH + pseudohyphae = vulvovaginal candidiasis. Outside pregnancy: fluconazole 150 mg once or a topical azole. In pregnancy, topical imidazoles (clotrimazole, miconazole) are preferred over oral azoles.", "objective": "GYN Infections — Obj 4: treatment plan for vulvovaginal candidiasis", "section": "GYN Infections & STIs"}, {"id": "30A", "group": 30, "stem": "Which counseling point should accompany this prescription?", "options": [{"letter": "A", "text": "Stay upright after each dose"}, {"letter": "B", "text": "It can weaken latex condoms"}, {"letter": "C", "text": "Avoid alcohol during therapy"}, {"letter": "D", "text": "Avoid prolonged sun exposure"}, {"letter": "E", "text": "Separate from antacids by 2 hours"}], "answer": "B", "explanation": "Oil-based vaginal creams weaken latex condoms and diaphragms; use at bedtime, avoid tampons, finish the course. Alcohol = metronidazole label; sun, antacids, and staying upright = doxycycline.", "objective": "GYN Infections — Obj 2: azole antifungals — patient education", "section": "GYN Infections & STIs"}, {"id": "31", "group": 31, "stem": "A 25-year-old woman at 26 weeks of gestation has a temperature of 39.1°C (102.4°F), right flank pain, vomiting, and costovertebral angle tenderness. Urinalysis shows pyuria and bacteriuria. What is the most appropriate management?", "options": [{"letter": "A", "text": "Outpatient fosfomycin (Monurol) single dose"}, {"letter": "B", "text": "Outpatient nitrofurantoin (Macrobid) course"}, {"letter": "C", "text": "Outpatient cefpodoxime (Vantin) course"}, {"letter": "D", "text": "Admit for IV gentamicin (Garamycin)"}, {"letter": "E", "text": "Admit for IV ceftriaxone (Rocephin)"}], "answer": "E", "explanation": "Pyelonephritis in pregnancy = admit for IV broad β-lactam (ceftriaxone or piperacillin-tazobactam); switch to oral once afebrile 48 h, total about 10–14 days. Aminoglycosides are avoided (oto/nephrotoxicity).", "objective": "Pregnancy & Lactation — Obj 5: pyelonephritis in pregnancy", "section": "Drugs in Pregnancy & Lactation"}, {"id": "31A", "group": 31, "stem": "Why would a single dose of fosfomycin (Monurol) have been inadequate for this patient?", "options": [{"letter": "A", "text": "It causes hemolytic anemia in the fetus"}, {"letter": "B", "text": "It deposits in fetal bone and teeth"}, {"letter": "C", "text": "It is toxic to the fetal inner ear"}, {"letter": "D", "text": "It does not reach adequate kidney levels"}, {"letter": "E", "text": "It antagonizes folate in the fetus"}], "answer": "D", "explanation": "Fosfomycin and nitrofurantoin concentrate in urine but do not reach adequate renal tissue levels — fine for cystitis/ASB, never for pyelonephritis.", "objective": "Pregnancy & Lactation — Obj 5: cystitis/pyelonephritis drug details", "section": "Drugs in Pregnancy & Lactation"}, {"id": "32", "group": 32, "stem": "A 53-year-old woman with an intact uterus has moderate to severe hot flashes and osteopenia with a strong family history of osteoporosis. She has no contraindications to hormone therapy and wants one product that treats her hot flashes, protects her bones, and does not require a separate progestin. Which is the best choice?", "options": [{"letter": "A", "text": "Raloxifene (Evista) taken as a single agent"}, {"letter": "B", "text": "Low-dose paroxetine (Paxil) taken once daily"}, {"letter": "C", "text": "Conjugated estrogens/bazedoxifene (Duavee)"}, {"letter": "D", "text": "Ospemifene (Osphena) taken as a single agent"}, {"letter": "E", "text": "Estradiol (Estrace) taken without a progestin"}], "answer": "C", "explanation": "Duavee pairs conjugated estrogen with a SERM that stands in for the progestin: it treats vasomotor symptoms and prevents osteoporosis. Estrogen alone is unsafe with a uterus; raloxifene and ospemifene do not treat hot flashes.", "objective": "Menopause — Obj 1 & 2: therapeutic categories; SERMs", "section": "Menopause"}, {"id": "33", "group": 33, "stem": "A 27-year-old man reports a painless penile ulcer that healed on its own 6 weeks ago. He now has fever and a non-itchy macular rash on his trunk, palms, and soles, and his RPR is reactive. Which treatment is most appropriate?", "options": [{"letter": "A", "text": "Aqueous penicillin G 18–24 million units IV daily for 10 to 14 days"}, {"letter": "B", "text": "Benzathine penicillin G (Bicillin L-A) 2.4 million units IM once"}, {"letter": "C", "text": "Doxycycline (Vibramycin) 100 mg PO twice daily for a total of 7 days"}, {"letter": "D", "text": "Benzathine penicillin G (Bicillin L-A) 2.4 million units IM weekly for 3 weeks"}, {"letter": "E", "text": "Ceftriaxone (Rocephin) 500 mg IM once plus doxycycline for 7 days"}], "answer": "B", "explanation": "Primary, secondary, and early latent syphilis: BPG 2.4 MU IM × 1. Late latent/unknown duration: weekly × 3. Neuro/ocular/otic: IV aqueous penicillin G. Follow RPR at 6 and 12 months (≥4-fold decline = response).", "objective": "GYN Infections — Obj 4: treatment plan for syphilis", "section": "GYN Infections & STIs"}, {"id": "33A", "group": 33, "stem": "Six hours after the injection he develops fever, headache, and myalgias. What is the most likely explanation?", "options": [{"letter": "A", "text": "Stevens-Johnson syndrome"}, {"letter": "B", "text": "Serum sickness reaction"}, {"letter": "C", "text": "IgE-mediated penicillin allergy"}, {"letter": "D", "text": "Jarisch-Herxheimer reaction"}, {"letter": "E", "text": "Progression to neurosyphilis"}], "answer": "D", "explanation": "Jarisch-Herxheimer: fever, headache, myalgias within 24 h of the first dose from cytokines released by dying spirochetes — most common in early syphilis. Treat with antipyretics; it is NOT a penicillin allergy.", "objective": "GYN Infections — Obj 2: penicillins — patient education", "section": "GYN Infections & STIs"}, {"id": "34", "group": 34, "stem": "A 24-year-old sexually active woman has 3 days of lower abdominal pain. She is afebrile and tolerating oral intake; examination shows cervical motion tenderness and bilateral adnexal tenderness, and urine hCG is negative. Which outpatient regimen is most appropriate?", "options": [{"letter": "A", "text": "Doxycycline plus metronidazole for 14 days without ceftriaxone"}, {"letter": "B", "text": "Ceftriaxone IM once plus azithromycin 1 g PO as a single dose"}, {"letter": "C", "text": "Ceftriaxone IM once plus doxycycline alone for a total of 7 days"}, {"letter": "D", "text": "Azithromycin 1 g PO once plus metronidazole for a total of 7 days"}, {"letter": "E", "text": "Ceftriaxone IM once plus doxycycline and metronidazole for 14 days"}], "answer": "E", "explanation": "Pelvic pain + cervical motion, uterine, or adnexal tenderness meets minimum criteria for PID → ceftriaxone 500 mg IM × 1 + doxycycline 100 mg BID × 14 d + metronidazole 500 mg BID × 14 d.", "objective": "GYN Infections — Obj 4: treatment plan for pelvic inflammatory disease", "section": "GYN Infections & STIs"}, {"id": "34A", "group": 34, "stem": "She returns 72 hours later with no improvement in her pain. What is the next step?", "options": [{"letter": "A", "text": "Hospitalize for IV therapy and re-evaluate"}, {"letter": "B", "text": "Repeat the ceftriaxone injection only"}, {"letter": "C", "text": "Add fluconazole to the current regimen"}, {"letter": "D", "text": "Change doxycycline to oral levofloxacin"}, {"letter": "E", "text": "Continue the same regimen for 7 more days"}], "answer": "A", "explanation": "Outpatient PID should improve within 72 hours. No improvement → hospitalize, give parenteral therapy (ceftriaxone 1 g IV daily + doxycycline + metronidazole), and re-evaluate the diagnosis.", "objective": "GYN Infections — Obj 3: monitoring parameters (PID)", "section": "GYN Infections & STIs"}, {"id": "35", "group": 35, "stem": "A 50-year-old woman has a few mild hot flashes each week that do not interfere with her sleep or daily activities. What is the most appropriate management?", "options": [{"letter": "A", "text": "Layered clothing and a cool environment"}, {"letter": "B", "text": "Gabapentin (Neurontin) at bedtime"}, {"letter": "C", "text": "Fezolinetant (Veozah) once daily"}, {"letter": "D", "text": "Low-dose paroxetine (Paxil) each day"}, {"letter": "E", "text": "Transdermal estradiol patch (Climara)"}], "answer": "A", "explanation": "Mild hot flashes → no drug: keep core temperature cool, dress in layers, limit alcohol, caffeine, hot beverages, and spicy foods. Drug therapy is for moderate–severe symptoms.", "objective": "Menopause — Obj 5: case-based treatment plan (mild symptoms)", "section": "Menopause"}, {"id": "36", "group": 36, "stem": "A woman at 33 weeks of gestation is admitted in preterm labor with intact membranes and no fever. Which of the following drugs is not recommended at this gestational age?", "options": [{"letter": "A", "text": "Nifedipine (Procardia)"}, {"letter": "B", "text": "Betamethasone (Celestone)"}, {"letter": "C", "text": "Terbutaline (Brethine)"}, {"letter": "D", "text": "Indomethacin (Indocin)"}, {"letter": "E", "text": "Penicillin G"}], "answer": "D", "explanation": "Indomethacin is not recommended after 32 weeks. Nifedipine remains the tocolytic option; betamethasone is given through 34 weeks; GBS prophylaxis is one of the goals of buying time.", "objective": "Labor & Delivery — Obj 5: indomethacin", "section": "Labor & Delivery"}, {"id": "36A", "group": 36, "stem": "Which fetal effect is the reason for that gestational-age restriction?", "options": [{"letter": "A", "text": "Hypotonia with respiratory depression"}, {"letter": "B", "text": "Retinal hemorrhage with jaundice"}, {"letter": "C", "text": "Premature closure of the ductus arteriosus"}, {"letter": "D", "text": "Fetal tachycardia with hypoglycemia"}, {"letter": "E", "text": "Kernicterus with hemolytic anemia"}], "answer": "C", "explanation": "Indomethacin (non-selective COX inhibitor) can narrow or close the ductus arteriosus and cause oligohydramnios — the same effect used to close a PDA after birth.", "objective": "Labor & Delivery — Obj 5: indomethacin — fetal adverse effects", "section": "Labor & Delivery"}, {"id": "37", "group": 37, "stem": "A 29-year-old woman who weighs 215 lb (BMI 34) had unprotected intercourse 4 days ago. She wants the most effective emergency contraception and is also interested in a long-term method. Which option is best?", "options": [{"letter": "A", "text": "Ulipristal acetate (Ella)"}, {"letter": "B", "text": "Copper IUD (Paragard) placement"}, {"letter": "C", "text": "Medroxyprogesterone acetate (Depo-Provera)"}, {"letter": "D", "text": "Yuzpe regimen of combined pills"}, {"letter": "E", "text": "Levonorgestrel 1.5 mg (Plan B One-Step)"}], "answer": "B", "explanation": "An IUD placed within 5 days is ≥99% effective at any weight and doubles as a LARC. Levonorgestrel EC is less effective >165 lb (and best ≤24–72 h); ulipristal is less effective >195 lb. Depo is not emergency contraception.", "objective": "Contraception — Obj 7: suggesting alternative means (emergency contraception)", "section": "Contraception"}, {"id": "38", "group": 38, "stem": "A 26-year-old woman with epilepsy controlled on valproic acid (Depakote) wants to become pregnant within the year. Which antiseizure medication is among the safest to switch to before conception?", "options": [{"letter": "A", "text": "Carbamazepine (Tegretol)"}, {"letter": "B", "text": "Phenobarbital (Luminal)"}, {"letter": "C", "text": "Topiramate (Topamax)"}, {"letter": "D", "text": "Phenytoin (Dilantin)"}, {"letter": "E", "text": "Lamotrigine (Lamictal)"}], "answer": "E", "explanation": "Lamotrigine and levetiracetam are the safest antiseizure options. Valproate causes malformations, neurotoxicity, and autism; phenytoin, phenobarbital, and topiramate are also high risk. Goal: monotherapy at the lowest effective dose plus folic acid.", "objective": "Pregnancy & Lactation — Obj 2: drugs to avoid in pregnancy (antiseizure medications)", "section": "Drugs in Pregnancy & Lactation"}, {"id": "39", "group": 39, "stem": "A 25-year-old woman who takes a combined oral contraceptive is diagnosed with active tuberculosis and will begin a regimen that includes rifampin (Rifadin). What contraceptive advice should she receive?", "options": [{"letter": "A", "text": "Switch to the weekly contraceptive patch"}, {"letter": "B", "text": "Switch to an IUD or add condoms during therapy"}, {"letter": "C", "text": "Switch to the norethindrone-only pill"}, {"letter": "D", "text": "Double the daily pill dose during therapy"}, {"letter": "E", "text": "No change; antibiotics do not affect the pill"}], "answer": "B", "explanation": "Antibiotics do not require backup — except rifampin and rifabutin: use an IUD or add a barrier for the duration of therapy. Many anticonvulsants also lower OC effectiveness, so an IUD is the best choice in epilepsy.", "objective": "Contraception — Obj 3: hazards and drug interactions of oral contraceptives", "section": "Contraception"}, {"id": "40", "group": 40, "stem": "A 29-year-old woman has progressively worsening dysmenorrhea, deep dyspareunia, and chronic pelvic pain. Six months of a continuous combined oral contraceptive with scheduled naproxen gave no relief, and laparoscopy confirmed endometriosis. She does not want pregnancy. Which is the most appropriate next therapy?", "options": [{"letter": "A", "text": "Leuprolide (Lupron Depot) with norethindrone add-back"}, {"letter": "B", "text": "Tranexamic acid (Lysteda) during each menses"}, {"letter": "C", "text": "Hysterectomy with bilateral oophorectomy"}, {"letter": "D", "text": "Long-term oxycodone (Roxicodone) as needed"}, {"letter": "E", "text": "Anastrozole (Arimidex) given as a single agent"}], "answer": "A", "explanation": "Severe endometriosis that failed COC + NSAID → GnRH agonist (leuprolide, goserelin) or antagonist (elagolix), with add-back therapy. Anastrozole is off-label and must never be given alone (ovarian cysts). Hysterectomy is only for disease refractory to ALL treatment.", "objective": "Menstruation Disorders — Obj 1: management of endometriosis", "section": "Menstruation-Related Disorders"}, {"id": "40A", "group": 40, "stem": "Why is norethindrone acetate given along with her new medication?", "options": [{"letter": "A", "text": "To provide reliable contraception"}, {"letter": "B", "text": "To prevent the initial hormone flare"}, {"letter": "C", "text": "To add to her pelvic pain control"}, {"letter": "D", "text": "To prevent endometrial hyperplasia"}, {"letter": "E", "text": "To prevent bone loss and hot flashes"}], "answer": "E", "explanation": "GnRH agonists create a hypoestrogenic 'medical menopause' → hot flashes and BMD loss. Add-back (norethindrone acetate 5 mg daily ± conjugated estrogen) is started at initiation and prevents both without losing pain control.", "objective": "Menstruation Disorders — Obj 5: GnRH analogs — add-back therapy", "section": "Menstruation-Related Disorders"}, {"id": "40B", "group": 40, "stem": "Two weeks after her first injection her pelvic pain is worse than before. What explains this?", "options": [{"letter": "A", "text": "Competitive block of the GnRH receptor"}, {"letter": "B", "text": "Progestin withdrawal shedding the lining"}, {"letter": "C", "text": "Androgen excess acting on the implants"}, {"letter": "D", "text": "An initial LH/FSH flare raises estrogen"}, {"letter": "E", "text": "Aromatase inhibition raising FSH output"}], "answer": "D", "explanation": "A GnRH agonist first stimulates the receptor (↑ LH/FSH → transient estrogen surge), then desensitizes the pituitary → profound suppression in about 1–2 weeks. Elagolix, an antagonist, has no flare and a rapid onset.", "objective": "Menstruation Disorders — Obj 5: GnRH analogs — mechanism of action", "section": "Menstruation-Related Disorders"}, {"id": "41", "group": 41, "stem": "A woman at 12 weeks of gestation has a positive NAAT for Chlamydia trachomatis on routine prenatal screening. Which antibiotic should be prescribed?", "options": [{"letter": "A", "text": "Levofloxacin (Levaquin)"}, {"letter": "B", "text": "Doxycycline (Vibramycin)"}, {"letter": "C", "text": "Azithromycin (Zithromax)"}, {"letter": "D", "text": "Clarithromycin (Biaxin)"}, {"letter": "E", "text": "Metronidazole (Flagyl)"}], "answer": "C", "explanation": "Chlamydia in pregnancy: azithromycin 1 g once, with a test of cure 4 weeks after treatment and a retest at 3 months. Doxycycline, fluoroquinolones, and clarithromycin are avoided in pregnancy.", "objective": "GYN Infections — Obj 4: treatment plan for chlamydia (pregnancy)", "section": "GYN Infections & STIs"}, {"id": "42", "group": 42, "stem": "Which adverse-effect profile belongs to Medroxyprogesterone acetate (Depo-Provera)?", "options": [{"letter": "A", "text": "Liver injury (boxed warning) needing liver function tests"}, {"letter": "B", "text": "Weight gain, bone density loss, delayed return to fertility"}, {"letter": "C", "text": "Early symptom flare, then hot flashes, vaginal dryness, bone loss"}, {"letter": "D", "text": "Hyperkalemia; slightly higher clot risk than other pills"}, {"letter": "E", "text": "Dry mouth, dizziness, constipation, sedation"}, {"letter": "F", "text": "Acne, hirsutism, deepening voice, edema, raised blood pressure"}], "answer": "B", "explanation": "BMD recovers after stopping; meningioma signal with prolonged use.", "objective": "Contraception — Obj 2 & 5: progestins; injection", "section": "Contraception", "match": true, "matchLabel": "Medroxyprogesterone acetate (Depo-Provera)", "matchPrompt": "Match each hormonal or menopause drug to its adverse-effect profile. Each profile is used once."}, {"id": "42A", "group": 42, "stem": "Which adverse-effect profile belongs to Drospirenone/ethinyl estradiol (Yaz)?", "options": [{"letter": "A", "text": "Liver injury (boxed warning) needing liver function tests"}, {"letter": "B", "text": "Weight gain, bone density loss, delayed return to fertility"}, {"letter": "C", "text": "Early symptom flare, then hot flashes, vaginal dryness, bone loss"}, {"letter": "D", "text": "Hyperkalemia; slightly higher clot risk than other pills"}, {"letter": "E", "text": "Dry mouth, dizziness, constipation, sedation"}, {"letter": "F", "text": "Acne, hirsutism, deepening voice, edema, raised blood pressure"}], "answer": "D", "explanation": "Check K in cycle 1 with ACEi/ARB/NSAID/spironolactone.", "objective": "Contraception — Obj 2: progestins", "section": "Contraception", "match": true, "matchLabel": "Drospirenone/ethinyl estradiol (Yaz)", "matchPrompt": "Match each hormonal or menopause drug to its adverse-effect profile. Each profile is used once."}, {"id": "42B", "group": 42, "stem": "Which adverse-effect profile belongs to Leuprolide (Lupron Depot)?", "options": [{"letter": "A", "text": "Liver injury (boxed warning) needing liver function tests"}, {"letter": "B", "text": "Weight gain, bone density loss, delayed return to fertility"}, {"letter": "C", "text": "Early symptom flare, then hot flashes, vaginal dryness, bone loss"}, {"letter": "D", "text": "Hyperkalemia; slightly higher clot risk than other pills"}, {"letter": "E", "text": "Dry mouth, dizziness, constipation, sedation"}, {"letter": "F", "text": "Acne, hirsutism, deepening voice, edema, raised blood pressure"}], "answer": "C", "explanation": "Hypoestrogenic state → give add-back therapy.", "objective": "Menstruation Disorders — Obj 5: GnRH analogs", "section": "Menstruation-Related Disorders", "match": true, "matchLabel": "Leuprolide (Lupron Depot)", "matchPrompt": "Match each hormonal or menopause drug to its adverse-effect profile. Each profile is used once."}, {"id": "42C", "group": 42, "stem": "Which adverse-effect profile belongs to Danazol (Danocrine)?", "options": [{"letter": "A", "text": "Liver injury (boxed warning) needing liver function tests"}, {"letter": "B", "text": "Weight gain, bone density loss, delayed return to fertility"}, {"letter": "C", "text": "Early symptom flare, then hot flashes, vaginal dryness, bone loss"}, {"letter": "D", "text": "Hyperkalemia; slightly higher clot risk than other pills"}, {"letter": "E", "text": "Dry mouth, dizziness, constipation, sedation"}, {"letter": "F", "text": "Acne, hirsutism, deepening voice, edema, raised blood pressure"}], "answer": "F", "explanation": "Androgen agonist; black box — pregnancy.", "objective": "Menstruation Disorders — Obj 5: androgens", "section": "Menstruation-Related Disorders", "match": true, "matchLabel": "Danazol (Danocrine)", "matchPrompt": "Match each hormonal or menopause drug to its adverse-effect profile. Each profile is used once."}, {"id": "42D", "group": 42, "stem": "Which adverse-effect profile belongs to Clonidine (Catapres)?", "options": [{"letter": "A", "text": "Liver injury (boxed warning) needing liver function tests"}, {"letter": "B", "text": "Weight gain, bone density loss, delayed return to fertility"}, {"letter": "C", "text": "Early symptom flare, then hot flashes, vaginal dryness, bone loss"}, {"letter": "D", "text": "Hyperkalemia; slightly higher clot risk than other pills"}, {"letter": "E", "text": "Dry mouth, dizziness, constipation, sedation"}, {"letter": "F", "text": "Acne, hirsutism, deepening voice, edema, raised blood pressure"}], "answer": "E", "explanation": "0.1 mg at bedtime for nighttime hot flashes.", "objective": "Menopause — Obj 2: clonidine", "section": "Menopause", "match": true, "matchLabel": "Clonidine (Catapres)", "matchPrompt": "Match each hormonal or menopause drug to its adverse-effect profile. Each profile is used once."}, {"id": "42E", "group": 42, "stem": "Which adverse-effect profile belongs to Fezolinetant (Veozah)?", "options": [{"letter": "A", "text": "Liver injury (boxed warning) needing liver function tests"}, {"letter": "B", "text": "Weight gain, bone density loss, delayed return to fertility"}, {"letter": "C", "text": "Early symptom flare, then hot flashes, vaginal dryness, bone loss"}, {"letter": "D", "text": "Hyperkalemia; slightly higher clot risk than other pills"}, {"letter": "E", "text": "Dry mouth, dizziness, constipation, sedation"}, {"letter": "F", "text": "Acne, hirsutism, deepening voice, edema, raised blood pressure"}], "answer": "A", "explanation": "NK3 antagonist; elinzanetant has no boxed warning.", "objective": "Menopause — Obj 4: monitoring parameters", "section": "Menopause", "match": true, "matchLabel": "Fezolinetant (Veozah)", "matchPrompt": "Match each hormonal or menopause drug to its adverse-effect profile. Each profile is used once."}, {"id": "43", "group": 43, "stem": "A 26-year-old woman has taken a 20-mcg ethinyl estradiol/levonorgestrel pill for 4 months. She has not missed any pills but still has frequent spotting between periods. What is the best adjustment?", "options": [{"letter": "A", "text": "Decrease the ethinyl estradiol dose"}, {"letter": "B", "text": "Switch to norethindrone 0.35 mg"}, {"letter": "C", "text": "Increase the ethinyl estradiol dose"}, {"letter": "D", "text": "Reassure and recheck in 3 months"}, {"letter": "E", "text": "Change to a different progestin"}], "answer": "C", "explanation": "Breakthrough bleeding persisting beyond 3 months in an adherent patient → raise the EE dose. Estrogen-type effects (nausea, breast tenderness, fluid retention, headache) → lower EE. Progestin-type effects (mood, depression, ↓ libido) → change the progestin.", "objective": "Contraception — Obj 2: estrogen/progestin adverse effects and patient education", "section": "Contraception"}, {"id": "44", "group": 44, "stem": "A woman at 40 weeks of gestation had a dinoprostone (Cervidil) vaginal insert placed for cervical ripening. The insert has just been removed, her cervix is now favorable, and she has no regular contractions. How long should the team wait before starting oxytocin (Pitocin)?", "options": [{"letter": "A", "text": "2 hours"}, {"letter": "B", "text": "24 hours"}, {"letter": "C", "text": "6 hours"}, {"letter": "D", "text": "12 hours"}, {"letter": "E", "text": "30 minutes"}], "answer": "E", "explanation": "Oxytocin's effect is increased by prostaglandins → wait 30 minutes after removing the dinoprostone insert, or 6–12 hours after dinoprostone gel. Stacking them too soon risks uterine hypertonicity and rupture.", "objective": "Labor & Delivery — Obj 7 & 8: dinoprostone–oxytocin drug interaction", "section": "Labor & Delivery"}, {"id": "45", "group": 45, "stem": "A woman who is 8 weeks postpartum and breastfeeding takes norethindrone 0.35 mg (Micronor) every morning at 7 AM. Today she remembered her pill at noon. What should she be told?", "options": [{"letter": "A", "text": "Skip today's pill and use backup for 7 days"}, {"letter": "B", "text": "Stop the pack and restart after her period"}, {"letter": "C", "text": "Take it now; no backup method is needed"}, {"letter": "D", "text": "Take it now and use backup for 48 hours"}, {"letter": "E", "text": "Take two pills tomorrow morning instead"}], "answer": "D", "explanation": "Norethindrone (and OTC norgestrel) progestin-only pills have a 3-hour window; more than 3 hours late → take it and use backup or abstain for 48 hours. Drospirenone 4 mg (Slynd) has a 24-hour window.", "objective": "Contraception — Obj 6: patient education (progestin-only pill timing)", "section": "Contraception"}, {"id": "46", "group": 46, "stem": "A woman who is exclusively breastfeeding her 3-week-old has a cold with nasal congestion and a headache. She asks which over-the-counter product she should avoid because it can decrease her milk supply. Which is it?", "options": [{"letter": "A", "text": "Pseudoephedrine (Sudafed)"}, {"letter": "B", "text": "Acetaminophen (Tylenol)"}, {"letter": "C", "text": "Guaifenesin (Mucinex)"}, {"letter": "D", "text": "Ibuprofen (Motrin)"}, {"letter": "E", "text": "Saline nasal spray"}], "answer": "A", "explanation": "Decongestants, estrogens, and dopamine agonists decrease milk supply. Ibuprofen is the preferred NSAID in lactation and acetaminophen is the drug of choice for pain. Pseudoephedrine is also avoided in the 1st trimester.", "objective": "Pregnancy & Lactation — Obj 1 & 3: approach to medication use in lactation; OTC drugs", "section": "Drugs in Pregnancy & Lactation"}, {"id": "47", "group": 47, "stem": "A 34-year-old woman has heavy menstrual bleeding with a normal pelvic examination. She and her partner are actively trying to conceive, and she has no history of blood clots. Which medication is most appropriate?", "options": [{"letter": "A", "text": "Leuprolide (Lupron Depot)"}, {"letter": "B", "text": "Tranexamic acid (Lysteda)"}, {"letter": "C", "text": "Levonorgestrel IUD (Mirena)"}, {"letter": "D", "text": "Medroxyprogesterone acetate (Depo-Provera)"}, {"letter": "E", "text": "Levonorgestrel/ethinyl estradiol (Lutera)"}], "answer": "B", "explanation": "TXA is the non-hormonal option for menorrhagia: taken only during menses (1.3 g TID up to 5 days), it does not affect ovulation — ideal when trying to conceive or when hormones are contraindicated. It can be combined with NSAIDs.", "objective": "Menstruation Disorders — Obj 5: tranexamic acid — indications", "section": "Menstruation-Related Disorders"}, {"id": "47A", "group": 47, "stem": "How does this medication reduce her menstrual blood loss?", "options": [{"letter": "A", "text": "Inhibits COX and prostaglandin synthesis"}, {"letter": "B", "text": "Competitively blocks the GnRH receptor"}, {"letter": "C", "text": "Suppresses the midcycle surge of LH"}, {"letter": "D", "text": "Acts as an agonist at androgen receptors"}, {"letter": "E", "text": "Blocks plasminogen activation to plasmin"}], "answer": "E", "explanation": "TXA is an antifibrinolytic: it prevents plasminogen → plasmin, so endometrial clots stay in place. COX inhibition = NSAIDs; GnRH receptor blockade = elagolix; androgen agonist = danazol.", "objective": "Menstruation Disorders — Obj 5: tranexamic acid — mechanism of action", "section": "Menstruation-Related Disorders"}, {"id": "47B", "group": 47, "stem": "Which history would have been a contraindication to this medication?", "options": [{"letter": "A", "text": "Well-controlled hypertension"}, {"letter": "B", "text": "Mild intermittent asthma"}, {"letter": "C", "text": "Migraine without aura"}, {"letter": "D", "text": "A prior pulmonary embolism"}, {"letter": "E", "text": "Peptic ulcer disease"}], "answer": "D", "explanation": "TXA carries thrombotic risk → contraindicated with DVT/PE. It also needs renal dose adjustment. Adverse effects: nausea, dizziness, headache.", "objective": "Menstruation Disorders — Obj 5: tranexamic acid — contraindications", "section": "Menstruation-Related Disorders"}, {"id": "48", "group": 48, "stem": "A 31-year-old woman with chronic hypertension and asthma has a positive pregnancy test at 6 weeks of gestation. She takes lisinopril and an albuterol inhaler. Blood pressure is 148/94 mm Hg and heart rate is 78/min. Which change is most appropriate?", "options": [{"letter": "A", "text": "Stop lisinopril and start labetalol (Trandate)"}, {"letter": "B", "text": "Stop lisinopril and start nifedipine ER (Procardia XL)"}, {"letter": "C", "text": "Continue lisinopril and add nifedipine ER (Procardia XL)"}, {"letter": "D", "text": "Continue lisinopril until the second trimester"}, {"letter": "E", "text": "Switch lisinopril to losartan (Cozaar)"}], "answer": "B", "explanation": "ACE inhibitors and ARBs are stopped (ideally preconception). ACOG-preferred agents are labetalol and nifedipine — labetalol can bronchoconstrict, so it is avoided in asthma; nifedipine is avoided if tachycardic.", "objective": "Pregnancy & Lactation — Obj 5: management of hypertension in pregnancy", "section": "Drugs in Pregnancy & Lactation"}, {"id": "48A", "group": 48, "stem": "If her original antihypertensive had been continued into the second and third trimesters, which fetal complication would be most likely?", "options": [{"letter": "A", "text": "Renal impairment with oligohydramnios"}, {"letter": "B", "text": "Kernicterus in the newborn"}, {"letter": "C", "text": "Neural tube defects"}, {"letter": "D", "text": "Limb and skeletal hypoplasia"}, {"letter": "E", "text": "Premature closure of the ductus arteriosus"}], "answer": "A", "explanation": "ACEi/ARB in the 2nd–3rd trimester → fetal renal impairment → oligohydramnios → cord compression, pulmonary hypoplasia, skeletal deformities, and anuria after birth.", "objective": "Pregnancy & Lactation — Obj 2: drugs to avoid in pregnancy", "section": "Drugs in Pregnancy & Lactation"}, {"id": "48B", "group": 48, "stem": "Why is labetalol (Trandate), the other ACOG-preferred agent, a poor choice for this patient?", "options": [{"letter": "A", "text": "It causes reflex tachycardia"}, {"letter": "B", "text": "It raises depression risk"}, {"letter": "C", "text": "It can cause bronchoconstriction"}, {"letter": "D", "text": "It impairs fetal kidneys"}, {"letter": "E", "text": "It causes marked ankle edema"}], "answer": "C", "explanation": "Labetalol is an α/β blocker and may bronchoconstrict — avoid in asthma. Tachycardia and edema are nifedipine issues; postpartum depression is why ACOG advises against methyldopa after delivery.", "objective": "Pregnancy & Lactation — Obj 5: management of hypertension in pregnancy", "section": "Drugs in Pregnancy & Lactation"}, {"id": "49", "group": 49, "stem": "A woman at 39 weeks of gestation with a prior cesarean delivery needs induction of labor, and her cervix is unfavorable. Misoprostol (Cytotec) is avoided in this patient because of the risk of which complication?", "options": [{"letter": "A", "text": "Uterine rupture"}, {"letter": "B", "text": "Postpartum hemorrhage"}, {"letter": "C", "text": "Maternal pulmonary edema"}, {"letter": "D", "text": "Placental abruption"}, {"letter": "E", "text": "Fetal ductal closure"}], "answer": "A", "explanation": "Misoprostol (PGE1) causes excessive uterine stimulation; with a previous C-section the risk is uterine rupture.", "objective": "Labor & Delivery — Obj 7: dinoprostone vs misoprostol — contraindications", "section": "Labor & Delivery"}, {"id": "49A", "group": 49, "stem": "In a woman without a uterine scar, how does misoprostol (Cytotec) compare with dinoprostone (Cervidil) for cervical ripening?", "options": [{"letter": "A", "text": "Less effective and less expensive"}, {"letter": "B", "text": "More effective and less expensive"}, {"letter": "C", "text": "Equally effective and safer overall"}, {"letter": "D", "text": "More effective and more expensive"}, {"letter": "E", "text": "Less effective and more expensive"}], "answer": "B", "explanation": "Misoprostol (PGE1): higher efficacy, much cheaper, but more adverse effects. Dinoprostone (PGE2): gentler, pricier, black box warning — use only in a medical facility.", "objective": "Labor & Delivery — Obj 7: dinoprostone vs misoprostol", "section": "Labor & Delivery"}, {"id": "50", "group": 50, "stem": "A 55-year-old postmenopausal woman declines hormone therapy. Her days are comfortable, but drenching night sweats wake her several times each night. Which medication is the best choice?", "options": [{"letter": "A", "text": "Ospemifene (Osphena) once daily"}, {"letter": "B", "text": "Oxybutynin (Ditropan) at bedtime"}, {"letter": "C", "text": "Gabapentin (Neurontin) at bedtime"}, {"letter": "D", "text": "Raloxifene (Evista) once daily"}, {"letter": "E", "text": "Paroxetine (Paxil) each morning"}], "answer": "C", "explanation": "Nighttime-predominant symptoms without hormones → gabapentin 100–300 mg at bedtime (titrate to 900 mg) or clonidine 0.1 mg at bedtime; the sedation works in her favor. SSRIs/SNRIs are the daytime choice. Oxybutynin is for nocturia.", "objective": "Menopause — Obj 2 & 5: gabapentin; case-based treatment plan", "section": "Menopause"}, {"id": "51", "group": 51, "stem": "A 26-year-old woman has bloating, breast tenderness, and ankle swelling during the week before each period, confirmed in a symptom diary. She has no mood symptoms, and exercise and calcium supplements have not helped. Which medication, taken during the luteal phase, targets these symptoms?", "options": [{"letter": "A", "text": "Leuprolide (Lupron Depot)"}, {"letter": "B", "text": "Fluoxetine (Prozac)"}, {"letter": "C", "text": "Tranexamic acid (Lysteda)"}, {"letter": "D", "text": "Medroxyprogesterone acetate (Depo-Provera)"}, {"letter": "E", "text": "Spironolactone (Aldactone)"}], "answer": "E", "explanation": "PMS physical symptoms from fluid retention (bloating, breast tenderness) → spironolactone, an aldosterone antagonist, in the luteal phase; watch potassium. SSRIs target mood symptoms; Depo-Provera can itself cause PMS-like effects.", "objective": "Menstruation Disorders — Obj 3: treatment of PMS/PMDD", "section": "Menstruation-Related Disorders"}, {"id": "52", "group": 52, "stem": "A 33-year-old woman taking warfarin (Coumadin) for recurrent deep venous thrombosis learns she is 5 weeks pregnant and still needs anticoagulation. Which agent should replace warfarin?", "options": [{"letter": "A", "text": "Aspirin"}, {"letter": "B", "text": "Clopidogrel (Plavix)"}, {"letter": "C", "text": "Apixaban (Eliquis)"}, {"letter": "D", "text": "Heparin"}, {"letter": "E", "text": "Rivaroxaban (Xarelto)"}], "answer": "D", "explanation": "Warfarin crosses the placenta: fatal fetal hemorrhage, CNS abnormalities, limb/skeletal hypoplasia. Heparin does not cross the placenta and is the alternative.", "objective": "Pregnancy & Lactation — Obj 2: Category X drugs to avoid", "section": "Drugs in Pregnancy & Lactation"}, {"id": "53", "group": 53, "stem": "A woman at 30 weeks of gestation received a tocolytic for preterm labor 4 hours ago. She now has palpitations and mild dyspnea; heart rate is 132/min, potassium is 3.0 mEq/L, and glucose is 214 mg/dL. Which tocolytic did she most likely receive?", "options": [{"letter": "A", "text": "Magnesium sulfate"}, {"letter": "B", "text": "Dinoprostone (Cervidil)"}, {"letter": "C", "text": "Indomethacin (Indocin)"}, {"letter": "D", "text": "Nifedipine (Procardia)"}, {"letter": "E", "text": "Terbutaline (Brethine)"}], "answer": "E", "explanation": "Terbutaline has the most maternal adverse effects, which is why it is second line: tachycardia/arrhythmias, hypotension, hypokalemia, hyperglycemia, and (rarely) pulmonary edema. Monitor electrolytes, glucose, vitals, and for pulmonary edema.", "objective": "Labor & Delivery — Obj 5: terbutaline — adverse effects and monitoring", "section": "Labor & Delivery"}, {"id": "53A", "group": 53, "stem": "By what mechanism does this drug stop uterine contractions?", "options": [{"letter": "A", "text": "Antagonist at the oxytocin receptor"}, {"letter": "B", "text": "Beta-2 agonist that relaxes myometrium"}, {"letter": "C", "text": "COX inhibitor that lowers prostaglandins"}, {"letter": "D", "text": "Prostaglandin E1 analog at the cervix"}, {"letter": "E", "text": "Calcium channel blocker in uterine muscle"}], "answer": "B", "explanation": "Terbutaline binds β₂ receptors → ↓ intracellular calcium and ↓ contractile sensitivity to calcium. Calcium channel blockade = nifedipine; COX/prostaglandin inhibition = indomethacin.", "objective": "Labor & Delivery — Obj 5: terbutaline — mechanism of action", "section": "Labor & Delivery"}]};
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  const flagged = {};        // question id -> true, set by the learner at any point (never affects score)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  // Lab values as a table. q.labs is [{test, result, range}]. If the stem contains
+  // the marker [[LABS]] the table goes there (so the vignette can continue after
+  // the labs); otherwise it follows the stem.
+  function labsHtml(q) {
+    if (!q.labs || !q.labs.length) return '';
+    const hasRange = q.labs.some(l => l.range);
+    let html = '<table class="labs"><thead><tr><th>Test</th><th>Result</th>' +
+      (hasRange ? '<th>Reference Range</th>' : '') + '</tr></thead><tbody>';
+    q.labs.forEach(l => {
+      html += '<tr><td>' + esc(l.test) + '</td><td class="res">' + esc(l.result) + '</td>' +
+        (hasRange ? '<td class="ref">' + (l.range ? '(' + esc(String(l.range).replace(/^\(|\)$/g, '')) + ')' : '') + '</td>' : '') + '</tr>';
+    });
+    return html + '</tbody></table>';
+  }
+
+  function stemHtml(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    const table = labsHtml(q);
+    if (table && stem.indexOf('[[LABS]]') !== -1) {
+      const parts = stem.split('[[LABS]]');
+      return '<div class="stem">' + esc(parts[0].replace(/\s+$/, '')) + '</div>' + table +
+        (parts[1] && parts[1].trim() ? '<div class="stem">' + esc(parts[1].replace(/^\s+/, '')) + '</div>' : '');
+    }
+    return '<div class="stem">' + esc(stem.replace('[[LABS]]', '')) + '</div>' + table;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += stemHtml(q);
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += flagHtml(q);
+    html += '</div>';
+    return html;
+  }
+
+  // Flagging: available on every question in every mode, right or wrong, answered or
+  // not. A flagged question joins the missed list and the copy-out, so a question that
+  // was guessed correctly (or not understood) can still be carried into the next round
+  // of study. Flagging never changes the score — it is a bookmark, not a second answer.
+  function flagHtml(q) {
+    const on = !!flagged[q.id];
+    return '<div class="flagrow"><button class="flagbtn' + (on ? ' on' : '') + '" data-flag="' +
+      esc(q.id) + '">⚑ ' + (on ? 'Flagged' : 'Flag for review') + '</button></div>';
+  }
+
+  function bindFlags() {
+    $('main').querySelectorAll('[data-flag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-flag');
+        if (flagged[id]) delete flagged[id]; else flagged[id] = true;
+        if (mode === 'missed') {                 // toggle in place; the list is rebuilt on re-entry
+          btn.classList.toggle('on', !!flagged[id]);
+          btn.textContent = '⚑ ' + (flagged[id] ? 'Flagged' : 'Flag for review');
+          return;
+        }
+        renderPage(true);
+      });
+    });
+  }
+
+  // ── Matching page: one row per drug, a dropdown of adverse-effect profiles, graded together ──
+  const pending = {};        // question id -> letter chosen in a dropdown, not yet checked
+  function matchHtml(group) {
+    const done = group.every(q => answers[q.id] !== undefined);
+    let html = '<div class="group"><div class="qcard"><span class="qnum">Question ' + esc(group[0].id) +
+      ' · matching (' + group.length + ' items)</span><div class="stem">' + esc(group[0].matchPrompt) + '</div>';
+    group.forEach(q => {
+      const chosen = done ? answers[q.id] : pending[q.id];
+      const good = done && chosen === q.answer;
+      html += '<div class="mrow' + (done ? (good ? ' good' : ' bad') : '') + '"><div class="mdrug">' + esc(q.matchLabel) + '</div>';
+      html += '<select class="msel" data-mq="' + esc(q.id) + '"' + (done || mode !== 'exam' ? ' disabled' : '') + '>' +
+        '<option value="">Select an adverse-effect profile…</option>';
+      q.options.forEach(o => {
+        html += '<option value="' + esc(o.letter) + '"' + (chosen === o.letter ? ' selected' : '') + '>' + esc(o.text) + '</option>';
+      });
+      html += '</select>';
+      if (done) {
+        const c = q.options.find(o => o.letter === q.answer);
+        html += '<div class="mfb"><strong>' + (good ? '✓ Correct' : '✗ Correct match: ' + esc(c ? c.text : '')) + '</strong>' +
+          (q.explanation ? ' — ' + esc(q.explanation) : '') + '</div>';
+      }
+      html += flagHtml(q) + '</div>';
+    });
+    if (!done && mode === 'exam') {
+      html += '<button class="btn primary mcheck" id="btn-match-check">Check matches</button>';
+    }
+    return html + '</div></div>';
+  }
+  function wireMatch(group) {
+    const btn = $('btn-match-check');
+    const ready = () => group.every(q => pending[q.id]);
+    if (btn) {
+      btn.disabled = !ready();
+      btn.addEventListener('click', () => {
+        if (!ready()) return;
+        group.forEach(q => { answers[q.id] = pending[q.id]; });
+        renderPage(true);
+      });
+    }
+    $('main').querySelectorAll('.msel').forEach(sel => {
+      sel.addEventListener('change', () => {
+        const id = sel.getAttribute('data-mq');
+        if (sel.value) pending[id] = sel.value; else delete pending[id];
+        if (btn) btn.disabled = !ready();
+      });
+    });
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+    if (group[0].match) {
+      $('main').innerHTML = matchHtml(group);
+      wireMatch(group); bindFlags(); renderProgress(); renderNav();
+      if (preserveScroll) window.scrollTo(0, savedY); else window.scrollTo(0, 0);
+      return;
+    }
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+    bindFlags();
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {                 // answered wrong, or flagged by the learner
+    return questions.filter(q => flagged[q.id] ||
+      (answers[q.id] !== undefined && answers[q.id] !== q.answer));
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed &amp; flagged (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed &amp; flagged</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          stemHtml(g[0]) + '</div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed & flagged (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed or flagged question' + (missed.length === 1 ? '' : 's');
+    bindFlags();
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  // Plain-text stem with the lab table flattened to one line per lab
+  function stemText(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    if (!q.labs || !q.labs.length) return stem.replace('[[LABS]]', '').trim();
+    const rows = q.labs.map(l => '  ' + l.test + ': ' + l.result + (l.range ? ' (ref ' + String(l.range).replace(/^\(|\)$/g, '') + ')' : '')).join('\n');
+    const i = stem.indexOf('[[LABS]]');
+    const before = i === -1 ? stem : stem.slice(0, i);
+    const hasHeader = /\b(labs|laboratory (studies|results|values))\s*:?\s*$/i.test(before);   // stem already says "Labs:"
+    const block = (hasHeader ? '' : 'Labs:\n') + rows;
+    return (i !== -1 ? before.replace(/\s+$/, '') + '\n' + block + '\n' + stem.slice(i + 8).replace(/^\s+/, '') : stem + '\n' + block).trim();
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + stemText(group[0]));
+      lines.push(stemText(q));
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      if (flagged[q.id]) lines.push(answers[q.id] === q.answer
+        ? 'FLAGGED by me — answered correctly but not understood' : 'FLAGGED by me');
+      lines.push(answers[q.id] === undefined ? 'Not answered' : 'My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed & flagged questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed & flagged'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(flagged).forEach(k => delete flagged[k]);
+    Object.keys(pending).forEach(k => delete pending[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
