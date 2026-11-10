@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Interactive Exam</title>
+<style>
+  :root {
+    --bg: #f4f6fa;
+    --card: #ffffff;
+    --ink: #1a2332;
+    --ink-soft: #5a6675;
+    --accent: #1f5fa8;
+    --accent-soft: #e8f0fa;
+    --green: #1e8a4c;
+    --green-bg: #e7f6ee;
+    --red: #c0392b;
+    --red-bg: #fdecea;
+    --amber: #b7791f;
+    --amber-bg: #fdf3e3;
+    --border: #dde3ec;
+    --radius: 14px;
+    --shadow: 0 2px 10px rgba(20, 35, 60, 0.07);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.55;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px 16px 110px; }
+
+  /* Header */
+  header {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  header h1 { font-size: 1.15rem; font-weight: 700; }
+  .progress-meta { font-size: 0.85rem; color: var(--ink-soft); white-space: nowrap; }
+  .progress-track {
+    flex-basis: 100%;
+    height: 6px;
+    background: var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill { height: 100%; width: 0; background: var(--accent); border-radius: 3px; transition: width 0.25s; }
+
+  /* Question card */
+  .qcard {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .qnum {
+    display: inline-block;
+    font-weight: 700;
+    color: var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+    padding: 2px 12px;
+    font-size: 0.9rem;
+    margin-bottom: 10px;
+  }
+  .stem { margin-bottom: 14px; white-space: pre-wrap; }
+  .pending { margin-top: 14px; padding: 10px 12px; border: 1px dashed #c9ccd2; border-radius: 8px;
+    color: #6b7280; font-size: 0.9em; text-align: center; }
+  .qimg { max-width: 100%; border-radius: 10px; border: 1px solid var(--border); margin: 0 0 14px; display: block; }
+
+  /* Lab table: vignettes with several lab values render them as a scannable
+     Test / Result / Reference Range table instead of a run-on sentence. */
+  .labs { width: 100%; border-collapse: separate; border-spacing: 0; margin: 10px 0 14px;
+    font-size: 0.95em; background: #fbfbf9; border: 1px solid #e3e1dc; border-radius: 10px; overflow: hidden; }
+  .labs th, .labs td { text-align: left; padding: 9px 14px; border-bottom: 1px solid #e3e1dc; vertical-align: top; }
+  .labs th { font-weight: 500; color: var(--ink-soft); }
+  .labs td:not(:first-child), .labs th:not(:first-child) { border-left: 1px solid #e3e1dc; }
+  .labs tr:last-child td { border-bottom: 0; }
+  .labs td.ref { color: var(--ink-soft); white-space: nowrap; }
+  .labs td.res { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .group.c3 .labs, .group.c4 .labs { font-size: 0.92em; }
+  .group.c3 .labs th, .group.c3 .labs td, .group.c4 .labs th, .group.c4 .labs td { padding: 5px 10px; }
+  @media (max-width: 520px) { .labs th, .labs td { padding: 7px 9px; } .labs td.ref, .labs td.res { white-space: normal; } }
+
+  .opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    width: 100%;
+    text-align: left;
+    background: #fbfcfe;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+  }
+  .opt:hover:not(:disabled) { border-color: var(--accent); background: var(--accent-soft); }
+  .opt:disabled { cursor: default; }
+  .opt .letter {
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 1.4em;
+  }
+  .opt.correct { border-color: var(--green); background: var(--green-bg); }
+  .opt.correct .letter { color: var(--green); }
+  .opt.incorrect { border-color: var(--red); background: var(--red-bg); }
+  .opt.incorrect .letter { color: var(--red); }
+  .opt.dim { opacity: 0.55; }
+
+  /* Flag for review: a bookmark the learner can toggle on any question at any time */
+  .flagrow { margin-top: 12px; }
+  .flagbtn { font: inherit; font-size: 0.82em; font-weight: 600; cursor: pointer; background: transparent;
+    border: 1.5px dashed var(--border); border-radius: 8px; padding: 4px 11px; color: var(--ink-soft); }
+  .flagbtn:hover { border-color: var(--amber); color: var(--amber); }
+  .flagbtn.on { background: var(--amber-bg); border-style: solid; border-color: var(--amber); color: var(--amber); }
+
+  .feedback {
+    border-radius: 10px;
+    padding: 12px 16px;
+    margin-top: 4px;
+    font-size: 0.95rem;
+  }
+  .feedback.good { background: var(--green-bg); border-left: 4px solid var(--green); }
+  .feedback.bad { background: var(--red-bg); border-left: 4px solid var(--red); }
+  .feedback .verdict { font-weight: 700; margin-bottom: 4px; }
+  .feedback.good .verdict { color: var(--green); }
+  .feedback.bad .verdict { color: var(--red); }
+  .feedback .obj { margin-top: 6px; font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+
+  /* Tiered compact layout: the more questions on the page, the tighter the text,
+     so vignette + follow-ups fit with as little scrolling as possible. */
+  .group.c2 { font-size: 16px; }
+  .group.c3 { font-size: 14.5px; line-height: 1.45; }
+  .group.c4 { font-size: 13.5px; line-height: 1.4; }
+  .group.c3 .qcard, .group.c4 .qcard { padding: 12px 14px; margin-bottom: 10px; }
+  .group.c2 .qcard { padding: 16px 18px; margin-bottom: 12px; }
+  .group.c3 .opt, .group.c4 .opt { padding: 6px 10px; margin-bottom: 5px; border-width: 1.5px; }
+  .group.c2 .opt { padding: 8px 12px; margin-bottom: 6px; }
+  .group.c3 .stem, .group.c4 .stem { margin-bottom: 8px; }
+  .group.c3 .feedback, .group.c4 .feedback { padding: 8px 12px; font-size: 0.92em; }
+  .group.c3 .qnum, .group.c4 .qnum { margin-bottom: 6px; padding: 1px 10px; }
+  @media (min-width: 760px) {
+    .group.c3 .followups, .group.c4 .followups {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+    .group.c3 .followups .qcard, .group.c4 .followups .qcard { margin-bottom: 10px; }
+  }
+
+  /* Missed-questions review page */
+  .review-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .qcard.context { background: var(--accent-soft); border: 1px dashed var(--accent); box-shadow: none; }
+  .qcard.context .qnum { background: var(--card); }
+
+  /* Nav bar */
+  .navbar {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 12px rgba(20,35,60,0.08);
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    z-index: 20;
+  }
+  .navbar-inner {
+    max-width: 980px;
+    margin: 0 auto;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    padding: 10px 16px;
+    cursor: pointer;
+    transition: filter 0.12s;
+  }
+  .btn:hover { filter: brightness(0.95); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { background: var(--accent); color: #fff; }
+  .btn.ghost { background: var(--accent-soft); color: var(--accent); }
+  .btn.grade { background: var(--amber-bg); color: var(--amber); }
+  .btn.submit { background: var(--green); color: #fff; }
+  .spacer { flex: 1; }
+
+  /* Results */
+  .results-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 26px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+  }
+  .score-big { font-size: 3rem; font-weight: 800; color: var(--accent); }
+  .score-sub { color: var(--ink-soft); margin-bottom: 4px; }
+  .score-note { font-size: 0.85rem; color: var(--ink-soft); font-style: italic; }
+  .sections-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 22px 24px;
+    margin-bottom: 16px;
+  }
+  .sections-card h2 { font-size: 1.05rem; margin-bottom: 14px; }
+  .sec-row { margin-bottom: 14px; }
+  .sec-head { display: flex; justify-content: space-between; font-size: 0.92rem; margin-bottom: 4px; gap: 8px; }
+  .sec-name { font-weight: 600; }
+  .sec-tag {
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 6px;
+    padding: 1px 8px;
+    vertical-align: middle;
+    margin-left: 6px;
+  }
+  .sec-tag.strong { background: var(--green-bg); color: var(--green); }
+  .sec-tag.weak { background: var(--red-bg); color: var(--red); }
+  .sec-track { height: 10px; background: var(--border); border-radius: 5px; overflow: hidden; }
+  .sec-fill { height: 100%; border-radius: 5px; background: var(--accent); }
+  .sec-fill.hi { background: var(--green); }
+  .sec-fill.lo { background: var(--red); }
+  .results-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; margin-top: 8px; }
+
+  .banner {
+    background: var(--amber-bg);
+    color: var(--amber);
+    border-radius: 10px;
+    padding: 8px 14px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    margin-bottom: 12px;
+    text-align: center;
+  }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="exam-title">Exam</h1>
+    <div class="progress-meta" id="progress-meta"></div>
+    <div class="progress-track"><div class="progress-fill" id="progress-fill"></div></div>
+  </header>
+  <div id="banner" class="banner hidden"></div>
+  <main id="main"></main>
+</div>
+
+<div class="navbar" id="navbar">
+  <div class="navbar-inner">
+    <button class="btn ghost" id="btn-back">&larr; Back</button>
+    <button class="btn primary" id="btn-next">Next &rarr;</button>
+    <div class="spacer"></div>
+    <button class="btn grade" id="btn-grade">Grade completed</button>
+    <button class="btn submit" id="btn-submit">Submit exam</button>
+  </div>
+</div>
+
+<script>
+// Injected by the Interactive Exam skill. Structure:
+// { title, questions: [{id, group, stem, options:[{letter,text}], answer, explanation, objective, section, image?}] }
+const EXAM_DATA = {"title": "PT2 Exam 4 · OB/GYN Pharm — Keywords & Associations ", "questions": [{"id": "1", "group": 1, "stem": "Wants a daily pill + migraine WITH aura → Contraceptive to prescribe:", "options": [{"letter": "A", "text": "Norgestimate/EE (Sprintec)"}, {"letter": "B", "text": "Desogestrel/EE (Apri)"}, {"letter": "C", "text": "Norethindrone POP (Camila)"}, {"letter": "D", "text": "Drospirenone/EE (Yaz)"}, {"letter": "E", "text": "Levonorgestrel/EE (Aviane)"}], "answer": "C", "explanation": "Migraine with aura is an absolute estrogen contraindication at any age → progestin-only pill such as norethindrone (Camila) — no ↑ VTE/stroke.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "1A", "group": 1, "stem": "Norethindrone POP (Camila) → Most common adverse effect to counsel:", "options": [{"letter": "A", "text": "Delayed return to fertility"}, {"letter": "B", "text": "Bone mineral density loss"}, {"letter": "C", "text": "Irregular bleeding / spotting"}, {"letter": "D", "text": "Hyperkalemia"}, {"letter": "E", "text": "Venous thromboembolism"}], "answer": "C", "explanation": "Unpredictable spotting is the #1 progestin-only complaint and the top reason people quit — counsel it up front.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "2", "group": 2, "stem": "Heavy, painful periods + wants long-acting reversible contraception → Method:", "options": [{"letter": "A", "text": "Segesterone/EE ring (Annovera)"}, {"letter": "B", "text": "Copper IUD (Paragard)"}, {"letter": "C", "text": "Etonogestrel implant (Nexplanon)"}, {"letter": "D", "text": "Medroxyprogesterone (Depo-Provera)"}, {"letter": "E", "text": "Levonorgestrel IUD (Mirena)"}], "answer": "E", "explanation": "Levonorgestrel IUD (Mirena) thins the lining → ↓ bleeding (>90%) and cramps. Copper IUD (Paragard) worsens bleeding and dysmenorrhea.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "2A", "group": 2, "stem": "Levonorgestrel IUD (Mirena) → Expected bleeding change to counsel:", "options": [{"letter": "A", "text": "Bleeding only with intercourse"}, {"letter": "B", "text": "Withdrawal bleed every 3 months"}, {"letter": "C", "text": "Unchanged monthly periods"}, {"letter": "D", "text": "Heavier, longer periods"}, {"letter": "E", "text": "Lighter periods or amenorrhea"}], "answer": "E", "explanation": "40–50% of levonorgestrel IUD (Mirena) users are amenorrheic at 2 years.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "3", "group": 3, "stem": "Unprotected sex 4 days ago, BMI 34, would accept a procedure → Most effective emergency contraception:", "options": [{"letter": "A", "text": "Mifepristone (Mifeprex) + misoprostol (Cytotec)"}, {"letter": "B", "text": "Yuzpe combined-pill method"}, {"letter": "C", "text": "Copper IUD (Paragard)"}, {"letter": "D", "text": "Levonorgestrel (Plan B)"}, {"letter": "E", "text": "Ulipristal (Ella)"}], "answer": "C", "explanation": "An IUD (copper Paragard or levonorgestrel) is ≥99% effective at any weight — choose it for BMI ≥30 or when LARC is wanted.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "3A", "group": 3, "stem": "Emergency contraception, IUD declined, BMI 34 → Best ORAL option:", "options": [{"letter": "A", "text": "Norethindrone POP (Camila)"}, {"letter": "B", "text": "Mifepristone (Mifeprex)"}, {"letter": "C", "text": "Yuzpe combined-pill method"}, {"letter": "D", "text": "Ulipristal (Ella)"}, {"letter": "E", "text": "Levonorgestrel (Plan B)"}], "answer": "D", "explanation": "Ulipristal (Ella) is the most effective EC pill and holds efficacy at higher weight than levonorgestrel (Plan B) — >195 lb vs >165 lb.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "4", "group": 4, "stem": "38 yo, smokes 1 pack/day, wants a pill → Pill to prescribe:", "options": [{"letter": "A", "text": "Norethindrone/EE (Loestrin)"}, {"letter": "B", "text": "Norgestimate/EE (Sprintec)"}, {"letter": "C", "text": "Drospirenone POP (Slynd)"}, {"letter": "D", "text": "Drospirenone/EE (Yaz)"}, {"letter": "E", "text": "Levonorgestrel/EE (Aviane)"}], "answer": "C", "explanation": "Age ≥35 + smoker = absolute estrogen CI → progestin-only pill.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "4A", "group": 4, "stem": "Drospirenone POP (Slynd) → Advantage over norethindrone POP (Camila):", "options": [{"letter": "A", "text": "Higher estrogen dose"}, {"letter": "B", "text": "No bleeding changes at all"}, {"letter": "C", "text": "Longer missed-dose window"}, {"letter": "D", "text": "No potassium effect"}, {"letter": "E", "text": "Protects against STIs"}], "answer": "C", "explanation": "Slynd window is 24 h vs 3 h for norethindrone (Camila); less irregular bleeding.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "5", "group": 5, "stem": "Prior PE, unprotected sex last night, wants an OTC option → Emergency contraception:", "options": [{"letter": "A", "text": "Yuzpe combined-pill method"}, {"letter": "B", "text": "Copper IUD (Paragard) only"}, {"letter": "C", "text": "Levonorgestrel (Plan B)"}, {"letter": "D", "text": "No EC — VTE contraindication"}, {"letter": "E", "text": "Ulipristal (Ella) after hCG test"}], "answer": "C", "explanation": "Estrogen/progestin contraindications do NOT apply to EC — prior VTE can take levonorgestrel (Plan B); no pregnancy test required.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "6", "group": 6, "stem": "Wants a pill; acne + hirsutism + PCOS; also takes an ARB → Best combined pill:", "options": [{"letter": "A", "text": "Etonogestrel/EE ring (NuvaRing)"}, {"letter": "B", "text": "Norethindrone/EE (Loestrin)"}, {"letter": "C", "text": "Drospirenone/EE (Yaz)"}, {"letter": "D", "text": "Levonorgestrel/EE (Aviane)"}, {"letter": "E", "text": "Norgestrel POP (Opill)"}], "answer": "C", "explanation": "Drospirenone (Yaz, Yasmin) is the anti-androgenic 4th-generation progestin — a spironolactone (Aldactone) cousin → best for acne, hirsutism, PCOS, PMDD.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "6A", "group": 6, "stem": "Drospirenone/EE (Yaz) + ARB → Lab to check during the first cycle:", "options": [{"letter": "A", "text": "Serum creatine kinase"}, {"letter": "B", "text": "Serum magnesium"}, {"letter": "C", "text": "Fasting lipid panel"}, {"letter": "D", "text": "Liver function tests"}, {"letter": "E", "text": "Serum potassium"}], "answer": "E", "explanation": "Drospirenone can raise K⁺ — check serum K in cycle 1 when combined with an ACEi, ARB, NSAID, or spironolactone (Aldactone).", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "7", "group": 7, "stem": "Forgets daily pills, values privacy, wants to conceive within a year → Method to AVOID:", "options": [{"letter": "A", "text": "Medroxyprogesterone (Depo-Provera)"}, {"letter": "B", "text": "Etonogestrel implant (Nexplanon)"}, {"letter": "C", "text": "Etonogestrel/EE ring (NuvaRing)"}, {"letter": "D", "text": "Levonorgestrel IUD (Mirena)"}, {"letter": "E", "text": "Norelgestromin/EE patch (Xulane)"}], "answer": "A", "explanation": "Medroxyprogesterone (Depo-Provera) delays return to fertility by months; the implant (Nexplanon) and IUDs reverse rapidly.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "7A", "group": 7, "stem": "Medroxyprogesterone (Depo-Provera) → Signature adverse effect:", "options": [{"letter": "A", "text": "Bone mineral density loss"}, {"letter": "B", "text": "Hepatic adenoma"}, {"letter": "C", "text": "Hyperkalemia"}, {"letter": "D", "text": "Copper hypersensitivity"}, {"letter": "E", "text": "Increased ovarian cysts"}], "answer": "A", "explanation": "Medroxyprogesterone (Depo-Provera) → reversible BMD loss, weight gain, delayed fertility.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "8", "group": 8, "stem": "On a combined pill, starting rifampin (Rifadin) → Contraception plan:", "options": [{"letter": "A", "text": "Switch to IUD or add a barrier method"}, {"letter": "B", "text": "Double the pill dose"}, {"letter": "C", "text": "Switch to a progestin-only pill"}, {"letter": "D", "text": "Switch to the patch (Xulane)"}, {"letter": "E", "text": "No change needed"}], "answer": "A", "explanation": "Rifampin (Rifadin)/rifabutin (Mycobutin) induce metabolism → ↓ efficacy of all pills/patch/ring. Ordinary antibiotics like amoxicillin (Amoxil) need no backup.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "8A", "group": 8, "stem": "Epilepsy on carbamazepine (Tegretol) → Best contraceptive choice:", "options": [{"letter": "A", "text": "Progestin-only pill"}, {"letter": "B", "text": "Combined oral contraceptive"}, {"letter": "C", "text": "Contraceptive patch (Xulane)"}, {"letter": "D", "text": "Contraceptive ring (NuvaRing)"}, {"letter": "E", "text": "Intrauterine device (LARC)"}], "answer": "E", "explanation": "Enzyme-inducing anticonvulsants such as carbamazepine (Tegretol) ↓ hormonal efficacy → IUD is the best choice.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "9", "group": 9, "stem": "Wants a weekly method, no estrogen contraindications → Method:", "options": [{"letter": "A", "text": "Norelgestromin/EE patch (Xulane)"}, {"letter": "B", "text": "Etonogestrel/EE ring (NuvaRing)"}, {"letter": "C", "text": "Norethindrone POP (Camila)"}, {"letter": "D", "text": "Etonogestrel implant (Nexplanon)"}, {"letter": "E", "text": "Medroxyprogesterone (Depo-Provera)"}], "answer": "A", "explanation": "Patch = weekly × 3, then patch-free week; ring = 3 weeks in / 1 out.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "9A", "group": 9, "stem": "Norelgestromin/EE patch (Xulane) → Risk higher than with the pill:", "options": [{"letter": "A", "text": "Hyperkalemia"}, {"letter": "B", "text": "Copper hypersensitivity"}, {"letter": "C", "text": "Venous thromboembolism"}, {"letter": "D", "text": "Delayed return to fertility"}, {"letter": "E", "text": "Bone mineral density loss"}], "answer": "C", "explanation": "Patch delivers more estrogen (no first pass) → slightly ↑ VTE; less effective in heavier patients; never on breasts.", "objective": "Combined Pattern Guide — Section 1: Contraception", "section": "Contraception"}, {"id": "10", "group": 10, "stem": "Pregnant, heartburn persisting despite lifestyle changes → First-line drug:", "options": [{"letter": "A", "text": "Omeprazole (Prilosec)"}, {"letter": "B", "text": "Calcium carbonate (Tums)"}, {"letter": "C", "text": "Misoprostol (Cytotec)"}, {"letter": "D", "text": "Famotidine (Pepcid)"}, {"letter": "E", "text": "Sodium bicarbonate (Alka-Seltzer)"}], "answer": "B", "explanation": "Heartburn ladder in pregnancy: lifestyle → antacid (calcium carbonate (Tums)) or sucralfate (Carafate) → famotidine (Pepcid) → PPI.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "10A", "group": 10, "stem": "Heartburn in pregnancy → Antacid to avoid:", "options": [{"letter": "A", "text": "Sodium bicarbonate (Alka-Seltzer)"}, {"letter": "B", "text": "Calcium carbonate (Tums)"}, {"letter": "C", "text": "Omeprazole (Prilosec)"}, {"letter": "D", "text": "Famotidine (Pepcid)"}, {"letter": "E", "text": "Sucralfate (Carafate)"}], "answer": "A", "explanation": "Avoid sodium bicarbonate (Alka-Seltzer) and long-term magnesium trisilicate in pregnancy.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "10B", "group": 10, "stem": "Heartburn in pregnancy failing antacids and sucralfate (Carafate) → Next drug:", "options": [{"letter": "A", "text": "Sodium bicarbonate (Alka-Seltzer)"}, {"letter": "B", "text": "Famotidine (Pepcid)"}, {"letter": "C", "text": "Metoclopramide (Reglan)"}, {"letter": "D", "text": "Misoprostol (Cytotec)"}, {"letter": "E", "text": "Bismuth subsalicylate (Pepto-Bismol)"}], "answer": "B", "explanation": "H2 blocker famotidine (Pepcid) is the step after antacids/sucralfate.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "10C", "group": 10, "stem": "Heartburn in pregnancy failing famotidine (Pepcid) → Next drug:", "options": [{"letter": "A", "text": "Sodium bicarbonate (Alka-Seltzer)"}, {"letter": "B", "text": "Bismuth subsalicylate (Pepto-Bismol)"}, {"letter": "C", "text": "Ondansetron (Zofran)"}, {"letter": "D", "text": "Misoprostol (Cytotec)"}, {"letter": "E", "text": "Omeprazole (Prilosec)"}], "answer": "E", "explanation": "PPIs such as omeprazole (Prilosec) are the top step of the ladder.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "11", "group": 11, "stem": "Postpartum, exclusively breastfeeding, wants a hormonal method → Component to avoid:", "options": [{"letter": "A", "text": "Norethindrone"}, {"letter": "B", "text": "Levonorgestrel"}, {"letter": "C", "text": "Medroxyprogesterone"}, {"letter": "D", "text": "Etonogestrel"}, {"letter": "E", "text": "Estrogen"}], "answer": "E", "explanation": "Estrogens ↓ milk supply → breastfeeding mothers get progestin-only or nonhormonal methods.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "11A", "group": 11, "stem": "Breastfeeding + nasal congestion → OTC decongestant to avoid:", "options": [{"letter": "A", "text": "Fluticasone nasal (Flonase)"}, {"letter": "B", "text": "Saline nasal spray (Ocean)"}, {"letter": "C", "text": "Loratadine (Claritin)"}, {"letter": "D", "text": "Pseudoephedrine (Sudafed)"}, {"letter": "E", "text": "Ipratropium nasal (Atrovent)"}], "answer": "D", "explanation": "Pseudoephedrine (Sudafed) ↓ milk supply (and avoid in the 1st trimester).", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "11B", "group": 11, "stem": "Postpartum hypertension → Antihypertensive to avoid:", "options": [{"letter": "A", "text": "Hydralazine (Apresoline)"}, {"letter": "B", "text": "Labetalol (Trandate)"}, {"letter": "C", "text": "Enalapril (Vasotec)"}, {"letter": "D", "text": "Nifedipine (Procardia)"}, {"letter": "E", "text": "Methyldopa (Aldomet)"}], "answer": "E", "explanation": "Methyldopa (Aldomet) → postpartum depression; avoid after delivery.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "12", "group": 12, "stem": "39 wk pregnant, cystitis, E. coli sensitive to everything → Antibiotic:", "options": [{"letter": "A", "text": "Doxycycline (Vibramycin)"}, {"letter": "B", "text": "Ciprofloxacin (Cipro)"}, {"letter": "C", "text": "TMP-SMX (Bactrim)"}, {"letter": "D", "text": "Nitrofurantoin (Macrobid)"}, {"letter": "E", "text": "Amoxicillin-clavulanate (Augmentin)"}], "answer": "E", "explanation": "At term avoid TMP-SMX (Bactrim) and nitrofurantoin (Macrobid) → amoxicillin-clavulanate (Augmentin), cefpodoxime (Vantin), cephalexin (Keflex).", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "12A", "group": 12, "stem": "TMP-SMX (Bactrim) at term → Neonatal risk:", "options": [{"letter": "A", "text": "Gray baby syndrome"}, {"letter": "B", "text": "Kernicterus"}, {"letter": "C", "text": "Ototoxicity"}, {"letter": "D", "text": "Tooth discoloration"}, {"letter": "E", "text": "Folate deficiency"}], "answer": "B", "explanation": "Sulfa displaces bilirubin from albumin → kernicterus.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "12B", "group": 12, "stem": "Nitrofurantoin (Macrobid) at term → Neonatal risk:", "options": [{"letter": "A", "text": "Hemolytic anemia"}, {"letter": "B", "text": "Gray baby syndrome"}, {"letter": "C", "text": "Cartilage damage"}, {"letter": "D", "text": "Kernicterus"}, {"letter": "E", "text": "Ototoxicity"}], "answer": "A", "explanation": "Nitrofurantoin (Macrobid) at term → hemolytic anemia / jaundice.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "13", "group": 13, "stem": "Hypothyroid on levothyroxine (Synthroid), positive home pregnancy test → Management change:", "options": [{"letter": "A", "text": "Switch to methimazole (Tapazole)"}, {"letter": "B", "text": "Increase levothyroxine (Synthroid) dose"}, {"letter": "C", "text": "Switch to liothyronine (Cytomel)"}, {"letter": "D", "text": "Stop levothyroxine (Synthroid)"}, {"letter": "E", "text": "Decrease levothyroxine (Synthroid) dose"}], "answer": "B", "explanation": "Increase levothyroxine (Synthroid) ~25% as soon as pregnancy is detected; return to the pre-pregnancy dose after delivery.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "13A", "group": 13, "stem": "Levothyroxine (Synthroid) in pregnancy → Lab to monitor:", "options": [{"letter": "A", "text": "TSH receptor antibodies"}, {"letter": "B", "text": "Radioactive iodine uptake"}, {"letter": "C", "text": "Free T3"}, {"letter": "D", "text": "TSH"}, {"letter": "E", "text": "Thyroglobulin"}], "answer": "D", "explanation": "TSH every 4 weeks to 20 weeks, target <2.5. Untreated → SAB, preterm, ↓ neurocognition.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "14", "group": 14, "stem": "9 wk pregnant, dysuria + frequency, afebrile, culture E. coli → Antibiotic:", "options": [{"letter": "A", "text": "Cefpodoxime (Vantin)"}, {"letter": "B", "text": "Nitrofurantoin (Macrobid)"}, {"letter": "C", "text": "Doxycycline (Vibramycin)"}, {"letter": "D", "text": "TMP-SMX (Bactrim)"}, {"letter": "E", "text": "Ciprofloxacin (Cipro)"}], "answer": "A", "explanation": "Cystitis in pregnancy: cefpodoxime (Vantin), amoxicillin-clavulanate (Augmentin), cephalexin (Keflex), amoxicillin (Amoxil) per culture. TMP-SMX (Bactrim) and nitrofurantoin (Macrobid) are window-limited (avoid 1st tri and term).", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "14A", "group": 14, "stem": "TMP-SMX (Bactrim) in the 1st trimester → Reason it is avoided:", "options": [{"letter": "A", "text": "Cartilage damage"}, {"letter": "B", "text": "Tooth discoloration"}, {"letter": "C", "text": "Kernicterus"}, {"letter": "D", "text": "Folate antagonism"}, {"letter": "E", "text": "Ototoxicity"}], "answer": "D", "explanation": "1st tri: folate antagonist. At term: sulfa displaces bilirubin → kernicterus.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "15", "group": 15, "stem": "8 wk pregnant, nausea and vomiting, small meals and ginger not enough → First-line drug:", "options": [{"letter": "A", "text": "Prochlorperazine (Compazine)"}, {"letter": "B", "text": "Metoclopramide (Reglan)"}, {"letter": "C", "text": "Pyridoxine + doxylamine (Diclegis)"}, {"letter": "D", "text": "Ondansetron (Zofran)"}, {"letter": "E", "text": "Promethazine (Phenergan)"}], "answer": "C", "explanation": "Pyridoxine + doxylamine (Diclegis) first; ondansetron (Zofran) is reserved for severe N/V with dehydration.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "15A", "group": 15, "stem": "Nausea of pregnancy → Antiemetic carrying a tardive dyskinesia risk:", "options": [{"letter": "A", "text": "Ondansetron (Zofran)"}, {"letter": "B", "text": "Pyridoxine (vitamin B6)"}, {"letter": "C", "text": "Doxylamine (Unisom)"}, {"letter": "D", "text": "Ginger"}, {"letter": "E", "text": "Metoclopramide (Reglan)"}], "answer": "E", "explanation": "Metoclopramide (Reglan): tardive dyskinesia; short-term OK in lactation, watch maternal depression.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "16", "group": 16, "stem": "Mechanical heart valve on warfarin (Coumadin), now pregnant → Anticoagulant to switch to:", "options": [{"letter": "A", "text": "Dabigatran (Pradaxa)"}, {"letter": "B", "text": "Heparin"}, {"letter": "C", "text": "Rivaroxaban (Xarelto)"}, {"letter": "D", "text": "Apixaban (Eliquis)"}, {"letter": "E", "text": "Continue warfarin (Coumadin)"}], "answer": "B", "explanation": "Heparin doesn't cross the placenta. Warfarin (Coumadin) is Category X.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "16A", "group": 16, "stem": "Warfarin (Coumadin) in pregnancy → Fetal harm:", "options": [{"letter": "A", "text": "Ototoxicity and deafness"}, {"letter": "B", "text": "Skeletal hypoplasia and fetal hemorrhage"}, {"letter": "C", "text": "Neural tube defect"}, {"letter": "D", "text": "Ductus arteriosus closure"}, {"letter": "E", "text": "Gray baby syndrome"}], "answer": "B", "explanation": "Warfarin (Coumadin): fatal fetal hemorrhage, CNS defects, limb/skeletal hypoplasia.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "17", "group": 17, "stem": "9 wk pregnant, cystitis with a multidrug-resistant organism → Antibiotic:", "options": [{"letter": "A", "text": "TMP-SMX (Bactrim)"}, {"letter": "B", "text": "Ciprofloxacin (Cipro)"}, {"letter": "C", "text": "Doxycycline (Vibramycin)"}, {"letter": "D", "text": "Fosfomycin (Monurol)"}, {"letter": "E", "text": "Gentamicin (Garamycin)"}], "answer": "D", "explanation": "Fosfomycin (Monurol) single dose — save it for MDR organisms.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "17A", "group": 17, "stem": "Fosfomycin (Monurol) → Diagnosis it must never be used for:", "options": [{"letter": "A", "text": "Acute cystitis"}, {"letter": "B", "text": "Pyelonephritis"}, {"letter": "C", "text": "MDR cystitis"}, {"letter": "D", "text": "Asymptomatic bacteriuria"}, {"letter": "E", "text": "Recurrent cystitis"}], "answer": "B", "explanation": "Fosfomycin (Monurol) and nitrofurantoin (Macrobid) achieve no renal tissue levels.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "18", "group": 18, "stem": "Epilepsy on valproate (Depakote), planning pregnancy → Antiseizure drug to switch to:", "options": [{"letter": "A", "text": "Lamotrigine (Lamictal)"}, {"letter": "B", "text": "Phenobarbital"}, {"letter": "C", "text": "Carbamazepine (Tegretol)"}, {"letter": "D", "text": "Topiramate (Topamax)"}, {"letter": "E", "text": "Phenytoin (Dilantin)"}], "answer": "A", "explanation": "Swap valproate (Depakote) → lamotrigine (Lamictal) or levetiracetam (Keppra), monotherapy, plus folic acid.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "19", "group": 19, "stem": "12 wk pregnant, chronic HTN on lisinopril (Zestril), history of asthma → Antihypertensive to switch to:", "options": [{"letter": "A", "text": "Atenolol (Tenormin)"}, {"letter": "B", "text": "Losartan (Cozaar)"}, {"letter": "C", "text": "Hydrochlorothiazide (Microzide)"}, {"letter": "D", "text": "Labetalol (Trandate)"}, {"letter": "E", "text": "Nifedipine (Procardia)"}], "answer": "E", "explanation": "ACOG-preferred agents are labetalol (Trandate) and nifedipine (Procardia); labetalol is avoided in asthma (bronchoconstriction).", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "19A", "group": 19, "stem": "Lisinopril (Zestril) continued into the 2nd/3rd trimester → Fetal risk:", "options": [{"letter": "A", "text": "Neural tube defect"}, {"letter": "B", "text": "Kernicterus"}, {"letter": "C", "text": "Oligohydramnios from fetal renal failure"}, {"letter": "D", "text": "Neonatal hypoglycemia"}, {"letter": "E", "text": "Premature ductus arteriosus closure"}], "answer": "C", "explanation": "ACEi/ARB → fetal renal failure → oligohydramnios, pulmonary hypoplasia. Stop preferably preconception.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "19B", "group": 19, "stem": "Nifedipine (Procardia) → Maternal adverse effect to counsel:", "options": [{"letter": "A", "text": "Hyperkalemia"}, {"letter": "B", "text": "Neonatal bradycardia"}, {"letter": "C", "text": "Dry cough"}, {"letter": "D", "text": "Peripheral edema"}, {"letter": "E", "text": "Bronchospasm"}], "answer": "D", "explanation": "Nifedipine (Procardia): peripheral edema, flushing, HA; avoid if tachycardic.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "20", "group": 20, "stem": "Pregnant, major depression, no prior treatment → First-line drug:", "options": [{"letter": "A", "text": "Phenelzine (Nardil)"}, {"letter": "B", "text": "Sertraline (Zoloft)"}, {"letter": "C", "text": "Lithium (Lithobid)"}, {"letter": "D", "text": "Paroxetine (Paxil)"}, {"letter": "E", "text": "Bupropion (Wellbutrin)"}], "answer": "B", "explanation": "SSRIs first: sertraline (Zoloft), fluoxetine (Prozac), escitalopram (Lexapro). Sertraline = the 'safe across all states' SSRI.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "20A", "group": 20, "stem": "Depression in pregnancy → SSRI NOT used first line:", "options": [{"letter": "A", "text": "Fluoxetine (Prozac)"}, {"letter": "B", "text": "Paroxetine (Paxil)"}, {"letter": "C", "text": "Citalopram (Celexa)"}, {"letter": "D", "text": "Escitalopram (Lexapro)"}, {"letter": "E", "text": "Sertraline (Zoloft)"}], "answer": "B", "explanation": "Paroxetine (Paxil) → cardiac defects; bupropion (Wellbutrin) also not preferred (↑ SAB).", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "20B", "group": 20, "stem": "SSRI exposure in the 3rd trimester → Neonatal effect:", "options": [{"letter": "A", "text": "Neonatal hypothyroidism"}, {"letter": "B", "text": "Gray baby syndrome"}, {"letter": "C", "text": "Neonatal hypoglycemia"}, {"letter": "D", "text": "Neonatal adaptation syndrome"}, {"letter": "E", "text": "Kernicterus"}], "answer": "D", "explanation": "Jitteriness, poor feeding, respiratory distress after 3rd-trimester SSRI/SNRI exposure.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "21", "group": 21, "stem": "34 wk pregnant, BP 168/112, no asthma → First-line IV antihypertensive:", "options": [{"letter": "A", "text": "Enalapril (Vasotec)"}, {"letter": "B", "text": "Labetalol (Trandate)"}, {"letter": "C", "text": "Methyldopa (Aldomet)"}, {"letter": "D", "text": "Losartan (Cozaar)"}, {"letter": "E", "text": "Furosemide (Lasix)"}], "answer": "B", "explanation": "Severe-range BP (>160/110): IV labetalol (Trandate) or IR oral nifedipine (Procardia); lower gradually to ~140/90.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "21A", "group": 21, "stem": "Severe-range BP in pregnancy → IV alternative that is less predictable:", "options": [{"letter": "A", "text": "Lisinopril (Zestril)"}, {"letter": "B", "text": "Methyldopa (Aldomet)"}, {"letter": "C", "text": "Hydralazine (Apresoline)"}, {"letter": "D", "text": "Atenolol (Tenormin)"}, {"letter": "E", "text": "Clonidine (Catapres)"}], "answer": "C", "explanation": "Hydralazine (Apresoline) IV — severe HTN only; less predictable than labetalol (Trandate).", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "21B", "group": 21, "stem": "Labetalol (Trandate) near delivery → Neonatal effect:", "options": [{"letter": "A", "text": "Bradycardia and hypoglycemia"}, {"letter": "B", "text": "Hyperkalemia"}, {"letter": "C", "text": "Premature ductus closure"}, {"letter": "D", "text": "Kernicterus"}, {"letter": "E", "text": "Tachycardia and hyperglycemia"}], "answer": "A", "explanation": "Labetalol (Trandate): transient neonatal bradycardia, hypotension, hypoglycemia (≤3 days).", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "22", "group": 22, "stem": "Category X drug requiring iPLEDGE, two contraceptives, and monthly pregnancy tests → Drug:", "options": [{"letter": "A", "text": "Valproate (Depakote)"}, {"letter": "B", "text": "Isotretinoin (Absorica)"}, {"letter": "C", "text": "Thalidomide (Thalomid)"}, {"letter": "D", "text": "Methotrexate (Trexall)"}, {"letter": "E", "text": "Warfarin (Coumadin)"}], "answer": "B", "explanation": "Isotretinoin (Absorica): major malformations, SAB, low IQ; avoid 1 month after stopping.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "22A", "group": 22, "stem": "Thalidomide (Thalomid) → Fetal effect, even after one dose:", "options": [{"letter": "A", "text": "Limb, heart, and eye defects"}, {"letter": "B", "text": "Oligohydramnios"}, {"letter": "C", "text": "Ototoxicity"}, {"letter": "D", "text": "Tooth discoloration"}, {"letter": "E", "text": "Kernicterus"}], "answer": "A", "explanation": "Thalidomide (Thalomid): limb/heart/eye defects; STEPS program — men use condoms too.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "22B", "group": 22, "stem": "Methotrexate (Trexall) → Legitimate OB use:", "options": [{"letter": "A", "text": "Preterm labor"}, {"letter": "B", "text": "Hyperemesis gravidarum"}, {"letter": "C", "text": "Postpartum hemorrhage"}, {"letter": "D", "text": "Cervical ripening"}, {"letter": "E", "text": "Tubal ectopic pregnancy"}], "answer": "E", "explanation": "Methotrexate (Trexall) is Category X but treats tubal ectopic — exclude an intrauterine pregnancy first.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "23", "group": 23, "stem": "28 wk pregnant, fever, flank pain, CVA tenderness, vomiting → Initial treatment:", "options": [{"letter": "A", "text": "Oral nitrofurantoin (Macrobid)"}, {"letter": "B", "text": "Oral amoxicillin (Amoxil) outpatient"}, {"letter": "C", "text": "Fosfomycin (Monurol) single dose"}, {"letter": "D", "text": "Oral ciprofloxacin (Cipro)"}, {"letter": "E", "text": "Admit for IV ceftriaxone (Rocephin)"}], "answer": "E", "explanation": "Pyelonephritis in pregnancy → admit, IV ceftriaxone (Rocephin) or piperacillin-tazobactam (Zosyn); switch to PO once afebrile, finish 10–14 d.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "23A", "group": 23, "stem": "Pyelonephritis → Antibiotic NEVER appropriate:", "options": [{"letter": "A", "text": "Amoxicillin-clavulanate (Augmentin)"}, {"letter": "B", "text": "Ceftriaxone (Rocephin)"}, {"letter": "C", "text": "Cephalexin (Keflex)"}, {"letter": "D", "text": "Nitrofurantoin (Macrobid)"}, {"letter": "E", "text": "Piperacillin-tazobactam (Zosyn)"}], "answer": "D", "explanation": "Nitrofurantoin (Macrobid) and fosfomycin (Monurol) achieve no renal tissue levels → never for pyelo.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "24", "group": 24, "stem": "32 wk pregnant, tension headache → Analgesic of choice:", "options": [{"letter": "A", "text": "Acetaminophen (Tylenol)"}, {"letter": "B", "text": "Ibuprofen (Motrin)"}, {"letter": "C", "text": "Naproxen (Naprosyn)"}, {"letter": "D", "text": "Dihydroergotamine (D.H.E. 45)"}, {"letter": "E", "text": "Aspirin (Bayer)"}], "answer": "A", "explanation": "Acetaminophen (Tylenol) is the DOC in pregnancy and lactation; ergots are Category X.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "24A", "group": 24, "stem": "NSAID at 32 weeks → Fetal risk:", "options": [{"letter": "A", "text": "Neonatal hypoglycemia"}, {"letter": "B", "text": "Limb hypoplasia"}, {"letter": "C", "text": "Premature ductus arteriosus closure"}, {"letter": "D", "text": "Neural tube defect"}, {"letter": "E", "text": "Kernicterus"}], "answer": "C", "explanation": "NSAIDs >30 wk → premature DA closure → RV failure, hydrops; >20 wk → oligohydramnios.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "25", "group": 25, "stem": "Promethazine (Phenergan) given IV/IM for nausea of pregnancy → Adverse effect to watch for:", "options": [{"letter": "A", "text": "Ototoxicity"}, {"letter": "B", "text": "Hyperkalemia"}, {"letter": "C", "text": "Serotonin syndrome"}, {"letter": "D", "text": "Severe tissue injury at the injection site"}, {"letter": "E", "text": "Orofacial clefts"}], "answer": "D", "explanation": "Promethazine (Phenergan): tissue injury with IV/IM, EPS; avoid repeated doses in lactation.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "25A", "group": 25, "stem": "Promethazine (Phenergan) → Contraindicated in:", "options": [{"letter": "A", "text": "Hypothyroidism"}, {"letter": "B", "text": "Migraine with aura"}, {"letter": "C", "text": "Asthma"}, {"letter": "D", "text": "Gestational diabetes"}, {"letter": "E", "text": "Children under 2 years"}], "answer": "E", "explanation": "Respiratory depression risk in children <2 years.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "26", "group": 26, "stem": "Pregnant, needs an antibiotic → Class avoided for fetal ototoxicity and nephrotoxicity:", "options": [{"letter": "A", "text": "Penicillins"}, {"letter": "B", "text": "Cephalosporins"}, {"letter": "C", "text": "Macrolides"}, {"letter": "D", "text": "Aminoglycosides"}, {"letter": "E", "text": "Nitroimidazoles"}], "answer": "D", "explanation": "Aminoglycosides (gentamicin (Garamycin)) → use β-lactams instead.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "26A", "group": 26, "stem": "Clarithromycin (Biaxin) in pregnancy → Reason avoided:", "options": [{"letter": "A", "text": "Spontaneous abortion"}, {"letter": "B", "text": "Kernicterus"}, {"letter": "C", "text": "Tooth discoloration"}, {"letter": "D", "text": "Ototoxicity"}, {"letter": "E", "text": "Neural tube defects"}], "answer": "A", "explanation": "Clarithromycin (Biaxin): SAB, hepatotoxicity — azithromycin (Zithromax) is fine.", "objective": "Combined Pattern Guide — Section 2: Pregnancy & Lactation", "section": "Pregnancy & Lactation"}, {"id": "27", "group": 27, "stem": "27 wk, regular painful contractions, cervical dilation, intact membranes, no infection → First-line tocolytic:", "options": [{"letter": "A", "text": "Terbutaline (Brethine)"}, {"letter": "B", "text": "Oxytocin (Pitocin)"}, {"letter": "C", "text": "Indomethacin (Indocin)"}, {"letter": "D", "text": "Misoprostol (Cytotec)"}, {"letter": "E", "text": "Dinoprostone (Cervidil)"}], "answer": "C", "explanation": "Preterm labor: indomethacin (Indocin) 1st, nifedipine (Procardia) alternate 1st, terbutaline (Brethine) 2nd (most maternal AEs).", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "27A", "group": 27, "stem": "Preterm labor at 27 wk → Drug to accelerate fetal lung maturity:", "options": [{"letter": "A", "text": "Hydrocortisone (Solu-Cortef)"}, {"letter": "B", "text": "Surfactant (Curosurf)"}, {"letter": "C", "text": "Magnesium sulfate"}, {"letter": "D", "text": "Terbutaline (Brethine)"}, {"letter": "E", "text": "Betamethasone (Celestone)"}], "answer": "E", "explanation": "Betamethasone (Celestone) 24–34 wk if delivery risk within 7 days → ↓ RDS, IVH, death.", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "27B", "group": 27, "stem": "Preterm delivery appears imminent at 27 wk → Drug for fetal neuroprotection:", "options": [{"letter": "A", "text": "Phenytoin (Dilantin)"}, {"letter": "B", "text": "Nifedipine (Procardia)"}, {"letter": "C", "text": "Magnesium sulfate"}, {"letter": "D", "text": "Betamethasone (Celestone)"}, {"letter": "E", "text": "Indomethacin (Indocin)"}], "answer": "C", "explanation": "Magnesium sulfate before 32 wk ↓ cerebral palsy (board-standard; not in the course chart).", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "27C", "group": 27, "stem": "Indomethacin (Indocin) tocolysis → Fetal adverse effect:", "options": [{"letter": "A", "text": "Neonatal respiratory depression"}, {"letter": "B", "text": "Fetal tachycardia"}, {"letter": "C", "text": "Fetal hypoglycemia"}, {"letter": "D", "text": "Neonatal hypotonia"}, {"letter": "E", "text": "Oligohydramnios"}], "answer": "E", "explanation": "Indomethacin (Indocin): premature DA closure/narrowing and oligohydramnios.", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "28", "group": 28, "stem": "Severe preeclampsia on IV magnesium; absent patellar reflexes, RR 9 → Likely cause:", "options": [{"letter": "A", "text": "Amniotic fluid embolism"}, {"letter": "B", "text": "Eclamptic seizure"}, {"letter": "C", "text": "Pulmonary embolism"}, {"letter": "D", "text": "HELLP syndrome"}, {"letter": "E", "text": "Magnesium toxicity"}], "answer": "E", "explanation": "Loss of DTRs is the earliest sign of Mg toxicity → respiratory depression → cardiac arrest.", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "28A", "group": 28, "stem": "Magnesium toxicity → Antidote:", "options": [{"letter": "A", "text": "Calcium gluconate"}, {"letter": "B", "text": "Flumazenil (Romazicon)"}, {"letter": "C", "text": "Protamine sulfate"}, {"letter": "D", "text": "Naloxone (Narcan)"}, {"letter": "E", "text": "Sodium bicarbonate"}], "answer": "A", "explanation": "Stop the infusion and give calcium gluconate.", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "28B", "group": 28, "stem": "Magnesium sulfate → Contraindicated in:", "options": [{"letter": "A", "text": "Gestational diabetes"}, {"letter": "B", "text": "Myasthenia gravis"}, {"letter": "C", "text": "Migraine with aura"}, {"letter": "D", "text": "Hypothyroidism"}, {"letter": "E", "text": "Asthma"}], "answer": "B", "explanation": "Mg blocks neuromuscular transmission → contraindicated in myasthenia gravis; renally cleared.", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "29", "group": 29, "stem": "Preterm contractions + maternal fever + uterine tenderness (intrauterine infection) → Tocolysis:", "options": [{"letter": "A", "text": "Terbutaline (Brethine) first line"}, {"letter": "B", "text": "Indomethacin (Indocin) first line"}, {"letter": "C", "text": "Nifedipine (Procardia) first line"}, {"letter": "D", "text": "Magnesium sulfate first line"}, {"letter": "E", "text": "Contraindicated"}], "answer": "E", "explanation": "Don't tocolyze: intrauterine infection, fetal distress/demise, unstable maternal hemorrhage, PROM (unless for transport).", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "30", "group": 30, "stem": "41 wk, unfavorable cervix, prior cesarean delivery → Ripening agent to AVOID:", "options": [{"letter": "A", "text": "Misoprostol (Cytotec)"}, {"letter": "B", "text": "Oxytocin (Pitocin)"}, {"letter": "C", "text": "Dinoprostone (Cervidil)"}, {"letter": "D", "text": "Balloon catheter (Foley)"}, {"letter": "E", "text": "Membrane sweeping"}], "answer": "A", "explanation": "Misoprostol (Cytotec, PGE1) is contraindicated after a prior C-section → uterine rupture.", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "30A", "group": 30, "stem": "Cervical ripening → Agent with a boxed warning restricting use to a medical facility:", "options": [{"letter": "A", "text": "Methylergonovine (Methergine)"}, {"letter": "B", "text": "Terbutaline (Brethine)"}, {"letter": "C", "text": "Oxytocin (Pitocin)"}, {"letter": "D", "text": "Misoprostol (Cytotec)"}, {"letter": "E", "text": "Dinoprostone (Cervidil)"}], "answer": "E", "explanation": "Dinoprostone (Cervidil, PGE2) black box: medical facility only; less effective and more expensive than misoprostol (Cytotec).", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "30B", "group": 30, "stem": "Cervix ripened at 41 wk → Drug to induce labor:", "options": [{"letter": "A", "text": "Terbutaline (Brethine)"}, {"letter": "B", "text": "Nifedipine (Procardia)"}, {"letter": "C", "text": "Oxytocin (Pitocin)"}, {"letter": "D", "text": "Indomethacin (Indocin)"}, {"letter": "E", "text": "Betamethasone (Celestone)"}], "answer": "C", "explanation": "Oxytocin (Pitocin) = induction at term and postpartum bleeding control.", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "30C", "group": 30, "stem": "Oxytocin (Pitocin) → Contraindicated in:", "options": [{"letter": "A", "text": "Maternal age >35"}, {"letter": "B", "text": "Group B strep colonization"}, {"letter": "C", "text": "Active genital herpes"}, {"letter": "D", "text": "Gestational diabetes"}, {"letter": "E", "text": "Prior vaginal delivery"}], "answer": "C", "explanation": "Oxytocin (Pitocin) CIs: CPD, malposition, fetal distress, hypertonic uterus, active genital herpes, cord prolapse, total previa.", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "31", "group": 31, "stem": "Tocolytic causing maternal tachycardia, hypokalemia, hyperglycemia, pulmonary edema → Drug:", "options": [{"letter": "A", "text": "Terbutaline (Brethine)"}, {"letter": "B", "text": "Atosiban (Tractocile)"}, {"letter": "C", "text": "Nifedipine (Procardia)"}, {"letter": "D", "text": "Magnesium sulfate"}, {"letter": "E", "text": "Indomethacin (Indocin)"}], "answer": "A", "explanation": "β₂ agonist → the most maternal adverse effects of the tocolytics.", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "31A", "group": 31, "stem": "Terbutaline (Brethine) → Neonatal effect to monitor:", "options": [{"letter": "A", "text": "Hyperkalemia"}, {"letter": "B", "text": "Bradycardia"}, {"letter": "C", "text": "Hypocalcemia"}, {"letter": "D", "text": "Hypoglycemia"}, {"letter": "E", "text": "Hypothermia"}], "answer": "D", "explanation": "Terbutaline (Brethine) → fetal tachycardia and (rebound) hypoglycemia.", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "32", "group": 32, "stem": "31 wk, preterm labor, intact membranes → Tocolytic of choice at this gestational age:", "options": [{"letter": "A", "text": "Indomethacin (Indocin)"}, {"letter": "B", "text": "Misoprostol (Cytotec)"}, {"letter": "C", "text": "Methylergonovine (Methergine)"}, {"letter": "D", "text": "Oxytocin (Pitocin)"}, {"letter": "E", "text": "Nifedipine (Procardia)"}], "answer": "E", "explanation": "Past 30 wk NSAIDs (indomethacin (Indocin)) risk ductus closure → nifedipine (Procardia), the alternate 1st-line tocolytic.", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "32A", "group": 32, "stem": "Nifedipine (Procardia) tocolysis → Maternal adverse effect:", "options": [{"letter": "A", "text": "Hypokalemia and hyperglycemia"}, {"letter": "B", "text": "Hypotension and flushing"}, {"letter": "C", "text": "Loss of reflexes"}, {"letter": "D", "text": "Uterine hyperstimulation"}, {"letter": "E", "text": "Gastritis and bleeding"}], "answer": "B", "explanation": "Nifedipine (Procardia): hypotension, flushing, HA, edema, palpitations; monitor HR, BP, CHF sx.", "objective": "Combined Pattern Guide — Section 3: Labor & Delivery", "section": "Labor & Delivery"}, {"id": "33", "group": 33, "stem": "Thin gray fishy discharge, pH >4.5, clue cells, positive whiff test → Diagnosis:", "options": [{"letter": "A", "text": "Bacterial vaginosis"}, {"letter": "B", "text": "Trichomoniasis"}, {"letter": "C", "text": "Atrophic vaginitis"}, {"letter": "D", "text": "Vulvovaginal candidiasis"}, {"letter": "E", "text": "Chlamydial cervicitis"}], "answer": "A", "explanation": "Amsel picture of BV.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "33A", "group": 33, "stem": "Bacterial vaginosis → First-line treatment:", "options": [{"letter": "A", "text": "Oral doxycycline (Vibramycin)"}, {"letter": "B", "text": "Oral valacyclovir (Valtrex)"}, {"letter": "C", "text": "Oral metronidazole (Flagyl)"}, {"letter": "D", "text": "Oral fluconazole (Diflucan)"}, {"letter": "E", "text": "IM ceftriaxone (Rocephin)"}], "answer": "C", "explanation": "Metronidazole (Flagyl) 500 BID × 7 d (or metro gel / clindamycin (Cleocin) cream). No test of cure.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "33B", "group": 33, "stem": "Metronidazole (Flagyl) → Counseling point per the drug label:", "options": [{"letter": "A", "text": "Stay upright 30 minutes"}, {"letter": "B", "text": "Avoid sun exposure"}, {"letter": "C", "text": "Separate from antacids"}, {"letter": "D", "text": "Take with a full glass of water"}, {"letter": "E", "text": "Avoid alcohol"}], "answer": "E", "explanation": "Label: disulfiram-like reaction (avoid during + 3 d) — CDC 2021 says abstaining is unnecessary. Also metallic taste, QT.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "34", "group": 34, "stem": "Lower abdominal pain + cervical motion tenderness + adnexal tenderness → Diagnosis:", "options": [{"letter": "A", "text": "Pelvic inflammatory disease"}, {"letter": "B", "text": "Ectopic pregnancy"}, {"letter": "C", "text": "Bacterial vaginosis"}, {"letter": "D", "text": "Ovarian torsion"}, {"letter": "E", "text": "Primary dysmenorrhea"}], "answer": "A", "explanation": "Pelvic pain + CMT/uterine/adnexal tenderness meets minimum criteria → treat empirically.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "34A", "group": 34, "stem": "PID → Outpatient regimen:", "options": [{"letter": "A", "text": "Fluconazole + metronidazole"}, {"letter": "B", "text": "Ceftriaxone + doxycycline + metronidazole"}, {"letter": "C", "text": "Ceftriaxone + azithromycin"}, {"letter": "D", "text": "Doxycycline alone"}, {"letter": "E", "text": "Penicillin G benzathine alone"}], "answer": "B", "explanation": "Ceftriaxone (Rocephin) IM × 1 + doxycycline (Vibramycin) + metronidazole (Flagyl) × 14 d; reassess at 72 h.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "34B", "group": 34, "stem": "PID not improving on outpatient therapy → Next step:", "options": [{"letter": "A", "text": "Hospitalize for IV therapy"}, {"letter": "B", "text": "Add fluconazole (Diflucan)"}, {"letter": "C", "text": "Switch to azithromycin (Zithromax)"}, {"letter": "D", "text": "Stop antibiotics"}, {"letter": "E", "text": "Double the doxycycline dose"}], "answer": "A", "explanation": "No better at 72 h → hospitalize, IV regimen, re-evaluate the diagnosis.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "35", "group": 35, "stem": "Painless indurated genital ulcer, nontender inguinal nodes → Treatment:", "options": [{"letter": "A", "text": "Fluconazole (Diflucan)"}, {"letter": "B", "text": "Ceftriaxone (Rocephin)"}, {"letter": "C", "text": "Penicillin G benzathine (Bicillin L-A)"}, {"letter": "D", "text": "Metronidazole (Flagyl)"}, {"letter": "E", "text": "Valacyclovir (Valtrex)"}], "answer": "C", "explanation": "Primary syphilis: penicillin G benzathine (Bicillin L-A) 2.4 MU IM × 1.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "35A", "group": 35, "stem": "Fever, myalgia, headache hours after penicillin G benzathine (Bicillin L-A) → Cause:", "options": [{"letter": "A", "text": "Jarisch-Herxheimer reaction"}, {"letter": "B", "text": "Serum sickness"}, {"letter": "C", "text": "Secondary syphilis"}, {"letter": "D", "text": "Penicillin anaphylaxis"}, {"letter": "E", "text": "Drug-induced lupus"}], "answer": "A", "explanation": "Cytokine release from dying spirochetes ≤24 h — not allergy; treat with antipyretics.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "35B", "group": 35, "stem": "Syphilis after treatment → Lab to monitor response:", "options": [{"letter": "A", "text": "Serum creatinine"}, {"letter": "B", "text": "RPR/VDRL titer"}, {"letter": "C", "text": "CBC with differential"}, {"letter": "D", "text": "Darkfield microscopy"}, {"letter": "E", "text": "Treponemal antibody (FTA-ABS)"}], "answer": "B", "explanation": "Nontreponemal titers at 6 and 12 months, looking for a ≥4-fold decline.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "36", "group": 36, "stem": "Pregnant, NAAT positive for chlamydia → Treatment:", "options": [{"letter": "A", "text": "Doxycycline (Vibramycin)"}, {"letter": "B", "text": "Minocycline (Minocin)"}, {"letter": "C", "text": "Levofloxacin (Levaquin)"}, {"letter": "D", "text": "Clarithromycin (Biaxin)"}, {"letter": "E", "text": "Azithromycin (Zithromax)"}], "answer": "E", "explanation": "Tetracyclines and FQs are avoided in pregnancy → azithromycin (Zithromax) 1 g × 1. Clarithromycin (Biaxin) → SAB.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "36A", "group": 36, "stem": "Chlamydia in pregnancy treated with azithromycin (Zithromax) → Follow-up required:", "options": [{"letter": "A", "text": "Pelvic ultrasound"}, {"letter": "B", "text": "Test of cure"}, {"letter": "C", "text": "No follow-up needed"}, {"letter": "D", "text": "Liver function tests"}, {"letter": "E", "text": "Serial RPR titers"}], "answer": "B", "explanation": "Pregnancy: test of cure at 4 weeks, plus retest at 3 months.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "37", "group": 37, "stem": "Not pregnant, thick white discharge, itching, pseudohyphae → Treatment:", "options": [{"letter": "A", "text": "Oral metronidazole (Flagyl)"}, {"letter": "B", "text": "Oral doxycycline (Vibramycin)"}, {"letter": "C", "text": "Topical clindamycin (Cleocin)"}, {"letter": "D", "text": "Oral fluconazole (Diflucan)"}, {"letter": "E", "text": "IM ceftriaxone (Rocephin)"}], "answer": "D", "explanation": "VVC: fluconazole (Diflucan) 150 mg PO × 1, or OTC intravaginal clotrimazole/miconazole.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "37A", "group": 37, "stem": "Fluconazole (Diflucan) → Monitoring:", "options": [{"letter": "A", "text": "Bone density"}, {"letter": "B", "text": "Serum magnesium"}, {"letter": "C", "text": "Serum potassium"}, {"letter": "D", "text": "ECG and liver enzymes"}, {"letter": "E", "text": "Drug levels"}], "answer": "D", "explanation": "Triazoles: hepatotoxicity and QT prolongation; no TDM needed for fluconazole (Diflucan).", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "38", "group": 38, "stem": "Levofloxacin (Levaquin) as a chlamydia alternative → Boxed warning:", "options": [{"letter": "A", "text": "Tendon rupture"}, {"letter": "B", "text": "Biliary sludging"}, {"letter": "C", "text": "Crystal nephropathy"}, {"letter": "D", "text": "Esophageal erosion"}, {"letter": "E", "text": "Disulfiram-like reaction"}], "answer": "A", "explanation": "FQ BBW: tendinitis/rupture, neuropathy, CNS effects, MG exacerbation; avoid in pregnancy and lactation.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "39", "group": 39, "stem": "Frothy yellow-green discharge, strawberry cervix, motile flagellated organisms → Diagnosis:", "options": [{"letter": "A", "text": "Bacterial vaginosis"}, {"letter": "B", "text": "Vulvovaginal candidiasis"}, {"letter": "C", "text": "Chlamydial cervicitis"}, {"letter": "D", "text": "Trichomoniasis"}, {"letter": "E", "text": "Atrophic vaginitis"}], "answer": "D", "explanation": "Flagellated protozoa on saline wet mount.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "39A", "group": 39, "stem": "Trichomoniasis → Treatment for the patient:", "options": [{"letter": "A", "text": "Oral metronidazole (Flagyl)"}, {"letter": "B", "text": "Oral azithromycin (Zithromax)"}, {"letter": "C", "text": "Topical clindamycin (Cleocin)"}, {"letter": "D", "text": "Oral fluconazole (Diflucan)"}, {"letter": "E", "text": "IM ceftriaxone (Rocephin)"}], "answer": "A", "explanation": "Women: metronidazole (Flagyl) 500 BID × 7 d (men 2 g × 1; alt tinidazole (Tindamax)).", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "39B", "group": 39, "stem": "Trichomoniasis → Management step that differs from bacterial vaginosis:", "options": [{"letter": "A", "text": "Add fluconazole (Diflucan)"}, {"letter": "B", "text": "Treat sexual partners"}, {"letter": "C", "text": "No follow-up needed"}, {"letter": "D", "text": "Test of cure in 1 week"}, {"letter": "E", "text": "Abstain for 6 months"}], "answer": "B", "explanation": "Trich: treat partners and retest within 3 months. BV: partner treatment not routine.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "40", "group": 40, "stem": "Painful grouped genital vesicles, multinucleated giant cells → Diagnosis:", "options": [{"letter": "A", "text": "Lymphogranuloma venereum"}, {"letter": "B", "text": "Primary syphilis"}, {"letter": "C", "text": "Genital herpes (HSV)"}, {"letter": "D", "text": "Molluscum contagiosum"}, {"letter": "E", "text": "Chancroid"}], "answer": "C", "explanation": "Painful vesicles/ulcers + giant cells = HSV.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "40A", "group": 40, "stem": "Genital herpes → Antiviral with the fewest daily doses:", "options": [{"letter": "A", "text": "Valacyclovir (Valtrex)"}, {"letter": "B", "text": "Famciclovir (Famvir)"}, {"letter": "C", "text": "Acyclovir (Zovirax)"}, {"letter": "D", "text": "Ganciclovir (Cytovene)"}, {"letter": "E", "text": "Oseltamivir (Tamiflu)"}], "answer": "A", "explanation": "Valacyclovir (Valtrex) — fewer doses → better adherence.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "40B", "group": 40, "stem": "Valacyclovir (Valtrex) / acyclovir (Zovirax) → Adverse effect prevented with hydration:", "options": [{"letter": "A", "text": "Crystal nephropathy (AKI)"}, {"letter": "B", "text": "Photosensitivity"}, {"letter": "C", "text": "Hepatotoxicity"}, {"letter": "D", "text": "Tendon rupture"}, {"letter": "E", "text": "QT prolongation"}], "answer": "A", "explanation": "Acyclovir family: crystal nephropathy → hydrate, renally dose, monitor SCr.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "41", "group": 41, "stem": "24 wk pregnant, thick white cottage-cheese discharge, itching, normal pH, pseudohyphae → Diagnosis:", "options": [{"letter": "A", "text": "Trichomoniasis"}, {"letter": "B", "text": "Genital herpes"}, {"letter": "C", "text": "Bacterial vaginosis"}, {"letter": "D", "text": "Vulvovaginal candidiasis"}, {"letter": "E", "text": "Gonococcal cervicitis"}], "answer": "D", "explanation": "pH ~4.0, KOH pseudohyphae, whiff negative.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "41A", "group": 41, "stem": "Vulvovaginal candidiasis in pregnancy → Treatment:", "options": [{"letter": "A", "text": "Topical clotrimazole (Gyne-Lotrimin)"}, {"letter": "B", "text": "Oral fluconazole (Diflucan)"}, {"letter": "C", "text": "Oral metronidazole (Flagyl)"}, {"letter": "D", "text": "Oral terbinafine (Lamisil)"}, {"letter": "E", "text": "Oral ketoconazole (Nizoral)"}], "answer": "A", "explanation": "Pregnancy → topical azole; oral fluconazole (Diflucan) is the non-pregnant single dose.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "42", "group": 42, "stem": "Not pregnant, mucopurulent friable cervix, NAAT positive for chlamydia only → Treatment:", "options": [{"letter": "A", "text": "Azithromycin (Zithromax)"}, {"letter": "B", "text": "Doxycycline (Vibramycin)"}, {"letter": "C", "text": "Ceftriaxone (Rocephin)"}, {"letter": "D", "text": "Penicillin G benzathine (Bicillin L-A)"}, {"letter": "E", "text": "Metronidazole (Flagyl)"}], "answer": "B", "explanation": "Doxycycline (Vibramycin) 100 BID × 7 d is preferred (azithromycin (Zithromax) weaker for rectal infection).", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "42A", "group": 42, "stem": "Doxycycline (Vibramycin) → Counseling point:", "options": [{"letter": "A", "text": "Expect orange urine"}, {"letter": "B", "text": "Take with antacids"}, {"letter": "C", "text": "Expect a metallic taste"}, {"letter": "D", "text": "Full glass of water, stay upright"}, {"letter": "E", "text": "Avoid alcohol for 3 days"}], "answer": "D", "explanation": "Doxycycline (Vibramycin): esophageal erosion → water + upright; photosensitivity; separate from antacids/vitamins.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "43", "group": 43, "stem": "Purulent cervical discharge, gram-negative intracellular diplococci, chlamydia not yet excluded → Treatment:", "options": [{"letter": "A", "text": "Ciprofloxacin (Cipro) PO"}, {"letter": "B", "text": "Ceftriaxone (Rocephin) IM alone"}, {"letter": "C", "text": "Ceftriaxone (Rocephin) IM + doxycycline (Vibramycin)"}, {"letter": "D", "text": "Azithromycin (Zithromax) alone"}, {"letter": "E", "text": "Metronidazole (Flagyl) PO"}], "answer": "C", "explanation": "Gonorrhea: ceftriaxone (Rocephin) 500 mg IM × 1; add doxycycline (Vibramycin) if chlamydia not excluded.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "43A", "group": 43, "stem": "Gonorrhea → Oral drug for expedited partner therapy:", "options": [{"letter": "A", "text": "Cefixime (Suprax)"}, {"letter": "B", "text": "Metronidazole (Flagyl)"}, {"letter": "C", "text": "Ciprofloxacin (Cipro)"}, {"letter": "D", "text": "Ceftriaxone (Rocephin)"}, {"letter": "E", "text": "Amoxicillin (Amoxil)"}], "answer": "A", "explanation": "EPT for GC: cefixime (Suprax) 800 × 1. EPT is contraindicated for a female partner with PID symptoms.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "44", "group": 44, "stem": "Pregnant, early syphilis, penicillin allergy → Management:", "options": [{"letter": "A", "text": "Doxycycline (Vibramycin)"}, {"letter": "B", "text": "Azithromycin (Zithromax)"}, {"letter": "C", "text": "Ceftriaxone (Rocephin)"}, {"letter": "D", "text": "Desensitize, then Bicillin L-A"}, {"letter": "E", "text": "Delay until postpartum"}], "answer": "D", "explanation": "Penicillin G benzathine (Bicillin L-A) is the only syphilis option in pregnancy → desensitize.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "45", "group": 45, "stem": "Metronidazole (Flagyl) started in a patient on warfarin (Coumadin) → Interaction:", "options": [{"letter": "A", "text": "Decreased INR"}, {"letter": "B", "text": "Serotonin syndrome"}, {"letter": "C", "text": "Reduced metronidazole effect"}, {"letter": "D", "text": "Hyperkalemia"}, {"letter": "E", "text": "Increased INR"}], "answer": "E", "explanation": "Metronidazole (Flagyl) ↑ INR on warfarin (Coumadin) and ↑ lithium (Lithobid) levels.", "objective": "Combined Pattern Guide — Section 4: GYN Infections & STIs", "section": "GYN Infections & STIs"}, {"id": "46", "group": 46, "stem": "Cyclic pelvic pain, deep dyspareunia, dyschezia, infertility → Diagnosis:", "options": [{"letter": "A", "text": "Endometriosis"}, {"letter": "B", "text": "Ovarian torsion"}, {"letter": "C", "text": "Pelvic inflammatory disease"}, {"letter": "D", "text": "Irritable bowel syndrome"}, {"letter": "E", "text": "Primary dysmenorrhea"}], "answer": "A", "explanation": "Laparoscopy is definitive but not required to treat.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "46A", "group": 46, "stem": "Endometriosis → Initial pharmacotherapy:", "options": [{"letter": "A", "text": "Anastrozole (Arimidex)"}, {"letter": "B", "text": "Danazol (Danocrine)"}, {"letter": "C", "text": "Elagolix (Orilissa)"}, {"letter": "D", "text": "Leuprolide (Lupron Depot)"}, {"letter": "E", "text": "Combined hormonal contraceptive + NSAID"}], "answer": "E", "explanation": "Start combined hormonal (preferred over progestin-only) + NSAIDs.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "46B", "group": 46, "stem": "Severe endometriosis failing initial therapy → Agent:", "options": [{"letter": "A", "text": "Anastrozole (Arimidex)"}, {"letter": "B", "text": "Copper IUD (Paragard)"}, {"letter": "C", "text": "Spironolactone (Aldactone)"}, {"letter": "D", "text": "Leuprolide (Lupron Depot)"}, {"letter": "E", "text": "Danazol (Danocrine)"}], "answer": "D", "explanation": "Severe/failed → GnRH agonist (leuprolide (Lupron Depot), goserelin (Zoladex)) or elagolix (Orilissa) with add-back.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "46C", "group": 46, "stem": "Leuprolide (Lupron Depot) → Therapy added from day 1 to protect bone:", "options": [{"letter": "A", "text": "Raloxifene (Evista)"}, {"letter": "B", "text": "Calcitonin (Miacalcin)"}, {"letter": "C", "text": "Teriparatide (Forteo)"}, {"letter": "D", "text": "Alendronate (Fosamax)"}, {"letter": "E", "text": "Norethindrone acetate (Aygestin) add-back"}], "answer": "E", "explanation": "Add-back — norethindrone acetate (Aygestin) ± conjugated estrogen (Premarin) — spares bone and hot flashes without losing pain control.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "47", "group": 47, "stem": "Heavy menstrual bleeding, trying to conceive, wants a nonhormonal option → Drug:", "options": [{"letter": "A", "text": "Medroxyprogesterone (Provera)"}, {"letter": "B", "text": "Tranexamic acid (Lysteda)"}, {"letter": "C", "text": "Combined oral contraceptive"}, {"letter": "D", "text": "Levonorgestrel IUD (Mirena)"}, {"letter": "E", "text": "Leuprolide (Lupron Depot)"}], "answer": "B", "explanation": "Tranexamic acid (Lysteda) — no hormonal effect, taken only during menses.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "47A", "group": 47, "stem": "Tranexamic acid (Lysteda) → Contraindicated in:", "options": [{"letter": "A", "text": "Peptic ulcer disease"}, {"letter": "B", "text": "Prior DVT or PE"}, {"letter": "C", "text": "Iron deficiency anemia"}, {"letter": "D", "text": "Migraine without aura"}, {"letter": "E", "text": "Asthma"}], "answer": "B", "explanation": "Antifibrinolytic → contraindicated with clot history (that patient → progestin).", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "48", "group": 48, "stem": "Endometriosis started on elagolix (Orilissa) → Required counseling:", "options": [{"letter": "A", "text": "Avoid all NSAIDs"}, {"letter": "B", "text": "Use nonhormonal contraception"}, {"letter": "C", "text": "Expect an initial pain flare"}, {"letter": "D", "text": "Check serum potassium"}, {"letter": "E", "text": "Expect weight loss"}], "answer": "B", "explanation": "Partial suppression — ovulation may still occur → contraception required. No flare (that's the agonist, leuprolide (Lupron Depot)).", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "48A", "group": 48, "stem": "Elagolix (Orilissa) → Psychiatric adverse effect to screen for:", "options": [{"letter": "A", "text": "Depression / suicidal ideation"}, {"letter": "B", "text": "Panic disorder"}, {"letter": "C", "text": "Mania"}, {"letter": "D", "text": "Psychosis"}, {"letter": "E", "text": "Obsessive-compulsive symptoms"}], "answer": "A", "explanation": "Elagolix (Orilissa): hot flashes, depression/SI, dose-dependent bone loss.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "49", "group": 49, "stem": "PMS with bloating and breast tenderness → Luteal-phase add-on:", "options": [{"letter": "A", "text": "Spironolactone (Aldactone)"}, {"letter": "B", "text": "Tranexamic acid (Lysteda)"}, {"letter": "C", "text": "Leuprolide (Lupron Depot)"}, {"letter": "D", "text": "Furosemide (Lasix)"}, {"letter": "E", "text": "Danazol (Danocrine)"}], "answer": "A", "explanation": "Spironolactone (Aldactone) in the luteal phase for bloating/breast tenderness.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "49A", "group": 49, "stem": "Spironolactone (Aldactone) → Lab to monitor:", "options": [{"letter": "A", "text": "Liver enzymes"}, {"letter": "B", "text": "Bone density"}, {"letter": "C", "text": "Serum magnesium"}, {"letter": "D", "text": "Serum potassium"}, {"letter": "E", "text": "Serum calcium"}], "answer": "D", "explanation": "Hyperkalemia — same K⁺ thread as drospirenone (Yaz).", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "50", "group": 50, "stem": "17 yo, crampy pelvic pain first days of menses, normal pelvic exam → Diagnosis:", "options": [{"letter": "A", "text": "Primary dysmenorrhea"}, {"letter": "B", "text": "Uterine fibroids"}, {"letter": "C", "text": "Adenomyosis"}, {"letter": "D", "text": "Pelvic inflammatory disease"}, {"letter": "E", "text": "Endometriosis"}], "answer": "A", "explanation": "Prostaglandin-driven, normal exam, diagnosis of exclusion.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "50A", "group": 50, "stem": "Primary dysmenorrhea → First-line treatment:", "options": [{"letter": "A", "text": "Naproxen (Naprosyn)"}, {"letter": "B", "text": "Leuprolide (Lupron Depot)"}, {"letter": "C", "text": "Acetaminophen (Tylenol)"}, {"letter": "D", "text": "Oxycodone (Roxicodone)"}, {"letter": "E", "text": "Tranexamic acid (Lysteda)"}], "answer": "A", "explanation": "NSAIDs first — start the day before menses, scheduled dosing.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "50B", "group": 50, "stem": "Primary dysmenorrhea failing NSAIDs → Second-line therapy:", "options": [{"letter": "A", "text": "Copper IUD (Paragard)"}, {"letter": "B", "text": "Danazol (Danocrine)"}, {"letter": "C", "text": "Combined hormonal contraceptive"}, {"letter": "D", "text": "Leuprolide (Lupron Depot)"}, {"letter": "E", "text": "Opioid analgesic"}], "answer": "C", "explanation": "NSAID → combined hormonal (2–3 mo trial) → progestins (Depo-Provera, Mirena). No opioids, no copper IUD.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "51", "group": 51, "stem": "Irritability, depressed mood, job performance declines the 2 weeks before menses, resolves with flow → Diagnosis:", "options": [{"letter": "A", "text": "Premenstrual syndrome"}, {"letter": "B", "text": "Perimenopause"}, {"letter": "C", "text": "Bipolar II disorder"}, {"letter": "D", "text": "Major depressive disorder"}, {"letter": "E", "text": "Premenstrual dysphoric disorder"}], "answer": "E", "explanation": "PMDD = PMS-type symptoms plus functional decline; document over 2 cycles.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "51A", "group": 51, "stem": "PMDD → First-line drug:", "options": [{"letter": "A", "text": "Leuprolide (Lupron Depot)"}, {"letter": "B", "text": "Bupropion (Wellbutrin)"}, {"letter": "C", "text": "Fluoxetine (Prozac)"}, {"letter": "D", "text": "Alprazolam (Xanax)"}, {"letter": "E", "text": "Spironolactone (Aldactone)"}], "answer": "C", "explanation": "SSRI continuous or luteal phase; works within the first cycle.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "51B", "group": 51, "stem": "Fluoxetine (Prozac) for PMDD → Screen before starting:", "options": [{"letter": "A", "text": "Serum potassium"}, {"letter": "B", "text": "Bone density"}, {"letter": "C", "text": "Liver enzymes"}, {"letter": "D", "text": "Pregnancy test"}, {"letter": "E", "text": "Suicidal ideation"}], "answer": "E", "explanation": "Screen SI at SSRI start.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "52", "group": 52, "stem": "Endometriosis drug causing hirsutism, acne, voice deepening → Drug:", "options": [{"letter": "A", "text": "Leuprolide (Lupron Depot)"}, {"letter": "B", "text": "Medroxyprogesterone (Provera)"}, {"letter": "C", "text": "Elagolix (Orilissa)"}, {"letter": "D", "text": "Danazol (Danocrine)"}, {"letter": "E", "text": "Anastrozole (Arimidex)"}], "answer": "D", "explanation": "Danazol (Danocrine) is androgenic; refractory endometriosis.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "52A", "group": 52, "stem": "Danazol (Danocrine) → Boxed warning:", "options": [{"letter": "A", "text": "Tendon rupture"}, {"letter": "B", "text": "Use in pregnancy"}, {"letter": "C", "text": "Hepatic failure"}, {"letter": "D", "text": "Agranulocytosis"}, {"letter": "E", "text": "Lactic acidosis"}], "answer": "B", "explanation": "Danazol (Danocrine) BBW: pregnancy (Category X).", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "53", "group": 53, "stem": "Anastrozole (Arimidex) for refractory endometriosis → Required co-therapy:", "options": [{"letter": "A", "text": "Tamoxifen (Nolvadex)"}, {"letter": "B", "text": "Spironolactone (Aldactone)"}, {"letter": "C", "text": "Ovarian suppression"}, {"letter": "D", "text": "Testosterone"}, {"letter": "E", "text": "Tranexamic acid (Lysteda)"}], "answer": "C", "explanation": "Anastrozole (Arimidex) never alone — ovarian cysts. AE: osteoporosis, hot flashes.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "54", "group": 54, "stem": "Endometriosis, 1 week after first leuprolide (Lupron Depot) injection, pain is worse → Cause:", "options": [{"letter": "A", "text": "Initial gonadotropin flare"}, {"letter": "B", "text": "Ovarian torsion"}, {"letter": "C", "text": "Drug allergy"}, {"letter": "D", "text": "Treatment failure"}, {"letter": "E", "text": "Add-back therapy"}], "answer": "A", "explanation": "GnRH agonist: flare (↑ LH/FSH → estrogen surge) before desensitization; worse pain in week 1–2 is expected. Elagolix (Orilissa) has no flare.", "objective": "Combined Pattern Guide — Section 5: Menstrual Disorders", "section": "Menstrual Disorders"}, {"id": "55", "group": 55, "stem": "52 yo, 12 months amenorrhea, severe hot flashes, intact uterus, no contraindications → Treatment:", "options": [{"letter": "A", "text": "Estrogen alone (Premarin)"}, {"letter": "B", "text": "Ospemifene (Osphena)"}, {"letter": "C", "text": "Gabapentin (Neurontin)"}, {"letter": "D", "text": "Estrogen + progestin (Prempro)"}, {"letter": "E", "text": "Raloxifene (Evista)"}], "answer": "D", "explanation": "MHT is the gold standard, e.g., conjugated estrogens + medroxyprogesterone (Prempro); start <60 or ≤10 yr from onset (ACOG 2026).", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "55A", "group": 55, "stem": "Estrogen + progestin (Prempro) → Reason the progestin is required:", "options": [{"letter": "A", "text": "Prevent endometrial cancer"}, {"letter": "B", "text": "Prevent osteoporosis"}, {"letter": "C", "text": "Prevent breast cancer"}, {"letter": "D", "text": "Lower LDL"}, {"letter": "E", "text": "Reduce VTE risk"}], "answer": "A", "explanation": "Unopposed estrogen with a uterus → endometrial hyperplasia/cancer.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "55B", "group": 55, "stem": "Menopausal estrogen → Route with the lowest VTE risk:", "options": [{"letter": "A", "text": "Intramuscular"}, {"letter": "B", "text": "Sublingual"}, {"letter": "C", "text": "Subcutaneous pellet"}, {"letter": "D", "text": "Oral (Premarin)"}, {"letter": "E", "text": "Transdermal (Climara)"}], "answer": "E", "explanation": "Transdermal estradiol (Climara) avoids first pass → less thrombosis and lipid effect.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "56", "group": 56, "stem": "Neurokinin B receptor antagonist for hot flashes → Drug:", "options": [{"letter": "A", "text": "Clonidine (Catapres)"}, {"letter": "B", "text": "Elinzanetant (Lynkuet)"}, {"letter": "C", "text": "Venlafaxine (Effexor XR)"}, {"letter": "D", "text": "Ospemifene (Osphena)"}, {"letter": "E", "text": "Fezolinetant (Veozah)"}], "answer": "E", "explanation": "Fezolinetant (Veozah) — neurokinin B (NK3) receptor antagonist acting on the thermoregulatory center.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "56A", "group": 56, "stem": "Fezolinetant (Veozah) → Boxed warning:", "options": [{"letter": "A", "text": "Endometrial cancer"}, {"letter": "B", "text": "QT prolongation"}, {"letter": "C", "text": "Suicidal ideation"}, {"letter": "D", "text": "Liver injury"}, {"letter": "E", "text": "Venous thromboembolism"}], "answer": "D", "explanation": "Fezolinetant (Veozah) BBW: liver injury → check LFTs. Elinzanetant (Lynkuet, Oct 2025) has no boxed warning and is more effective.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "57", "group": 57, "stem": "Night sweats, estrogen contraindicated, gabapentin (Neurontin) not tolerated → α-agonist alternative:", "options": [{"letter": "A", "text": "Ospemifene (Osphena)"}, {"letter": "B", "text": "Fezolinetant (Veozah)"}, {"letter": "C", "text": "Clonidine (Catapres)"}, {"letter": "D", "text": "Paroxetine (Paxil)"}, {"letter": "E", "text": "Estradiol patch (Climara)"}], "answer": "C", "explanation": "Clonidine (Catapres) 0.1 mg QHS for nighttime-predominant VMS.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "57A", "group": 57, "stem": "Clonidine (Catapres) → Adverse effects:", "options": [{"letter": "A", "text": "Liver injury"}, {"letter": "B", "text": "Sexual dysfunction"}, {"letter": "C", "text": "Endometrial hyperplasia"}, {"letter": "D", "text": "Hyperkalemia"}, {"letter": "E", "text": "Dry mouth and dizziness"}], "answer": "E", "explanation": "Clonidine (Catapres): dry mouth, dizziness, constipation, sedation.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "58", "group": 58, "stem": "Daytime hot flashes, declines hormones → FDA-approved nonhormonal SSRI:", "options": [{"letter": "A", "text": "Sertraline (Zoloft)"}, {"letter": "B", "text": "Bupropion (Wellbutrin)"}, {"letter": "C", "text": "Duloxetine (Cymbalta)"}, {"letter": "D", "text": "Paroxetine (Brisdelle)"}, {"letter": "E", "text": "Fluoxetine (Prozac)"}], "answer": "D", "explanation": "SSRIs (paroxetine, citalopram (Celexa), escitalopram (Lexapro)) are 1st-line daytime; low-dose paroxetine (Brisdelle; Paxil at depression doses) is FDA-approved for VMS.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "59", "group": 59, "stem": "Hot flashes + osteoporosis prevention, intact uterus, wants to avoid a progestin → Product:", "options": [{"letter": "A", "text": "Fezolinetant (Veozah)"}, {"letter": "B", "text": "Ospemifene (Osphena)"}, {"letter": "C", "text": "Raloxifene (Evista)"}, {"letter": "D", "text": "Estradiol patch alone (Climara)"}, {"letter": "E", "text": "Conjugated estrogens + bazedoxifene (Duavee)"}], "answer": "E", "explanation": "Duavee: estrogen + SERM — treats VMS, prevents osteoporosis, the SERM protects the endometrium.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "60", "group": 60, "stem": "HR+ breast cancer on tamoxifen (Nolvadex), bothersome hot flashes → Drug:", "options": [{"letter": "A", "text": "Paroxetine (Paxil)"}, {"letter": "B", "text": "Estradiol patch (Climara)"}, {"letter": "C", "text": "Conjugated estrogens (Premarin)"}, {"letter": "D", "text": "Venlafaxine (Effexor XR)"}, {"letter": "E", "text": "Fluoxetine (Prozac)"}], "answer": "D", "explanation": "SNRI venlafaxine (Effexor XR) preferred with tamoxifen (Nolvadex); systemic MHT is a relative CI in HR+ breast CA.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "60A", "group": 60, "stem": "Tamoxifen (Nolvadex) → Class to avoid for hot flashes:", "options": [{"letter": "A", "text": "SNRIs"}, {"letter": "B", "text": "Neurokinin antagonists"}, {"letter": "C", "text": "Gabapentinoids"}, {"letter": "D", "text": "α-2 agonists"}, {"letter": "E", "text": "SSRIs"}], "answer": "E", "explanation": "SSRIs (esp. paroxetine (Paxil)) ↓ tamoxifen activation via CYP2D6.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "61", "group": 61, "stem": "Hot flashes worst at night, estrogen contraindicated → Drug:", "options": [{"letter": "A", "text": "Ospemifene (Osphena)"}, {"letter": "B", "text": "Raloxifene (Evista)"}, {"letter": "C", "text": "Gabapentin (Neurontin) at bedtime"}, {"letter": "D", "text": "Estradiol patch (Climara)"}, {"letter": "E", "text": "Paroxetine (Paxil) in the morning"}], "answer": "C", "explanation": "Nighttime-predominant → gabapentin (Neurontin) QHS (or clonidine (Catapres) QHS).", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "61A", "group": 61, "stem": "Gabapentin (Neurontin) → Dose-related adverse effect:", "options": [{"letter": "A", "text": "Sedation and dizziness"}, {"letter": "B", "text": "Hepatotoxicity"}, {"letter": "C", "text": "Dry cough"}, {"letter": "D", "text": "Endometrial hyperplasia"}, {"letter": "E", "text": "Hyperkalemia"}], "answer": "A", "explanation": "That's why it's dosed at bedtime.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "62", "group": 62, "stem": "Postmenopausal, vaginal dryness, dyspareunia, pale friable mucosa, lubricants failed → Treatment:", "options": [{"letter": "A", "text": "Oral metronidazole (Flagyl)"}, {"letter": "B", "text": "Oral fluconazole (Diflucan)"}, {"letter": "C", "text": "Topical clindamycin (Cleocin)"}, {"letter": "D", "text": "Oral estrogen + progestin (Prempro)"}, {"letter": "E", "text": "Low-dose vaginal estrogen (Estrace cream)"}], "answer": "E", "explanation": "GSM: OTC lubricants/moisturizers (Replens) → vaginal estrogen (Premarin/Estrace cream, Vagifem tablet, Estring ring) → oral SERM.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "62A", "group": 62, "stem": "Genitourinary syndrome of menopause → Oral nonestrogen option for dyspareunia:", "options": [{"letter": "A", "text": "Bazedoxifene (with Premarin = Duavee)"}, {"letter": "B", "text": "Raloxifene (Evista)"}, {"letter": "C", "text": "Anastrozole (Arimidex)"}, {"letter": "D", "text": "Tamoxifen (Nolvadex)"}, {"letter": "E", "text": "Ospemifene (Osphena)"}], "answer": "E", "explanation": "Ospemifene (Osphena): SERM with vaginal estrogen-agonist effect.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "63", "group": 63, "stem": "History of HR+ breast cancer, severe hot flashes → Systemic hormone therapy status:", "options": [{"letter": "A", "text": "Safe if transdermal"}, {"letter": "B", "text": "Relative contraindication"}, {"letter": "C", "text": "Required for bone protection"}, {"letter": "D", "text": "Safe if combined with a progestin"}, {"letter": "E", "text": "First-line therapy"}], "answer": "B", "explanation": "2026: systemic MHT remains a relative CI in HR+ breast cancer → nonhormonal (venlafaxine (Effexor XR) if on tamoxifen).", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}, {"id": "63A", "group": 63, "stem": "HR+ breast cancer history, vaginal dryness despite lubricants and moisturizers → Option:", "options": [{"letter": "A", "text": "Estrogen + progestin (Prempro)"}, {"letter": "B", "text": "Estradiol patch (Climara)"}, {"letter": "C", "text": "Conjugated estrogens + bazedoxifene (Duavee)"}, {"letter": "D", "text": "Low-dose vaginal estrogen (Vagifem)"}, {"letter": "E", "text": "Oral conjugated estrogens (Premarin)"}], "answer": "D", "explanation": "2026 update: low-dose vaginal estrogen is OK for GU symptoms once non-hormonal options fail.", "objective": "Combined Pattern Guide — Section 6: Menopause", "section": "Menopause"}]};
+
+(function () {
+  function sh(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+  const L = 'ABCDEFGHIJ', groups = {}, order = [];
+  EXAM_DATA.questions.forEach(q => { if (!groups[q.group]) { groups[q.group] = []; order.push(q.group); } groups[q.group].push(q); });
+  const out = [];
+  sh(order).forEach((g, gi) => {
+    groups[g].forEach((q, k) => {
+      const correctText = q.options.find(o => o.letter === q.answer).text;
+      const opts = sh(q.options.map(o => o.text));
+      q.options = opts.map((t, i) => ({ letter: L[i], text: t }));
+      q.answer = L[opts.indexOf(correctText)];
+      q.group = gi + 1;
+      q.id = String(gi + 1) + (k === 0 ? '' : L[k - 1]);
+      out.push(q);
+    });
+  });
+  EXAM_DATA.questions = out;
+})();
+
+
+(function () {
+  const questions = EXAM_DATA.questions;
+  const byId = {};
+  questions.forEach(q => { byId[q.id] = q; });
+
+  // Build ordered groups (page = one group: parent + follow-ups)
+  const groupOrder = [];
+  const groupMap = {};
+  questions.forEach(q => {
+    if (!groupMap[q.group]) { groupMap[q.group] = []; groupOrder.push(q.group); }
+    groupMap[q.group].push(q);
+  });
+  const groups = groupOrder.map(g => groupMap[g]);
+
+  // In-memory state only (no localStorage — not supported in this environment)
+  const answers = {};        // question id -> chosen letter
+  const flagged = {};        // question id -> true, set by the learner at any point (never affects score)
+  let mode = 'exam';         // 'exam' | 'results' | 'review' | 'missed'
+  let pageList = groups.map((_, i) => i);  // indices into groups for current mode
+  let page = 0;
+  let lastGrade = null;      // {correct, graded, total, partial, sections}
+
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  document.title = EXAM_DATA.title || 'Interactive Exam';
+  $('exam-title').textContent = EXAM_DATA.title || 'Interactive Exam';
+
+  function answeredCount() { return Object.keys(answers).length; }
+
+  function renderProgress() {
+    const done = answeredCount();
+    $('progress-meta').textContent =
+      mode === 'exam'
+        ? 'Page ' + (page + 1) + ' of ' + pageList.length + ' · ' + done + '/' + questions.length + ' answered'
+        : (mode === 'review' ? 'Reviewing · page ' + (page + 1) + ' of ' + pageList.length : '');
+    $('progress-fill').style.width = (questions.length ? (done / questions.length) * 100 : 0) + '%';
+  }
+
+  function feedbackHtml(q, chosen) {
+    const good = chosen === q.answer;
+    const correctOpt = q.options.find(o => o.letter === q.answer);
+    let html = '<div class="feedback ' + (good ? 'good' : 'bad') + '">';
+    html += '<div class="verdict">' + (good ? '✓ Correct' : '✗ Incorrect — correct answer: ' +
+      esc(q.answer) + (correctOpt ? '. ' + esc(correctOpt.text) : '')) + '</div>';
+    if (q.explanation) html += '<div>' + esc(q.explanation) + '</div>';
+    if (q.objective) html += '<div class="obj">' + esc(q.objective) + '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  // Lab values as a table. q.labs is [{test, result, range}]. If the stem contains
+  // the marker [[LABS]] the table goes there (so the vignette can continue after
+  // the labs); otherwise it follows the stem.
+  function labsHtml(q) {
+    if (!q.labs || !q.labs.length) return '';
+    const hasRange = q.labs.some(l => l.range);
+    let html = '<table class="labs"><thead><tr><th>Test</th><th>Result</th>' +
+      (hasRange ? '<th>Reference Range</th>' : '') + '</tr></thead><tbody>';
+    q.labs.forEach(l => {
+      html += '<tr><td>' + esc(l.test) + '</td><td class="res">' + esc(l.result) + '</td>' +
+        (hasRange ? '<td class="ref">' + (l.range ? '(' + esc(String(l.range).replace(/^\(|\)$/g, '')) + ')' : '') + '</td>' : '') + '</tr>';
+    });
+    return html + '</tbody></table>';
+  }
+
+  function stemHtml(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    const table = labsHtml(q);
+    if (table && stem.indexOf('[[LABS]]') !== -1) {
+      const parts = stem.split('[[LABS]]');
+      return '<div class="stem">' + esc(parts[0].replace(/\s+$/, '')) + '</div>' + table +
+        (parts[1] && parts[1].trim() ? '<div class="stem">' + esc(parts[1].replace(/^\s+/, '')) + '</div>' : '');
+    }
+    return '<div class="stem">' + esc(stem.replace('[[LABS]]', '')) + '</div>' + table;
+  }
+
+  function questionHtml(q) {
+    const chosen = answers[q.id];
+    const answered = chosen !== undefined;
+    let html = '<div class="qcard" data-qid="' + esc(q.id) + '">';
+    html += '<span class="qnum">Question ' + esc(q.id) + '</span>';
+    html += stemHtml(q);
+    if (q.image) html += '<img class="qimg" src="' + q.image + '" alt="Question exhibit">';
+    q.options.forEach(o => {
+      let cls = 'opt';
+      if (answered) {
+        if (o.letter === q.answer) cls += ' correct';
+        else if (o.letter === chosen) cls += ' incorrect';
+        else cls += ' dim';
+      }
+      html += '<button class="' + cls + '" data-letter="' + esc(o.letter) + '"' + (answered ? ' disabled' : '') + '>' +
+        '<span class="letter">' + esc(o.letter) + '.</span><span>' + esc(o.text) + '</span></button>';
+    });
+    if (answered) html += feedbackHtml(q, chosen);
+    html += flagHtml(q);
+    html += '</div>';
+    return html;
+  }
+
+  // Flagging: available on every question in every mode, right or wrong, answered or
+  // not. A flagged question joins the missed list and the copy-out, so a question that
+  // was guessed correctly (or not understood) can still be carried into the next round
+  // of study. Flagging never changes the score — it is a bookmark, not a second answer.
+  function flagHtml(q) {
+    const on = !!flagged[q.id];
+    return '<div class="flagrow"><button class="flagbtn' + (on ? ' on' : '') + '" data-flag="' +
+      esc(q.id) + '">⚑ ' + (on ? 'Flagged' : 'Flag for review') + '</button></div>';
+  }
+
+  function bindFlags() {
+    $('main').querySelectorAll('[data-flag]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-flag');
+        if (flagged[id]) delete flagged[id]; else flagged[id] = true;
+        if (mode === 'missed') {                 // toggle in place; the list is rebuilt on re-entry
+          btn.classList.toggle('on', !!flagged[id]);
+          btn.textContent = '⚑ ' + (flagged[id] ? 'Flagged' : 'Flag for review');
+          return;
+        }
+        renderPage(true);
+      });
+    });
+  }
+
+  function renderPage(preserveScroll) {
+    const savedY = window.scrollY;
+    const group = groups[pageList[page]];
+
+    // Progressive reveal: during the exam a follow-up appears only once the
+    // question before it has been answered. A stack releases information in
+    // order — showing 1B's options while 1 is unanswered gives away 1.
+    // Review and results modes show the whole stack at once.
+    let shown = group.length;
+    if (mode === 'exam') {
+      shown = 1;
+      while (shown < group.length && answers[group[shown - 1].id] !== undefined) shown++;
+    }
+    const visible = group.slice(0, shown);
+
+    // Tiered sizing: more questions on the page -> tighter text, less scrolling
+    const tier = visible.length >= 4 ? ' c4' : (visible.length === 3 ? ' c3' : (visible.length === 2 ? ' c2' : ''));
+    let html = '<div class="group' + tier + '">';
+    html += questionHtml(visible[0]);
+    if (visible.length > 1) {
+      html += '<div class="followups">';
+      for (let i = 1; i < visible.length; i++) html += questionHtml(visible[i]);
+      html += '</div>';
+    }
+    if (mode === 'exam' && shown < group.length) {
+      const left = group.length - shown;
+      html += '<div class="pending">' + left + ' more question' + (left === 1 ? '' : 's') +
+        ' in this case — answer above to continue</div>';
+    }
+    html += '</div>';
+    $('main').innerHTML = html;
+
+    // Wire option clicks
+    $('main').querySelectorAll('.qcard').forEach(card => {
+      const qid = card.getAttribute('data-qid');
+      card.querySelectorAll('.opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (mode !== 'exam' || answers[qid] !== undefined) return;
+          answers[qid] = btn.getAttribute('data-letter');
+          renderPage(true); // keep scroll position so the user stays at the question they just answered
+        });
+      });
+    });
+    bindFlags();
+
+    renderProgress();
+    renderNav();
+    if (preserveScroll) window.scrollTo(0, savedY);
+    else window.scrollTo(0, 0);
+  }
+
+  function renderNav() {
+    const last = page >= pageList.length - 1;
+    $('btn-back').disabled = page === 0;
+    $('btn-next').textContent = mode === 'review' && last ? 'Back to results' : 'Next →';
+    $('btn-next').disabled = mode === 'exam' && last;
+    $('btn-grade').classList.toggle('hidden', mode !== 'exam');
+    $('btn-submit').classList.toggle('hidden', mode !== 'exam' || !last);
+    $('btn-grade').disabled = answeredCount() === 0;
+  }
+
+  function computeGrade(partial) {
+    const graded = partial ? questions.filter(q => answers[q.id] !== undefined) : questions;
+    let correct = 0;
+    const sections = {};
+    graded.forEach(q => {
+      const sec = q.section || 'All questions';
+      if (!sections[sec]) sections[sec] = { correct: 0, total: 0 };
+      sections[sec].total++;
+      if (answers[q.id] === q.answer) { correct++; sections[sec].correct++; }
+    });
+    return { correct, graded: graded.length, total: questions.length, partial, sections };
+  }
+
+  function missedQuestions() {                 // answered wrong, or flagged by the learner
+    return questions.filter(q => flagged[q.id] ||
+      (answers[q.id] !== undefined && answers[q.id] !== q.answer));
+  }
+
+  function showResults(partial) {
+    lastGrade = computeGrade(partial);
+    mode = 'results';
+    const r = lastGrade;
+    const pct = r.graded ? Math.round((r.correct / r.graded) * 1000) / 10 : 0;
+
+    const secEntries = Object.keys(r.sections).map(name => ({
+      name,
+      pct: r.sections[name].total ? r.sections[name].correct / r.sections[name].total : 0,
+      correct: r.sections[name].correct,
+      total: r.sections[name].total
+    })).sort((a, b) => b.pct - a.pct);
+
+    let best = null, worst = null;
+    if (secEntries.length > 1) {
+      best = secEntries[0].name;
+      worst = secEntries[secEntries.length - 1].name;
+      if (secEntries[0].pct === secEntries[secEntries.length - 1].pct) { best = null; worst = null; }
+    }
+
+    let html = '<div class="results-card">';
+    html += '<div class="score-sub">' + (r.partial ? 'Score so far' : 'Final score') + '</div>';
+    html += '<div class="score-big">' + pct + '%</div>';
+    html += '<div class="score-sub">' + r.correct + ' correct out of ' + r.graded + ' question' + (r.graded === 1 ? '' : 's') +
+      (r.partial ? ' completed (of ' + r.total + ' total)' : '') + '</div>';
+    if (r.partial) html += '<div class="score-note">Graded from your current place — unanswered questions are not counted.</div>';
+    html += '</div>';
+
+    html += '<div class="sections-card"><h2>Performance by section</h2>';
+    secEntries.forEach(s => {
+      const p = Math.round(s.pct * 100);
+      let tag = '';
+      if (s.name === best) tag = '<span class="sec-tag strong">STRONGEST</span>';
+      if (s.name === worst) tag = '<span class="sec-tag weak">WEAKEST</span>';
+      const fillCls = s.name === best ? 'hi' : (s.name === worst ? 'lo' : '');
+      html += '<div class="sec-row"><div class="sec-head"><span class="sec-name">' + esc(s.name) + tag +
+        '</span><span>' + s.correct + '/' + s.total + ' (' + p + '%)</span></div>' +
+        '<div class="sec-track"><div class="sec-fill ' + fillCls + '" style="width:' + p + '%"></div></div></div>';
+    });
+    html += '</div>';
+
+    const missed = missedQuestions().length;
+    html += '<div class="results-actions">';
+    if (missed) html += '<button class="btn primary" id="btn-review-missed">Review missed &amp; flagged (' + missed + ')</button>';
+    html += '<button class="btn ghost" id="btn-review-all">Review all answered</button>';
+    if (r.partial && r.graded < r.total) html += '<button class="btn submit" id="btn-continue">Continue exam</button>';
+    html += '<button class="btn ghost" id="btn-restart">Restart exam</button>';
+    html += '</div>';
+
+    $('main').innerHTML = html;
+    $('banner').classList.add('hidden');
+    $('navbar').classList.add('hidden');
+    $('progress-meta').textContent = r.partial ? 'Partial grade' : 'Exam complete';
+
+    const rm = $('btn-review-missed');
+    if (rm) rm.addEventListener('click', showMissedReview);
+    $('btn-review-all').addEventListener('click', startReviewAll);
+    const cont = $('btn-continue');
+    if (cont) cont.addEventListener('click', resumeExam);
+    $('btn-restart').addEventListener('click', restart);
+    window.scrollTo(0, 0);
+  }
+
+  function startReviewAll() {
+    const answeredGroupIdx = [];
+    groups.forEach((g, i) => { if (g.some(q => answers[q.id] !== undefined)) answeredGroupIdx.push(i); });
+    pageList = answeredGroupIdx;
+    if (!pageList.length) return;
+    mode = 'review';
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').textContent = 'Reviewing your answers';
+    $('banner').classList.remove('hidden');
+    renderPage();
+  }
+
+  // All missed questions on ONE page, with a copy button for pasting into a
+  // "things I miss" tracking document.
+  function showMissedReview() {
+    const missed = missedQuestions();
+    if (!missed.length) return;
+    mode = 'missed';
+    const missedIds = {};
+    missed.forEach(q => { missedIds[q.id] = true; });
+
+    let html = '<div class="review-actions">' +
+      '<button class="btn primary" id="btn-copy-missed">Copy missed &amp; flagged</button>' +
+      '<button class="btn ghost" id="btn-missed-back">&larr; Back to results</button></div>';
+
+    groups.forEach(g => {
+      const misses = g.filter(q => missedIds[q.id]);
+      if (!misses.length) return;
+      html += '<div class="group">';
+      // If a follow-up was missed but its parent (which carries the vignette) was not,
+      // show the parent stem as context so the follow-up makes sense on its own.
+      if (!missedIds[g[0].id]) {
+        html += '<div class="qcard context"><span class="qnum">Case — Question ' + esc(g[0].id) + '</span>' +
+          stemHtml(g[0]) + '</div>';
+      }
+      misses.forEach(q => { html += questionHtml(q); });
+      html += '</div>';
+    });
+
+    $('main').innerHTML = html;
+    $('navbar').classList.add('hidden');
+    $('banner').textContent = 'Missed & flagged (' + missed.length + ')';
+    $('banner').classList.remove('hidden');
+    $('progress-meta').textContent = 'Reviewing ' + missed.length + ' missed or flagged question' + (missed.length === 1 ? '' : 's');
+    bindFlags();
+
+    $('btn-missed-back').addEventListener('click', () => showResults(lastGrade ? lastGrade.partial : true));
+    $('btn-copy-missed').addEventListener('click', copyMissed);
+    window.scrollTo(0, 0);
+  }
+
+  // Plain-text stem with the lab table flattened to one line per lab
+  function stemText(q) {
+    const stem = String(q.stem == null ? '' : q.stem);
+    if (!q.labs || !q.labs.length) return stem.replace('[[LABS]]', '').trim();
+    const rows = q.labs.map(l => '  ' + l.test + ': ' + l.result + (l.range ? ' (ref ' + String(l.range).replace(/^\(|\)$/g, '') + ')' : '')).join('\n');
+    const i = stem.indexOf('[[LABS]]');
+    const before = i === -1 ? stem : stem.slice(0, i);
+    const hasHeader = /\b(labs|laboratory (studies|results|values))\s*:?\s*$/i.test(before);   // stem already says "Labs:"
+    const block = (hasHeader ? '' : 'Labs:\n') + rows;
+    return (i !== -1 ? before.replace(/\s+$/, '') + '\n' + block + '\n' + stem.slice(i + 8).replace(/^\s+/, '') : stem + '\n' + block).trim();
+  }
+
+  function missedAsText() {
+    const missed = missedQuestions();
+    const blocks = missed.map(q => {
+      const group = groupMap[q.group];
+      const lines = ['Question ' + q.id];
+      if (group[0].id !== q.id) lines.push('Case: ' + stemText(group[0]));
+      lines.push(stemText(q));
+      q.options.forEach(o => lines.push(o.letter + '. ' + o.text));
+      if (flagged[q.id]) lines.push(answers[q.id] === q.answer
+        ? 'FLAGGED by me — answered correctly but not understood' : 'FLAGGED by me');
+      lines.push(answers[q.id] === undefined ? 'Not answered' : 'My answer: ' + answers[q.id]);
+      const correctOpt = q.options.find(o => o.letter === q.answer);
+      lines.push('Correct answer: ' + q.answer + (correctOpt ? '. ' + correctOpt.text : ''));
+      if (q.explanation) lines.push('Rationale: ' + q.explanation);
+      if (q.objective) lines.push('Objective: ' + q.objective);
+      return lines.join('\n');
+    });
+    return ((EXAM_DATA.title || 'Exam') + ' — missed & flagged questions\n\n') + blocks.join('\n\n----------------\n\n');
+  }
+
+  function copyMissed() {
+    const text = missedAsText();
+    const btn = $('btn-copy-missed');
+    const done = ok => {
+      btn.textContent = ok ? '✓ Copied!' : 'Copy failed — select & copy manually';
+      setTimeout(() => { btn.textContent = 'Copy missed & flagged'; }, 2500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => done(true), () => fallbackCopy(text, done));
+    } else {
+      fallbackCopy(text, done);
+    }
+  }
+
+  function fallbackCopy(text, done) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.select();
+    let ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    done(ok);
+  }
+
+  function resumeExam() {
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    // Jump to first page with an unanswered question
+    let target = pageList.length - 1;
+    for (let i = 0; i < groups.length; i++) {
+      if (groups[i].some(q => answers[q.id] === undefined)) { target = i; break; }
+    }
+    page = target;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  function restart() {
+    Object.keys(answers).forEach(k => delete answers[k]);
+    Object.keys(flagged).forEach(k => delete flagged[k]);
+    lastGrade = null;
+    mode = 'exam';
+    pageList = groups.map((_, i) => i);
+    page = 0;
+    $('navbar').classList.remove('hidden');
+    $('banner').classList.add('hidden');
+    renderPage();
+  }
+
+  $('btn-back').addEventListener('click', () => { if (page > 0) { page--; renderPage(); } });
+  $('btn-next').addEventListener('click', () => {
+    if (page < pageList.length - 1) { page++; renderPage(); }
+    else if (mode === 'review') showResults(lastGrade ? lastGrade.partial : true);
+  });
+  $('btn-grade').addEventListener('click', () => showResults(true));
+  $('btn-submit').addEventListener('click', () => showResults(false));
+
+  renderPage();
+})();
+</script>
+</body>
+</html>
